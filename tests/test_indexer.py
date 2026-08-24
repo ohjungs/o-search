@@ -3,7 +3,8 @@ import sqlite3
 import tempfile
 import unittest
 
-from websearch.indexer import index_pages
+from websearch import indexer
+from websearch.indexer import index_pages, search
 from websearch.store import Store
 
 
@@ -61,3 +62,86 @@ class TestIndexPages(unittest.TestCase):
     def test_missing_db_raises(self):
         with self.assertRaises(FileNotFoundError):
             index_pages(os.path.join(self.dir.name, "없는.db"))
+
+
+class TestSearch(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.dir.cleanup)
+        self.db_path = os.path.join(self.dir.name, "crawl.db")
+
+    def _seed_and_index(self, rows):
+        store = Store(self.db_path)
+        for url, html in rows:
+            store.upsert(url, html, 200)
+        index_pages(self.db_path)
+
+    def test_korean_two_char_query_matches_inflected_word(self):
+        # 설계에서 unicode61 + prefix 를 고른 이유가 이것이다 (trigram 은 여기서 실패했다)
+        self._seed_and_index([("http://a.test/", "<title>요리</title><p>어제 김치를 담갔다</p>")])
+        hits = search(self.db_path, "김치")
+        self.assertEqual([h[0] for h in hits], ["http://a.test/"])
+
+    def test_result_shape_is_url_title_snippet(self):
+        self._seed_and_index([("http://a.test/", "<title>요리</title><p>김치찌개 만드는 법</p>")])
+        url, title, snippet = search(self.db_path, "김치")[0]
+        self.assertEqual(url, "http://a.test/")
+        self.assertEqual(title, "요리")
+        self.assertIn("김치찌개", snippet)
+
+    def test_english_is_case_insensitive(self):
+        self._seed_and_index([("http://a.test/", "<title>Guide</title><p>Python Tutorial</p>")])
+        self.assertEqual(len(search(self.db_path, "python")), 1)
+
+    def test_no_match_returns_empty_list(self):
+        self._seed_and_index([("http://a.test/", "<p>김치</p>")])
+        self.assertEqual(search(self.db_path, "우주선"), [])
+
+    def test_limit_is_respected(self):
+        self._seed_and_index([
+            ("http://%d.test/" % i, "<p>김치 문서 %d</p>" % i) for i in range(5)
+        ])
+        self.assertEqual(len(search(self.db_path, "김치", limit=2)), 2)
+
+    def test_all_terms_required(self):
+        self._seed_and_index([
+            ("http://a.test/", "<p>김치 담그기</p>"),
+            ("http://b.test/", "<p>김치 볶음밥</p>"),
+        ])
+        hits = search(self.db_path, "김치 볶음")
+        self.assertEqual([h[0] for h in hits], ["http://b.test/"])
+
+    def test_fts5_syntax_chars_do_not_raise(self):
+        self._seed_and_index([("http://a.test/", "<p>김치 담그기</p>")])
+        for query in ['NEAR(a b)', '"', 'foo(bar', 'a OR b', '김치* AND', '-김치', '']:
+            self.assertIsInstance(search(self.db_path, query), list)
+
+    def test_search_on_unindexed_db_returns_empty(self):
+        Store(self.db_path).upsert("http://a.test/", "<p>김치</p>", 200)
+        self.assertEqual(search(self.db_path, "김치"), [])
+
+    def test_missing_db_raises(self):
+        with self.assertRaises(FileNotFoundError):
+            search(os.path.join(self.dir.name, "없는.db"), "김치")
+
+
+class TestCli(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.dir.cleanup)
+        self.db_path = os.path.join(self.dir.name, "crawl.db")
+
+    def test_no_args_is_usage_error(self):
+        self.assertEqual(indexer.main(["prog"]), 2)
+
+    def test_missing_db_is_error_not_traceback(self):
+        self.assertEqual(indexer.main(["prog", os.path.join(self.dir.name, "없는.db")]), 2)
+
+    def test_query_without_value_is_error(self):
+        Store(self.db_path).upsert("http://a.test/", "<p>김치</p>", 200)
+        self.assertEqual(indexer.main(["prog", self.db_path, "--query"]), 2)
+
+    def test_index_then_query(self):
+        Store(self.db_path).upsert("http://a.test/", "<title>요리</title><p>김치</p>", 200)
+        self.assertEqual(indexer.main(["prog", self.db_path]), 0)
+        self.assertEqual(indexer.main(["prog", self.db_path, "--query", "김치"]), 0)

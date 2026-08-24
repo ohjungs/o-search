@@ -106,3 +106,8 @@ append 전용. 수정·삭제 금지.
 - 한 일: tests/test_indexer.py 6케이스 먼저 작성·실패 확인 → src/websearch/indexer.py 의 index_pages(db_path) 구현. 설계대로 unicode61+prefix='2 3' 단독 FTS5 docs 테이블, 증분은 url NOT IN (SELECT url FROM docs), html NULL 행 스킵, 없는 DB 는 FileNotFoundError
 - 결과: 전체 48/48 통과 0.016s. FTS5 가용 확인(SQLite 3.51). 새 의존성 0
 - 다음: 개발 3/4 질의 함수 search() + CLI
+
+## 2026-08-25 야간16 | indexer | 개발 3/4 | 시도1
+- 한 일: 테스트 13건 먼저 작성·실패 확인 → search(db_path, query, limit=10) + CLI main() 구현. 질의 재작성은 어절마다 "어절"* (큰따옴표로 FTS5 문법 문자 무력화 — 주입 방지), bm25 정렬, snippet(docs,1,...). 색인 전 DB 는 sqlite_master 확인 후 빈 목록
+- 결과: 전체 61/61 통과 0.030s. CLI 실모듈 스모크 — 2문서 색인 → 재실행 0문서(증분) → "김치"(2글자·조사 붙은 어절) 매치 → "python tutorial" 대소문자 무시 매치
+- 다음: 테스트 phase (빠뜨린 것 탐색)
