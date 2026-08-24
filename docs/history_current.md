@@ -91,3 +91,8 @@ append 전용. 수정·삭제 금지.
 - 한 일: 토크나이저 탐침 — trigram 2글자 질의 불가(실측), unicode61+prefix+질의 재작성 채택. 단독 FTS5·같은 DB. design_indexer.md
 - 결과: 컨셉 메모(trigram)와 다른 결정 — 근거 실측 기록. quality-eval 80% 미달 시 재론 조건 명시
 - 다음: 개발 1/4 extract
+
+## 2026-08-25 야간13 | indexer | 개발 1/4 | 시도1 (미완)
+- 한 일: tests/test_extract.py 5케이스 작성(제목·본문/script 제외/공백 정규화/title 없음/깨진 HTML), 실패 확인
+- 결과: 38 중 1 에러(extract 모듈 없음) — TDD 2단계까지. 구현 미착수
+- 다음: extract.py 구현부터. 컨텍스트 상한으로 세션 종료
