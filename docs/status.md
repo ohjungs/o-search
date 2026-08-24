@@ -3,10 +3,10 @@ signal: GREEN
 mode: night
 plan: crawler-core
 phase: 개발
-step: 2/7
+step: 3/7
 attempt: 0
-iteration: 4
-night_iterations: 2
+iteration: 5
+night_iterations: 3
 night_red: 0
 night_retries: 0
 night_self_amendments: 0

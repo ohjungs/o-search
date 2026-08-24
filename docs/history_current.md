@@ -41,3 +41,8 @@ append 전용. 수정·삭제 금지.
 - 한 일: robots.py(RobotsCache) + test_robots.py 5케이스 — 허용/차단/404허용/5xx차단/도메인당 1회 캐시
 - 결과: 실패 확인 후 구현, 전체 6/6 통과. 실네트워크 없음(_fetch_robots 주입)
 - 다음: 개발 3/7 fetcher
+
+## 2026-08-25 야간3 | crawler-core | 개발 3/7 | 시도1
+- 한 일: fetcher.py(fetch→FetchResult) + test_fetcher.py 5케이스 — 성공/비HTML/4xx/타임아웃 3회 포기/재시도 성공
+- 결과: 실패 확인 후 구현, 전체 11/11 통과. HTTPError 는 확정 응답이라 재시도 안 함
+- 다음: 개발 4/7 store
