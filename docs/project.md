@@ -11,6 +11,7 @@
 - **e2e**: `PYTHONPATH=src python3 e2e/crawl_e2e.py` (2026-08-25 실행 확인, 14.7s — 간격 정책상 정상)
 - **e2e**: `PYTHONPATH=src python3 e2e/indexer_e2e.py` (2026-08-25 실행 확인, 약 4s)
 - **e2e**: `PYTHONPATH=src python3 e2e/noindex_e2e.py` (2026-08-25 실행 확인, 3.7s)
+- **e2e**: `PYTHONPATH=src python3 e2e/search_api_e2e.py` (2026-08-25 실행 확인, 15.0s)
 - **성능 측정**: `PYTHONPATH=src python3 e2e/perf_search.py [문서수] [반복]`
   (2026-08-25 실행 확인, 2.1s — 기본 3000문서 × 5질의 × 200회)
 
