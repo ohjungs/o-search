@@ -116,3 +116,8 @@ append 전용. 수정·삭제 금지.
 - 한 일: rules/test.md 3절 6카테고리로 갭 탐색 — 탐침 스크립트로 제목만 매치 / bm25 정렬 / 재크롤 갱신 / pages 없는 DB / 빈 pages 를 실측. 8점 2건(title 검색 가능, bm25 관련도순)을 테스트로 못박음. 단언이 실제로 잡는지 확인: ORDER BY bm25 를 DESC 로 뒤집으니 FAILED, 되돌리니 OK
 - 결과: 전체 63/63 통과 0.034s (PYTHONPATH=src python3 -m unittest discover tests — 전체). 보류 2건 digest 로: [8] 증분이 갱신 미반영(스키마 변경 필요 → 무인 모드 보류, recrawl 소관), [6] indexer.main 이 pages 없는 DB 에 트레이스백
 - 다음: 리뷰 phase
+
+## 2026-08-25 야간18 | indexer | 리뷰 | 시도1
+- 한 일: 백지 패스(별도 컨텍스트, 실측 재현 강제) 7건 전부 80점 이상. 재현 테스트 6건 먼저 작성·실패 확인 후 수정 — ① 인라인 태그 경계가 단어를 쪼갬(Kim<b>chi</b>→"Kim chi", 검색 실패) ② <title> 안 태그가 제목을 자르고 본문 오염 ③ 크롤 콘텐츠의 ANSI/NUL 제어문자가 터미널까지 유출(결과 위조 가능) ④ NUL 이 FTS5 문자열 조기 종료 ⑤ 검색 0건 침묵+exit 0 ⑥ snippet 이 body 열 고정이라 제목 매치 시 질의어 없는 스니펫. ①②는 _INLINE_TAGS 집합 하나로 동시 해결, ③④는 _CONTROL 번역표 하나로 동시 해결
+- 결과: 전체 71/71 통과 0.037s. ANSI 유출 od -c 로 재확인 — ESC 사라짐. 보류 1건: [85] 색인이 meta noindex 를 무시(크롤 윤리 축, 계획·설계 어디에도 없는 미판단 항목) → digest 다음 계획 후보. 리뷰가 재발 1건 지적: CLI 트레이스백이 crawl.main 에 이어 indexer.main 에서 2회째 → digest 반복 실패에 기록
+- 다음: e2e phase (계획 스텝 4)

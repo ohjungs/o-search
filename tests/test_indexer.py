@@ -1,3 +1,5 @@
+import contextlib
+import io
 import os
 import sqlite3
 import tempfile
@@ -133,6 +135,20 @@ class TestSearch(unittest.TestCase):
         for query in ['NEAR(a b)', '"', 'foo(bar', 'a OR b', '김치* AND', '-김치', '']:
             self.assertIsInstance(search(self.db_path, query), list)
 
+    def test_null_byte_in_query_does_not_raise(self):
+        # 리뷰 발견: NUL 이 FTS5 문자열을 조기 종료시켜 OperationalError 가 새어나왔다.
+        # 오늘은 argv 로 도달 불가지만 search() 는 공개 API 다 (search-api 계획에서 HTTP 로 들어온다)
+        self._seed_and_index([("http://a.test/", "<p>김치</p>")])
+        self.assertEqual([h[0] for h in search(self.db_path, "김치\x00")], ["http://a.test/"])
+        self.assertEqual(search(self.db_path, "\x00"), [])
+
+    def test_snippet_comes_from_matching_column(self):
+        # 리뷰 발견: body 열 고정이라 제목만 매치되면 질의어가 없는 스니펫이 나왔다
+        self._seed_and_index([
+            ("http://a.test/", "<title>김치 담그는 법</title><p>봄에는 나물이 좋다</p>"),
+        ])
+        self.assertIn("김치", search(self.db_path, "김치")[0][2])
+
     def test_search_on_unindexed_db_returns_empty(self):
         Store(self.db_path).upsert("http://a.test/", "<p>김치</p>", 200)
         self.assertEqual(search(self.db_path, "김치"), [])
@@ -157,6 +173,15 @@ class TestCli(unittest.TestCase):
     def test_query_without_value_is_error(self):
         Store(self.db_path).upsert("http://a.test/", "<p>김치</p>", 200)
         self.assertEqual(indexer.main(["prog", self.db_path, "--query"]), 2)
+
+    def test_no_hits_says_so(self):
+        # 리뷰 발견: 침묵 + exit 0 이면 "결과 없음" 과 "명령이 깨짐" 을 구분할 수 없다
+        Store(self.db_path).upsert("http://a.test/", "<p>김치</p>", 200)
+        indexer.main(["prog", self.db_path])
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            self.assertEqual(indexer.main(["prog", self.db_path, "--query", "우주선"]), 0)
+        self.assertNotEqual(buf.getvalue().strip(), "")
 
     def test_index_then_query(self):
         Store(self.db_path).upsert("http://a.test/", "<title>요리</title><p>김치</p>", 200)

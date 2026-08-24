@@ -24,6 +24,7 @@ history_current.md 가 상한을 넘어 밀려날 때, 밀려나는 내용을 1~
 ## 반복 실패
 
 <!-- 같은 원인으로 2회 이상 막힌 것. 근본 원인이 안 고쳐졌다는 뜻이다. -->
+- **CLI 가 예상 못 한 입력에 트레이스백을 낸다** — 2회. crawler-core 리뷰(bc98bc8)에서 crawl.main 을 고쳤는데 indexer.main 에서 같은 부류가 다시 나왔다(pages 없는 DB). 근본 원인은 "CLI 진입점마다 방어를 따로 쓴다" — 다음에 CLI 를 또 만들면 세 번째다
 
 ## 다음 계획 후보
 
@@ -39,6 +40,7 @@ history_current.md 가 상한을 넘어 밀려날 때, 밀려나는 내용을 1~
 - [4] crawl.main CLI 인자 파싱 무테스트
 - [6] indexer.main 이 pages 테이블 없는 DB 를 받으면 sqlite3.OperationalError 트레이스백. FileNotFoundError 만 잡고 있다 (crawl.main CLI 방어와 같은 부류)
 - [높음·설계 범위 밖 메모] robots crawl-delay 존중 — 윤리 축이라 우선순위 높음
+- [85·높음] **색인이 `<meta name="robots" content="noindex">` 를 무시한다** (2026-08-25 리뷰, 실측: noindex 선언 페이지가 그대로 색인돼 결과 1위). 저장소에 noindex/X-Robots-Tag 문자열이 아예 없다. 컨셉 갈림길 **1순위가 크롤 윤리**이고 공개 검색엔진에서 noindex 무시는 robots.txt 무시와 같은 축. 계획서 "하지 않을 것" 에도 설계 "범위 밖" 에도 없는 미판단 항목 — crawl-delay 건과 묶어 한 계획으로
 
 ## 판단 필요 (리뷰 보류 — 승인 필요 판정)
 - [medium] frontier: robots 차단·기수집 URL 이 팝 시점에 도메인 쿨다운을 소모 — 공회전. 수정은 프런티어 계약 변경(팝/기록 분리 또는 add 시점 필터)이라 설계 결정

@@ -36,7 +36,9 @@ def index_pages(db_path):
 
 def _fts_query(query):
     """어절마다 접두 매치로 재작성한다. 큰따옴표로 감싸 FTS5 문법 문자를 무력화한다."""
-    return " ".join('"%s"*' % term.replace('"', '""') for term in query.split())
+    # 제어문자는 먼저 지운다 — NUL 은 큰따옴표 이스케이프를 통과해 FTS5 문자열을 조기 종료시킨다
+    terms = query.translate(extract._CONTROL).split()
+    return " ".join('"%s"*' % term.replace('"', '""') for term in terms)
 
 
 def search(db_path, query, limit=10):
@@ -51,7 +53,8 @@ def search(db_path, query, limit=10):
         if not db.execute("SELECT 1 FROM sqlite_master WHERE name='docs'").fetchone():
             return []  # 아직 색인 전
         return db.execute(
-            "SELECT url, title, snippet(docs, 1, '', '', '…', 20) FROM docs "
+            # -1: 질의어가 실제로 매치된 열에서 스니펫을 뽑는다 (제목만 매치되는 경우)
+            "SELECT url, title, snippet(docs, -1, '', '', '…', 20) FROM docs "
             "WHERE docs MATCH ? ORDER BY bm25(docs) LIMIT ?",
             (match, limit),
         ).fetchall()
@@ -77,7 +80,10 @@ def main(argv):
         if query is None:
             print("%d 문서 색인" % index_pages(db_path))
         else:
-            for url, title, text in search(db_path, query, limit=10):
+            hits = search(db_path, query, limit=10)
+            if not hits:
+                print("결과 없음")  # 침묵하면 "결과 0건" 과 "명령이 깨짐" 을 구분할 수 없다
+            for url, title, text in hits:
                 print("%s\n  %s\n  %s" % (title or "(제목 없음)", url, text))
     except FileNotFoundError:
         print("DB 파일이 없다: %s" % db_path, file=sys.stderr)
