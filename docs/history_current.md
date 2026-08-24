@@ -265,3 +265,9 @@ append 전용. 수정·삭제 금지.
 - **[7] http/https 가 서로의 간격을 덮어썼다** — robots 캐시 키는 `scheme://netloc`, 프런티어 키는 `netloc`. `set_delay` 를 늘어나는 방향으로만 움직이게 고쳤다(docstring 이 이미 그렇게 약속하고 있었다)
 - **[6] 폴백이 남의 UA 그룹 값을 집었다** — 다른 봇의 86400 을 우리 값으로 읽어 지킬 수 있는 사이트를 버렸다. `_applicable_delay()` 가 우리 그룹 → 없으면 `*` 만 본다
 - 그 외: 폐기를 stderr 로 알림, `1e3`→1000초, docstring/잔여 상태/e2e 잡티. 146/146 + e2e 통과
+
+## 반복 46 — 2026-08-25 · e2e phase (crawl-delay) → **DONE**
+- 앞 관문: 146/146 + 기존 e2e 4개 회귀 없음. 새 e2e 포함 5개 전부 통과
+- 시나리오 5건 전부 통과: 2초 요구 → 2.01s / 6페이지 누락 0 / 지시 없으면 1초 / `Crawl-delay: 0` 도 1초 / 남의 간격 안 샘
+- 변이(간격 무시)로 e2e 가 실패하는 것까지 확인. `docs/e2e/crawl-delay/result.md` 기록
+- 아카이브: `plan_history_005.md` · `design_history_005.md`, `index.md`·`digest.md` 갱신. 계획 5개 완료

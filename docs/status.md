@@ -1,45 +1,46 @@
 ---
-signal: GREEN
+signal: DONE
 mode: night
-plan: crawl-delay
-phase: e2e
-step: 4/4 (개발 끝)
+plan: null
+phase: 계획
+step: 0/0
 attempt: 0
-iteration: 45
-night_iterations: 14
+iteration: 46
+night_iterations: 15
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
-updated: 2026-08-25 (반복 45)
+updated: 2026-08-25 (반복 46)
 ctx: 82% / 200k
 rules: null
 ---
 
 # 현재 상태
 
-**`crawl-delay` 리뷰 phase 통과.** 백지 패스 지적 중 8점 이상 2건 + 값싼 것 4건을 고쳤다.
-146/146, `e2e/crawl_delay_e2e.py` 통과. 다음은 **e2e phase** —
-`docs/e2e/crawl-delay/result.md` 에 결과를 남기고 계획을 DONE 으로 닫는다.
+**`crawl-delay` DONE.** 스텝 4개 + 테스트·리뷰·e2e 관문 전부 통과.
+146/146, e2e 5개 통과. 아카이브 완료 — `plan_history_005.md` · `design_history_005.md`,
+결과는 `docs/e2e/crawl-delay/result.md`.
 
-## 리뷰가 잡은 것 (전부 실재. 확인하고 고쳤다)
+## `crawl-delay` 가 남긴 것
 
-1. **[7] 같은 netloc 의 http/https 가 서로의 간격을 덮어썼다** — robots 캐시는
-   `scheme://netloc` 인데 프런티어 키는 `netloc` 이다. 20초를 요구한 사이트에
-   지시 없는 https 링크 하나가 오면 1초로 떨어졌다. → `set_delay` 를 **늘어나는
-   방향으로만** 움직이게 고쳤다(docstring 이 원래 그렇게 약속하고 있었다)
-2. **[6] 폴백이 남의 UA 그룹 값을 집었다** — 다른 봇에게 건 `Crawl-delay: 86400` 을
-   우리 값으로 읽으면 1.5초면 지킬 수 있는 사이트가 상한 초과로 통째로 버려진다.
-   → `robots._applicable_delay()` 가 **우리 이름을 지목한 그룹 → 없으면 `*`** 만 본다
-3. [5] 도메인 폐기가 조용했다 → `crawl()` 이 stderr 로 사유를 찍는다
-4. [4] `Crawl-delay: 1e3` 을 1초로 읽었다 → `float()` 먼저 시도해 1000초로 읽는다
-5. [3] docstring 이 코드와 달랐다 / [2] 폐기 도메인에 안 쓸 `_delays` 가 남았다 / [1] e2e 잡티
+- robots 의 `Crawl-delay` 가 도메인 요청 간격이 된다 (실측 e2e: 2초 요구 → 2.01초)
+- **1초 하한은 사이트가 못 푼다** (`Crawl-delay: 0` → 1초). 컨셉의 전제 조건이다
+- 30초 초과는 지킬 수 없다고 보고 **첫 접촉 뒤 그 도메인을 포기**한다(stderr 로 알린다)
+- stdlib 이 버리는 값도 지킨다 — 소수(`3.5`)·지수(`1e3`), 우리에게 적용되는 UA 그룹만
+- 다섯 번째 e2e `e2e/crawl_delay_e2e.py` (두 도메인을 한 서버로 만드는 Host 트릭)
 
-## 리뷰 지적 중 안 고친 것 (digest 에 있다)
+## 다음 계획 — 이어받는 세션이 정할 것
 
-- [5] `robots._fetch_robots` 에 응답 크기 상한 없음 — **무인 모드가 보안·자원은 안 만진다**
-- [4] `MAX_DELAY` 는 요청당 대기만 막는다(총 크롤 시간 예산은 별도)
-- [4] 간격 시계가 pop 시각 기준 — 프런티어 계약 변경이라 별도 판단
+사용자가 정해 둔 순서(`search-api` → `crawl-delay`)는 **여기서 끝났다.**
+다음은 탐색이다(`rules/discover.md`). 현재 지형:
+
+- `docs/index.md` 사양 분할 6~8번: `search-ui`(화면이 없다) · `quality-eval`(검색 품질 축
+  미검증) · `recrawl`(갱신 미반영 — **스키마 변경이라 무인 보류**)
+- `docs/digest.md` 판단 필요 3건은 그대로 열려 있다(전부 `recrawl` 소관 + 프런티어 공회전)
+- 무인으로 닫을 수 있는 것은 `quality-eval` 쪽이 가깝다 — 스키마도 화면도 안 건드린다
 
 ## 정지 조건
 
-이번 세션 반복 14건(32~45) 전부 GREEN. RED 0 · 재시도 0 · 보류 0 · 패치 0.
+이번 세션 반복 15건(32~46) 전부 GREEN. RED 0 · 재시도 0 · 보류 0 · 패치 0.
+계획 2개(`search-api`·`crawl-delay`)를 DONE 까지 닫았다.
+**브랜치 5개 전부 머지 안 됐다** — `loop/crawl-delay` 가 가장 최신이고 나머지를 다 담고 있다.

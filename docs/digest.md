@@ -19,6 +19,9 @@ history_current.md 가 상한을 넘어 밀려날 때, 밀려나는 내용을 1~
 - 2026-08-25 | plan_indexer (002) | 본문 추출(stdlib html.parser) + FTS5 unicode61 증분 색인 + bm25 질의·CLI. e2e 통과. 재시도 0·RED 0
 - 2026-08-25 | plan_noindex-respect (003) | meta robots noindex·none 문서를 색인 제외 + 기색인 문서 제거. 보류 [85] 닫음. e2e 통과. 재시도 0·RED 0
 
+- 2026-08-25 | plan_search-api (004) | `GET /search?q=&page=` JSON API + 페이지네이션 + 신뢰 경계 + p95 기준선(6.71ms/3000문서). e2e 통과. 재시도 0·RED 0
+- 2026-08-25 | plan_crawl-delay (005) | robots `Crawl-delay` 를 도메인 간격에 반영(하한 1초, 30초 초과는 도메인 포기, 소수·지수 표기 폴백). e2e 통과. 재시도 0·RED 0
+
 ## 보류 (승인 대기)
 
 <!-- - 2026-08-09 | plan_db 스텝2 | 마이그레이션 필요 → 무인 모드가 보류 -->
