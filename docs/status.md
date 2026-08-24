@@ -1,12 +1,12 @@
 ---
-signal: DONE
+signal: GREEN
 mode: night
-plan: null
-phase: 계획
+plan: indexer
+phase: 설계
 step: 0
 attempt: 0
-iteration: 12
-night_iterations: 10
+iteration: 13
+night_iterations: 11
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
@@ -17,12 +17,11 @@ rules: null
 
 # 현재 상태
 
-crawler-core DONE — e2e 통과(docs/e2e/crawler-core/result.md), plan/design → history_001 아카이브.
-리뷰 보류 2건이 digest "판단 필요"에 있음 (쿨다운 공회전 / 재실행 스킵 정책).
+indexer 계획 작성 완료 (plan_indexer.md, 스텝 4). 브랜치 loop/indexer.
 
 ## 다음 행동
 
-야간 계속 (최대 3계획): index.md 순서대로 다음은 `indexer` — 계획 phase 부터.
+`phase: 설계` — FTS5 스키마·토크나이저(unicode61 vs trigram)·external content 여부.
 
 ## 정지 사유
 

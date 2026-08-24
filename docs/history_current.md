@@ -81,3 +81,8 @@ append 전용. 수정·삭제 금지.
 - 한 일: e2e/crawl_e2e.py 신설(로컬 서버 20p+robots 차단) — CLI 실제 실행 검증. project.md e2e 명령 확정. 계획 아카이브(001)
 - 결과: e2e 통과 — 수집 15/15, 차단 요청 0, 최소 간격 1.002s. 품질 4축은 미검증으로 기록(측정 명령 아직 없음)
 - 다음: DONE → 다음 계획 indexer (계획 phase)
+
+## 2026-08-25 야간11 | indexer | 계획 | 시도1
+- 한 일: plan_indexer.md 작성 — 스텝 4(추출/증분 writer/질의+CLI/e2e). index.md 중복 확인: 없음
+- 결과: 설계 필요 판정 (새 모듈+FTS5 스키마+토크나이저 갈림)
+- 다음: 설계 phase
