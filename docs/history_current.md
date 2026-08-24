@@ -178,3 +178,9 @@ append 전용. 수정·삭제 금지.
 - 결과: 97/97 통과 0.160s. CLI(`python3 -m websearch.serve <db> --port 0`)로 실물 응답까지 눈으로 확인
 - 판단: 테스트가 3.6s 로 느려 원인을 봤다 — serve_forever 기본 poll_interval 0.5s 를 shutdown 이 기다린다. 0.01 로 주입해 0.16s
 - 다음: 스텝 2 페이지네이션 — indexer.search 에 offset 추가
+
+## 2026-08-25 야간32 | search-api | 개발 2/5 | 시도1
+- 한 일: indexer.search 에 offset(기본 0) 덧붙이고 GET /search 에 page 추가. 테스트 8건(offset 1 + 페이지네이션 7) 먼저 쓰고 실패 6건 확인 후 구현. has_next 는 limit=11 로 받아 11번째 유무로 판정 — 개수 질의 안 함
+- 결과: 105/105 통과 0.27s. 변이 검사 — limit+1 을 limit 으로 되돌리니 has_next 테스트 FAILED, 되돌리니 OK. 기존 호출부(CLI·테스트 8곳) 무영향
+- 판단: 픽스처를 20건 = 딱 2페이지로 잡았다. limit+1 방식이 틀리기 가장 쉬운 곳이 "딱 떨어지는 마지막 페이지"(has_next 가 참으로 새는 지점)라 25건 부분 페이지보다 이쪽이 날이 선다
+- 다음: 스텝 3 신뢰 경계 — page 범위·q 길이·404·501, _parse 한 곳에
