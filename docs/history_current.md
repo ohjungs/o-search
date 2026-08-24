@@ -101,3 +101,8 @@ append 전용. 수정·삭제 금지.
 - 한 일: src/websearch/extract.py 구현 — stdlib html.parser 재사용(links.py 와 같은 패턴). script/style/noscript 는 깊이 카운터로 스킵, 닫히지 않은 <title> 은 다음 시작 태그에서 종료, 조각을 공백으로 이어 붙인 뒤 split/join 으로 정규화
 - 결과: extract 5/5, 전체 42/42 통과 0.007s. 새 의존성 0
 - 다음: 개발 2/4 FTS5 증분 색인 writer
+
+## 2026-08-25 야간15 | indexer | 개발 2/4 | 시도1
+- 한 일: tests/test_indexer.py 6케이스 먼저 작성·실패 확인 → src/websearch/indexer.py 의 index_pages(db_path) 구현. 설계대로 unicode61+prefix='2 3' 단독 FTS5 docs 테이블, 증분은 url NOT IN (SELECT url FROM docs), html NULL 행 스킵, 없는 DB 는 FileNotFoundError
+- 결과: 전체 48/48 통과 0.016s. FTS5 가용 확인(SQLite 3.51). 새 의존성 0
+- 다음: 개발 3/4 질의 함수 search() + CLI
