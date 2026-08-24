@@ -166,3 +166,9 @@ append 전용. 수정·삭제 금지.
 - 한 일: plan_search-api.md 작성 — 스텝 5(결과 JSON/페이지네이션/신뢰 경계·오류 경로/p95 측정·기준선/e2e). 중복 확인: index.md·digest 에 없음. 브랜치 loop/search-api
 - 결과: 설계 필요 판정(트리거 3: 새 모듈, indexer.search 시그니처 변경, sqlite 연결 전략 갈림). digest "반복 실패"의 CLI 진입점 방어를 스텝 3 근거로 명시 — HTTP 핸들러가 세 번째 진입점이다
 - 다음: 설계 phase
+
+## 2026-08-25 야간28 | search-api | 설계 | 시도1
+- 한 일: design_search-api.md — 연결 전략 3안 비교(요청마다/풀/단일스레드). 탐침 3000문서 색인으로 측정: 연결 open+close 0.04ms, 질의 p50 1.16ms, 연결 재사용과 p95 차 0.05ms
+- 결과: A(요청마다 연결) 채택 — 아끼려던 비용이 없었다. 계약 확정(JSON 키·has_next 는 limit+1 로, 검증은 _parse 한 곳, POST 는 스텁 없이 stdlib 501)
+- 판단: OFFSET 이 선형 증가(990에서 7.2ms)라 page 상한 100을 **성능이 아니라 자원 고갈 방어**로 넣었다
+- 다음: 개발 스텝 1 — GET /search 결과 JSON (TDD)
