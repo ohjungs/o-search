@@ -3,42 +3,52 @@ signal: GREEN
 mode: night
 plan: crawl-delay
 phase: 개발
-step: 2/4
+step: 3/4
 attempt: 0
-iteration: 40
-night_iterations: 9
+iteration: 41
+night_iterations: 10
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
-updated: 2026-08-25 (반복 40)
+updated: 2026-08-25 (반복 41)
 ctx: 82% / 200k
 rules: null
 ---
 
 # 현재 상태
 
-**`crawl-delay` 개발 1/4 완료** — `RobotsCache.delay(url)` 이 산다. 130/130 통과.
-다음 반복은 **개발 2/4** — `Frontier` 가 도메인별 간격을 갖는다
-(`docs/plan_crawl-delay.md` 스텝 2, 계약은 `docs/design_crawl-delay.md`).
+**`crawl-delay` 개발 2/4 완료.** 135/135 통과. 다음은 **개발 3/4 — 크롤 루프 배선**
+(`docs/plan_crawl-delay.md` 스텝 3, 계약은 `docs/design_crawl-delay.md`).
 
-## 다음 스텝이 알아야 할 것
+## 다음 스텝이 할 일
 
-- **탐침으로 확인한 지점**: `Frontier.next()` 와 `Frontier.seconds_until_ready()` 가
-  모듈 상수 `DOMAIN_INTERVAL` 을 **직접 읽는다**. `set_delay()` 만 추가하면 안 먹는다 —
-  두 곳을 도메인별 조회로 바꿔야 한다 (`src/websearch/frontier.py:28`, `:47` 부근)
-- 계약: `set_delay(domain, seconds|None)` → 내부 간격 `max(DOMAIN_INTERVAL, seconds or 0)`,
-  **`MAX_DELAY = 30.0` 초과면 그 도메인 큐를 비우고 이후 `add()` 도 거부**
-- `Frontier(now=...)` 시계 주입이 이미 있다 — 새 테스트도 실제로 잠들지 않는다
-- 스텝 1 이 남긴 것: `RobotsCache.delay(url) -> float | None`,
-  소수는 stdlib 이 버려서 `robots.py:_DELAY_LINE` 로 본문에서 직접 긁는다(가장 느린 값)
+`src/websearch/crawl.py` 의 `crawl()` 루프에서 `robots.allowed(url)` 이 참인 **직후**:
 
-## 이번 스텝에서 배운 것 (다음 변이 검사 전에 읽을 것)
+```python
+frontier.set_delay(urllib.parse.urlsplit(url).netloc, robots.delay(url))
+```
 
-`max`↔`min` 처럼 **같은 길이**로 변이시켰다 되돌리면 파일 크기·mtime(초)이 그대로라
-`__pycache__` 가 옛 .pyc 를 계속 쓴다 — 되돌린 뒤에도 실패가 남아 있는 것처럼 보인다.
-`docs/project.md` 명령 절에 `PYTHONDONTWRITEBYTECODE=1` 로 적어 뒀다.
+- `robots.delay()` 는 `allowed()` 가 이미 받아둔 캐시를 쓴다 — robots.txt 를 두 번 받지 않는다
+- 테스트는 `tests/test_crawl.py` 에. 가짜 robots 를 주입하고 `now=` 로 시계를 밀어
+  **`Crawl-delay: 5` 면 5초 전에는 두 번째 요청이 안 나간다**를 단언한다(실제로 자지 않는다)
+- 30초 초과 도메인이 통째로 빠지는 것도 크롤 루프 수준에서 한 번 확인한다
+
+## 스텝 1·2 가 남긴 것 (이미 참인 것)
+
+- `RobotsCache.delay(url) -> float | None` — 소수는 `robots.py:_DELAY_LINE` 폴백으로 긁는다
+- `Frontier.set_delay(domain, seconds|None)` — 하한 `DOMAIN_INTERVAL`,
+  `MAX_DELAY = 30.0` 초과면 큐를 비우고 `add()` 도 거부. `next()`·`seconds_until_ready()`
+  둘 다 `_interval(domain)` 을 본다
+- 변이 검사 4건(하한 제거·폐기 대신 깎기·대기시간·재유입) 전부 잡힌다
+
+## 함정 두 개 (이번 세션에서 실제로 밟았다)
+
+1. **`git checkout <파일>` 로 변이를 되돌리지 마라** — 커밋 전이면 구현이 통째로 날아간다.
+   사본을 떠 두고 `cp` 로 되돌린다 (반복 41 에서 스텝 2 구현을 한 번 잃었다)
+2. 같은 길이 변이(`max`↔`min`)는 `__pycache__` 가 옛 .pyc 를 재사용한다 →
+   `PYTHONDONTWRITEBYTECODE=1` (`docs/project.md` 명령 절)
 
 ## 정지 조건
 
-이번 세션 반복 9건(32~40) 전부 GREEN. RED 0 · 재시도 0 · 보류 0 · 패치 0.
-브랜치 `loop/crawl-delay`. **4개 계획 브랜치는 여전히 머지 안 됐다.**
+이번 세션 반복 10건(32~41) 전부 GREEN. RED 0 · 재시도 0 · 보류 0 · 패치 0.
+브랜치 `loop/crawl-delay`. **5개 계획 브랜치 전부 머지 안 됐다.**
