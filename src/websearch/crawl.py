@@ -1,6 +1,7 @@
 """크롤 루프: robots 확인 → fetch → 저장 → 링크를 프런티어에. CLI 엔트리 포함."""
 import sys
 import time
+import urllib.parse
 
 from websearch import fetcher, links
 from websearch.frontier import Frontier
@@ -22,6 +23,10 @@ def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None, now=time
             continue
         if store.has(url) or not robots.allowed(url):
             continue
+        # robots 는 방금 allowed() 가 받아 캐시에 넣었다 — delay() 는 그 캐시를 읽는다.
+        # 간격은 이 도메인의 **다음** 팝부터 먹으므로 여기서 알려줘도 늦지 않다
+        # (docs/design_crawl-delay.md 가정, 탐침으로 확인).
+        frontier.set_delay(urllib.parse.urlsplit(url).netloc, robots.delay(url))
         result = fetcher.fetch(url)
         page_url = result.url or url  # 리다이렉트면 최종 URL 이 정본
         if page_url != url and store.has(page_url):

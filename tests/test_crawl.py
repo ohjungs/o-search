@@ -1,4 +1,5 @@
 import unittest
+import urllib.parse
 from unittest import mock
 
 from websearch import crawl
@@ -15,17 +16,21 @@ PAGES = {
 
 
 class TestCrawl(unittest.TestCase):
-    def _run(self, seeds, max_pages, blocked=("http://a.com/blocked",)):
+    def _run(self, seeds, max_pages, blocked=("http://a.com/blocked",), delays=None):
         fetched = []
+        self.fetch_times = []  # (url, 그때의 가짜 시각) — 간격 계약을 여기서 잰다
 
         def fake_fetch(url):
             fetched.append(url)
+            self.fetch_times.append((url, clock["t"]))
             target = REDIRECTS.get(url, url)
             html = PAGES.get(target)
             return FetchResult(200, html, target) if html is not None else FetchResult(404, None, url)
 
         robots = mock.Mock()
         robots.allowed = lambda url: url not in blocked
+        robots.delay = lambda url: (delays or {}).get(
+            urllib.parse.urlsplit(url).netloc)
         clock = {"t": 1000.0}
         with mock.patch("websearch.crawl.fetcher") as mf, \
              mock.patch("websearch.crawl.time.sleep") as ms:
@@ -67,3 +72,36 @@ class TestCrawl(unittest.TestCase):
     def test_failed_fetch_counted_not_as_page(self):
         n, _, _ = self._run(["http://nowhere.test/"], max_pages=5)
         self.assertEqual(n, 0)
+
+
+class TestCrawlDelayWiring(unittest.TestCase, ):
+    """robots 가 요청한 간격이 크롤 루프를 거쳐 실제 요청 간격이 되는가."""
+
+    _run = TestCrawl._run
+
+    def _gaps(self, domain):
+        times = [t for url, t in self.fetch_times
+                 if urllib.parse.urlsplit(url).netloc == domain]
+        return [b - a for a, b in zip(times, times[1:])]
+
+    def test_declared_delay_paces_that_domain(self):
+        self._run(["http://a.com/"], max_pages=10, delays={"a.com": 5.0})
+        self.assertTrue(self._gaps("a.com"), "a.com 을 두 번 이상 요청해야 잴 수 있다")
+        for gap in self._gaps("a.com"):
+            self.assertGreaterEqual(gap, 5.0)
+
+    def test_default_interval_when_no_directive(self):
+        self._run(["http://a.com/"], max_pages=10)
+        for gap in self._gaps("a.com"):
+            self.assertGreaterEqual(gap, 1.0)
+            self.assertLess(gap, 5.0)  # 요청도 없는데 느려지지 않는다
+
+    def test_unkeepable_delay_stops_after_first_contact(self):
+        # 첫 요청은 어떤 간격도 어기지 않는다. 어길 수 없는 것은 두 번째다 —
+        # 그래서 간격을 깎는 대신 그 도메인을 더 가지 않는다
+        pages = {"http://b.com/": '<a href="/x">x</a><a href="/y">y</a>',
+                 "http://b.com/x": "x", "http://b.com/y": "y"}
+        with mock.patch.dict(PAGES, pages):
+            _, fetched, _ = self._run(["http://b.com/"], max_pages=10,
+                                      delays={"b.com": 3600})
+        self.assertEqual(fetched, ["http://b.com/"])
