@@ -12,6 +12,7 @@ plan_history_<NNN>.md 를 다 열어볼 필요가 없게 하는 것이 목적이
 | plan_crawler-core | 완료 | loop/crawler-core | 7/7 | 통과 | 설계 있음(001). 리뷰 보류 2건 digest |
 | plan_indexer | 완료 | loop/indexer | 4/4 | 통과 | 설계 있음(002). unicode61 채택. 리뷰 보류 1건(meta noindex) digest |
 | plan_noindex-respect | 완료 | loop/noindex-respect | 3/3 | 통과 | 설계 있음(003). digest 보류 [85] 닫음. 리뷰 4건 중 3건 수정 |
+| plan_search-api | 진행 | loop/search-api | 0/5 | - | 성능 축 측정이 여기서 시작. 설계 필요 |
 
 ## 사양 분할 (docs/specs/concept.md → 계획 순서)
 
@@ -21,7 +22,7 @@ plan_history_<NNN>.md 를 다 열어볼 필요가 없게 하는 것이 목적이
 2. `indexer` — 완료 (plan_history_002)
 3. `noindex-respect` — 완료 (plan_history_003)
    (사양 분할에 없던 계획. 컨셉 갈림길 1순위가 크롤 윤리라 search-api 앞에 끼워 넣었다)
-4. `search-api` — 질의 → 랭킹 결과 API (p95 300ms 기준은 여기서 측정 시작). 의존: 2 ← **다음**
+4. `search-api` — 질의 → 랭킹 결과 API (p95 300ms 기준은 여기서 측정 시작). 의존: 2 ← **진행 중**
 5. `search-ui` — 검색 홈 + 결과 페이지 (LCP·번들·접근성 기준). 의존: 4
 6. `quality-eval` — 질의 40개 테스트 셋 + 정답 포함률 80% 측정. 의존: 4
 7. `recrawl` — 30일 재방문·갱신·삭제 반영. 의존: 2

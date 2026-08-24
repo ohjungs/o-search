@@ -161,3 +161,8 @@ append 전용. 수정·삭제 금지.
 - 한 일: 앞 관문 먼저 — 전체 90/90 통과, 기존 e2e 2개 회귀 없음(crawl 수집 15·차단 0·간격 1.000s / indexer 3문서). e2e/noindex_e2e.py 신설(로컬 서버 4페이지: 목차·일반·noindex·none, 셋 다 본문에 pyeongsan). project.md e2e 명령 확정, 계획·설계 아카이브(003), digest 보류 [85] 닫음
 - 결과: e2e 통과 3.7s — 4수집 중 2문서 색인 / 질의는 /open 만 / pages.html 을 직접 noindex 로 갱신 후 재색인하니 "0 문서 색인 + 1 문서 색인 제외" 출력하고 검색에서 사라짐. 품질 4축 중 경량 3(의존성 0) 통과, 크롤 윤리 축은 이 계획이 닫음
 - 다음: DONE → 다음 계획 search-api (계획 phase)
+
+## 2026-08-25 야간27 | search-api | 계획 | 시도1
+- 한 일: plan_search-api.md 작성 — 스텝 5(결과 JSON/페이지네이션/신뢰 경계·오류 경로/p95 측정·기준선/e2e). 중복 확인: index.md·digest 에 없음. 브랜치 loop/search-api
+- 결과: 설계 필요 판정(트리거 3: 새 모듈, indexer.search 시그니처 변경, sqlite 연결 전략 갈림). digest "반복 실패"의 CLI 진입점 방어를 스텝 3 근거로 명시 — HTTP 핸들러가 세 번째 진입점이다
+- 다음: 설계 phase

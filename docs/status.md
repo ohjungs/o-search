@@ -1,55 +1,52 @@
 ---
-signal: DONE
+signal: GREEN
 mode: night
-plan: null
-phase: 계획
-step: 3/3
+plan: search-api
+phase: 설계
+step: 0/5
 attempt: 0
-iteration: 28
-night_iterations: 7
+iteration: 29
+night_iterations: 8
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
-updated: 2026-08-25 (반복 28)
+updated: 2026-08-25 (반복 29)
 ctx: 71% / 200k
 rules: null
 ---
 
 # 현재 상태
 
-**noindex-respect 계획 DONE — e2e 통과, 아카이브 003 완료.**
-세 번째 계획이 닫혔다. 전체 90/90 통과, 야간 RED 0·재시도 0.
-`docs/digest.md` 보류 [85](색인이 meta noindex 를 무시)를 닫았다 —
-크롤 윤리 축이 robots.txt(001) 에 이어 meta robots 까지 덮인다.
-
-이제 색인 명령은 `<meta name="robots">` 의 noindex·none 을 존중한다.
-이미 색인된 문서가 뒤늦게 거부를 선언해도 다음 실행에서 빠지고, 그 사실을 출력한다.
+**`plan_search-api.md` 작성 완료 — 설계 phase 로 넘어간다.**
+직전 계획 noindex-respect(003)는 DONE·아카이브 완료다. 전체 90/90 통과 상태에서 출발한다.
+이 계획의 절반은 API 자체이고 절반은 **성능 축 측정의 시작**이다 —
+`docs/project.md` 품질 기준의 "성능 측정: 없음" 을 채운다.
 
 ## 진행 중인 스텝 — 이어받는 세션이 읽을 것
 
-- 할 일: **다음 계획 착수 — `search-api`** (`docs/index.md` 사양 분할 4번).
-  질의 → 랭킹 결과 API. 컨셉 성능 1(p95 300ms)의 측정이 여기서 시작된다
-- 근거: `docs/index.md` 의존 순서상 남은 것 중 가장 앞. `indexer.search()` 가
-  이미 (url, title, snippet) 을 bm25 순으로 돌려주므로 HTTP 껍데기 + 측정이 핵심이다
-- 완료 기준: 계획 phase 이므로 `rules/plan.md` 로 `docs/plan_search-api.md` 를 쓴다.
-  중복 확인은 `docs/index.md` + `docs/digest.md`
-- 이미 한 것: 없음 (착수 전)
+- 할 일: **설계 phase — `docs/design_search-api.md` 작성** (`rules/design.md`).
+  `docs/plan_search-api.md` "설계" 절에 트리거 3개와 결정할 것 4개를 적어놨다
+- 근거: 트리거 ① 새 모듈(`src/websearch/serve.py`) ② 공개 인터페이스 변경
+  (`indexer.search()` 에 offset 이 필요한데 지금은 `limit` 만 받는다)
+  ③ 대안 갈림(요청마다 새 sqlite 연결 vs 재사용 — `http.server` 는 요청마다 스레드이고
+  sqlite 연결은 스레드를 넘지 못한다. p95 에 직접 영향)
+- 완료 기준: 대안 비교와 채택 사유, 응답 JSON 키 이름, 연결 전략, 측정 스크립트의
+  측정 방식(질의 셋·반복 횟수)이 확정돼 스텝 1·2·4 가 그대로 구현에 들어갈 수 있다.
+  `rules/design.md` 3-2절대로 **가장 위험한 가정 하나를 탐침으로 깨보고** 결과를 적는다
+- 이미 한 것: 계획서 작성·`docs/index.md` 갱신·브랜치 `loop/search-api` 생성.
+  코드는 한 줄도 안 건드렸다
 
-### 계획을 쓸 때 반드시 반영할 것 (digest 에 근거 있음)
+### 설계에서 반드시 볼 것
 
-- `search()` 의 질의 재작성은 신뢰 경계다. HTTP 파라미터가 붙는 순간 NUL·제어문자
-  경로가 실제로 도달 가능해진다 — 이미 막아뒀지만 API 계층에서 다시 확인
-- "판단 필요" 의 [8] 증분이 재크롤 갱신 미반영 — API 가 옛 본문을 서빙하게 되므로
-  recrawl 계획을 앞당길지 판단
-- **반복 실패 3회째 주의**: CLI 진입점마다 방어를 따로 쓰는 문제(digest "반복 실패").
-  HTTP 핸들러는 세 번째 진입점이다 — 같은 부류가 또 나온다
-- 크롤 윤리 잔여 항목: robots `crawl-delay` 존중(digest, 높음),
-  `X-Robots-Tag` 헤더(스키마 expand 필요라 무인 보류)
+- **CLI 진입점 방어가 반복 실패 2회로 기록돼 있다**(`docs/digest.md` "반복 실패").
+  HTTP 핸들러는 세 번째 진입점이다. 방어를 한 자리에 모으는 구조를 설계에서 정한다
+- `indexer.search()` 의 질의 재작성(`_fts_query`)은 이미 NUL·제어문자·FTS5 문법 문자를
+  막는다. HTTP 파라미터가 붙으면 그 경로가 **실제로 도달 가능**해지므로 테스트로 다시 고정
+- 컨셉 경량 3: 새 의존성 없이 `http.server` 로 간다. 안 되는 것이 실측으로 나오면 그때 연다
 
 ## 다음 행동
 
-`/loop-harness night` 또는 `/loop-harness` 를 다시 부르면 이어진다.
-DONE 처리는 끝났으므로 다음 세션은 계획 phase 부터 시작한다.
+`/loop-harness night` 또는 `/loop-harness` 를 다시 부르면 설계 phase 부터 이어진다.
 
 ## 정지 사유
 
