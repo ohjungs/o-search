@@ -8,6 +8,10 @@
 - **테스트(전체)**: `PYTHONPATH=src python3 -m unittest discover tests` (2026-08-25 실행 확인, 실패 감지도 확인)
 - **테스트(빠름)**: 전체가 수 초라 구분 없음
 - **린트/타입체크**: 없음 — stdlib만 쓰는 소규모, 필요해지면 추가
+- **변이 검사(테스트가 진짜 잡는지 확인)**: `PYTHONDONTWRITEBYTECODE=1` 를 붙여 돌린다.
+  같은 길이의 토큰을 바꿨다 되돌리면(`max`↔`min`) 파일 크기·mtime(초)이 그대로라
+  **`__pycache__` 의 옛 .pyc 가 그대로 쓰인다** — 되돌린 뒤에도 실패가 남아 있는 것처럼 보인다
+  (2026-08-25 반복 40 실제로 겪음)
 - **e2e**: `PYTHONPATH=src python3 e2e/crawl_e2e.py` (2026-08-25 실행 확인, 14.7s — 간격 정책상 정상)
 - **e2e**: `PYTHONPATH=src python3 e2e/indexer_e2e.py` (2026-08-25 실행 확인, 약 4s)
 - **e2e**: `PYTHONPATH=src python3 e2e/noindex_e2e.py` (2026-08-25 실행 확인, 3.7s)
