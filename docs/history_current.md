@@ -36,3 +36,8 @@ append 전용. 수정·삭제 금지.
 - 한 일: 스캐폴드 — src/websearch/__init__.py, tests/test_smoke.py, .gitignore(data/·reports/), project.md 명령 갱신
 - 결과: unittest 1/1 통과. 실패 먼저 확인(네임스페이스 패키지 탓에 1차 시도는 실패를 못 봐 단언 교체)
 - 다음: 개발 2/7 robots
+
+## 2026-08-25 야간2 | crawler-core | 개발 2/7 | 시도1
+- 한 일: robots.py(RobotsCache) + test_robots.py 5케이스 — 허용/차단/404허용/5xx차단/도메인당 1회 캐시
+- 결과: 실패 확인 후 구현, 전체 6/6 통과. 실네트워크 없음(_fetch_robots 주입)
+- 다음: 개발 3/7 fetcher
