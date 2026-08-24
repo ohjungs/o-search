@@ -46,3 +46,8 @@ append 전용. 수정·삭제 금지.
 - 한 일: fetcher.py(fetch→FetchResult) + test_fetcher.py 5케이스 — 성공/비HTML/4xx/타임아웃 3회 포기/재시도 성공
 - 결과: 실패 확인 후 구현, 전체 11/11 통과. HTTPError 는 확정 응답이라 재시도 안 함
 - 다음: 개발 4/7 store
+
+## 2026-08-25 야간4 | crawler-core | 개발 4/7 | 시도1
+- 한 일: store.py(Store: upsert/has/get_html/count) + test_store.py 3케이스 — 저장/갱신 중복 없음/실패기록
+- 결과: 실패 확인 후 구현, 전체 14/14 통과. 스키마는 설계 계약대로 pages 단일 테이블
+- 다음: 개발 5/7 links

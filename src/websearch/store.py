@@ -1,0 +1,36 @@
+"""수집 페이지 저장. 스키마는 코드가 만든다 (설계 계약: pages 테이블)."""
+import sqlite3
+
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS pages (
+    url        TEXT PRIMARY KEY,
+    html       TEXT,
+    status     INTEGER NOT NULL,
+    fetched_at TEXT NOT NULL DEFAULT (datetime('now'))
+)
+"""
+
+
+class Store:
+    def __init__(self, path):
+        self._db = sqlite3.connect(path)
+        self._db.execute(SCHEMA)
+
+    def upsert(self, url, html, status):
+        self._db.execute(
+            "INSERT INTO pages(url, html, status) VALUES (?, ?, ?) "
+            "ON CONFLICT(url) DO UPDATE SET html=excluded.html, "
+            "status=excluded.status, fetched_at=datetime('now')",
+            (url, html, status),
+        )
+        self._db.commit()
+
+    def has(self, url):
+        return self._db.execute("SELECT 1 FROM pages WHERE url=?", (url,)).fetchone() is not None
+
+    def get_html(self, url):
+        row = self._db.execute("SELECT html FROM pages WHERE url=?", (url,)).fetchone()
+        return row[0] if row else None
+
+    def count(self):
+        return self._db.execute("SELECT count(*) FROM pages").fetchone()[0]
