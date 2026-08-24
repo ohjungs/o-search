@@ -3,46 +3,43 @@ signal: GREEN
 mode: night
 plan: search-api
 phase: 개발
-step: 0/5
+step: 1/5
 attempt: 0
-iteration: 30
-night_iterations: 9
+iteration: 31
+night_iterations: 10
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
-updated: 2026-08-25 (반복 30)
-ctx: 76% / 200k
+updated: 2026-08-25 (반복 31)
+ctx: 78% / 200k
 rules: null
 ---
 
 # 현재 상태
 
-**`design_search-api.md` 작성 완료 — 개발 phase(스텝 1)로 넘어간다.**
-설계는 탐침으로 검증까지 마쳤다. 전체 90/90 통과 상태다.
+**스텝 1 완료 — `GET /search` 가 결과 JSON 을 낸다.** 97/97 통과.
 
 ## 진행 중인 스텝 — 이어받는 세션이 읽을 것
 
-- 할 일: **개발 스텝 1 — `GET /search` 가 결과 JSON 을 낸다** (`rules/dev.md`, TDD).
-  `src/websearch/serve.py`·`tests/test_serve.py` 신설
-- 근거: `docs/plan_search-api.md` 스텝 1 완료 기준 4개(결과 배열/키 3개/무매치 200+빈배열/
-  bm25 순서). 구조는 `docs/design_search-api.md` "계약" 절이 이미 확정했다 —
-  **설계에서 다시 고민할 것이 없다**
-- 완료 기준: 실패 확인 후 통과 + 전체 스위트 회귀 없음
-- 이미 한 것: 계획서·설계 문서·`index.md`·`metrics.md` 갱신. **코드는 아직 0줄**
+- 할 일: **개발 스텝 2 — 페이지네이션 10건 단위** (`rules/dev.md`, TDD)
+- 근거: `docs/plan_search-api.md` 스텝 2. `indexer.search()` 에 `offset=0` 을
+  **덧붙이고**(기존 호출부 무영향) `serve.py` 가 `page` 를 offset 으로 바꾼다.
+  `has_next` 는 개수 질의 없이 `limit=PAGE_SIZE + 1` 로 받아 11번째 유무로 판정한다
+  (`docs/design_search-api.md` 계약)
+- 완료 기준: `page=2` 가 11~20번째. `page` 없으면 1. 전체 스위트 회귀 없음
+- 이미 한 것: `src/websearch/serve.py`(신설, 95줄)·`tests/test_serve.py`(7개).
+  `_parse()` 는 지금 `q` 만 본다 — `page` 검증과 상한(1~100)은 **스텝 2·3 에서 같은 함수에** 넣는다
 
-### 개발이 그대로 따를 계약 (설계 문서에서 옮겨온 요약)
+## 남은 스텝
 
-- `ThreadingHTTPServer`, 요청마다 `indexer.search()` 호출(연결도 매번 — 탐침 0.04ms)
-- 응답 `{"query","page","has_next","results":[{"url","title","snippet"}]}`,
-  `ensure_ascii=False`, `application/json; charset=utf-8`
-- 검증은 `_parse(params)` **한 함수**에 모으고 `do_GET` 은 try/except 한 덩어리.
-  `do_POST` 는 만들지 않는다(stdlib 501). q 빈값·200자 초과·page 비정수/1미만/100초과 → 400
-- 실행: `python3 -m websearch.serve <db> [--port N]`, `--port 0` 이면 실제 포트를 stdout 에
+2 페이지네이션 → 3 신뢰 경계(400/404/501·긴 질의·제어문자) → 4 p95 측정 스크립트와
+`project.md` 기준선 → 5 e2e
 
 ## 다음 행동
 
-`/loop-harness night` 또는 `/loop-harness` 를 다시 부르면 개발 스텝 1 부터 이어진다.
+`/loop-harness night` 또는 `/loop-harness` 를 다시 부르면 개발 스텝 2 부터 이어진다.
 
 ## 정지 사유
 
-컨텍스트 상한 접근 (야간 누적 반복 30, 이번 세션 9). 5h·7d 는 여유.
+컨텍스트 상한 접근 (야간 누적 반복 31, 이번 세션 10). 5h·7d 는 여유.
+스텝 경계에서 끊었다 — 코드·테스트·기록이 모두 정합한 상태다.

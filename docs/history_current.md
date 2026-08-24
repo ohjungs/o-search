@@ -172,3 +172,9 @@ append 전용. 수정·삭제 금지.
 - 결과: A(요청마다 연결) 채택 — 아끼려던 비용이 없었다. 계약 확정(JSON 키·has_next 는 limit+1 로, 검증은 _parse 한 곳, POST 는 스텁 없이 stdlib 501)
 - 판단: OFFSET 이 선형 증가(990에서 7.2ms)라 page 상한 100을 **성능이 아니라 자원 고갈 방어**로 넣었다
 - 다음: 개발 스텝 1 — GET /search 결과 JSON (TDD)
+
+## 2026-08-25 야간29 | search-api | 개발 1/5 | 시도1
+- 한 일: serve.py 신설 — GET /search 가 {query, results:[{url,title,snippet}]} 를 낸다. 테스트 7개 먼저 쓰고 ImportError 로 실패 확인 후 구현
+- 결과: 97/97 통과 0.160s. CLI(`python3 -m websearch.serve <db> --port 0`)로 실물 응답까지 눈으로 확인
+- 판단: 테스트가 3.6s 로 느려 원인을 봤다 — serve_forever 기본 poll_interval 0.5s 를 shutdown 이 기다린다. 0.01 로 주입해 0.16s
+- 다음: 스텝 2 페이지네이션 — indexer.search 에 offset 추가

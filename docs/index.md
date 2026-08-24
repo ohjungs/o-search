@@ -12,7 +12,7 @@ plan_history_<NNN>.md 를 다 열어볼 필요가 없게 하는 것이 목적이
 | plan_crawler-core | 완료 | loop/crawler-core | 7/7 | 통과 | 설계 있음(001). 리뷰 보류 2건 digest |
 | plan_indexer | 완료 | loop/indexer | 4/4 | 통과 | 설계 있음(002). unicode61 채택. 리뷰 보류 1건(meta noindex) digest |
 | plan_noindex-respect | 완료 | loop/noindex-respect | 3/3 | 통과 | 설계 있음(003). digest 보류 [85] 닫음. 리뷰 4건 중 3건 수정 |
-| plan_search-api | 진행 | loop/search-api | 0/5 | - | 성능 축 측정이 여기서 시작. 설계 있음(004 예정) |
+| plan_search-api | 진행 | loop/search-api | 1/5 | - | 성능 축 측정이 여기서 시작. 설계 있음(004 예정) |
 
 ## 사양 분할 (docs/specs/concept.md → 계획 순서)
 
