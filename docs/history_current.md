@@ -111,3 +111,8 @@ append 전용. 수정·삭제 금지.
 - 한 일: 테스트 13건 먼저 작성·실패 확인 → search(db_path, query, limit=10) + CLI main() 구현. 질의 재작성은 어절마다 "어절"* (큰따옴표로 FTS5 문법 문자 무력화 — 주입 방지), bm25 정렬, snippet(docs,1,...). 색인 전 DB 는 sqlite_master 확인 후 빈 목록
 - 결과: 전체 61/61 통과 0.030s. CLI 실모듈 스모크 — 2문서 색인 → 재실행 0문서(증분) → "김치"(2글자·조사 붙은 어절) 매치 → "python tutorial" 대소문자 무시 매치
 - 다음: 테스트 phase (빠뜨린 것 탐색)
+
+## 2026-08-25 야간17 | indexer | 테스트 | 시도1
+- 한 일: rules/test.md 3절 6카테고리로 갭 탐색 — 탐침 스크립트로 제목만 매치 / bm25 정렬 / 재크롤 갱신 / pages 없는 DB / 빈 pages 를 실측. 8점 2건(title 검색 가능, bm25 관련도순)을 테스트로 못박음. 단언이 실제로 잡는지 확인: ORDER BY bm25 를 DESC 로 뒤집으니 FAILED, 되돌리니 OK
+- 결과: 전체 63/63 통과 0.034s (PYTHONPATH=src python3 -m unittest discover tests — 전체). 보류 2건 digest 로: [8] 증분이 갱신 미반영(스키마 변경 필요 → 무인 모드 보류, recrawl 소관), [6] indexer.main 이 pages 없는 DB 에 트레이스백
+- 다음: 리뷰 phase

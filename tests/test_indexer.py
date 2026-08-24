@@ -93,6 +93,23 @@ class TestSearch(unittest.TestCase):
         self._seed_and_index([("http://a.test/", "<title>Guide</title><p>Python Tutorial</p>")])
         self.assertEqual(len(search(self.db_path, "python")), 1)
 
+    def test_title_is_searchable(self):
+        # 계약: MATCH 는 title·body 두 열을 모두 본다. body 만 보도록 바뀌면 여기서 깨진다
+        self._seed_and_index([("http://a.test/", "<title>김치 백과</title><body></body>")])
+        self.assertEqual([h[0] for h in search(self.db_path, "백과")], ["http://a.test/"])
+
+    def test_bm25_ranks_denser_match_first(self):
+        # 컨셉 우선순위 2위가 검색 품질이다 — 정렬이 관련도순인지 단언으로 못박는다
+        self._seed_and_index([
+            ("http://dense.test/", "<p>김치 김치 김치 담그기</p>"),
+            ("http://sparse.test/",
+             "<p>오늘 저녁은 김치 한 조각과 밥 그리고 국 그리고 나물 그리고 생선 그리고 과일</p>"),
+        ])
+        self.assertEqual(
+            [h[0] for h in search(self.db_path, "김치")],
+            ["http://dense.test/", "http://sparse.test/"],
+        )
+
     def test_no_match_returns_empty_list(self):
         self._seed_and_index([("http://a.test/", "<p>김치</p>")])
         self.assertEqual(search(self.db_path, "우주선"), [])

@@ -37,8 +37,10 @@ history_current.md 가 상한을 넘어 밀려날 때, 밀려나는 내용을 1~
 - [6] fetcher 가 UA 헤더를 실제로 보내는지 단언 없음
 - [5] crawl: 이미 store 에 있는 URL 스킵 경로 무테스트
 - [4] crawl.main CLI 인자 파싱 무테스트
+- [6] indexer.main 이 pages 테이블 없는 DB 를 받으면 sqlite3.OperationalError 트레이스백. FileNotFoundError 만 잡고 있다 (crawl.main CLI 방어와 같은 부류)
 - [높음·설계 범위 밖 메모] robots crawl-delay 존중 — 윤리 축이라 우선순위 높음
 
 ## 판단 필요 (리뷰 보류 — 승인 필요 판정)
 - [medium] frontier: robots 차단·기수집 URL 이 팝 시점에 도메인 쿨다운을 소모 — 공회전. 수정은 프런티어 계약 변경(팝/기록 분리 또는 add 시점 필터)이라 설계 결정
+- [8] indexer 증분(`url NOT IN docs`)이 **갱신을 반영하지 않는다.** 탐침 실측(2026-08-25 테스트 phase): 같은 url 을 재크롤해 pages.html 을 바꾼 뒤 index_pages → 0건, 옛 본문이 계속 검색되고 새 본문은 안 나옴. 컨셉 기능 5(재크롤 30일 갱신 반영)에 걸린다. 고치려면 docs 에 fetched_at 을 두고 비교·재삽입 = **스키마 변경이라 무인 모드가 보류**. 위 store.has 항목과 같은 recrawl 계획 소관
 - [high] store.has 가 상태 불문 스킵: 같은 DB 로 재실행하면 시드부터 스킵돼 0으로 끝남. 재크롤 정책(성공만 스킵/TTL/링크 재추출)은 recrawl 계획 소관 — 앞당길지 판단 필요
