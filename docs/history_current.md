@@ -31,3 +31,8 @@ append 전용. 수정·삭제 금지.
 - 한 일: design_crawler-core.md — 대안 3개(stdlib만/의존성 추가/Node) 비교, A 선택. 가정 탐침: 시스템 Python 3.9.6 sqlite3 FTS5 생성 성공
 - 결과: 의존성 0 → 설계룰 4절 보류 사안 없음. 계약(시그니처·스키마) 확정
 - 다음: 개발 스텝 1 — 스캐폴드 + unittest 러너 확인
+
+## 2026-08-25 야간1 | crawler-core | 개발 1/7 | 시도1
+- 한 일: 스캐폴드 — src/websearch/__init__.py, tests/test_smoke.py, .gitignore(data/·reports/), project.md 명령 갱신
+- 결과: unittest 1/1 통과. 실패 먼저 확인(네임스페이스 패키지 탓에 1차 시도는 실패를 못 봐 단언 교체)
+- 다음: 개발 2/7 robots
