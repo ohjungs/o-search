@@ -146,3 +146,8 @@ append 전용. 수정·삭제 금지.
 - 한 일: tests/test_indexer.py 3케이스 먼저 작성·실패 확인(FAILED 3) → index_pages() 에 삽입 필터(is_noindex 면 continue, 반환값 미집계)와 제거 경로(docs ⋈ pages WHERE p.html LIKE '%robots%' 후보만 파싱해 DELETE FROM docs) 구현. 성능 천장은 ponytail 주석으로 남김
 - 결과: 전체 84/84 통과 0.044s. pages 는 읽기만 — 판정 규칙 변경 시 재판정 근거 보존
 - 다음: 테스트 phase (갭 탐색)
+
+## 2026-08-25 야간24 | noindex-respect | 테스트 | 시도1
+- 한 일: rules/test.md 3절 6카테고리 갭 탐색 — 탐침으로 주석/엔티티 이스케이프 meta, 부분 문자열 noindexing, 빈 content, http-equiv 변형, html NULL 행, pages 에서 사라진 색인 행을 실측. 8점 4건을 테스트로 못박음(test_extract 3, test_indexer 1)
+- 결과: 전체 88/88 통과 0.045s. 변이 검사 — is_noindex 를 항상 False 로 뒤집으니 8건 FAILED, 되돌리니 OK. 8점 미만 2건 digest 로: [5] http-equiv 변형 무시, [4] 본문 안 진짜 meta 의 오탐
+- 다음: 리뷰 phase

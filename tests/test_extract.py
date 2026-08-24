@@ -91,3 +91,15 @@ class TestIsNoindex(unittest.TestCase):
 
     def test_empty_html_no_raise(self):
         self.assertFalse(is_noindex(""))
+
+    def test_commented_or_escaped_meta_is_not_a_directive(self):
+        # 갭 탐색: 오탐은 문서를 조용히 사라지게 한다 — 주석과 이스케이프된 예제는 지시가 아니다
+        self.assertFalse(is_noindex('<!-- <meta name="robots" content="noindex"> --><p>본문</p>'))
+        self.assertFalse(is_noindex('<code>&lt;meta name="robots" content="noindex"&gt;</code>'))
+
+    def test_substring_is_not_a_directive(self):
+        self.assertFalse(is_noindex('<meta name="robots" content="noindexing">'))
+
+    def test_empty_or_missing_content(self):
+        self.assertFalse(is_noindex('<meta name="robots" content="">'))
+        self.assertFalse(is_noindex('<meta name="robots">'))
