@@ -10,6 +10,7 @@ USER_AGENT = "websearchbot/0.1"
 # stdlib 은 정수 Crawl-delay 만 받는다(RobotFileParser 가 isdigit 으로 거른다).
 # "Crawl-delay: 3.5" 를 조용히 버리면 기본 1초로 떨어져 **요청보다 빠르게** 때린다 —
 # 컨셉 1순위인 크롤 윤리 위반이라, 그때만 본문에서 직접 긁는다.
+# 값의 앞부분 숫자만 본다("5s" → 5.0) — 규칙은 하나다, **느린 쪽으로만 틀린다.**
 _DELAY_LINE = re.compile(r"^[ \t]*crawl-delay[ \t]*:[ \t]*([0-9]*\.?[0-9]+)", re.I | re.M)
 
 

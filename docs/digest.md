@@ -50,6 +50,10 @@ history_current.md 가 상한을 넘어 밀려날 때, 밀려나는 내용을 1~
 - [6] `serve.do_GET` 의 `try` 가 `_parse` 와 `indexer.search` 를 같이 감싼다 — `search` 안에서 나는 `ValueError` 는 내부 메시지를 실은 400 이 된다. 400 은 "당신 입력이 문제다" 라는 계약이라 어긋난다. 도달 경로는 못 찾았다(제어문자 제거가 sqlite3 의 NUL 계열 ValueError 를 이미 막는다). 쪼개는 쪽이 줄 수는 더 는다 (2026-08-25 리뷰, 확신 낮음)
 - [7] bm25 동점 순서는 `ORDER BY bm25(docs), rowid` 로 고정했지만, **요청 사이에 색인이 바뀌면** OFFSET 페이지네이션은 여전히 항목을 밀거나 겹친다(indexer 는 증분 재실행 가능). 진짜 해법은 키셋 페이지네이션(bm25 점수 커서)인데 지금 화면이 없다 — `search-ui` 나 `recrawl` 에서 함께 판단. 참고로 타이브레이커를 `url` 로 두면 2만 문서에서 p50 이 13→27ms 로 두 배가 된다(실측). rowid 는 공짜다
 
+- [6] `Frontier` 의 도메인 폐기(`MAX_DELAY` 초과)는 **되돌릴 수 없다** — 그 프로세스에서는 robots 가 바뀌어도 계속 제외다. robots 캐시 TTL 이 생기는 계획에서 함께 (2026-08-25 crawl-delay 테스트 phase)
+- [5] `crawl.crawl()` 이 URL 팝마다 `robots.delay()` 를 부른다 — 캐시 조회라 싸지만 같은 값을 매번 다시 대입한다. 도메인 첫 팝에만 부르려면 "이 도메인 처음인가" 상태가 필요해 지금은 그대로 둔다
+- [4] robots.txt 요청 자체는 도메인 간격 **밖**이다 — 어떤 도메인의 첫 URL 에서는 robots + 페이지가 연달아 나간다. 관례상 예외로 보지만 엄밀히는 연속 2요청이다 (`e2e/crawl_e2e.py`·`e2e/crawl_delay_e2e.py` 둘 다 robots 를 간격 계산에서 뺀다)
+
 ## 판단 필요 (리뷰 보류 — 승인 필요 판정)
 - [medium] frontier: robots 차단·기수집 URL 이 팝 시점에 도메인 쿨다운을 소모 — 공회전. 수정은 프런티어 계약 변경(팝/기록 분리 또는 add 시점 필터)이라 설계 결정
 - [8] indexer 증분(`url NOT IN docs`)이 **갱신을 반영하지 않는다.** 탐침 실측(2026-08-25 테스트 phase): 같은 url 을 재크롤해 pages.html 을 바꾼 뒤 index_pages → 0건, 옛 본문이 계속 검색되고 새 본문은 안 나옴. 컨셉 기능 5(재크롤 30일 갱신 반영)에 걸린다. 고치려면 docs 에 fetched_at 을 두고 비교·재삽입 = **스키마 변경이라 무인 모드가 보류**. 위 store.has 항목과 같은 recrawl 계획 소관

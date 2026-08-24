@@ -102,3 +102,14 @@ class TestPerDomainDelay(unittest.TestCase):
         self.f.add(["http://slow.com/2"])  # 나중에 링크로 다시 들어와도 안 받는다
         self.assertEqual(self.f.next(), "http://a.com/1")
         self.assertTrue(self.f.empty())
+
+    def test_exactly_max_delay_is_kept_not_dropped(self):
+        # 경계다. 30 을 버리면 지킬 수 있는 사이트를 못 크롤하고,
+        # 30.1 을 받으면 정책이 말뿐이 된다
+        self.f.add(["http://ok.com/1", "http://ok.com/2", "http://over.com/1"])
+        self.f.set_delay("ok.com", 30.0)
+        self.f.set_delay("over.com", 30.1)
+        self.assertEqual(self.f.next(), "http://ok.com/1")
+        self.assertIsNone(self.f.next())          # over.com 은 버려졌다
+        self.clock.t += 30.0
+        self.assertEqual(self.f.next(), "http://ok.com/2")

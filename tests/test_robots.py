@@ -68,3 +68,14 @@ class TestCrawlDelay(unittest.TestCase):
         c = _cache_with(lambda base: (200, "User-agent: other\nCrawl-delay: 7.5\n"
                                            "User-agent: *\nCrawl-delay: 2.5"))
         self.assertEqual(c.delay("http://a.com/page"), 7.5)
+
+    def test_malformed_delay_never_speeds_us_up(self):
+        # robots.txt 는 원격 입력이다. 망가진 값에 예외를 내면 크롤 전체가 죽고,
+        # 마음대로 빠르게 잡으면 윤리 위반이다. 규칙은 하나 — **느린 쪽으로만 틀린다.**
+        # 숫자가 없으면 지시 없음(호출부가 기본 1초), 숫자가 앞에 있으면 그 값을 쓴다
+        # ("5s" 를 5초로 읽는 것은 1초로 떨어지는 것보다 사이트 뜻에 가깝다)
+        for value, want in [("abc", None), ("", None), ("-5", None),
+                            ("5s", 5.0), ("2 # 주석", 2.0)]:
+            with self.subTest(value=value):
+                c = _cache_with(lambda base, v=value: (200, "User-agent: *\nCrawl-delay: %s" % v))
+                self.assertEqual(c.delay("http://a.com/page"), want)
