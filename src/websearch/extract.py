@@ -1,4 +1,4 @@
-"""HTML 에서 제목과 본문 텍스트를 뽑는다. script/style/noscript 제외, 공백 정규화."""
+"""HTML 에서 제목·본문 텍스트를 뽑고, meta robots 의 색인 거부 선언을 읽는다."""
 import html.parser
 
 _SKIP_TAGS = {"script", "style", "noscript"}
@@ -77,14 +77,16 @@ class _MetaRobotsParser(html.parser.HTMLParser):
 
 def is_noindex(html_text):
     """<meta name="robots"> 가 noindex 또는 none 을 선언하면 True (색인 거부)."""
-    # name="robots" 는 정의상 이 문자열을 품는다 — 없으면 파싱조차 하지 않는다
+    # ponytail: 원문에 'robots' 가 없으면 파싱조차 안 한다. 천장 — name 을 엔티티로
+    #           인코딩한 문서(&#114;obots)는 놓친다. 실물에서 보이면 필터를 뺀다
     if "robots" not in html_text.lower():
         return False
     parser = _MetaRobotsParser()
     parser.feed(html_text)
     parser.close()
     for content in parser.directives:
-        if {"noindex", "none"} & {t.strip().lower() for t in content.split(",")}:
+        # 구분자는 쉼표와 공백 둘 다다 — content="noindex nofollow" 도 유효한 표기
+        if {"noindex", "none"} & set(content.lower().replace(",", " ").split()):
             return True
     return False
 

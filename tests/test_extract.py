@@ -97,6 +97,11 @@ class TestIsNoindex(unittest.TestCase):
         self.assertFalse(is_noindex('<!-- <meta name="robots" content="noindex"> --><p>본문</p>'))
         self.assertFalse(is_noindex('<code>&lt;meta name="robots" content="noindex"&gt;</code>'))
 
+    def test_space_separated_directives(self):
+        # 리뷰 발견: 쉼표로만 쪼개 content="noindex nofollow" 를 놓쳤다 — 미탐
+        self.assertTrue(is_noindex('<meta name="robots" content="noindex nofollow">'))
+        self.assertTrue(is_noindex('<meta name="robots" content="nofollow noindex">'))
+
     def test_substring_is_not_a_directive(self):
         self.assertFalse(is_noindex('<meta name="robots" content="noindexing">'))
 

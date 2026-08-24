@@ -224,6 +224,18 @@ class TestCli(unittest.TestCase):
             self.assertEqual(indexer.main(["prog", self.db_path, "--query", "우주선"]), 0)
         self.assertNotEqual(buf.getvalue().strip(), "")
 
+    def test_removal_is_reported_not_silent(self):
+        # 리뷰 발견: 문서를 뺀 실행도 "0 문서 색인" 으로만 찍혀 아무 일도 없던 것과 구분이 안 된다
+        store = Store(self.db_path)
+        store.upsert("http://a.test/", "<p>김치</p>", 200)
+        indexer.main(["prog", self.db_path])
+        store.upsert("http://a.test/", '<meta name="robots" content="noindex"><p>김치</p>', 200)
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            self.assertEqual(indexer.main(["prog", self.db_path]), 0)
+        self.assertIn("1", buf.getvalue().split("\n")[-2])
+        self.assertIn("noindex", buf.getvalue())
+
     def test_index_then_query(self):
         Store(self.db_path).upsert("http://a.test/", "<title>요리</title><p>김치</p>", 200)
         self.assertEqual(indexer.main(["prog", self.db_path]), 0)

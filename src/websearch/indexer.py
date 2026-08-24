@@ -1,4 +1,8 @@
-"""수집 페이지를 FTS5 역색인에 넣고 질의한다. 재실행은 증분 — 새 문서만 색인한다."""
+"""수집 페이지를 FTS5 역색인에 넣고 질의한다.
+
+재실행은 증분이다 — 새 문서만 색인한다. 다만 색인 거부(meta robots noindex)를
+뒤늦게 선언한 문서를 빼기 위해 매 실행 색인 전체를 한 번 훑는다.
+"""
 import os
 import sqlite3
 import sys
@@ -51,6 +55,19 @@ def index_pages(db_path):
         db.close()
 
 
+def _doc_count(db_path):
+    """색인된 문서 수. DB 가 없거나 색인 전이면 0 (DB 파일을 만들지 않는다)."""
+    if not os.path.exists(db_path):
+        return 0
+    db = sqlite3.connect(db_path)
+    try:
+        if not db.execute("SELECT 1 FROM sqlite_master WHERE name='docs'").fetchone():
+            return 0
+        return db.execute("SELECT count(*) FROM docs").fetchone()[0]
+    finally:
+        db.close()
+
+
 def _fts_query(query):
     """어절마다 접두 매치로 재작성한다. 큰따옴표로 감싸 FTS5 문법 문자를 무력화한다."""
     # 제어문자는 먼저 지운다 — NUL 은 큰따옴표 이스케이프를 통과해 FTS5 문자열을 조기 종료시킨다
@@ -95,7 +112,13 @@ def main(argv):
     db_path = args[0]
     try:
         if query is None:
-            print("%d 문서 색인" % index_pages(db_path))
+            before = _doc_count(db_path)
+            indexed = index_pages(db_path)
+            print("%d 문서 색인" % indexed)
+            # 색인이 조용히 줄어들면 "아무 일도 없었음" 과 구분할 수 없다
+            removed = before + indexed - _doc_count(db_path)
+            if removed:
+                print("%d 문서 색인 제외 — noindex 선언" % removed)
         else:
             hits = search(db_path, query, limit=10)
             if not hits:
