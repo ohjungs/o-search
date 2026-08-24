@@ -1,4 +1,5 @@
 """수집 페이지 저장. 스키마는 코드가 만든다 (설계 계약: pages 테이블)."""
+import os
 import sqlite3
 
 SCHEMA = """
@@ -13,6 +14,9 @@ CREATE TABLE IF NOT EXISTS pages (
 
 class Store:
     def __init__(self, path):
+        parent = os.path.dirname(path)
+        if path != ":memory:" and parent:
+            os.makedirs(parent, exist_ok=True)
         self._db = sqlite3.connect(path)
         self._db.execute(SCHEMA)
 

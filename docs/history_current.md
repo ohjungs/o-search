@@ -71,3 +71,8 @@ append 전용. 수정·삭제 금지.
 - 한 일: 갭 탐색 6카테고리 — 격리 위반 1건(테스트가 실제 시계 의존, 스위트 4.06s) 수정: crawl 에 now 주입, sleep 목이 가짜 시계를 흘림
 - 결과: 30/30 통과 0.004s (PYTHONPATH=src python3 -m unittest discover tests — 전체). 8점 미만 갭 3건 digest 에
 - 다음: 리뷰 phase
+
+## 2026-08-25 야간9 | crawler-core | 리뷰 | 시도1
+- 한 일: 패스 A 별도 세션(백지, 8건) → 코드 검증 → 자동 6건 수정(TDD 재현 테스트 11개 먼저): store 디렉터리 생성/FetchResult.url(리다이렉트 정본)/스킴 ValueError/charset 존중+폴백/2MB 상한/--max 방어
+- 결과: 37/37 통과 0.007s (전체). 보류 2건 digest "판단 필요"로: 쿨다운 공회전(설계 결정), 재실행 스킵 정책(recrawl 소관)
+- 다음: e2e phase

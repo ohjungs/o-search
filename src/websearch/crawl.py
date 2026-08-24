@@ -23,10 +23,13 @@ def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None, now=time
         if store.has(url) or not robots.allowed(url):
             continue
         result = fetcher.fetch(url)
-        store.upsert(url, result.html, result.status)
+        page_url = result.url or url  # 리다이렉트면 최종 URL 이 정본
+        if page_url != url and store.has(page_url):
+            continue
+        store.upsert(page_url, result.html, result.status)
         if result.html is not None and 200 <= result.status < 300:
             saved += 1
-            frontier.add(links.extract(url, result.html))
+            frontier.add(links.extract(page_url, result.html))
     return saved
 
 
@@ -38,7 +41,11 @@ def main(argv):
     max_pages = 100
     if "--max" in args:
         i = args.index("--max")
-        max_pages = int(args[i + 1])
+        try:
+            max_pages = int(args[i + 1])
+        except (IndexError, ValueError):
+            print("--max 는 숫자 하나를 받는다", file=sys.stderr)
+            return 2
         del args[i:i + 2]
     n = crawl(args, max_pages)
     print("수집 %d 페이지" % n)

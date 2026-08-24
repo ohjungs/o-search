@@ -33,8 +33,9 @@
 - 시그니처:
   - `robots.RobotsCache.allowed(url: str) -> bool` — robots 응답 실패 시 **허용**(관례),
     단 5xx 는 차단(보수)
-  - `fetcher.fetch(url) -> FetchResult(status, html | None)` — 타임아웃 10s, 재시도 2회,
-    UA `websearchbot/0.1`, text/html 외·2xx 외는 html=None
+  - `fetcher.fetch(url) -> FetchResult(status, html | None, url | None)` — 타임아웃 10s, 재시도 2회,
+    UA `websearchbot/0.1`, text/html 외·2xx 외는 html=None, 응답 크기 상한 2MB.
+    url 은 리다이렉트 후 최종 URL(저장 키·링크 base) — 리뷰 phase 에서 추가(리다이렉트 base 오염 수정)
   - `store.Store(path)` — 테이블 `pages(url TEXT PK, html TEXT, status INT, fetched_at TEXT)`,
     `upsert(url, html, status)`, `has(url) -> bool`. DB 파일 `data/crawl.db` (gitignore)
   - `links.extract(base_url, html) -> list[str]` — 절대화, fragment 제거, http(s)만, 중복 제거

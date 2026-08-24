@@ -38,3 +38,7 @@ history_current.md 가 상한을 넘어 밀려날 때, 밀려나는 내용을 1~
 - [5] crawl: 이미 store 에 있는 URL 스킵 경로 무테스트
 - [4] crawl.main CLI 인자 파싱 무테스트
 - [높음·설계 범위 밖 메모] robots crawl-delay 존중 — 윤리 축이라 우선순위 높음
+
+## 판단 필요 (리뷰 보류 — 승인 필요 판정)
+- [medium] frontier: robots 차단·기수집 URL 이 팝 시점에 도메인 쿨다운을 소모 — 공회전. 수정은 프런티어 계약 변경(팝/기록 분리 또는 add 시점 필터)이라 설계 결정
+- [high] store.has 가 상태 불문 스킵: 같은 DB 로 재실행하면 시드부터 스킵돼 0으로 끝남. 재크롤 정책(성공만 스킵/TTL/링크 재추출)은 recrawl 계획 소관 — 앞당길지 판단 필요

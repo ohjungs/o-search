@@ -1,3 +1,5 @@
+import os
+import tempfile
 import unittest
 
 from websearch.store import Store
@@ -17,6 +19,10 @@ class TestStore(unittest.TestCase):
         self.store.upsert("http://a.com/", "v2", 200)
         self.assertEqual(self.store.count(), 1)
         self.assertEqual(self.store.get_html("http://a.com/"), "v2")
+
+    def test_creates_missing_parent_directory(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            Store(os.path.join(tmp, "sub", "x.db")).upsert("http://a.com/", "h", 200)
 
     def test_failed_fetch_stored_without_html(self):
         self.store.upsert("http://a.com/gone", None, 404)
