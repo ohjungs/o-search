@@ -76,3 +76,8 @@ append 전용. 수정·삭제 금지.
 - 한 일: 패스 A 별도 세션(백지, 8건) → 코드 검증 → 자동 6건 수정(TDD 재현 테스트 11개 먼저): store 디렉터리 생성/FetchResult.url(리다이렉트 정본)/스킴 ValueError/charset 존중+폴백/2MB 상한/--max 방어
 - 결과: 37/37 통과 0.007s (전체). 보류 2건 digest "판단 필요"로: 쿨다운 공회전(설계 결정), 재실행 스킵 정책(recrawl 소관)
 - 다음: e2e phase
+
+## 2026-08-25 야간10 | crawler-core | e2e | 시도1
+- 한 일: e2e/crawl_e2e.py 신설(로컬 서버 20p+robots 차단) — CLI 실제 실행 검증. project.md e2e 명령 확정. 계획 아카이브(001)
+- 결과: e2e 통과 — 수집 15/15, 차단 요청 0, 최소 간격 1.002s. 품질 4축은 미검증으로 기록(측정 명령 아직 없음)
+- 다음: DONE → 다음 계획 indexer (계획 phase)

@@ -8,7 +8,7 @@
 - **테스트(전체)**: `PYTHONPATH=src python3 -m unittest discover tests` (2026-08-25 실행 확인, 실패 감지도 확인)
 - **테스트(빠름)**: 전체가 수 초라 구분 없음
 - **린트/타입체크**: 없음 — stdlib만 쓰는 소규모, 필요해지면 추가
-- **e2e**: 미정
+- **e2e**: `PYTHONPATH=src python3 e2e/crawl_e2e.py` (2026-08-25 실행 확인, 14.7s — 간격 정책상 정상)
 
 ## 브랜치·소유자
 
