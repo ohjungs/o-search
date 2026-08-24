@@ -60,6 +60,35 @@ def _normalize(parts):
     return " ".join("".join(parts).split()).translate(_CONTROL)
 
 
+class _MetaRobotsParser(html.parser.HTMLParser):
+    """<meta name="robots"> 의 content 만 모은다. 태그명·속성명은 HTMLParser 가 소문자로 준다."""
+
+    def __init__(self):
+        super().__init__()
+        self.directives = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag != "meta":
+            return
+        attr = dict(attrs)
+        if (attr.get("name") or "").strip().lower() == "robots":
+            self.directives.append(attr.get("content") or "")
+
+
+def is_noindex(html_text):
+    """<meta name="robots"> 가 noindex 또는 none 을 선언하면 True (색인 거부)."""
+    # name="robots" 는 정의상 이 문자열을 품는다 — 없으면 파싱조차 하지 않는다
+    if "robots" not in html_text.lower():
+        return False
+    parser = _MetaRobotsParser()
+    parser.feed(html_text)
+    parser.close()
+    for content in parser.directives:
+        if {"noindex", "none"} & {t.strip().lower() for t in content.split(",")}:
+            return True
+    return False
+
+
 def extract_text(html_text):
     """(title, text) 를 돌려준다. 제목이 없으면 빈 문자열."""
     parser = _TextParser()

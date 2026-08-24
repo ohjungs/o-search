@@ -136,3 +136,8 @@ append 전용. 수정·삭제 금지.
 - 한 일: design_noindex-respect.md — 대안 3개(A 색인 시점 판정 / B 수집 시점 차단+스키마 / C 검색 시점 필터) 비교, A 채택. 가정 4건 탐침: html.parser 가 void·self-closing·대문자·따옴표 없는 속성·깨진 HTML 에서 meta 를 잡는다 / 'robots' 사전 필터 안전 / FTS5 UNINDEXED url 로 DELETE 가능 / SQLite LIKE 대소문자 무시·NULL 미포함
 - 결과: 넷 다 참(탐침 커밋 안 함). 스키마 변경 없음 → 야간 보류 사안 없음. 계약(시그니처·판정 규칙·질의 2개) 확정
 - 다음: 개발 1/3 extract.is_noindex (TDD)
+
+## 2026-08-25 야간22 | noindex-respect | 개발 1/3 | 시도1
+- 한 일: tests/test_extract.py 에 10케이스 먼저 작성·실패 확인 → src/websearch/extract.py 에 _MetaRobotsParser + is_noindex() 구현. 설계 계약대로 name 소문자화 후 robots 만, content 를 쉼표로 쪼갠 토큰에 noindex/none, 사전 필터로 'robots' 없는 문서는 파싱 생략. _TextParser 는 안 건드렸다(반환 형태 유지)
+- 결과: 전체 81/81 통과 0.039s (71 → 81). 새 의존성 0. 색인 경로는 아직 미연결
+- 다음: 개발 2/3 index_pages 필터·제거

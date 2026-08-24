@@ -1,6 +1,6 @@
 import unittest
 
-from websearch.extract import extract_text
+from websearch.extract import extract_text, is_noindex
 
 
 class TestExtractText(unittest.TestCase):
@@ -52,3 +52,42 @@ class TestExtractText(unittest.TestCase):
     def test_broken_html_no_raise(self):
         title, text = extract_text("<title>t<p>글<<<div")
         self.assertIn("글", text)
+
+
+class TestIsNoindex(unittest.TestCase):
+    """색인 거부 선언 판정. 크롤 윤리 축 — 오탐(색인 못 함)보다 미탐(색인함)이 더 나쁘다."""
+
+    def test_noindex(self):
+        self.assertTrue(is_noindex('<html><head><meta name="robots" content="noindex"></head></html>'))
+
+    def test_none_means_noindex(self):
+        self.assertTrue(is_noindex('<meta name="robots" content="none">'))
+
+    def test_case_and_spacing_and_list(self):
+        self.assertTrue(is_noindex('<META NAME="ROBOTS" CONTENT="NOINDEX, NOFOLLOW">'))
+        self.assertTrue(is_noindex('<meta   name = "robots"   content = " NoIndex , nofollow " >'))
+        self.assertTrue(is_noindex("<meta name=robots content=noindex>"))
+
+    def test_index_follow_is_allowed(self):
+        self.assertFalse(is_noindex('<meta name="robots" content="index, follow">'))
+
+    def test_no_meta_is_allowed(self):
+        self.assertFalse(is_noindex("<html><title>t</title><p>본문</p></html>"))
+
+    def test_other_bot_name_ignored(self):
+        # 이 크롤러의 UA 는 자기 이름을 쓴다 — googlebot 지시는 우리 것이 아니다
+        self.assertFalse(is_noindex('<meta name="googlebot" content="noindex">'))
+
+    def test_word_in_body_is_not_a_directive(self):
+        # 오탐 금지: 본문이 noindex 를 설명만 해도 색인이 막히면 안 된다
+        self.assertFalse(is_noindex("<p>this page explains the noindex meta tag</p>"))
+
+    def test_second_meta_counts(self):
+        html = '<meta name="viewport" content="width=device-width"><meta name="robots" content="noindex">'
+        self.assertTrue(is_noindex(html))
+
+    def test_broken_html_still_detected(self):
+        self.assertTrue(is_noindex('<html><head><title>t<meta name="robots" content="noindex"><body><p>hi'))
+
+    def test_empty_html_no_raise(self):
+        self.assertFalse(is_noindex(""))
