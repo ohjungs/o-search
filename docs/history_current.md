@@ -26,3 +26,8 @@ append 전용. 수정·삭제 금지.
 - 한 일: 초기화(템플릿 7개 배치, 훅 설치) + concept.md 를 계획 6개로 분할(index.md) + plan_crawler-core.md 작성(스텝 7)
 - 결과: project.md 명령 절은 "없음"(코드 0줄) — 스텝 1에서 갱신 예정
 - 다음: 설계 phase — design_crawler-core.md (스택·모듈 경계)
+
+## 2026-08-25 | crawler-core | 설계 | 시도1
+- 한 일: design_crawler-core.md — 대안 3개(stdlib만/의존성 추가/Node) 비교, A 선택. 가정 탐침: 시스템 Python 3.9.6 sqlite3 FTS5 생성 성공
+- 결과: 의존성 0 → 설계룰 4절 보류 사안 없음. 계약(시그니처·스키마) 확정
+- 다음: 개발 스텝 1 — 스캐폴드 + unittest 러너 확인
