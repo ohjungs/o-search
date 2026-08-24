@@ -2,11 +2,11 @@
 signal: GREEN
 mode: night
 plan: crawler-core
-phase: 개발
-step: 6/7
+phase: 테스트
+step: 7/7
 attempt: 0
-iteration: 8
-night_iterations: 6
+iteration: 9
+night_iterations: 7
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
@@ -22,7 +22,7 @@ FTS5 탐침 통과(SQLite 3.51.0). 의존성 0이라 보류 사안 없음.
 
 ## 다음 행동
 
-`phase: 개발` — 새 프로젝트 스택(언어·구조) 확정이 설계 트리거.
+`phase: 테스트` — 새 프로젝트 스택(언어·구조) 확정이 설계 트리거.
 `rules/design.md` 에 따라 `docs/design_crawler-core.md` 작성.
 갈림길이면 `concept.md` 우선순위(경량 > …, SQLite 고정)를 따른다.
 
