@@ -56,3 +56,8 @@ append 전용. 수정·삭제 금지.
 - 한 일: links.py(extract) + test_links.py 6케이스 — 절대화/fragment/스킴 필터/중복/빈 href/깨진 HTML
 - 결과: 실패 확인 후 구현, 전체 20/20 통과. stdlib HTMLParser 로 충분
 - 다음: 개발 6/7 frontier
+
+## 2026-08-25 야간6 | crawler-core | 개발 6/7 | 시도1
+- 한 일: frontier.py(Frontier: add/next/empty/seconds_until_ready) + test_frontier.py 6케이스 — 중복/재큐 방지/1초 간격/라운드로빈/대기 시간
+- 결과: 실패 확인 후 구현, 전체 26/26 통과. 시계 주입으로 sleep 없는 테스트
+- 다음: 개발 7/7 crawl 통합
