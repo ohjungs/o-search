@@ -22,7 +22,8 @@ def _parse(params):
     query = (params.get("q") or [""])[0].strip()
     if not query:
         raise ValueError("q 파라미터에 질의 문자열이 필요하다")
-    return query
+    page = int((params.get("page") or ["1"])[0])
+    return query, page
 
 
 def make_server(db_path, port=8000):
@@ -38,8 +39,11 @@ def make_server(db_path, port=8000):
                 self._send(404, {"error": "없는 경로: %s" % parts.path})
                 return
             try:
-                query = _parse(urllib.parse.parse_qs(parts.query))
-                hits = indexer.search(db_path, query, limit=PAGE_SIZE)
+                query, page = _parse(urllib.parse.parse_qs(parts.query))
+                # limit+1 로 받아 11번째 유무로 has_next 를 판정한다 — 개수 질의는
+                # 두 번째 전수 질의라 p95 에 그대로 얹힌다 (design_search-api.md 계약)
+                hits = indexer.search(db_path, query, limit=PAGE_SIZE + 1,
+                                      offset=(page - 1) * PAGE_SIZE)
             except ValueError as exc:
                 self._send(400, {"error": str(exc)})
             except Exception as exc:  # 트레이스백을 응답 본문에 싣지 않는다
@@ -48,8 +52,10 @@ def make_server(db_path, port=8000):
             else:
                 self._send(200, {
                     "query": query,
+                    "page": page,
+                    "has_next": len(hits) > PAGE_SIZE,
                     "results": [{"url": url, "title": title, "snippet": snippet}
-                                for url, title, snippet in hits],
+                                for url, title, snippet in hits[:PAGE_SIZE]],
                 })
 
         def _send(self, status, payload):

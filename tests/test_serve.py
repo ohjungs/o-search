@@ -21,10 +21,18 @@ PAGES = {
 }
 
 
-def build_db(path):
+# 20건 = 정확히 2페이지. has_next 를 limit+1 로 판정하므로 경계는 "딱 떨어지는" 마지막 페이지다
+MANY_PAGES = {
+    "http://p.test/%02d" % i: "<html><title>김치 %02d</title><body>"
+                              "<p>김치 를 담근다</p></body></html>" % i
+    for i in range(20)
+}
+
+
+def build_db(path, pages):
     db = sqlite3.connect(path)
     db.execute("CREATE TABLE pages (url TEXT PRIMARY KEY, html TEXT, status INTEGER)")
-    for url, html in PAGES.items():
+    for url, html in pages.items():
         db.execute("INSERT INTO pages VALUES (?, ?, 200)", (url, html))
     db.commit()
     db.close()
@@ -34,11 +42,13 @@ def build_db(path):
 class ServeTestCase(unittest.TestCase):
     """임시 DB 로 서버를 띄우고 실제 HTTP 로 때린다. 포트는 0 — 충돌하지 않는다."""
 
+    pages = PAGES
+
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.db = os.path.join(self._tmp.name, "crawl.db")
-        build_db(self.db)
+        build_db(self.db, self.pages)
         self.server = serve.make_server(self.db, port=0)
         self.addCleanup(self.server.server_close)
         # poll_interval 기본 0.5s 는 shutdown() 이 그만큼 기다린다 — 테스트마다 0.5s 씩 붙는다
@@ -96,6 +106,47 @@ class TestSearchEndpoint(ServeTestCase):
         self.assertEqual(status, 400)
         self.assertIn("error", body)
         self.assertNotIn("Traceback", json.dumps(body))
+
+
+class TestPagination(ServeTestCase):
+    """20건 색인 = 2페이지. 페이지 경계와 has_next 를 못박는다."""
+
+    pages = MANY_PAGES
+    Q = "/search?q=%EA%B9%80%EC%B9%98"  # q=김치
+
+    def urls(self, path):
+        status, body, _ = self.get(path)
+        self.assertEqual(status, 200, body)
+        return [r["url"] for r in body["results"]]
+
+    def every(self):
+        return [url for url, _, _ in indexer.search(self.db, "김치", limit=100)]
+
+    def test_page_2_is_the_eleventh_through_twentieth(self):
+        self.assertEqual(self.urls(self.Q + "&page=2"), self.every()[10:20])
+
+    def test_missing_page_is_page_1(self):
+        self.assertEqual(self.urls(self.Q), self.every()[:10])
+
+    def test_pages_do_not_overlap(self):
+        self.assertFalse(set(self.urls(self.Q)) & set(self.urls(self.Q + "&page=2")))
+
+    def test_page_size_is_ten(self):
+        self.assertEqual(len(self.urls(self.Q)), 10)
+
+    def test_has_next_true_when_more_remain(self):
+        _, body, _ = self.get(self.Q)
+        self.assertTrue(body["has_next"])
+
+    def test_has_next_false_on_exactly_full_last_page(self):
+        # 20건이 딱 2페이지 — 11번째 유무로 판정하는 방식이 여기서 틀리기 쉽다
+        _, body, _ = self.get(self.Q + "&page=2")
+        self.assertEqual(len(body["results"]), 10)
+        self.assertFalse(body["has_next"])
+
+    def test_page_echoed_in_response(self):
+        _, body, _ = self.get(self.Q + "&page=2")
+        self.assertEqual(body["page"], 2)
 
 
 if __name__ == "__main__":

@@ -153,6 +153,14 @@ class TestSearch(unittest.TestCase):
             ["http://dense.test/", "http://sparse.test/"],
         )
 
+    def test_offset_skips_earlier_hits(self):
+        # 페이지네이션의 토대 — limit 만으로는 2페이지를 낼 수 없다
+        self._seed_and_index([("http://a.test/%d" % i, "<title>김치 %d</title><p>김치</p>" % i)
+                              for i in range(5)])
+        every = search(self.db_path, "김치", limit=5)
+        self.assertEqual(len(every), 5)
+        self.assertEqual(search(self.db_path, "김치", limit=2, offset=2), every[2:4])
+
     def test_no_match_returns_empty_list(self):
         self._seed_and_index([("http://a.test/", "<p>김치</p>")])
         self.assertEqual(search(self.db_path, "우주선"), [])

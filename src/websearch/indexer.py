@@ -75,8 +75,11 @@ def _fts_query(query):
     return " ".join('"%s"*' % term.replace('"', '""') for term in terms)
 
 
-def search(db_path, query, limit=10):
-    """(url, title, snippet) 목록을 bm25 관련도순으로 돌려준다. 매치가 없으면 빈 목록."""
+def search(db_path, query, limit=10, offset=0):
+    """(url, title, snippet) 목록을 bm25 관련도순으로 돌려준다. 매치가 없으면 빈 목록.
+
+    offset 은 앞에서 건너뛸 개수다 — 기본값이 있어 기존 호출부는 그대로 돈다.
+    """
     if not os.path.exists(db_path):
         raise FileNotFoundError(db_path)
     match = _fts_query(query)
@@ -89,8 +92,8 @@ def search(db_path, query, limit=10):
         return db.execute(
             # -1: 질의어가 실제로 매치된 열에서 스니펫을 뽑는다 (제목만 매치되는 경우)
             "SELECT url, title, snippet(docs, -1, '', '', '…', 20) FROM docs "
-            "WHERE docs MATCH ? ORDER BY bm25(docs) LIMIT ?",
-            (match, limit),
+            "WHERE docs MATCH ? ORDER BY bm25(docs) LIMIT ? OFFSET ?",
+            (match, limit, offset),
         ).fetchall()
     finally:
         db.close()
