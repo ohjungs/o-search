@@ -2,11 +2,11 @@
 signal: GREEN
 mode: night
 plan: indexer
-phase: 설계
+phase: 개발
 step: 0
 attempt: 0
-iteration: 13
-night_iterations: 11
+iteration: 14
+night_iterations: 12
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
@@ -21,7 +21,7 @@ indexer 계획 작성 완료 (plan_indexer.md, 스텝 4). 브랜치 loop/indexer
 
 ## 다음 행동
 
-`phase: 설계` — FTS5 스키마·토크나이저(unicode61 vs trigram)·external content 여부.
+`phase: 개발` — FTS5 스키마·토크나이저(unicode61 vs trigram)·external content 여부.
 
 ## 정지 사유
 

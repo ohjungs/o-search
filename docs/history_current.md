@@ -86,3 +86,8 @@ append 전용. 수정·삭제 금지.
 - 한 일: plan_indexer.md 작성 — 스텝 4(추출/증분 writer/질의+CLI/e2e). index.md 중복 확인: 없음
 - 결과: 설계 필요 판정 (새 모듈+FTS5 스키마+토크나이저 갈림)
 - 다음: 설계 phase
+
+## 2026-08-25 야간12 | indexer | 설계 | 시도1
+- 한 일: 토크나이저 탐침 — trigram 2글자 질의 불가(실측), unicode61+prefix+질의 재작성 채택. 단독 FTS5·같은 DB. design_indexer.md
+- 결과: 컨셉 메모(trigram)와 다른 결정 — 근거 실측 기록. quality-eval 80% 미달 시 재론 조건 명시
+- 다음: 개발 1/4 extract
