@@ -1,46 +1,55 @@
 ---
-signal: GREEN
+signal: DONE
 mode: night
-plan: noindex-respect
-phase: e2e
-step: 2/3
+plan: null
+phase: 계획
+step: 3/3
 attempt: 0
-iteration: 27
-night_iterations: 6
+iteration: 28
+night_iterations: 7
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
-updated: 2026-08-25 (반복 27)
+updated: 2026-08-25 (반복 28)
 ctx: 71% / 200k
 rules: null
 ---
 
 # 현재 상태
 
-**리뷰 phase 완료 — 백지 패스 4건 중 3건 수정, 1건은 천장으로 기록. 전체 90/90 통과.**
-별도 세션에 diff 만 주고 받았다(계획·설계·상태 문서는 주지 않음).
-고친 것: ① `content="noindex nofollow"`(공백 구분) 미탐 — 이 계획이 막으려던 실패
-② 문서를 뺀 실행이 "0 문서 색인" 으로만 찍혀 침묵 ③ 모듈 독스트링 2개가 새 동작과 불일치.
-기록만 한 것: ④ 사전 필터가 엔티티 인코딩된 `name`(`&#114;obots`)을 놓친다 → `docs/digest.md`.
+**noindex-respect 계획 DONE — e2e 통과, 아카이브 003 완료.**
+세 번째 계획이 닫혔다. 전체 90/90 통과, 야간 RED 0·재시도 0.
+`docs/digest.md` 보류 [85](색인이 meta noindex 를 무시)를 닫았다 —
+크롤 윤리 축이 robots.txt(001) 에 이어 meta robots 까지 덮인다.
+
+이제 색인 명령은 `<meta name="robots">` 의 noindex·none 을 존중한다.
+이미 색인된 문서가 뒤늦게 거부를 선언해도 다음 실행에서 빠지고, 그 사실을 출력한다.
 
 ## 진행 중인 스텝 — 이어받는 세션이 읽을 것
 
-- 할 일: **계획 스텝 3/3 — e2e (`rules/e2e.md`)**. `e2e/noindex_e2e.py` 를 신설하고
-  결과를 `docs/e2e/noindex-respect/result.md` 에 남긴다
-- 근거: 시나리오 5단계는 `docs/plan_noindex-respect.md` "e2e 시나리오" 절에 그대로 있다.
-  로컬 서버 3페이지(일반 / `noindex` / `none`, 셋 다 본문에 `pyeongsan`) →
-  `python3 -m websearch.crawl` → `python3 -m websearch.indexer` 로 "1 문서 색인" →
-  `--query pyeongsan` 이 일반 페이지 하나만 → `pages.html` 을 직접 noindex 로 바꾸고
-  색인 재실행 → 결과 없음 + "1 문서 색인 제외" 출력
-- 앞 관문(`rules/e2e.md`): 전체 스위트와 기존 e2e 2개(`e2e/crawl_e2e.py`,
-  `e2e/indexer_e2e.py`)의 회귀 없음을 **먼저** 통과시킨다. 기존 e2e 서식은
-  `e2e/indexer_e2e.py` 를 그대로 따른다 (로컬 HTTP 서버 + 모듈 실행)
-- 완료 기준: e2e 통과 + `docs/project.md` 에 e2e 명령 한 줄 추가 + 계획 아카이브(003)
-- 이미 한 것: 계획·설계·개발 2스텝·테스트·리뷰 커밋 완료 (커밋 6개)
+- 할 일: **다음 계획 착수 — `search-api`** (`docs/index.md` 사양 분할 4번).
+  질의 → 랭킹 결과 API. 컨셉 성능 1(p95 300ms)의 측정이 여기서 시작된다
+- 근거: `docs/index.md` 의존 순서상 남은 것 중 가장 앞. `indexer.search()` 가
+  이미 (url, title, snippet) 을 bm25 순으로 돌려주므로 HTTP 껍데기 + 측정이 핵심이다
+- 완료 기준: 계획 phase 이므로 `rules/plan.md` 로 `docs/plan_search-api.md` 를 쓴다.
+  중복 확인은 `docs/index.md` + `docs/digest.md`
+- 이미 한 것: 없음 (착수 전)
+
+### 계획을 쓸 때 반드시 반영할 것 (digest 에 근거 있음)
+
+- `search()` 의 질의 재작성은 신뢰 경계다. HTTP 파라미터가 붙는 순간 NUL·제어문자
+  경로가 실제로 도달 가능해진다 — 이미 막아뒀지만 API 계층에서 다시 확인
+- "판단 필요" 의 [8] 증분이 재크롤 갱신 미반영 — API 가 옛 본문을 서빙하게 되므로
+  recrawl 계획을 앞당길지 판단
+- **반복 실패 3회째 주의**: CLI 진입점마다 방어를 따로 쓰는 문제(digest "반복 실패").
+  HTTP 핸들러는 세 번째 진입점이다 — 같은 부류가 또 나온다
+- 크롤 윤리 잔여 항목: robots `crawl-delay` 존중(digest, 높음),
+  `X-Robots-Tag` 헤더(스키마 expand 필요라 무인 보류)
 
 ## 다음 행동
 
-`/loop-harness night` 또는 `/loop-harness` 를 다시 부르면 e2e phase 부터 이어진다.
+`/loop-harness night` 또는 `/loop-harness` 를 다시 부르면 이어진다.
+DONE 처리는 끝났으므로 다음 세션은 계획 phase 부터 시작한다.
 
 ## 정지 사유
 

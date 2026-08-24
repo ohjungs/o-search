@@ -10,6 +10,7 @@
 - **린트/타입체크**: 없음 — stdlib만 쓰는 소규모, 필요해지면 추가
 - **e2e**: `PYTHONPATH=src python3 e2e/crawl_e2e.py` (2026-08-25 실행 확인, 14.7s — 간격 정책상 정상)
 - **e2e**: `PYTHONPATH=src python3 e2e/indexer_e2e.py` (2026-08-25 실행 확인, 약 4s)
+- **e2e**: `PYTHONPATH=src python3 e2e/noindex_e2e.py` (2026-08-25 실행 확인, 3.7s)
 
 ## 브랜치·소유자
 
