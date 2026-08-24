@@ -2,43 +2,44 @@
 signal: GREEN
 mode: night
 plan: crawl-delay
-phase: 리뷰
+phase: e2e
 step: 4/4 (개발 끝)
 attempt: 0
-iteration: 44
-night_iterations: 13
+iteration: 45
+night_iterations: 14
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
-updated: 2026-08-25 (반복 44)
+updated: 2026-08-25 (반복 45)
 ctx: 82% / 200k
 rules: null
 ---
 
 # 현재 상태
 
-**`crawl-delay` 테스트 phase 통과.** 전체 140/140
-(`PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python3 -m unittest discover tests`).
-다음은 **리뷰 phase** (`~/.claude/skills/loop-harness/rules/review.md`) — 백지 패스로 본다.
+**`crawl-delay` 리뷰 phase 통과.** 백지 패스 지적 중 8점 이상 2건 + 값싼 것 4건을 고쳤다.
+146/146, `e2e/crawl_delay_e2e.py` 통과. 다음은 **e2e phase** —
+`docs/e2e/crawl-delay/result.md` 에 결과를 남기고 계획을 DONE 으로 닫는다.
 
-## 테스트 phase 가 한 일
+## 리뷰가 잡은 것 (전부 실재. 확인하고 고쳤다)
 
-- 갭 2건(8점 이상)을 메웠다: `MAX_DELAY` **경계**(30.0 유지 / 30.1 폐기),
-  망가진 `Crawl-delay` 값(원격 입력 — `abc`·``·`-5` → 지시 없음, `5s` → 5.0)
-- **테스트가 아니라 내 예상이 틀린 것을 하나 잡았다**: `Crawl-delay: 5s` 를 "지시 없음"
-  으로 볼 뻔했는데, 그러면 1초로 **빨라진다**. 규칙을 코드 주석에 못박았다 —
-  **느린 쪽으로만 틀린다**
-- 8점 미만 3건은 `docs/digest.md` 에 남겼다(폐기 되돌리기 없음, `delay()` 반복 호출,
-  robots.txt 요청은 간격 밖)
+1. **[7] 같은 netloc 의 http/https 가 서로의 간격을 덮어썼다** — robots 캐시는
+   `scheme://netloc` 인데 프런티어 키는 `netloc` 이다. 20초를 요구한 사이트에
+   지시 없는 https 링크 하나가 오면 1초로 떨어졌다. → `set_delay` 를 **늘어나는
+   방향으로만** 움직이게 고쳤다(docstring 이 원래 그렇게 약속하고 있었다)
+2. **[6] 폴백이 남의 UA 그룹 값을 집었다** — 다른 봇에게 건 `Crawl-delay: 86400` 을
+   우리 값으로 읽으면 1.5초면 지킬 수 있는 사이트가 상한 초과로 통째로 버려진다.
+   → `robots._applicable_delay()` 가 **우리 이름을 지목한 그룹 → 없으면 `*`** 만 본다
+3. [5] 도메인 폐기가 조용했다 → `crawl()` 이 stderr 로 사유를 찍는다
+4. [4] `Crawl-delay: 1e3` 을 1초로 읽었다 → `float()` 먼저 시도해 1000초로 읽는다
+5. [3] docstring 이 코드와 달랐다 / [2] 폐기 도메인에 안 쓸 `_delays` 가 남았다 / [1] e2e 잡티
 
-## 리뷰가 볼 곳
+## 리뷰 지적 중 안 고친 것 (digest 에 있다)
 
-- `src/websearch/robots.py` — `delay()`, `_DELAY_LINE` 폴백, `_parser()` 추출
-- `src/websearch/frontier.py` — `set_delay()`, `_interval()`, `add()` 의 폐기 필터
-- `src/websearch/crawl.py` — 배선 3줄
-- `e2e/crawl_delay_e2e.py` — 두 도메인 트릭(Host 헤더로 robots 를 가른다)
+- [5] `robots._fetch_robots` 에 응답 크기 상한 없음 — **무인 모드가 보안·자원은 안 만진다**
+- [4] `MAX_DELAY` 는 요청당 대기만 막는다(총 크롤 시간 예산은 별도)
+- [4] 간격 시계가 pop 시각 기준 — 프런티어 계약 변경이라 별도 판단
 
 ## 정지 조건
 
-이번 세션 반복 13건(32~44) 전부 GREEN. RED 0 · 재시도 0 · 보류 0 · 패치 0.
-브랜치 `loop/crawl-delay`. **5개 계획 브랜치 전부 머지 안 됐다.**
+이번 세션 반복 14건(32~45) 전부 GREEN. RED 0 · 재시도 0 · 보류 0 · 패치 0.
