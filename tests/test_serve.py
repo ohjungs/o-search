@@ -1,8 +1,11 @@
 """GET /search 가 검색 결과를 JSON 으로 내는지. 서버를 실제로 띄워 확인한다."""
+import io
 import json
 import os
+import socket
 import sqlite3
 from concurrent import futures
+from unittest import mock
 import tempfile
 import threading
 import unittest
@@ -155,6 +158,41 @@ class TestPagination(ServeTestCase):
         _, body, _ = self.get(self.Q + "&page=2")
         self.assertEqual(body["page"], 2)
 
+    def test_has_next_is_false_at_the_page_cap(self):
+        """상한도 서버가 정한 것이니 마지막이라는 사실도 서버가 알려야 한다.
+
+        `while has_next: page += 1` 로 도는 클라이언트가 상한 다음 장을 달라고 하면
+        400 을 맞는다 — 서버가 "다음이 있다"고 해놓고 그 다음을 거부하는 것이다.
+        """
+        with mock.patch.object(serve, "MAX_PAGE", 1):
+            _, body, _ = self.get(self.Q)
+        self.assertEqual(len(body["results"]), 10, "뒤에 10건이 더 있는 상황이어야 한다")
+        self.assertFalse(body["has_next"], "상한이 1인데 2페이지가 있다고 답했다")
+
+
+class TestTiedRanking(ServeTestCase):
+    """bm25 동점 문서는 실제 색인에서 흔하다(같은 틀로 찍힌 페이지들).
+
+    2차 정렬 키가 없으면 페이지 사이 순서가 sqlite 의 우연에 걸린다 —
+    겹치거나 빠지는 결과가 나올 수 있는 자리다. `ORDER BY bm25(docs), rowid` 로 계약이 된다.
+    """
+
+    # 본문·제목이 완전히 같다 = bm25 가 정확히 동점 (실측: 서로 다른 점수 1/12)
+    pages = {"http://tie.test/%02d" % i: "<html><title>김치</title><body>"
+                                         "<p>김치 를 담근다</p></body></html>"
+             for i in range(12)}
+    Q = "/search?q=%EA%B9%80%EC%B9%98"
+
+    def test_tied_order_is_repeatable(self):
+        # 같은 질의를 두 번 하면 같은 순서여야 한다 — 페이지네이션이 여기 얹혀 있다
+        self.assertEqual(self.get(self.Q)[1]["results"], self.get(self.Q)[1]["results"])
+
+    def test_tied_pages_do_not_overlap_or_skip(self):
+        _, first, _ = self.get(self.Q)
+        _, second, _ = self.get(self.Q + "&page=2")
+        got = [r["url"] for r in first["results"]] + [r["url"] for r in second["results"]]
+        self.assertEqual(sorted(got), sorted(self.pages), "동점 12건이 겹침·누락 없이 나뉘어야 한다")
+
 
 class TestTrustBoundary(ServeTestCase):
     """HTTP 는 CLI 두 개에 이은 세 번째 진입점이다 — 같은 방어를 여기서 다시 못박는다.
@@ -274,6 +312,42 @@ class TestMissingDb(ServeTestCase):
         raw = json.dumps(body, ensure_ascii=False)
         self.assertNotIn("Traceback", raw)
         self.assertNotIn(self.db, raw, "DB 경로가 응답으로 샜다")
+
+    def test_500_is_logged_even_though_access_log_is_off(self):
+        """응답에서 뺀 원인은 운영자가 볼 수 있는 곳에 남아야 한다.
+
+        접근 로그를 끄려고 log_message 를 덮으면 log_error 도 같이 죽는다
+        (stdlib 의 log_error 가 log_message 로 넘긴다). 그러면 클라이언트는
+        "오류가 났다", 운영자는 아무것도 못 본다 — 고칠 수 없는 500 이 된다.
+        """
+        with mock.patch("sys.stderr", new_callable=io.StringIO) as err:
+            status, _, _ = self.get("/search?q=%EA%B9%80%EC%B9%98")
+            logged = err.getvalue()
+        self.assertEqual(status, 500)
+        self.assertIn("search 실패", logged, "500 이 stderr 에 한 줄도 안 남았다")
+
+    def test_normal_request_stays_out_of_the_log(self):
+        # 접근 로그는 계속 꺼져 있어야 한다 — 위 수정이 stdlib 기본 로그를 되살리면 안 된다
+        build_db(self.db, PAGES)
+        with mock.patch("sys.stderr", new_callable=io.StringIO) as err:
+            self.get("/search?q=%EA%B9%80%EC%B9%98")
+        self.assertEqual(err.getvalue(), "")
+
+
+class TestSlowClient(ServeTestCase):
+    def test_idle_connection_does_not_hold_a_thread_forever(self):
+        """요청 라인을 끝내지 않는 연결은 스레드를 무기한 점유한다(슬로로리스).
+
+        OFFSET 990 짜리 질의(7ms)를 상한으로 막으면서 이쪽을 열어두면 균형이 안 맞는다.
+        """
+        handler = self.server.RequestHandlerClass
+        # 실제로 나가는 값을 단언한다 — 아래에서 짧게 갈아끼우고 재는 건 기제가 도는지만 본다
+        self.assertIsNotNone(handler.timeout, "핸들러에 소켓 타임아웃이 없다(stdlib 기본 None)")
+        with mock.patch.object(handler, "timeout", 0.3):
+            sock = socket.create_connection(self.server.server_address, timeout=10)
+            self.addCleanup(sock.close)
+            sock.sendall(b"GET /sea")  # 줄을 끝내지 않는다
+            self.assertEqual(sock.recv(64), b"", "유휴 연결이 끊기지 않았다 — 스레드가 잡혀 있다")
 
 
 if __name__ == "__main__":

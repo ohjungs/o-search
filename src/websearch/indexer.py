@@ -91,8 +91,12 @@ def search(db_path, query, limit=10, offset=0):
             return []  # 아직 색인 전
         return db.execute(
             # -1: 질의어가 실제로 매치된 열에서 스니펫을 뽑는다 (제목만 매치되는 경우)
+            # rowid 로 동점을 가른다 — 같은 틀로 찍힌 페이지들은 bm25 가 정확히 같고,
+            # 2차 키가 없으면 페이지 사이 순서가 정해지지 않아 결과가 겹치거나 빠질 수 있다.
+            # **url 이 아니라 rowid 인 이유는 값이다**: 2만 문서에서 url 은 p50 을 13→27ms 로
+            # 두 배로 만들고(정렬을 새로 한다), rowid 는 12.8ms — 어차피 나오던 순서라 공짜다.
             "SELECT url, title, snippet(docs, -1, '', '', '…', 20) FROM docs "
-            "WHERE docs MATCH ? ORDER BY bm25(docs) LIMIT ? OFFSET ?",
+            "WHERE docs MATCH ? ORDER BY bm25(docs), rowid LIMIT ? OFFSET ?",
             (match, limit, offset),
         ).fetchall()
     finally:

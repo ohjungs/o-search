@@ -13,9 +13,12 @@ from . import indexer
 
 PAGE_SIZE = 10
 MAX_QUERY = 200
-# 성능이 아니라 자원 고갈 방어다 — OFFSET 은 선형으로 자란다(설계 탐침: 990에서 7.2ms).
-# 상한이 없으면 page=99999 한 요청이 색인을 통째로 훑는 무료 고갈 경로가 된다.
+# 성능이 아니라 자원 고갈 방어다 — OFFSET 이 깊어질수록 정렬 결과에서 뽑아 버리는 행이
+# 선형으로 는다(설계 탐침: offset 0 에서 1.1ms, 990 에서 7.2ms).
 MAX_PAGE = 100
+# 요청 라인을 끝내지 않는 연결은 스레드를 무기한 점유한다(슬로로리스). 깊은 OFFSET 을
+# 막으면서 이쪽을 열어두면 균형이 안 맞는다 — 이게 훨씬 싼 고갈 경로다.
+REQUEST_TIMEOUT = 10
 
 
 def _parse(params):
@@ -43,6 +46,7 @@ def make_server(db_path, port=8000):
     class Handler(http.server.BaseHTTPRequestHandler):
         # do_POST 등은 정의하지 않는다 — stdlib 이 501 을 낸다. 스텁을 두면
         # 방금 한곳에 모은 방어가 다시 메서드마다 흩어진다.
+        timeout = REQUEST_TIMEOUT
 
         def do_GET(self):
             parts = urllib.parse.urlsplit(self.path)
@@ -64,7 +68,9 @@ def make_server(db_path, port=8000):
                 self._send(200, {
                     "query": query,
                     "page": page,
-                    "has_next": len(hits) > PAGE_SIZE,
+                    # 상한도 서버가 정한 것이니 마지막이라는 사실도 서버가 알려야 한다.
+                    # 아니면 has_next 를 따라가는 클라이언트가 반드시 400 을 맞는다.
+                    "has_next": len(hits) > PAGE_SIZE and page < MAX_PAGE,
                     "results": [{"url": url, "title": title, "snippet": snippet}
                                 for url, title, snippet in hits[:PAGE_SIZE]],
                 })
@@ -78,8 +84,11 @@ def make_server(db_path, port=8000):
             self.end_headers()
             self.wfile.write(body)
 
-        def log_message(self, *args):
-            pass  # ponytail: 요청 로그 없음. 운영에서 필요해지면 stdlib 기본 동작을 되살린다
+        def log_request(self, *args):
+            # 끄는 것은 **접근 로그뿐**이다. log_message 를 덮으면 log_error 도 같이
+            # 죽는다(stdlib 이 log_error → log_message 로 넘긴다) — 그러면 위에서
+            # 응답 밖으로 뺀 500 의 원인이 어디에도 안 남아 고칠 수가 없다.
+            pass
 
     return http.server.ThreadingHTTPServer(("127.0.0.1", port), Handler)
 
