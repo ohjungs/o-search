@@ -217,3 +217,9 @@ append 전용. 수정·삭제 금지.
 - 곁들여: perf_search 의 "좁은 질의" 버킷이 문서수 778 미만에서 조용히 무결과였다(e2e 가 500문서로 부른다) — 문서수에서 유도하고 1건인지 단언
 - 8점 미만 digest 2건: [6] do_GET try 범위, [7] 색인 변경 중 OFFSET 페이지네이션
 - 다음: DONE → 아카이브 완료(plan/design_history_004). 다음 계획은 crawl-delay 존중
+
+## 반복 38 — 2026-08-25 · 계획 (crawl-delay)
+- `docs/plan_crawl-delay.md` 작성 — robots `Crawl-delay` 를 도메인 간격에 반영, 스텝 4개
+- 계획 단계에서 stdlib 을 **실측**했다: `RobotFileParser.crawl_delay` 가 소수를 버리고(`3.5`→`None`), 상한이 없다(`86400`→`86400`). 둘 다 설계로 넘겼다
+- 배선 제약 확인: robots 는 그 도메인 첫 URL 을 팝한 **뒤** 적재된다 (`crawl.py` 루프 순서) — 간격을 프런티어가 미리 알 수 없다
+- 설계 필요(파일 3개·`Frontier` 인터페이스 추가·대안 갈림) → 다음 반복 phase: 설계
