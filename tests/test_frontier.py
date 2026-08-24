@@ -113,3 +113,16 @@ class TestPerDomainDelay(unittest.TestCase):
         self.assertIsNone(self.f.next())          # over.com 은 버려졌다
         self.clock.t += 30.0
         self.assertEqual(self.f.next(), "http://ok.com/2")
+
+    def test_interval_never_shrinks(self):
+        # 같은 netloc 이 http/https 로 섞여 들어오면 한쪽은 지시가 없다.
+        # 낮은 쪽이 이기면 20초를 요구한 사이트를 1초로 때린다
+        self.f.add(["http://a.com/1", "http://a.com/2"])
+        self.f.set_delay("a.com", 20.0)
+        self.f.set_delay("a.com", None)
+        self.f.next()
+        self.assertAlmostEqual(self.f.seconds_until_ready(), 20.0)
+
+    def test_drop_reported_to_caller(self):
+        self.assertTrue(self.f.set_delay("ok.com", 10.0))
+        self.assertFalse(self.f.set_delay("slow.com", 90.0))

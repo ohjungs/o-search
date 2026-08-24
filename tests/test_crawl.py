@@ -1,3 +1,4 @@
+import io
 import unittest
 import urllib.parse
 from unittest import mock
@@ -74,7 +75,7 @@ class TestCrawl(unittest.TestCase):
         self.assertEqual(n, 0)
 
 
-class TestCrawlDelayWiring(unittest.TestCase, ):
+class TestCrawlDelayWiring(unittest.TestCase):
     """robots 가 요청한 간격이 크롤 루프를 거쳐 실제 요청 간격이 되는가."""
 
     _run = TestCrawl._run
@@ -105,3 +106,10 @@ class TestCrawlDelayWiring(unittest.TestCase, ):
             _, fetched, _ = self._run(["http://b.com/"], max_pages=10,
                                       delays={"b.com": 3600})
         self.assertEqual(fetched, ["http://b.com/"])
+
+    def test_dropped_domain_is_reported_not_silent(self):
+        # 조용히 1페이지만 받고 끝나면 사용자는 이유를 알 방법이 없다
+        with mock.patch("sys.stderr", new_callable=io.StringIO) as err:
+            self._run(["http://b.com/"], max_pages=10, delays={"b.com": 3600})
+        self.assertIn("b.com", err.getvalue())
+        self.assertIn("3600", err.getvalue())

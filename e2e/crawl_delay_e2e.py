@@ -9,7 +9,7 @@ Host 헤더로 robots.txt 를 갈라 낸다:
 검증: ① 두 사이트 6페이지 수집 ② 127.0.0.1 요청 간격 ≥ 2초
 ③ localhost 요청 간격 ≥ 1초이면서 2초 미만 — **하한은 지키고, 남의 간격이 새지 않는다**
 
-시간이 걸리는 것이 정상이다(간격을 실제로 잰다). 6~8초.
+시간이 걸리는 것이 정상이다(간격을 실제로 잰다). 약 4.5초.
 실행: PYTHONPATH=src python3 e2e/crawl_delay_e2e.py
 """
 import http.server
@@ -18,7 +18,6 @@ import sys
 import tempfile
 import threading
 import time
-import urllib.parse
 
 sys.path.insert(0, os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))

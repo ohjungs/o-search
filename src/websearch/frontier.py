@@ -19,16 +19,20 @@ class Frontier:
         self._dropped = set()  # 간격을 지킬 수 없어 버린 도메인
 
     def set_delay(self, domain, seconds):
-        """robots 가 요청한 간격을 반영한다. seconds 가 None 이면 기본 간격 그대로.
+        """robots 가 요청한 간격을 반영한다. 계속 크롤할 도메인이면 True.
 
-        간격은 늘어나는 방향으로만 움직인다 — DOMAIN_INTERVAL 아래로는 내려가지 않는다.
+        간격은 **늘어나는 방향으로만** 움직인다 — 같은 netloc 이 http/https 로 섞여 들어오면
+        한쪽엔 지시가 없어서(None), 낮은 쪽이 이기면 20초를 요구한 사이트를 1초로 때린다.
+        DOMAIN_INTERVAL 아래로도 내려가지 않는다.
         MAX_DELAY 를 넘으면 그 도메인을 통째로 버린다(큐를 비우고 이후 add 도 받지 않는다).
         """
         if seconds is not None and seconds > MAX_DELAY:
             self._dropped.add(domain)
+            self._delays.pop(domain, None)  # 안 쓰일 값을 남겨두면 읽는 사람이 헷갈린다
             self._queues.pop(domain, None)
-            return
-        self._delays[domain] = max(DOMAIN_INTERVAL, seconds or 0)
+            return False
+        self._delays[domain] = max(self._interval(domain), seconds or 0)
+        return True
 
     def _interval(self, domain):
         return self._delays.get(domain, DOMAIN_INTERVAL)

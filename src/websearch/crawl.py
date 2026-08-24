@@ -4,7 +4,7 @@ import time
 import urllib.parse
 
 from websearch import fetcher, links
-from websearch.frontier import Frontier
+from websearch.frontier import Frontier, MAX_DELAY
 from websearch.robots import RobotsCache
 from websearch.store import Store
 
@@ -26,7 +26,12 @@ def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None, now=time
         # robots 는 방금 allowed() 가 받아 캐시에 넣었다 — delay() 는 그 캐시를 읽는다.
         # 간격은 이 도메인의 **다음** 팝부터 먹으므로 여기서 알려줘도 늦지 않다
         # (docs/design_crawl-delay.md 가정, 탐침으로 확인).
-        frontier.set_delay(urllib.parse.urlsplit(url).netloc, robots.delay(url))
+        domain = urllib.parse.urlsplit(url).netloc
+        requested = robots.delay(url)
+        if not frontier.set_delay(domain, requested):
+            # 조용히 1페이지만 받고 끝나면 사용자는 이유를 알 방법이 없다
+            print("%s: %g초 간격 요구 — 상한 %g초를 넘어 이 도메인은 더 가지 않는다"
+                  % (domain, requested, MAX_DELAY), file=sys.stderr)
         result = fetcher.fetch(url)
         page_url = result.url or url  # 리다이렉트면 최종 URL 이 정본
         if page_url != url and store.has(page_url):

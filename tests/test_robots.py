@@ -62,11 +62,12 @@ class TestCrawlDelay(unittest.TestCase):
         self.assertEqual(c.delay("http://a.com/2"), 2.0)
         self.assertEqual(fetch.call_count, 1)
 
-    def test_fractional_fallback_takes_the_slowest_line(self):
-        # 폴백은 UA 그룹을 구분하지 않는다(설계 "범위 밖"). 구분 못 할 바에는
-        # 가장 느린 값을 고른다 — 틀리더라도 느린 쪽으로만 틀린다
-        c = _cache_with(lambda base: (200, "User-agent: other\nCrawl-delay: 7.5\n"
-                                           "User-agent: *\nCrawl-delay: 2.5"))
+    def test_fallback_takes_the_slowest_line_in_our_group(self):
+        # 한 그룹이 여러 번 말하면 가장 느린 것을 고른다 — 느린 쪽으로만 틀린다.
+        # 남의 그룹(other)은 우리 값이 아니므로 보지 않는다
+        c = _cache_with(lambda base: (200, "User-agent: other\nCrawl-delay: 30.5\n\n"
+                                           "User-agent: *\nCrawl-delay: 2.5\n"
+                                           "Crawl-delay: 7.5"))
         self.assertEqual(c.delay("http://a.com/page"), 7.5)
 
     def test_malformed_delay_never_speeds_us_up(self):
@@ -79,3 +80,20 @@ class TestCrawlDelay(unittest.TestCase):
             with self.subTest(value=value):
                 c = _cache_with(lambda base, v=value: (200, "User-agent: *\nCrawl-delay: %s" % v))
                 self.assertEqual(c.delay("http://a.com/page"), want)
+
+    def test_fallback_ignores_other_agents_groups(self):
+        # 폴백은 "우리에게 적용되는 그룹"만 본다. 남의 그룹(86400)을 집으면
+        # 1.5초면 지킬 수 있는 사이트를 통째로 버리게 된다 (frontier.MAX_DELAY)
+        c = _cache_with(lambda base: (200, "User-agent: *\nCrawl-delay: 1.5\n\n"
+                                           "User-agent: AhrefsBot\nCrawl-delay: 86400\n"))
+        self.assertEqual(c.delay("http://a.com/page"), 1.5)
+
+    def test_our_own_group_wins_over_wildcard(self):
+        c = _cache_with(lambda base: (200, "User-agent: websearchbot\nCrawl-delay: 4.5\n\n"
+                                           "User-agent: *\nCrawl-delay: 0.5\n"))
+        self.assertEqual(c.delay("http://a.com/page"), 4.5)
+
+    def test_exponent_notation_is_not_read_as_one_second(self):
+        # "1e3" 의 앞 숫자만 집으면 1000초를 요구한 사이트를 1초로 때린다
+        c = _cache_with(lambda base: (200, "User-agent: *\nCrawl-delay: 1e3"))
+        self.assertEqual(c.delay("http://a.com/page"), 1000.0)
