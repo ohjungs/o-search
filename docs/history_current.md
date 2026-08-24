@@ -151,3 +151,8 @@ append 전용. 수정·삭제 금지.
 - 한 일: rules/test.md 3절 6카테고리 갭 탐색 — 탐침으로 주석/엔티티 이스케이프 meta, 부분 문자열 noindexing, 빈 content, http-equiv 변형, html NULL 행, pages 에서 사라진 색인 행을 실측. 8점 4건을 테스트로 못박음(test_extract 3, test_indexer 1)
 - 결과: 전체 88/88 통과 0.045s. 변이 검사 — is_noindex 를 항상 False 로 뒤집으니 8건 FAILED, 되돌리니 OK. 8점 미만 2건 digest 로: [5] http-equiv 변형 무시, [4] 본문 안 진짜 meta 의 오탐
 - 다음: 리뷰 phase
+
+## 2026-08-25 야간25 | noindex-respect | 리뷰 | 시도1
+- 한 일: 백지 패스를 별도 세션에 위임(diff 와 소스만 제공) → 4건 전부 80점 이상, 코드에서 재확인 후 재현 테스트 2건 먼저 작성·실패 확인하고 수정 — ① content="noindex nofollow" 공백 구분 미탐(쉼표+공백 둘 다 구분자로) ② 제거가 침묵(색인 전후 문서 수 비교해 "N 문서 색인 제외" 출력, index_pages 반환 계약은 유지) ③ 모듈 독스트링 2개 정정. ④ 사전 필터가 엔티티 인코딩 name 을 놓치는 건 천장으로 주석·digest 기록
+- 결과: 전체 90/90 통과 0.047s. 리뷰가 지적한 오탐 0건 — 4건 모두 실재
+- 다음: e2e phase (계획 스텝 3/3)
