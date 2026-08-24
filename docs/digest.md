@@ -16,6 +16,7 @@ history_current.md 가 상한을 넘어 밀려날 때, 밀려나는 내용을 1~
 ## 완료
 
 <!-- - 2026-08-04~08 | plan_auth | 토큰 검증·만료 처리. 재시도 잦았음 — JWT 라이브러리 버전 이슈 -->
+- 2026-08-25 | plan_crawler-core (001) | 스캐폴드·fetcher·robots·frontier·store·링크 추출·크롤 루프(7스텝). e2e 통과. 리뷰 보류 2건은 아래 후보로
 - 2026-08-25 | plan_indexer (002) | 본문 추출(stdlib html.parser) + FTS5 unicode61 증분 색인 + bm25 질의·CLI. e2e 통과. 재시도 0·RED 0
 - 2026-08-25 | plan_noindex-respect (003) | meta robots noindex·none 문서를 색인 제외 + 기색인 문서 제거. 보류 [85] 닫음. e2e 통과. 재시도 0·RED 0
 

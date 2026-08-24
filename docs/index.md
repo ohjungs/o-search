@@ -14,6 +14,7 @@ plan_history_<NNN>.md 를 다 열어볼 필요가 없게 하는 것이 목적이
 | plan_noindex-respect | 완료 | loop/noindex-respect | 3/3 | 통과 | 설계 있음(003). digest 보류 [85] 닫음. 리뷰 4건 중 3건 수정 |
 | plan_search-api | 완료 | loop/search-api | 5/5 | 통과 | 설계 있음(004). 성능 축을 열었다 — p95 기준선 |
 | plan_crawl-delay | 완료 | loop/crawl-delay | 4/4 | 통과 | 설계 있음(005). robots Crawl-delay 존중. 리뷰 10건 중 6건 수정 |
+| plan_quality-eval | 진행 | loop/quality-eval | 0/4 | 미정 | 설계 필요. concept 기능 2 정답 포함률 80% 를 처음 잰다 |
 
 ## 사양 분할 (docs/specs/concept.md → 계획 순서)
 
