@@ -12,18 +12,29 @@ import urllib.parse
 from . import indexer
 
 PAGE_SIZE = 10
+MAX_QUERY = 200
+# 성능이 아니라 자원 고갈 방어다 — OFFSET 은 선형으로 자란다(설계 탐침: 990에서 7.2ms).
+# 상한이 없으면 page=99999 한 요청이 색인을 통째로 훑는 무료 고갈 경로가 된다.
+MAX_PAGE = 100
 
 
 def _parse(params):
-    """질의 파라미터를 검증해 돌려준다. 위반이면 ValueError(사람이 읽는 사유).
+    """질의 파라미터를 검증해 (query, page) 를 돌려준다. 위반이면 ValueError(사람이 읽는 사유).
 
     진입점 방어를 여기 한 곳에 모은다 — 핸들러 메서드마다 흩으면 하나가 빠진다.
+    질의 문자열 자체의 FTS5 문법·NUL·제어문자는 indexer._fts_query() 가 이미 막는다.
+    여기서 두 번 막지 않는다(막는 자리가 둘이면 한쪽만 고쳐진다).
     """
     query = (params.get("q") or [""])[0].strip()
     if not query:
         raise ValueError("q 파라미터에 질의 문자열이 필요하다")
-    page = int((params.get("page") or ["1"])[0])
-    return query, page
+    if len(query) > MAX_QUERY:
+        raise ValueError("질의는 %d자 이하여야 한다" % MAX_QUERY)
+    # isdecimal: isdigit 은 "²" 에 참이지만 int() 는 거부한다 — 그러면 파이썬 예외 문구가 샌다
+    raw = (params.get("page") or ["1"])[0]
+    if not raw.isdecimal() or not 1 <= int(raw) <= MAX_PAGE:
+        raise ValueError("page 는 1 이상 %d 이하의 정수여야 한다" % MAX_PAGE)
+    return query, int(raw)
 
 
 def make_server(db_path, port=8000):

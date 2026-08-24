@@ -149,5 +149,81 @@ class TestPagination(ServeTestCase):
         self.assertEqual(body["page"], 2)
 
 
+class TestTrustBoundary(ServeTestCase):
+    """HTTP 는 CLI 두 개에 이은 세 번째 진입점이다 — 같은 방어를 여기서 다시 못박는다.
+
+    (`docs/digest.md` 반복 실패 항목: 진입점마다 검증이 빠진다)
+    """
+
+    Q = "/search?q=%EA%B9%80%EC%B9%98"
+
+    def assert_400(self, path):
+        status, body, _ = self.get(path)
+        self.assertEqual(status, 400, body)
+        self.assertIn("error", body)
+        self.assertNotIn("Traceback", json.dumps(body))
+        return body["error"]
+
+    def test_blank_query_is_400(self):
+        self.assert_400("/search?q=%20%20")
+
+    def test_page_not_a_number_is_400_in_plain_korean(self):
+        # 파이썬 예외 문구가 그대로 새면 그것도 내부 노출이다
+        err = self.assert_400(self.Q + "&page=abc")
+        self.assertNotIn("invalid literal", err)
+        self.assertIn("page", err)
+
+    def test_page_zero_or_negative_is_400(self):
+        for raw in ("0", "-1", "1.5", " 2", "²"):
+            with self.subTest(page=raw):
+                self.assert_400(self.Q + "&page=" + urllib.parse.quote(raw))
+
+    def test_empty_page_value_falls_back_to_page_1(self):
+        # `?page=` 는 parse_qs 가 통째로 버린다 = 없는 것과 같다. 폼이 빈 칸을 보내는
+        # 모양이라 거부보다 기본값이 맞다 — 안전한 쪽(1페이지)으로 떨어진다
+        status, body, _ = self.get(self.Q + "&page=")
+        self.assertEqual((status, body["page"]), (200, 1))
+
+    def test_page_above_cap_is_400(self):
+        # 성능이 아니라 자원 고갈 방어 — OFFSET 은 선형으로 자란다(설계 탐침)
+        self.assert_400(self.Q + "&page=101")
+        self.assert_400(self.Q + "&page=99999")
+
+    def test_page_at_cap_is_allowed(self):
+        status, body, _ = self.get(self.Q + "&page=100")
+        self.assertEqual(status, 200)
+        self.assertEqual(body["results"], [])
+
+    def test_overlong_query_is_400_but_the_limit_itself_passes(self):
+        self.assert_400("/search?q=" + urllib.parse.quote("가" * 201))
+        status, _, _ = self.get("/search?q=" + urllib.parse.quote("가" * 200))
+        self.assertEqual(status, 200)
+
+    def test_unknown_path_is_404_not_traceback(self):
+        status, body, _ = self.get(urllib.parse.quote("/없는경로"))
+        self.assertEqual(status, 404)
+        self.assertNotIn("Traceback", json.dumps(body))
+
+    def test_post_is_refused_without_a_stub_method(self):
+        # do_POST 를 정의하지 않으면 stdlib 이 501 을 낸다 — 스텁을 두면 방어가 다시 흩어진다
+        req = urllib.request.Request(self.base + "/search", data=b"", method="POST")
+        with self.assertRaises(urllib.error.HTTPError) as caught:
+            urllib.request.urlopen(req, timeout=10)
+        self.assertEqual(caught.exception.code, 501)
+
+    def test_hostile_query_strings_do_not_500(self):
+        """FTS5 문법·NUL·제어문자는 indexer._fts_query() 가 이미 막는다.
+
+        HTTP 로 **도달 가능해졌으니** 여기서 다시 고정한다 — 막는 자리를 옮기는 게 아니다.
+        """
+        hostile = ['"', 'OR', '김치 OR "', '*', 'NEAR(a b)', 'a" OR "b', '김치\x00',
+                   '김치\x07\x1b', '^김치', 'a AND (b', '"""', '김치*']
+        for q in hostile:
+            with self.subTest(q=q):
+                status, body, _ = self.get("/search?q=" + urllib.parse.quote(q))
+                self.assertEqual(status, 200, body)
+                self.assertIsInstance(body["results"], list)
+
+
 if __name__ == "__main__":
     unittest.main()
