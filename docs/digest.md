@@ -46,6 +46,7 @@ history_current.md 가 상한을 넘어 밀려날 때, 밀려나는 내용을 1~
 - [5] `<meta http-equiv="X-Robots-Tag" content="noindex">` 변형은 무시한다 (2026-08-25 noindex-respect 테스트 phase 탐침으로 확인). 표준은 HTTP 헤더이고 http-equiv 변형은 주요 검색엔진도 지원하지 않는다. X-Robots-Tag 헤더 계획(스키마 expand)을 열 때 함께 판단
 - [4] `is_noindex` 의 `'robots'` 사전 필터와 제거 경로의 `LIKE '%robots%'` 는 **name 을 HTML 엔티티로 인코딩한 meta**(`&#114;obots`)를 놓친다 (2026-08-25 리뷰 지적, 실측 확인). 파서 자체는 엔티티를 풀어 지시를 본다 — 필터만 빼면 잡힌다. 실물에서 보이면 그때 뺀다
 - [4] 본문에 들어 있는 진짜 `<meta name="robots" content="noindex">` 도 페이지 전체를 색인에서 뺀다 — 사용자 콘텐츠(포럼 글 등)가 호스트 페이지를 통째로 빼는 오탐이 가능하다. head 로 제한하면 막히지만 깨진 HTML 에서 head 경계가 불확실해 지금은 안전한 쪽(색인 안 함)으로 둔다
+- [5] `serve.main` 인자 처리(`--port` 값 없음·비숫자, db 인자 개수)에 단위 테스트 0 — `e2e/search_api_e2e.py` 가 정상 경로만 덮는다. `crawl.main` CLI 무테스트와 같은 부류 (2026-08-25 search-api 테스트 phase)
 
 ## 판단 필요 (리뷰 보류 — 승인 필요 판정)
 - [medium] frontier: robots 차단·기수집 URL 이 팝 시점에 도메인 쿨다운을 소모 — 공회전. 수정은 프런티어 계약 변경(팝/기록 분리 또는 add 시점 필터)이라 설계 결정

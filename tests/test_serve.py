@@ -2,6 +2,7 @@
 import json
 import os
 import sqlite3
+from concurrent import futures
 import tempfile
 import threading
 import unittest
@@ -21,34 +22,40 @@ PAGES = {
 }
 
 
-# 20건 = 정확히 2페이지. has_next 를 limit+1 로 판정하므로 경계는 "딱 떨어지는" 마지막 페이지다
+# 20건 = 정확히 2페이지. has_next 를 limit+1 로 판정하므로 경계는 "딱 떨어지는" 마지막 페이지다.
+# 낱말 수를 문서마다 달리해 **bm25 점수가 서로 다르게** 만든다 — 본문이 전부 같으면
+# 20건이 동점이 되고(측정함: 서로 다른 점수 1/20), 그러면 페이지 경계 단언이 검증하는 것이
+# 관련도순이 아니라 sqlite 의 동점 처리 순서가 된다.
 MANY_PAGES = {
     "http://p.test/%02d" % i: "<html><title>김치 %02d</title><body>"
-                              "<p>김치 를 담근다</p></body></html>" % i
+                              "<p>%s 를 담근다</p></body></html>" % (i, "김치 " * (i + 1))
     for i in range(20)
 }
 
 
-def build_db(path, pages):
+def build_db(path, pages, index=True):
     db = sqlite3.connect(path)
     db.execute("CREATE TABLE pages (url TEXT PRIMARY KEY, html TEXT, status INTEGER)")
     for url, html in pages.items():
         db.execute("INSERT INTO pages VALUES (?, ?, 200)", (url, html))
     db.commit()
     db.close()
-    indexer.index_pages(path)
+    if index:
+        indexer.index_pages(path)
 
 
 class ServeTestCase(unittest.TestCase):
     """임시 DB 로 서버를 띄우고 실제 HTTP 로 때린다. 포트는 0 — 충돌하지 않는다."""
 
-    pages = PAGES
+    pages = PAGES  # None 이면 DB 파일 자체를 만들지 않는다
+    index = True   # False 면 pages 테이블만 있고 색인 전이다
 
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.db = os.path.join(self._tmp.name, "crawl.db")
-        build_db(self.db, self.pages)
+        if self.pages is not None:
+            build_db(self.db, self.pages, self.index)
         self.server = serve.make_server(self.db, port=0)
         self.addCleanup(self.server.server_close)
         # poll_interval 기본 0.5s 는 shutdown() 이 그만큼 기다린다 — 테스트마다 0.5s 씩 붙는다
@@ -223,6 +230,50 @@ class TestTrustBoundary(ServeTestCase):
                 status, body, _ = self.get("/search?q=" + urllib.parse.quote(q))
                 self.assertEqual(status, 200, body)
                 self.assertIsInstance(body["results"], list)
+
+
+class TestConcurrency(ServeTestCase):
+    """요청마다 새 sqlite 연결을 여는 것이 설계 결정이다(`docs/design_search-api.md` A안).
+
+    sqlite 연결은 만든 스레드 밖에서 쓸 수 없다. 나중에 "연결을 아끼자" 며 하나로
+    끌어올리면 **단일 요청 테스트는 전부 통과한 채** 동시 요청에서만 깨진다.
+    재현 대신 계약을 고정한다 — 동시에 때려도 같은 답이 나온다.
+    """
+
+    Q = "/search?q=%EA%B9%80%EC%B9%98"
+
+    def test_concurrent_requests_all_answer_alike(self):
+        with futures.ThreadPoolExecutor(8) as pool:
+            got = [f.result() for f in [pool.submit(self.get, self.Q) for _ in range(8)]]
+        for status, body, _ in got:
+            self.assertEqual(status, 200, body)
+        urls = {tuple(r["url"] for r in body["results"]) for _, body, _ in got}
+        self.assertEqual(len(urls), 1, "동시 요청이 서로 다른 결과를 냈다: %s" % urls)
+        self.assertTrue(next(iter(urls)), "빈 결과다 — 질의가 아무것도 안 걸렸다")
+
+
+class TestUnindexedDb(ServeTestCase):
+    """수집만 하고 색인을 안 돌린 DB. docs 테이블이 아직 없다."""
+
+    pages = {}
+    index = False
+
+    def test_unindexed_db_is_empty_result_not_500(self):
+        status, body, _ = self.get("/search?q=%EA%B9%80%EC%B9%98")
+        self.assertEqual((status, body["results"]), (200, []))
+
+
+class TestMissingDb(ServeTestCase):
+    """DB 파일 자체가 없다 — 운영 실수다. 500 이 맞지만 내부를 흘리면 안 된다."""
+
+    pages = None
+
+    def test_missing_db_is_500_without_internals(self):
+        status, body, _ = self.get("/search?q=%EA%B9%80%EC%B9%98")
+        self.assertEqual(status, 500)
+        raw = json.dumps(body, ensure_ascii=False)
+        self.assertNotIn("Traceback", raw)
+        self.assertNotIn(self.db, raw, "DB 경로가 응답으로 샜다")
 
 
 if __name__ == "__main__":
