@@ -51,3 +51,8 @@ append 전용. 수정·삭제 금지.
 - 한 일: store.py(Store: upsert/has/get_html/count) + test_store.py 3케이스 — 저장/갱신 중복 없음/실패기록
 - 결과: 실패 확인 후 구현, 전체 14/14 통과. 스키마는 설계 계약대로 pages 단일 테이블
 - 다음: 개발 5/7 links
+
+## 2026-08-25 야간5 | crawler-core | 개발 5/7 | 시도1
+- 한 일: links.py(extract) + test_links.py 6케이스 — 절대화/fragment/스킴 필터/중복/빈 href/깨진 HTML
+- 결과: 실패 확인 후 구현, 전체 20/20 통과. stdlib HTMLParser 로 충분
+- 다음: 개발 6/7 frontier
