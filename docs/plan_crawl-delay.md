@@ -83,7 +83,7 @@ robots 의 `User-agent: websearchbot/0.1` 그룹은 **매치되지 않는다**(s
   (`tests/test_robots.py:31`)이 깨지지 않는다
 - **건드릴 파일**: `src/websearch/robots.py`, `tests/test_robots.py`
 - **의존**: 없음
-- **상태**: 대기
+- **상태**: 완료
 
 ### 2. `Frontier` 가 도메인별 간격을 갖는다
 - **완료 기준**: `Frontier.set_delay(domain, seconds)` 후 그 도메인만 간격이 늘고
@@ -92,7 +92,7 @@ robots 의 `User-agent: websearchbot/0.1` 그룹은 **매치되지 않는다**(s
   기존 `tests/test_frontier.py` 6건 그대로 통과
 - **건드릴 파일**: `src/websearch/frontier.py`, `tests/test_frontier.py`
 - **의존**: 없음 (스텝 1 과 병렬이지만 야간이라 순차로 돈다)
-- **상태**: 대기
+- **상태**: 완료
 
 ### 3. 크롤 루프 배선 — robots 값이 프런티어에 닿는다
 - **완료 기준**: `Crawl-delay: 5` 를 내건 가짜 robots 를 주입해 `crawl()` 을 돌리면
@@ -100,7 +100,7 @@ robots 의 `User-agent: websearchbot/0.1` 그룹은 **매치되지 않는다**(s
   상한 초과 도메인 처리는 설계가 정한 대로 단언한다. `tests/test_crawl.py` 기존 통과
 - **건드릴 파일**: `src/websearch/crawl.py`, `tests/test_crawl.py`
 - **의존**: 1, 2
-- **상태**: 대기
+- **상태**: 완료
 
 ### 4. e2e — 실제 초를 재서 확인한다
 - **완료 기준**: `PYTHONPATH=src python3 e2e/crawl_delay_e2e.py` 가 0 으로 끝난다.
@@ -109,7 +109,7 @@ robots 의 `User-agent: websearchbot/0.1` 그룹은 **매치되지 않는다**(s
   (1초 하한만 지켜졌다면 실패한다). `docs/project.md` 명령 목록에 추가
 - **건드릴 파일**: `e2e/crawl_delay_e2e.py`, `docs/project.md`
 - **의존**: 3
-- **상태**: 대기
+- **상태**: 완료
 
 ## e2e 시나리오
 
@@ -120,4 +120,7 @@ robots 의 `User-agent: websearchbot/0.1` 그룹은 **매치되지 않는다**(s
 
 ## 기록
 
-<!-- 스텝 완료/보류/실패 시 한 줄씩. 상세는 history_current.md 에. -->
+- 2026-08-25 반복 40 — 스텝 1 완료. `RobotsCache.delay()`, 소수 폴백 포함. 130/130
+- 2026-08-25 반복 41 — 스텝 2 완료. `Frontier.set_delay()`, 하한·폐기. 135/135
+- 2026-08-25 반복 42 — 스텝 3 완료. 크롤 루프 배선. 138/138
+- 2026-08-25 반복 43 — 스텝 4 완료. `e2e/crawl_delay_e2e.py` 4.6s 통과. **스텝 4/4 = 개발 끝**

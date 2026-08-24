@@ -16,6 +16,8 @@
 - **e2e**: `PYTHONPATH=src python3 e2e/indexer_e2e.py` (2026-08-25 실행 확인, 약 4s)
 - **e2e**: `PYTHONPATH=src python3 e2e/noindex_e2e.py` (2026-08-25 실행 확인, 3.7s)
 - **e2e**: `PYTHONPATH=src python3 e2e/search_api_e2e.py` (2026-08-25 실행 확인, 15.0s)
+- **e2e**: `PYTHONPATH=src python3 e2e/crawl_delay_e2e.py` (2026-08-25 실행 확인, 4.6s —
+  간격을 실제로 재느라 걸린다. 간격 무시로 변이시키면 실패하는 것까지 확인)
 - **성능 측정**: `PYTHONPATH=src python3 e2e/perf_search.py [문서수] [반복]`
   (2026-08-25 실행 확인, 2.1s — 기본 3000문서 × 5질의 × 200회)
 
@@ -27,6 +29,8 @@
 ## 품질 기준 <!-- docs/specs/concept.md 4축의 실행 명령판 -->
 
 - **경량 상한**: 없음 — search-ui 계획에서 JS 50KB(gzip) 측정 명령 추가 예정
+- **크롤 간격 검사**: `e2e/crawl_delay_e2e.py` — robots `Crawl-delay` 와 1초 하한을
+  서버 수신 시각으로 잰다. 간격을 어기면 실패한다 (컨셉 크롤 윤리 1순위)
 - **성능 측정**: `e2e/perf_search.py` — `GET /search` 왕복 p50·p95. 순차·로컬,
   네트워크를 타지 않는다. p95 가 300ms(컨셉 성능 1)를 넘으면 실패한다
 - **디자인 검사**: 없음 — search-ui 계획에서 추가 예정
