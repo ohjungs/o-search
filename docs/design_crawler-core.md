@@ -40,7 +40,8 @@
   - `links.extract(base_url, html) -> list[str]` — 절대화, fragment 제거, http(s)만, 중복 제거
   - `frontier.Frontier.add(urls)` / `.next() -> url | None` — 도메인 라운드로빈,
     같은 도메인 마지막 요청 후 1초 미만이면 다른 도메인을 먼저 낸다
-  - `crawl.crawl(seeds, max_pages, db_path) -> int(수집 수)`
+  - `crawl.crawl(seeds, max_pages, db_path, robots_cache=None, now=time.monotonic) -> int(수집 수)`
+    (robots_cache·now 는 개발·테스트 phase 에서 추가 — 실네트워크·실시계 없는 테스트를 위한 주입 지점)
 - 부작용 범위: 파일은 `data/` 아래만. 네트워크는 fetcher·robots 만 나간다.
   테스트는 실네트워크 금지(`project.md` 한도)
 

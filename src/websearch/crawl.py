@@ -8,11 +8,11 @@ from websearch.robots import RobotsCache
 from websearch.store import Store
 
 
-def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None):
-    """수집에 성공(2xx + HTML)한 페이지 수를 돌려준다."""
+def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None, now=time.monotonic):
+    """수집에 성공(2xx + HTML)한 페이지 수를 돌려준다. robots_cache·now 는 테스트 주입 지점."""
     store = Store(db_path)
     robots = robots_cache if robots_cache is not None else RobotsCache()
-    frontier = Frontier()
+    frontier = Frontier(now=now)
     frontier.add(seeds)
     saved = 0
     while saved < max_pages and not frontier.empty():

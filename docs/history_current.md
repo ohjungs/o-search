@@ -66,3 +66,8 @@ append 전용. 수정·삭제 금지.
 - 한 일: crawl.py(crawl + CLI main) + test_crawl.py 4케이스 — 시드→링크 추적/robots 미요청/max_pages/실패 미집계
 - 결과: 실패 확인 후 구현, 전체 30/30 통과. 개발 phase 완료 → 테스트 phase
 - 다음: 테스트 phase (갭 탐색)
+
+## 2026-08-25 야간8 | crawler-core | 테스트 | 시도1
+- 한 일: 갭 탐색 6카테고리 — 격리 위반 1건(테스트가 실제 시계 의존, 스위트 4.06s) 수정: crawl 에 now 주입, sleep 목이 가짜 시계를 흘림
+- 결과: 30/30 통과 0.004s (PYTHONPATH=src python3 -m unittest discover tests — 전체). 8점 미만 갭 3건 digest 에
+- 다음: 리뷰 phase

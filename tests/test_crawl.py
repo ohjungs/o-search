@@ -23,10 +23,14 @@ class TestCrawl(unittest.TestCase):
 
         robots = mock.Mock()
         robots.allowed = lambda url: url not in blocked
+        clock = {"t": 1000.0}
         with mock.patch("websearch.crawl.fetcher") as mf, \
              mock.patch("websearch.crawl.time.sleep") as ms:
             mf.fetch = fake_fetch
-            n = crawl.crawl(seeds, max_pages, db_path=":memory:", robots_cache=robots)
+            # 가짜 시계: sleep 이 시간을 흘려보낸다 — 실제 대기 없이 결정적
+            ms.side_effect = lambda s: clock.__setitem__("t", clock["t"] + s)
+            n = crawl.crawl(seeds, max_pages, db_path=":memory:",
+                            robots_cache=robots, now=lambda: clock["t"])
         return n, fetched, ms
 
     def test_crawls_seed_and_follows_links(self):
