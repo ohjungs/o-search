@@ -16,6 +16,7 @@ history_current.md 가 상한을 넘어 밀려날 때, 밀려나는 내용을 1~
 ## 완료
 
 <!-- - 2026-08-04~08 | plan_auth | 토큰 검증·만료 처리. 재시도 잦았음 — JWT 라이브러리 버전 이슈 -->
+- 2026-08-25 | plan_indexer (002) | 본문 추출(stdlib html.parser) + FTS5 unicode61 증분 색인 + bm25 질의·CLI. e2e 통과. 재시도 0·RED 0
 
 ## 보류 (승인 대기)
 
