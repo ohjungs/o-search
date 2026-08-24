@@ -131,3 +131,8 @@ append 전용. 수정·삭제 금지.
 - 한 일: plan_noindex-respect.md 작성(스텝 3: 판정 함수/색인 필터·기색인 제거/e2e). 상위 판단으로 search-api 대신 이것을 먼저 — digest 보류 [85], 컨셉 갈림길 1순위가 크롤 윤리. index.md 사양 분할에 3번으로 끼워 넣고 이후 번호 재정렬. 브랜치 loop/noindex-respect
 - 결과: 코드 확인 결과 X-Robots-Tag 는 FetchResult 가 헤더를 버려 판단 불가(스키마 변경 필요) → 범위 밖. e2e 5단계는 crawl.py:23 재크롤 스킵 때문에 pages.html 을 직접 갱신하는 것으로 명시
 - 다음: 설계 phase (트리거 2개: 대안 갈림 A/B, 공개 인터페이스 추가)
+
+## 2026-08-25 야간21 | noindex-respect | 설계 | 시도1
+- 한 일: design_noindex-respect.md — 대안 3개(A 색인 시점 판정 / B 수집 시점 차단+스키마 / C 검색 시점 필터) 비교, A 채택. 가정 4건 탐침: html.parser 가 void·self-closing·대문자·따옴표 없는 속성·깨진 HTML 에서 meta 를 잡는다 / 'robots' 사전 필터 안전 / FTS5 UNINDEXED url 로 DELETE 가능 / SQLite LIKE 대소문자 무시·NULL 미포함
+- 결과: 넷 다 참(탐침 커밋 안 함). 스키마 변경 없음 → 야간 보류 사안 없음. 계약(시그니처·판정 규칙·질의 2개) 확정
+- 다음: 개발 1/3 extract.is_noindex (TDD)
