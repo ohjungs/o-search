@@ -3,46 +3,50 @@ signal: GREEN
 mode: night
 plan: search-api
 phase: 개발
-step: 3/5
+step: 4/5
 attempt: 0
-iteration: 33
-night_iterations: 2
+iteration: 34
+night_iterations: 3
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
-updated: 2026-08-25 (반복 33)
+updated: 2026-08-25 (반복 34)
 ctx: 75% / 200k
 rules: null
 ---
 
 # 현재 상태
 
-**스텝 3 완료 — 신뢰 경계가 `_parse()` 한 곳에 모였다.** 115/115 통과.
+**스텝 4 완료 — p95 기준선 6.60ms(3000문서)가 `docs/project.md` 에 박혔다.** 115/115 통과.
 
 ## 진행 중인 스텝 — 이어받는 세션이 읽을 것
 
-- 할 일: **개발 스텝 4 — p95 측정 명령과 기준선** (`rules/dev.md`)
-- 근거: `docs/plan_search-api.md` 스텝 4. `docs/project.md` 품질 기준의
-  "성능 측정: 없음"·"기준선 파일: 없음" 을 채우는 것이 이 계획의 절반이다
-  (계획서 근거 절). 컨셉 성능 1 = p95 300ms 지만 **100만 문서 기준**이라
-  지금 나오는 숫자는 합격 판정이 아니라 **회귀를 잡을 기준선**이다
-- 완료 기준: `e2e/perf_search.py` 가 임시 색인 + `--port 0` 로 서버를 띄우고
-  질의 셋을 N회 돌려 p50·p95 와 그때의 문서 수를 출력한다. 네트워크를 타지 않는다.
-  숫자를 `docs/project.md` 품질 기준에 적는다
-- 이미 한 것: 스텝 3 커밋 `9268374` 까지. 서버 쪽은 손댈 것이 없다 —
-  측정 스크립트만 신설한다
-- 건드릴 파일: `e2e/perf_search.py`(신설), `docs/project.md`
+- 할 일: **개발 스텝 5 — e2e, 사용자가 하는 그대로** (`rules/e2e.md`)
+- 근거: `docs/plan_search-api.md` 스텝 5 + "e2e 시나리오" 절 6단계.
+  단위 테스트는 `serve.make_server()` 를 스레드로 띄운다 — **CLI 진입점
+  (`python3 -m websearch.serve <db> --port 0`)과 crawl→색인→서빙 전체 경로는
+  아직 한 번도 통째로 돌아본 적이 없다.** e2e 가 그것을 본다
+- 완료 기준: `e2e/search_api_e2e.py` 신설 — ① 로컬 서버 페이지를 crawl 로 수집·색인
+  ② serve 를 **서브프로세스로** 띄우고 stdout 의 실제 포트를 읽는다
+  ③ `q=김치` 200·정답 URL 포함 ④ `page=2` 가 1페이지와 안 겹침 ⑤ q 없음 400 /
+  없는 경로 404 / POST 501, 어느 것도 트레이스백 없음 ⑥ `e2e/perf_search.py` 가
+  숫자를 낸다. 결과를 `docs/e2e/search-api/result.md` 에 기록.
+  기존 e2e 3개 회귀 없음
+- 이미 한 것: 스텝 4 커밋 `b7bbd54` 까지. 소스는 손댈 것이 없다 —
+  e2e 스크립트만 신설한다. 기존 3개(`e2e/crawl_e2e.py` 등)와 같은 모양으로 쓴다
+- 건드릴 파일: `e2e/search_api_e2e.py`(신설), `docs/project.md`,
+  `docs/e2e/search-api/result.md`(신설)
 
 ## 남은 스텝
 
-4 p95 측정·기준선 → 5 e2e
+5 e2e 가 마지막이다. 끝나면 계획 DONE — 아카이브(`plan_history_004`) 후 다음 계획.
 
 ## 다음 행동
 
-`/loop-harness night` 을 다시 부르면 개발 스텝 4 부터 이어진다.
+`/loop-harness night` 을 다시 부르면 스텝 5 부터 이어진다.
 계획이 DONE 되면 다음은 **`crawl-delay` 존중**(`docs/digest.md` 크롤 윤리) — 사용자가
 이미 정한 순서다.
 
 ## 정지 조건
 
-ctx 71% · 5h 66% · 7d 40% — 걸린 것 없음. 계속 진행 중.
+이번 세션 반복 3건(32·33·34) 모두 GREEN, RED·재시도 0.
