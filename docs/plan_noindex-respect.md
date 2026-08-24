@@ -59,7 +59,7 @@
   ⑦ 깨진 HTML(닫히지 않은 태그) 에서도 예외 없음
 - **건드릴 파일**: `src/websearch/extract.py`, `tests/test_extract.py`
 - **의존**: 설계
-- **상태**: 대기
+- **상태**: 완료 (81/81)
 
 ### 2. 색인이 noindex 를 거른다
 - **완료 기준**: 새 테스트가 먼저 실패하는 것을 확인한 뒤 통과. 케이스 —
@@ -71,7 +71,7 @@
   ④ 전체 스위트 통과: `PYTHONPATH=src python3 -m unittest discover tests`
 - **건드릴 파일**: `src/websearch/indexer.py`, `tests/test_indexer.py`
 - **의존**: 1
-- **상태**: 대기
+- **상태**: 완료 (84/84)
 
 ### 3. e2e — 크롤부터 검색까지 왕복
 - **완료 기준**: `docs/e2e/noindex-respect/result.md` 에 실행 출력 기록.

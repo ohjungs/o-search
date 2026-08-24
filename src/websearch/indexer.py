@@ -12,7 +12,10 @@ SCHEMA = (
 
 
 def index_pages(db_path):
-    """미색인 pages 행을 추출·삽입하고 색인한 문서 수를 돌려준다."""
+    """미색인 pages 행을 추출·삽입하고 넣은 문서 수를 돌려준다.
+
+    meta robots 가 noindex·none 인 문서는 넣지 않고, 이미 색인돼 있으면 뺀다.
+    """
     if not os.path.exists(db_path):
         raise FileNotFoundError(db_path)
     db = sqlite3.connect(db_path)
@@ -23,13 +26,27 @@ def index_pages(db_path):
             "SELECT url, html FROM pages "
             "WHERE html IS NOT NULL AND url NOT IN (SELECT url FROM docs)"
         ).fetchall()
+        indexed = 0
         for url, html in rows:
+            if extract.is_noindex(html):
+                continue  # 색인 거부 선언 — 크롤 윤리 축, robots.txt 와 같다
             title, body = extract.extract_text(html)
             db.execute(
                 "INSERT INTO docs(title, body, url) VALUES (?, ?, ?)", (title, body, url)
             )
+            indexed += 1
+        # 이미 색인된 문서가 뒤늦게 noindex 를 선언했으면 뺀다. 위 증분 조건이
+        # 기색인 문서를 아예 쳐다보지 않으므로 경로가 따로 필요하다.
+        # ponytail: 매 실행 색인 전수 조인. LIKE 로 후보를 SQLite 안에서 걸러 두었고,
+        #           색인 상태 컬럼이 생기는 recrawl 계획에서 증분으로 바꾼다
+        for url, html in db.execute(
+            "SELECT d.url, p.html FROM docs d JOIN pages p ON p.url = d.url "
+            "WHERE p.html LIKE '%robots%'"
+        ).fetchall():
+            if extract.is_noindex(html):
+                db.execute("DELETE FROM docs WHERE url = ?", (url,))
         db.commit()
-        return len(rows)
+        return indexed
     finally:
         db.close()
 

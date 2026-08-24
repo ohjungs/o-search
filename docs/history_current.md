@@ -141,3 +141,8 @@ append 전용. 수정·삭제 금지.
 - 한 일: tests/test_extract.py 에 10케이스 먼저 작성·실패 확인 → src/websearch/extract.py 에 _MetaRobotsParser + is_noindex() 구현. 설계 계약대로 name 소문자화 후 robots 만, content 를 쉼표로 쪼갠 토큰에 noindex/none, 사전 필터로 'robots' 없는 문서는 파싱 생략. _TextParser 는 안 건드렸다(반환 형태 유지)
 - 결과: 전체 81/81 통과 0.039s (71 → 81). 새 의존성 0. 색인 경로는 아직 미연결
 - 다음: 개발 2/3 index_pages 필터·제거
+
+## 2026-08-25 야간23 | noindex-respect | 개발 2/3 | 시도1
+- 한 일: tests/test_indexer.py 3케이스 먼저 작성·실패 확인(FAILED 3) → index_pages() 에 삽입 필터(is_noindex 면 continue, 반환값 미집계)와 제거 경로(docs ⋈ pages WHERE p.html LIKE '%robots%' 후보만 파싱해 DELETE FROM docs) 구현. 성능 천장은 ponytail 주석으로 남김
+- 결과: 전체 84/84 통과 0.044s. pages 는 읽기만 — 판정 규칙 변경 시 재판정 근거 보존
+- 다음: 테스트 phase (갭 탐색)

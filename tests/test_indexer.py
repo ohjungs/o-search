@@ -65,6 +65,36 @@ class TestIndexPages(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             index_pages(os.path.join(self.dir.name, "없는.db"))
 
+    def test_noindex_page_is_not_indexed(self):
+        # 크롤 윤리: 색인 거부를 선언한 문서는 색인에 들어가지 않는다
+        self._seed([
+            ("http://a.test/", '<meta name="robots" content="noindex"><p>거부</p>'),
+            ("http://b.test/", "<p>허용</p>"),
+        ])
+        self.assertEqual(index_pages(self.db_path), 1)
+        self.assertEqual([row[0] for row in self._docs()], ["http://b.test/"])
+
+    def test_already_indexed_page_that_declares_noindex_is_removed(self):
+        self._seed([("http://a.test/", "<p>허용 pyeongsan</p>")])
+        self.assertEqual(index_pages(self.db_path), 1)
+        # 뒤늦게 noindex 를 달았다 (재크롤로 pages.html 이 갱신된 상황)
+        Store(self.db_path).upsert(
+            "http://a.test/", '<meta name="robots" content="none"><p>허용 pyeongsan</p>', 200
+        )
+        self.assertEqual(index_pages(self.db_path), 0)
+        self.assertEqual(self._docs(), [])
+        self.assertEqual(search(self.db_path, "pyeongsan"), [])
+
+    def test_rerun_keeps_allowed_pages_indexed_once(self):
+        # 제거 경로가 멀쩡한 문서를 건드리지 않는지 — 회귀 방지
+        self._seed([
+            ("http://a.test/", "<p>허용</p>"),
+            ("http://b.test/", '<meta name="robots" content="noindex"><p>거부</p>'),
+        ])
+        index_pages(self.db_path)
+        self.assertEqual(index_pages(self.db_path), 0)
+        self.assertEqual([row[0] for row in self._docs()], ["http://a.test/"])
+
 
 class TestSearch(unittest.TestCase):
     def setUp(self):
