@@ -1,6 +1,8 @@
 import os
 import sqlite3
 import tempfile
+import threading
+import time
 import unittest
 
 from websearch.store import Store
@@ -57,6 +59,31 @@ class TestConcurrentAccess(unittest.TestCase):
         reader.execute("BEGIN")
         reader.execute("SELECT url FROM pages").fetchall()  # 읽기 트랜잭션을 연 채로 둔다
         self.store.upsert("http://b.com/", "v1", 200)
+        self.assertTrue(self.store.has("http://b.com/"))
+
+    def test_upsert_waits_out_a_writer_instead_of_dying(self):
+        """쓰기끼리 부딪히면 **기다린다**. WAL 도 쓰기끼리는 배타적이라 이건 timeout 몫이다.
+
+        붙드는 시간(0.3초)은 짧게 뒀다 — 여기서 고정하는 계약은 "얼마나 오래" 가 아니라
+        **"죽지 않고 기다린다"** 다. 실제 상한 30초가 왜 그 값인지는
+        `docs/history_current.md` 반복 68 의 탐침에 있다 (6초짜리라 스위트에 안 넣었다).
+        """
+        holding = threading.Event()
+
+        def hold():  # 커넥션은 만든 스레드가 끝까지 소유한다
+            other = sqlite3.connect(self.path, timeout=30)
+            other.execute("BEGIN IMMEDIATE")  # 쓰기 락
+            other.execute("INSERT INTO pages(url, status) VALUES ('http://h/', 200)")
+            holding.set()
+            time.sleep(0.3)
+            other.commit()
+            other.close()
+
+        writer = threading.Thread(target=hold)
+        writer.start()
+        self.addCleanup(writer.join)
+        holding.wait(timeout=5)
+        self.store.upsert("http://b.com/", "v1", 200)  # timeout 이 0이면 여기서 죽는다
         self.assertTrue(self.store.has("http://b.com/"))
 
     def test_reader_still_sees_committed_rows(self):
