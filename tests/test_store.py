@@ -61,12 +61,22 @@ class TestConcurrentAccess(unittest.TestCase):
         self.store.upsert("http://b.com/", "v1", 200)
         self.assertTrue(self.store.has("http://b.com/"))
 
+    def test_busy_timeout_is_raised_above_the_sqlite_default(self):
+        """상한 값 자체를 고정한다 — 아래 대기 테스트로는 이게 안 잡힌다.
+
+        sqlite3 기본 `busy_timeout` 은 **0이 아니라 5000ms** 라, 짧게 붙드는 테스트는
+        `timeout=` 을 통째로 지워도 통과한다(백지 리뷰 지적). 30초가 왜 필요한지는
+        `docs/history_current.md` 반복 68 의 탐침에 있다 — 6초짜리라 스위트에 안 넣었고,
+        대신 그 계약을 여기서 한 줄로 고정한다.
+        """
+        actual = self.store._db.execute("PRAGMA busy_timeout").fetchone()[0]
+        self.assertGreater(actual, 5000, "기본값 5000ms 를 넘겨야 색인 중 커밋을 견딘다")
+
     def test_upsert_waits_out_a_writer_instead_of_dying(self):
         """쓰기끼리 부딪히면 **기다린다**. WAL 도 쓰기끼리는 배타적이라 이건 timeout 몫이다.
 
-        붙드는 시간(0.3초)은 짧게 뒀다 — 여기서 고정하는 계약은 "얼마나 오래" 가 아니라
-        **"죽지 않고 기다린다"** 다. 실제 상한 30초가 왜 그 값인지는
-        `docs/history_current.md` 반복 68 의 탐침에 있다 (6초짜리라 스위트에 안 넣었다).
+        붙드는 시간(0.3초)이 짧아 **상한 값은 못 고정한다** — 위 테스트가 그쪽을 맡는다.
+        여기서 고정하는 건 "빨리 실패하지 않고 기다린다" 하나다.
         """
         holding = threading.Event()
 

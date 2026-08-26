@@ -2,17 +2,17 @@
 signal: GREEN
 mode: night
 plan: crawl-throughput
-phase: 리뷰
+phase: e2e
 step: 3/3
 attempt: 0
-iteration: 69
-night_iterations: 6
+iteration: 70
+night_iterations: 7
 night_red: 0
 night_retries: 0
 night_self_amendments: 1
-updated: 2026-08-27 (반복 69)
+updated: 2026-08-27 (반복 70)
 ctx: 81% / 200k
-rules: rules/review.md
+rules: rules/e2e.md
 ---
 
 # 현재 상태
@@ -36,7 +36,7 @@ rules: rules/review.md
 
 | 무엇 | 결과 |
 |---|---|
-| `unittest discover tests` | **212/212** (스텝 3 전 209) |
+| `unittest discover tests` | **213/213** (계획 시작 전 209) |
 | RED 확인 | 고치기 전 `database is locked` 로 죽었다 — 사용자 크래시와 같은 예외 |
 | 변이 `journal_mode=WAL` 제거 · 변이 `timeout=0` | 각각 실패 (둘 다 복원 확인) |
 | `timeout=30` 탐침 (6초 붙들기) | 기본 5.0 → 5.2초 만에 죽음 · 30 → 6.5초 기다렸다 성공 |
@@ -76,7 +76,42 @@ rules: rules/review.md
   의도적으로 피한 커밋이 없다(`git log -S journal_mode` 무소득). digest 에도 없다
 - **렌즈 5 (주석 지침 위반) — 없다.** 수정한 파일에 "이렇게 하지 마라" 류 지침 없음
 
-## 리뷰 phase 가 볼 것 (패스 A 에게 맡긴 것 + 아침에 사람이 볼 것)
+## 패스 A(백지) 결과 — 5건, **3건 반영 · 1건 보류 · 1건 부분기각**
+
+**패스 A 가 내 눈이 먼 자리를 정확히 짚었다. 리뷰를 남에게 넘긴 값을 했다.**
+
+1. **[반영·중대] `timeout=30` 을 검증하는 테스트가 없었다.** sqlite3 기본
+   `busy_timeout` 은 0이 아니라 **5000ms** 라, 0.3초만 붙드는 테스트는 `timeout=` 을
+   통째로 지워도 통과한다. **내가 반복 69에 "갭을 메웠다" 고 쓴 것은 틀렸다** —
+   변이를 `timeout=0` 으로 잡은 게 실수였다(진짜 되돌리기는 인자 삭제).
+   → `PRAGMA busy_timeout > 5000` 한 줄로 상한 계약을 고정했다.
+   변이 `sqlite3.connect(path)` → **실패 확인**(`5000 not greater than 5000`)
+2. **[보류] `store.has()` 로 건너뛴 URL 이 도메인 쿨다운을 태운다.** 사실이다 —
+   `frontier.next()` 가 팝 시점에 `_last_fetch` 를 쓰는데(`frontier.py:70`) 요청은 안 나간다.
+   **다만 야간에 안 고친다. 리뷰어가 제안한 수정(팝의 쓰기 제거)에 구멍이 있다** —
+   워커가 예외로 끝나면 `_store_result` 가 `mark_sent` 없이 반환하는데 요청은 이미 나갔을
+   수 있다. 그러면 그 도메인은 쿨다운 없이 곧바로 다시 뽑힌다 = **간격 위반**.
+   `concept.md:59` 는 크롤 윤리를 성능 위에 둔다. 제출 시점 `mark_sent` + 팝 쓰기 제거가
+   답으로 보이지만 프런티어 계약 변경이라 사람이 볼 자리다.
+   **이 계획의 목표 숫자에는 영향 없다** — `_seen` 이 한 실행 안의 중복을 막아
+   `store.has` 는 주로 **이어받기 크롤**에서 참이 된다(신규 크롤인 `perf_crawl` 은 무관)
+3. **[반영] `_fetch_one` 독스트링이 거짓이었다.** `robots` 는 워커 공유 `RobotsCache` 이고
+   `_parser` 는 check-then-set 이다. 계약 3이 막아줘서 버그는 아니지만 문장이 잘못 안심시킨다
+   → "계약 3을 풀면 여기가 깨진다" 까지 조건을 명시
+4. **[반영] Ctrl-C 가 최대 30초 안 먹는다** — 이 계획이 만든 회귀다(풀이 나갈 때 기다린다).
+   유실은 없다(upsert 마다 커밋). `cancel_futures` 는 **약이 안 된다** — 취소되는 건 대기 중
+   작업뿐인데 여기선 제출한 것이 곧 실행 중인 것이다. 그래서 코드가 아니라 독스트링에 적었다
+5. **[부분기각] `perf_crawl` 기준선이 헐겁다** — 사실이다(workers 8→4 도 통과).
+   **다만 "문서와 어긋난다" 는 성립하지 않는다** — 문서가 주장한 건 "지연이 없으면 순차와
+   동시가 같은 숫자를 낸다" 뿐이고 그건 참이다(1.95 대 10.27, 기준 5.0이 그 사이).
+   `TARGET_RATE` 는 `concept.md:44` 의 제품 목표라 **올리지 않는다** — 야간에 목표를
+   옮기지 않는다. 대신 무엇을 못 잡는지 상수 옆에 적었고, 부분 회귀는 시간이 아니라
+   `TestConcurrency`(배리어)가 잡는다
+
+**리뷰어가 정상 확인한 것**: 도메인 간격 계약 성립(`exclude=busy` + `mark_sent` 의 max 단조성),
+`saved + len(inflight) < max_pages` 게이트, `seconds_until_ready() or None` 의 바쁜대기 차단
+
+## e2e phase 가 볼 것
 
 1. **계약 바꾼 곳 하나** — `test_redirect_final_url_normalized_before_store` 를
    `workers=1` 로 좁혔다. 아래 절 참조. 이게 정당한 축소인지 판정한다

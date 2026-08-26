@@ -18,7 +18,11 @@ WORKERS = 8  # 동시에 띄우는 요청 수. **보정 손잡이지 상수가 �
 
 
 def _fetch_one(url, robots, now):
-    """워커 스레드가 하는 일 전부. **공유 상태를 만지지 않는다** (설계 계약 4).
+    """워커 스레드가 하는 일 전부. **`Store`·`Frontier`·카운터를 만지지 않는다** (설계 계약 4).
+
+    `robots` 는 예외로 워커들이 **공유하는** `RobotsCache` 다. `_parser()` 가
+    check-then-set 이라 그 자체로는 스레드 안전하지 않지만, 계약 3(도메인당 in-flight 1개)
+    덕에 같은 base 를 두 워커가 동시에 로드하지 않는다. **계약 3을 풀면 여기가 깨진다.**
 
     돌려주는 것: `(allowed, requested_delay, sent_at, FetchResult|None)`.
     순서는 순차 루프와 같다 — robots 확인 → 간격 조회 → fetch. 사이트가 보는
@@ -36,6 +40,11 @@ def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None,
     """수집에 성공(2xx + HTML)한 페이지 수를 돌려준다. robots_cache·now 는 테스트 주입 지점.
 
     `workers=1` 이면 요청이 하나씩 떠서 순차 루프와 같은 순서로 돈다 — 되돌리기 수단이다.
+
+    **Ctrl-C 가 즉시 안 먹는다.** `ThreadPoolExecutor` 는 나갈 때 떠 있는 요청을 기다려서,
+    최악 `fetcher` 타임아웃 10초 × 재시도만큼 늦는다(동시화 전에는 즉시 끊겼다).
+    저장은 upsert 마다 커밋이라 **유실은 없다**. `cancel_futures` 로는 안 줄어든다 —
+    취소되는 건 대기 중인 작업뿐인데 여기선 제출한 것이 곧 실행 중인 것이다.
     """
     store = Store(db_path)
     robots = robots_cache if robots_cache is not None else RobotsCache()

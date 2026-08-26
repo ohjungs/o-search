@@ -35,7 +35,10 @@ DOMAINS = 12
 PAGES_PER_DOMAIN = 12          # 프런티어가 굶지 않을 만큼. 48문서를 12도메인이 나눠 낸다
 LATENCY = 0.4                  # 초. 응답 대기 흉내 — 이게 0이면 측정이 무의미하다
 MAX_PAGES = 48
-TARGET_RATE = 5.0              # concept.md:44
+TARGET_RATE = 5.0              # concept.md:44. 제품 목표라 여기 맞춘다 — 올리지 않는다.
+# 이 값이 가르는 것은 **순차(약 2/s) 대 동시(약 10/s)** 까지다. workers 가 8→4 로
+# 줄어드는 정도의 동시성 회귀는 여전히 통과한다(상한이 workers/LATENCY 라 4여도 10/s).
+# 부분 회귀는 시간이 아니라 `tests/test_crawl.py` 의 `TestConcurrency`(배리어)가 잡는다.
 MIN_GAP = 0.95                 # 1.0 - 왕복 지터 여유. crawl_delay_e2e.py:86 과 같은 값
 
 REQUEST_LOG = []               # (시각, netloc, path)
