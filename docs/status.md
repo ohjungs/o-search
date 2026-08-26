@@ -1,16 +1,16 @@
 ---
-signal: DONE
+signal: YELLOW
 mode: night
-plan: crawl-throughput
-phase: 완료
+plan: (없음 — 다음 계획 승인 대기)
+phase: 보류
 step: 3/3
 attempt: 0
-iteration: 71
-night_iterations: 8
+iteration: 72
+night_iterations: 9
 night_red: 0
 night_retries: 0
 night_self_amendments: 1
-updated: 2026-08-27 (반복 71)
+updated: 2026-08-27 (반복 72)
 ctx: 81% / 200k
 rules: rules/discover.md
 ---
@@ -24,8 +24,17 @@ rules: rules/discover.md
 `concept.md:44` 기준 5.0의 2배다. 순차(1.95/s) 대비 **5.3배**이고 간격 위반 0·중복 0.
 1,700문서에서 크롤을 죽이던 `database is locked` 도 닫았다.
 
-**다음은 discover** (`rules/discover.md`) — 다음 계획을 고른다.
-**가장 유력한 후보는 아래 "남긴 것" 1번**(쿨다운 태우기)이다.
+**discover 를 돌렸고 🟡 보류로 멈춘다 — 남은 후보 셋이 전부 사람 판단을 요구한다.**
+`rules/discover.md` 142줄: digest 보류 항목은 승인 대기이므로 야간에 재시도 금지.
+
+| 후보 | 무엇에 막혔나 | 아침에 정할 것 |
+|---|---|---|
+| **쿨다운 태우기** (digest `[high]`) | 프런티어 계약 변경 = 설계 승인 | 올릴지. 순진한 수정은 **간격 위반 구멍**이 있다(아래) |
+| **`recrawl`** (`concept.md:31`, 사양 8번) | `docs` 에 `fetched_at` 추가 = **스키마 변경**. 야간 금지 항목 | 마이그레이션을 승인할지 |
+| **`search-ui`** | 경량·디자인 축의 **측정 명령이 아직 `없음`** | 무엇으로 잴지 (`concept.md` 에 숫자를 적어야 루프가 고른다) |
+
+셋 다 "밤에 넘겨짚으면 아침에 되돌릴 코드만 남는" 종류라 착수하지 않았다.
+**한 줄만 정해주면 바로 이어간다** — 어느 것을 열지.
 
 ## 스텝 3이 만든 것 — 잠긴 DB 에 크롤이 안 죽는다
 
