@@ -146,3 +146,10 @@ append 전용. 수정·삭제 금지.
 - **DONE**: `plan_quality-eval.md`·`design_quality-eval.md` → `*_history_006.md` 로 아카이브, `index.md` 6번째 완료 줄, `digest.md` 완료 절. 살아 있는 참조(코드·테스트·문서)의 옛 파일명도 함께 고쳤다
 - **이 계획이 남긴 것**: 컨셉 기능 2 의 자가 처음 생겼고 ko 85% · en 90% 로 합격했다. 동시에 **그 자의 한계가 실측으로 문서화됐다** — 랭킹은 못 잰다. 다음에 토크나이저를 건드리는 계획은 이 기준선을 기준으로 비교한다
 - 다음: 계획 탐색
+
+## 반복 56 — 2026-08-26 · 계획 (non-ascii-url)
+- 한 일: `docs/plan_non-ascii-url.md` 작성(스텝 4, 설계 필요 판정) + 브랜치 `loop/non-ascii-url` 분기 + `index.md` 한 줄. 코드 0줄
+- 근거는 **사용자 지시 + 로컬 재현**이다. `rules/discover.md` 1~3순위를 먼저 값싸게 확인했다: 실패 테스트 0(170/170) · 린트/타입체커 없음(`project.md`) · 코드의 `TODO|FIXME|HACK` **0건**. 중복 방지 5곳 전부 확인 — `index.md`·digest 완료·활성 계획·보류 3건·`docs/patches/`(폴더 없음) 어디에도 없다
+- **재현이 지시보다 넓었다**: `fetch()` 가 예외를 밖으로 흘리는 것 외에, ① `links.extract` 가 한글 URL 을 날것으로 프런티어·`pages` 에 넣어 **같은 페이지가 두 행**이 될 수 있고 ② IDN 호스트는 원인이 다르다(`latin-1` / IDNA) ③ `RobotsCache.allowed` 는 **안 죽는다**(ASCII 호스트면 robots.txt URL 도 ASCII). 셋 다 계획서 `## 실측` 표에 넣었다
+- 설계 필요 판정: 대안이 갈린다(정규화를 fetch 안에 넣나 링크 경계로 올리나 — `pages.url` 키가 달라진다) + 새 모듈 가능성
+- 다음: 설계 phase

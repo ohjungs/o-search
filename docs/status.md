@@ -1,47 +1,51 @@
 ---
-signal: DONE
+signal: GREEN
 mode: night
-plan: quality-eval
-phase: 완료
-step: 4/4
+plan: non-ascii-url
+phase: 설계
+step: 0/4
 attempt: 0
-iteration: 55
-night_iterations: 24
+iteration: 56
+night_iterations: 25
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
-updated: 2026-08-26 (반복 55)
-ctx: 55% / 200k
-rules: rules/discover.md
+updated: 2026-08-26 (반복 56)
+ctx: 62% / 200k
+rules: rules/design.md
 ---
 
 # 현재 상태
 
-**`quality-eval` 완료 (계획 6번째).** 170/170 통과, 기존 e2e 5개 회귀 없음,
-`plan_history_006.md` · `design_history_006.md` 로 아카이브.
+**`quality-eval`(006) DONE. 새 계획 `non-ascii-url` 착수 — 다음은 설계 phase.**
+브랜치 `loop/non-ascii-url` (`loop/quality-eval` 37fa3aa 에서 분기). 170/170 통과.
 
-## 이 계획이 남긴 숫자
+## 새 계획의 근거 — 재현했다
 
-- **컨셉 기능 2 를 처음 쟀다** — ko 17/20 (85%) · en 18/20 (90%) ≥ 80% **합격**
-- 명령: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python3 e2e/quality_eval.py` (0.1s 미만)
-- 종료 코드 계약: `0` 합격 / `1` 품질 미달 / `2` fixture 결함·사용법 (네 갈래 전부 실행으로 확인)
+한글이 든 URL 을 크롤하면 **크롤 루프가 통째로 죽는다.** `fetcher.fetch()` 가
+`FetchResult(0, ...)` 를 주는 게 아니라 `UnicodeEncodeError` 가 함수 밖으로 샌다
+(`fetcher.py:20-23` 의 `try` 는 `Request` **생성만** 감싸고, `:40` 의
+`except (URLError, OSError)` 는 `ValueError` 계열을 안 잡는다).
+한국어가 1급인 저장소에서 한국어 위키백과 URL 이 대부분 비ASCII 다.
 
-## 이 계획이 남긴 **한계** — 다음 계획이 반드시 읽을 것
+실측 표는 `docs/plan_non-ascii-url.md` `## 실측` 에 있다. 핵심 위험 하나:
+`links.extract` 가 한글 URL 을 **날것 그대로** 프런티어·`pages` 에 넣어서,
+같은 페이지가 `/가.html` 과 `/%EA%B0%80.html` **두 행**이 될 수 있다.
 
-e2e 시나리오 3(방해 문서 절제)이 **반증됐다.** 방해 문서를 전부 빼도 포함률이
-35/40 그대로다. 순위 분포가 `1위 35 · 2~10위 0 · 미검출 5` 라 **`recall@1` 과
-`recall@10` 이 같다** — 상위 10 이라는 창이 한 번도 판정을 가르지 않았다.
-**이 85/90% 는 랭킹 품질이 아니라 매치 품질의 숫자다.** 러너가 이제 매 실행
-그 한 줄을 스스로 찍는다. 근거: `docs/e2e/quality-eval/result.md`
+## 다음 (설계 phase — `rules/design.md`)
 
-## 다음 (계획 탐색 — `rules/discover.md`)
+`docs/design_non-ascii-url.md` 에 답할 것 셋:
 
-유력 후보 둘. 근거는 `digest.md`·`index.md` 에 있다.
+1. **정규화 지점** — `fetcher.fetch` 안인가, `links.extract`/`Frontier.add` 경계인가.
+   저장 키(`pages.url`)가 갈린다
+2. **함수의 집** — 새 `src/websearch/urls.py` 인가 기존 모듈인가
+3. **인코딩 규칙** — `quote(safe=...)` 의 `safe` 에 `%` 를 넣을지.
+   넣으면 멱등해지지만 경로에 든 **진짜 `%` 문자**는 못 고친다
 
-1. **`search-ui`** (`index.md` 사양 분할 6번) — 컨셉 4축 중 **경량·디자인이 아직 측정
-   명령 `없음`** 이다. 품질·성능·윤리는 자가 다 생겼고 이 축만 비었다
-2. **토크나이저** (`digest.md` [8]) — 미포함 5건이 전부 이것이고 랭킹 손실은 0건이다.
-   기준선(ko 85 / en 90)이 방금 고정됐으니 이제 비교가 된다
+## 직전 계획(006)이 남긴 것 — 다음에 토크나이저를 건드릴 때 읽을 것
+
+`e2e/quality_eval.py` 로 잰 **ko 85% · en 90%** 가 기준선이다. 단 **이 자는 랭킹을
+못 잰다**(`recall@1` == `recall@10`, 근거 `docs/e2e/quality-eval/result.md`).
 
 ## 보류 (사람 승인 대기 — 무인 모드에서 착수 금지)
 

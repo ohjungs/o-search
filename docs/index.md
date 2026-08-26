@@ -15,6 +15,7 @@ plan_history_<NNN>.md 를 다 열어볼 필요가 없게 하는 것이 목적이
 | plan_search-api | 완료 | loop/search-api | 5/5 | 통과 | 설계 있음(004). 성능 축을 열었다 — p95 기준선 |
 | plan_crawl-delay | 완료 | loop/crawl-delay | 4/4 | 통과 | 설계 있음(005). robots Crawl-delay 존중. 리뷰 10건 중 6건 수정 |
 | plan_quality-eval | 완료 | loop/quality-eval | 4/4 | 통과(3은 반증) | 설계 있음(006). ko 85% · en 90%. **이 코퍼스는 랭킹을 못 잰다**(recall@1 == recall@10) |
+| plan_non-ascii-url | 진행 | loop/non-ascii-url | 4/4 | 미정 | 설계 필요. 한글 URL 이 `UnicodeEncodeError` 로 크롤 루프를 죽인다(재현 완료) |
 
 ## 사양 분할 (docs/specs/concept.md → 계획 순서)
 
@@ -37,5 +38,10 @@ plan_history_<NNN>.md 를 다 열어볼 필요가 없게 하는 것이 목적이
    아니면 미검출이다 — 상위 10 이라는 창이 아무 판정도 가르지 않는다. 랭킹 축을 재려면
    정답과 방해 문서가 같은 질의어를 갖는 fixture 가 따로 필요하다(digest 후보)
 8. `recrawl` — 30일 재방문·갱신·삭제 반영. 의존: 2
+
+9. `non-ascii-url` — 진행 (plan_non-ascii-url)
+   비ASCII URL 을 퍼센트/IDNA 로 정규화해 한글 경로를 크롤할 수 있게. 의존: 1
+   (사양 분할에 없던 계획. 사용자 지시 + 로컬 재현. 한국어가 1급인 저장소에서
+   한국어 위키백과 URL 이 크롤 루프를 통째로 죽인다)
 
 색인 규모 단계(10만→100만)는 별도 계획이 아니라 7번(quality-eval) 이후 운영 측정으로 판정.
