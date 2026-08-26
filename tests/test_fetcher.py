@@ -3,6 +3,7 @@ import unittest
 from unittest import mock
 
 import urllib.error
+import urllib.request
 
 from websearch import fetcher
 
@@ -70,6 +71,23 @@ class TestFetch(unittest.TestCase):
         with mock.patch("urllib.request.urlopen", return_value=r):
             fetcher.fetch("http://a.com/")
         r.read.assert_called_once_with(fetcher.MAX_BYTES)
+
+    def test_non_ascii_path_fails_quietly_without_retry(self):
+        # urlopen 안에서 요청 줄을 ascii 로 인코딩하다 UnicodeEncodeError 가 난다.
+        # 연결 전에 터지므로 서버 없이도 재현된다. wraps 로 진짜 urlopen 을 부르면서 횟수만 센다.
+        with mock.patch("urllib.request.urlopen",
+                        wraps=urllib.request.urlopen) as m:
+            got = fetcher.fetch("http://127.0.0.1:9/위키/대한민국")
+        self.assertEqual(got, fetcher.FetchResult(0, None, None))
+        self.assertEqual(m.call_count, 1)  # 재시도하지 않는다
+
+    def test_non_ascii_host_fails_quietly_without_retry(self):
+        # IDN 호스트는 Host 헤더를 latin-1 로 인코딩하다 터진다. 역시 연결 전이다.
+        with mock.patch("urllib.request.urlopen",
+                        wraps=urllib.request.urlopen) as m:
+            got = fetcher.fetch("http://한글도메인.test/")
+        self.assertEqual(got, fetcher.FetchResult(0, None, None))
+        self.assertEqual(m.call_count, 1)
 
     def test_retry_succeeds_second_try(self):
         with mock.patch("urllib.request.urlopen", side_effect=[OSError("t"), _resp()]):

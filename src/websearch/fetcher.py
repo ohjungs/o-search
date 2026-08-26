@@ -37,6 +37,8 @@ def fetch(url):
                 return FetchResult(resp.status, text, final_url)
         except urllib.error.HTTPError as e:
             return FetchResult(e.code, None, url)  # 확정 응답 — 재시도 무의미
+        except UnicodeError:  # 비ASCII URL — 몇 번 보내도 같다
+            return FetchResult(0, None, None)
         except (urllib.error.URLError, OSError):
             continue  # 타임아웃·연결 실패 — 재시도
     return FetchResult(0, None, None)
