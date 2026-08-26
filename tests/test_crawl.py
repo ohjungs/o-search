@@ -75,6 +75,40 @@ class TestCrawl(unittest.TestCase):
         self.assertEqual(n, 0)
 
 
+class TestNonAsciiUrl(unittest.TestCase):
+    """비ASCII URL 이 태어나는 자리(시드·리다이렉트 최종 URL)에서 ASCII 가 되는가."""
+
+    _run = TestCrawl._run
+
+    def test_non_ascii_seed_fetched_as_ascii(self):
+        with mock.patch.dict(PAGES, {"http://a.com/%EA%B0%80": "leaf"}):
+            n, fetched, _ = self._run(["http://a.com/가"], max_pages=5)
+        self.assertEqual(fetched, ["http://a.com/%EA%B0%80"])
+        self.assertEqual(n, 1)
+
+    def test_unconvertible_seed_dropped_rest_crawled(self):
+        # CLI 는 신뢰 경계 — 못 바꾸는 시드 하나가 나머지 크롤을 막지 않는다
+        n, fetched, _ = self._run(["http://.가/x", "http://a.com/"], max_pages=10)
+        self.assertNotIn("http://.가/x", fetched)
+        self.assertEqual(n, 3)
+
+    def test_redirect_final_url_normalized_before_store(self):
+        # 저장 키가 정규형이라야 ASCII 표기로 다시 온 같은 페이지를 두 번 받지 않는다
+        with mock.patch.dict(REDIRECTS, {"http://a.com/moved2": "http://b.com/가"}), \
+             mock.patch.dict(PAGES, {"http://b.com/가": "leaf"}):
+            _, fetched, _ = self._run(
+                ["http://a.com/moved2", "http://b.com/%EA%B0%80"], max_pages=10)
+        self.assertEqual(fetched, ["http://a.com/moved2"])
+
+    def test_unconvertible_redirect_target_falls_back_to_requested_url(self):
+        # 최종 URL 을 못 바꿔도 받아온 페이지를 잃지 않는다 — 요청한 url 이 저장 키·링크 base
+        with mock.patch.dict(REDIRECTS, {"http://a.com/moved3": "http://.가/"}), \
+             mock.patch.dict(PAGES, {"http://.가/": '<a href="/x">x</a>'}):
+            n, fetched, _ = self._run(["http://a.com/moved3"], max_pages=10)
+        self.assertEqual(n, 1)
+        self.assertIn("http://a.com/x", fetched)
+
+
 class TestCrawlDelayWiring(unittest.TestCase):
     """robots 가 요청한 간격이 크롤 루프를 거쳐 실제 요청 간격이 되는가."""
 
