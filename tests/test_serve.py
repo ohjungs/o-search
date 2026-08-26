@@ -490,6 +490,20 @@ class TestHtmlEscaping(ServeTestCase):
         body = self.rendered("/?q=" + urllib.parse.quote("김치"))
         self.assertNotIn('"><b>', body, "URL 이 href 속성을 탈출한다")
 
+    def test_hostile_query_strings_do_not_500_on_the_html_path(self):
+        """`/search` 에만 있던 단언을 화면 경로에도 건다.
+
+        digest.md 의 반복 실패 항목이 "진입점마다 검증이 빠진다" 인데, 화면은
+        CLI 둘·JSON 에 이은 **네 번째 진입점**이다. 같은 목록을 여기서 다시 친다.
+        """
+        hostile = ['"', 'OR', '김치 OR "', '*', 'NEAR(a b)', 'a" OR "b', '김치\x00',
+                   '김치\x07\x1b', '^김치', 'a AND (b', '"""', '김치*']
+        for q in hostile:
+            with self.subTest(q=q):
+                status, body, _ = self.raw("/?q=" + urllib.parse.quote(q))
+                self.assertEqual(status, 200, body[:200])
+                self.assertIn('name="q"', body)
+
     def test_javascript_scheme_url_is_not_linked(self):
         """html.escape() 만으로는 못 막는다 — javascript: 에는 &, <, " 가 하나도 없다.
 
@@ -497,6 +511,36 @@ class TestHtmlEscaping(ServeTestCase):
         """
         body = self.rendered("/?q=" + urllib.parse.quote("김치"))
         self.assertNotIn('href="javascript:', body)
+
+
+class TestHtmlPathFailsSafely(ServeTestCase):
+    """DB 가 없다 — 운영 실수다. JSON 쪽은 TestMissingDb 가 이미 못박았는데
+    화면 경로는 오류 문구를 **사람에게 보여주는** 자리라 새기 더 쉽다.
+
+    지금은 고정 문자열을 쓰지만, 단언이 없으면 다음 사람이 `str(exc)` 로 바꿔도
+    아무도 못 잡는다. 흘리면 안 되는 것을 흘리지 않는다고 여기서 고정한다.
+    """
+
+    pages = None
+
+    def test_500_page_leaks_neither_traceback_nor_db_path(self):
+        status, body, headers = self.raw("/?q=%EA%B9%80%EC%B9%98")
+        self.assertEqual(status, 500)
+        self.assertIn("text/html", headers["Content-Type"])
+        self.assertNotIn("Traceback", body)
+        self.assertNotIn("sqlite3", body.lower())
+        self.assertNotIn(self.db, body, "DB 경로가 화면으로 샜다")
+
+    def test_500_page_still_lets_you_search_again(self):
+        """막다른 화면을 주지 않는다 — 오류 페이지에도 검색창이 남는다."""
+        _, body, _ = self.raw("/?q=%EA%B9%80%EC%B9%98")
+        self.assertIn('name="q"', body)
+
+    def test_home_still_renders_without_a_db(self):
+        """홈은 색인을 읽지 않는다 — DB 가 죽어도 첫 화면은 떠야 한다."""
+        status, body, _ = self.raw("/")
+        self.assertEqual(status, 200)
+        self.assertIn('name="q"', body)
 
 
 if __name__ == "__main__":

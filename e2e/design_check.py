@@ -79,6 +79,33 @@ def contrast(fg, bg):
     return (hi + .05) / (lo + .05)
 
 
+# WCAG 공표값. **유채색이 반드시 들어가야 한다** — 무채색은 R=G=B 라 채널 가중치가
+# 무엇이든 같은 답을 낸다. 회색만으로 짠 자기 점검은 계수가 틀려도 통과한다
+# (실측: 가중치를 전부 1/3 로 바꿔도 #767676→4.54, #000000→21.00 그대로. 반면
+#  #0000ff 는 8.59 → 2.74 로 갈린다). 이 목록이 회색뿐이면 점검이 아니라 장식이다.
+WCAG_REFERENCE = [
+    ("#000000", "#ffffff", 21.00),
+    ("#ffffff", "#ffffff", 1.00),
+    ("#767676", "#ffffff", 4.54),   # 흰 배경에서 4.5 를 넘기는 가장 어두운 회색
+    ("#0000ff", "#ffffff", 8.59),   # 유채색 — 채널 가중치를 잡는 것은 이쪽이다
+    ("#ff0000", "#ffffff", 4.00),
+    ("#008000", "#ffffff", 5.14),
+    ("#fff", "#000", 21.00),        # #rgb 축약형도 같은 답
+]
+
+
+def self_check():
+    """대비 수식을 WCAG 공표값에 맞춰본다. **이 검사기의 유일한 자기 검증이다.**
+
+    수식이 틀리면 모든 비율이 조용히 틀리고, 그러면 [3]번 축은 숫자를 찍으면서
+    아무것도 판정하지 않는다 — 검사기가 검사처럼 생긴 상수가 된다. 여기서 멈춘다.
+    """
+    for fg, bg, expected in WCAG_REFERENCE:
+        got = contrast(fg, bg)
+        assert abs(got - expected) < 0.01, \
+            "대비 수식이 틀렸다: %s on %s → %.2f, WCAG 공표 %.2f" % (fg, bg, got, expected)
+
+
 # ---------- 응답에서 CSS·토큰 뽑기 ----------
 
 TOKEN_RE = re.compile(r"(--[a-z0-9-]+)\s*:\s*([^;}]+)")
@@ -194,6 +221,7 @@ def fetch(base, path):
 
 
 def main():
+    self_check()
     fail, unmeasurable = [], []
     with tempfile.TemporaryDirectory() as tmp:
         db = os.path.join(tmp, "crawl.db")
