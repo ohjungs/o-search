@@ -19,6 +19,7 @@
 """
 import argparse
 import collections
+import html
 import json
 import os
 import sys
@@ -70,8 +71,10 @@ def build_index(db_path, corpus):
     for doc in corpus:
         store.upsert(
             doc["url"],
+            # 코퍼스는 텍스트다. 이스케이프하지 않으면 `a<b` 가 태그를 열어 뒤 본문을
+            # 통째로 삼킨다 — 매치 수와 순위가 조용히 달라진다 (2026-08-26 리뷰)
             "<html><title>%s</title><body><p>%s</p></body></html>"
-            % (doc["title"], doc["body"]),
+            % (html.escape(doc["title"]), html.escape(doc["body"])),
             200,
         )
     return index_pages(db_path)
@@ -89,6 +92,24 @@ def measure(db_path, queries):
         rank = urls.index(query["answer"]) + 1 if query["answer"] in urls else None
         measured.append((query, len(urls), rank))
     return measured
+
+
+def rank_histogram(measured):
+    """포함률 한 줄 밑에 붙는 진단. **판정은 바꾸지 않는다.**
+
+    백분율은 "정답이 어디 있었나" 를 지운다. 1위 뭉치 + 미검출 뭉치로만 갈리면
+    `recall@1` 과 `recall@10` 이 같다는 뜻이고, 그러면 **상위 10 이라는 창은 아무
+    판정도 가르지 않은 것**이다 — 그 코퍼스는 포함률을 재고 있지만 랭킹은 못 재고 있다.
+    숫자를 읽는 사람이 이 사실을 알고 읽어야 한다 (2026-08-26 리뷰·절제 실측).
+    """
+    ranks = [rank for _, _, rank in measured]
+    top1 = sum(1 for r in ranks if r == 1)
+    window = sum(1 for r in ranks if r is not None and 2 <= r <= TOP_N)
+    pushed = sum(1 for r in ranks if r is not None and r > TOP_N)
+    missing = sum(1 for r in ranks if r is None)
+    return ("순위 분포: 1위 %d · 2~%d위 %d · %d위 밖 %d · 미검출 %d "
+            "— 창이 판정을 가른 질의 %d건"
+            % (top1, TOP_N, window, TOP_N, pushed, missing, window + pushed))
 
 
 def report(measured):
@@ -111,9 +132,11 @@ def report(measured):
         if rank is not None and rank <= TOP_N:
             hits[query["lang"]] += 1
         else:
-            misses.append("[%s] %s → %s (매치 %d건, 순위 %s)"
+            # "순위 밖" 은 **밀렸다**로 읽힌다. 아예 매치가 안 된 것과 원인이 다르다
+            # (밀림 = 랭킹 문제 / 미검출 = 토크나이저·표기 문제)
+            misses.append("[%s] %s → %s (매치 %d건, %s)"
                           % (query["lang"], query["q"], query["answer"], matches,
-                             rank if rank is not None else "밖"))
+                             "미검출" if rank is None else "순위 %d" % rank))
 
     code = 0
     for lang, name in LANG_NAMES.items():
@@ -121,6 +144,7 @@ def report(measured):
         print("%s %d/%d (%d%%)" % (name, hits[lang], total[lang], percent))
         if percent < THRESHOLD:
             code = 1
+    print(rank_histogram(measured))
     for line in misses:
         print(line)
     print("합격선 %d%% — %s" % (THRESHOLD, "통과" if code == 0 else "미달"))

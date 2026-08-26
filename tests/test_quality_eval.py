@@ -14,6 +14,12 @@ import sys
 import tempfile
 import unittest
 
+sys.path.insert(0, os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "e2e"))
+
+from quality_eval import build_index          # noqa: E402  러너의 색인 경로를 그대로 쓴다
+from websearch.indexer import search as idx_search  # noqa: E402
+
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RUNNER = os.path.join(_ROOT, "e2e", "quality_eval.py")
 CORPUS = os.path.join(_ROOT, "e2e", "quality", "corpus.json")
@@ -22,6 +28,7 @@ QUERIES = os.path.join(_ROOT, "e2e", "quality", "queries.json")
 # 실측 기준선(커밋 d014408): ko 17/20 · en 18/20. 미포함은 설계가 예고한
 # 토크나이저 실패뿐이다(복합어 `보관법`·`일출봉`, 띄어쓰기 `올레길`, `loaf`, `tuples`).
 KO_BASELINE = 17
+EN_BASELINE = 18
 
 # 다른 토픽 문서라 어떤 kimchi 질의어도 들어 있지 않다 → 정답으로 걸면 반드시 미포함.
 # 코퍼스에는 실재하므로 G1 은 통과한다 — 여기서 재는 것은 **품질 미달**이다.
@@ -62,6 +69,12 @@ class QualityEvalCase(unittest.TestCase):
         done = subprocess.run(args, capture_output=True, text=True, timeout=120)
         return done.returncode, done.stdout + done.stderr
 
+    @staticmethod
+    def hits(out, name):
+        """출력에서 `한국어 17/20 (85%)` 의 17 을 뽑는다."""
+        line = [ln for ln in out.splitlines() if ln.startswith(name + " ")][0]
+        return int(line.split()[1].split("/")[0])
+
     def misdirect(self, count):
         """ko 정답 `count` 개를 틀린 문서로 돌린 질의 셋. 첫 하나는 16위 문서로.
 
@@ -86,10 +99,35 @@ class QualityEvalCase(unittest.TestCase):
 
 class TestVerdict(QualityEvalCase):
     def test_frozen_fixture_passes(self):
+        """**기준선 이상**을 단언한다 — `== 85%` 로 못박으면 검색이 좋아지는 날 빨개진다.
+
+        회귀는 잡고 개선은 막지 않는 방향 단언이다. 경계(정확히 80%)와 미달은
+        `misdirect()` 를 쓰는 아래 두 테스트가 정확한 숫자로 이미 고정한다.
+        """
         code, out = self.run_eval()
         self.assertEqual(code, 0, out)
-        self.assertIn("한국어 %d/20 (85%%)" % KO_BASELINE, out)
-        self.assertIn("영어 18/20 (90%)", out)
+        self.assertGreaterEqual(self.hits(out, "한국어"), KO_BASELINE, out)
+        self.assertGreaterEqual(self.hits(out, "영어"), EN_BASELINE, out)
+
+    def test_rank_histogram_says_what_the_percentage_hides(self):
+        """포함률 옆에 순위 분포를 찍는다 — 창(상위 10)이 판정을 갈랐는지가 보인다.
+
+        이 fixture 는 매치되면 1위, 아니면 미검출인 이진 상태라 `recall@1` 과
+        `recall@10` 이 같다. 백분율만 보면 그 사실이 숨는다 (2026-08-26 리뷰).
+        """
+        code, out = self.run_eval()
+        self.assertEqual(code, 0, out)
+        self.assertIn("순위 분포", out)
+        self.assertIn("1위 35", out)
+        self.assertIn("미검출 5", out)
+        # 2~10위가 0건이면 창이 아무 판정도 가르지 않았다는 뜻이다 — 말로 적는다
+        self.assertIn("창이 판정을 가른 질의 0건", out)
+
+    def test_unmatched_answer_is_not_called_out_of_rank(self):
+        """`순위 밖` 은 "밀렸다" 로 읽힌다. 아예 매치가 안 된 것과 구분해 적는다."""
+        code, out = self.run_eval()
+        self.assertIn("[ko] 보관법 → http://q.test/ko/kimchi/07 (매치 12건, 미검출)", out)
+        self.assertNotIn("순위 밖", out)
 
     def test_exactly_80_percent_passes(self):
         # 경계는 통과 쪽이다 — `concept.md:22` 가 "80% 이상"이다
@@ -107,6 +145,36 @@ class TestVerdict(QualityEvalCase):
         self.assertIn("한국어 15/20 (75%)", out)
         # 미스는 어느 질의가 왜 틀렸는지까지 나와야 다음 반복이 원인을 본다
         self.assertIn("[ko] 레시피", out)
+
+
+class TestMeasurementContract(QualityEvalCase):
+    """측정이 **조용히 다른 것을 재는** 두 경로를 막는다 (2026-08-26 리뷰)."""
+
+    def test_angle_bracket_in_body_does_not_swallow_text(self):
+        """fixture 본문의 `<` 는 태그 시작으로 읽힌다 — 뒤쪽 본문이 통째로 사라진다.
+
+        실측: `조건 a<b 이고 김치찌개레시피 다` 를 감싸면 `<b ...>` 가 열린 것으로
+        보고 `>` 가 나올 때까지 삼켜, 뒤 단어가 색인에 아예 안 들어간다.
+        코퍼스는 HTML 이 아니라 **텍스트**이므로(`## 계약`) 감싸는 쪽인 러너가
+        이스케이프한다. 안 하면 매치 수와 순위가 조용히 달라진다 (2026-08-26 리뷰).
+        """
+        db = os.path.join(self.tmp, "escape.db")
+        build_index(db, [{"url": "http://q.test/ko/kimchi/17", "lang": "ko",
+                          "title": "꺾쇠 시험",
+                          "body": "조건 a<b 이고 김치찌개레시피 다"}])
+        self.assertTrue(idx_search(db, "김치찌개레시피", limit=10))
+
+    def test_first_ten_of_limit_100_equal_a_limit_10_search(self):
+        """`measure()` 가 `limit=100` 한 번으로 상위 10 을 대신하는 근거를 못박는다.
+
+        `indexer.search` 의 `ORDER BY bm25(docs), rowid` 가 전순서라서 성립한다.
+        그 정렬이 바뀌면 이 측정 전체가 조용히 어긋나므로 여기서 계약으로 잡는다.
+        """
+        db = os.path.join(self.tmp, "crawl.db")
+        build_index(db, _load(CORPUS))
+        for term in ("레시피", "제주도", "sourdough"):
+            self.assertEqual(idx_search(db, term, limit=10),
+                             idx_search(db, term, limit=100)[:10], term)
 
 
 class TestGuards(QualityEvalCase):
