@@ -3,22 +3,23 @@ signal: GREEN
 mode: night
 plan: non-ascii-url
 phase: 개발
-step: 1/4
+step: 2/4
 attempt: 0
-iteration: 57
-night_iterations: 26
+iteration: 58
+night_iterations: 27
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
-updated: 2026-08-26 (반복 57)
+updated: 2026-08-26 (반복 58)
 ctx: 72% / 200k
 rules: rules/dev.md
 ---
 
 # 현재 상태
 
-**`non-ascii-url` 설계 완료. 다음은 개발 step 1/4.**
-브랜치 `loop/non-ascii-url`. 170/170 통과. 코드는 아직 0줄.
+**`non-ascii-url` 개발 step 1/4 완료. 다음은 step 2/4(호출처 연결).**
+브랜치 `loop/non-ascii-url`. **185/185 통과**(기존 170 + `test_urls.py` 15).
+`src/websearch/urls.py` 있음 — 다른 파일은 아직 안 건드렸다.
 
 ## 설계가 정한 것 — `docs/design_non-ascii-url.md`
 
@@ -37,8 +38,8 @@ rules: rules/dev.md
 
 ## 남은 스텝
 
-1. **(다음)** `urls.to_ascii` + `tests/test_urls.py` — TDD
-2. 호출처 3곳 연결 (`links.py`·`crawl.py`)
+1. ~~`urls.to_ascii` + `tests/test_urls.py`~~ **완료** (62cec7b, 변이 4종 확인)
+2. **(다음)** 호출처 3곳 연결 (`links.py`·`crawl.py`)
 3. `fetcher` 최후 방어선 + `tests/test_fetcher.py`
 4. `e2e/non_ascii_e2e.py` — 로컬 서버, 시나리오 3개 (계획 `## e2e 시나리오`)
 

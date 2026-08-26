@@ -161,3 +161,11 @@ append 전용. 수정·삭제 금지.
 - `robots.py` 는 계약상 건드리지 않는다 — 프런티어를 통과한 ASCII URL 만 받으므로 `_base()` 도 ASCII 다 (계획의 위험 1 종료)
 - 되돌리기: 새 파일 1 + 한 줄 편집 3 = 커밋 하나로 revert. 플래그 불필요
 - 다음: 개발 step 1/4 (`urls.to_ascii` + `tests/test_urls.py`, TDD)
+
+## 반복 58 — 2026-08-26 · 개발 step 1/4 (non-ascii-url)
+- 한 일: `src/websearch/urls.py` 의 `to_ascii` + `tests/test_urls.py` 15건. TDD — `ImportError` 실패를 먼저 봤다. **185/185**(기존 170 + 15). 커밋 62cec7b
+- 변이 4종 전부 잡혔다: `isascii()` 반전(20건) · 조기 반환 삭제(2건) · `_quoted` 를 통짜 `quote` 로(2건) · `except ()`(7건 ERROR). `PYTHONDONTWRITEBYTECODE=1` 로 돌려 `.pyc` 함정 회피
+- **설계의 예시 하나가 틀렸다**: `http://a..b/` 는 ASCII 라 계약 1의 조기 반환에 걸려 `None` 이 안 된다. 테스트는 비ASCII 빈 라벨 `http://가..나/` 로 바꿨다. **계약은 안 바꿨다** — 예시만 틀린 것이라 `design.md` 6절의 "계약 변경" 이 아니다
+- **조기 반환의 진짜 값이 예상과 달랐다.** 문자 단위 `quote` 는 그 자체로 멱등이라 `%25` 이중 인코딩은 조기 반환 없이도 안전하다. 실제로 깨지는 것은 `urlsplit`/`urlunsplit` 왕복이 삼키는 **빈 `?` 와 `#`** 다. 그 두 케이스를 계약 1의 앵커 테스트로 박았다
+- 부수 소득: 닫히지 않은 IPv6(`http://[::1/가`)이 `ValueError` 를 낸다 — `except (UnicodeError, ValueError)` 가 이미 잡고 있었다
+- 다음: 개발 step 2/4 (호출처 3곳 연결)
