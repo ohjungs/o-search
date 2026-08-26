@@ -177,3 +177,12 @@ append 전용. 수정·삭제 금지.
 - **리다이렉트 정규화는 링크로는 검증할 수 없다** — `links.extract` 도 정규화하니 base 가 뭐든 결과가 같다. 그래서 "ASCII 표기로 다시 온 같은 페이지를 두 번 받지 않는다" 는 관찰 가능한 결과로 단언했다
 - 리뷰로 넘긴 것: 정규화 못 하는 시드를 **조용히** 버린다(간격 초과 도메인은 stderr 로 알리는 선례가 있다). 계약 밖이라 이 스텝에 안 넣었다
 - 다음: 개발 step 3/4 (`fetcher` 최후 방어선)
+
+## 반복 60 — 2026-08-26 · 개발 step 3/4 (non-ascii-url) → 개발 완료
+- 한 일: `fetcher.py` 에 `except UnicodeError: return FetchResult(0, None, None)` **2줄**(`HTTPError` 뒤·`URLError` 앞, 재시도 안 함) + 테스트 2건. **194/194**. 커밋 359c5f4
+- **원인 지점을 정확히 찍었다**: 경로 비ASCII 는 `http/client.py:_encode_request` 의 요청 줄에서 `'ascii'` 코덱, IDN 호스트는 `putheader('Host', ...)` 에서 `'latin-1'` 코덱. **원인이 둘인데 예외 타입은 하나**(`UnicodeEncodeError`)라 2줄로 둘 다 덮인다
+- **연결 전에 터진다** — `putrequest`/`putheader` 는 버퍼에만 쓰고 `connect()` 는 `endheaders` 뒤다. 소켓도 DNS 도 안 간다. 그래서 테스트가 로컬 서버 없이 안 열린 포트 9 와 없는 `.test` TLD 로 **결정론적**이다
+- **IDN 은 stdlib 이 살려주지 않는다**: `putrequest` 에 `encode("idna")` 폴백이 있지만 urllib 이 `do_request_` 에서 `Host` 를 미리 넣어 `skip_host=1` 이 되고 그 폴백을 건너뛴다. 계약대로 status 0
+- 재시도 없음 확인은 `mock.patch(..., wraps=urlopen)` 의 `call_count == 1` — 기존 `test_timeout_retries_then_gives_up`(3회)과 대조된다
+- 변이: `except` 2줄 삭제 → 신규 2건 정확히 ERROR
+- 다음: 테스트 phase (갭 탐색 + 전체)

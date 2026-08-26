@@ -2,24 +2,24 @@
 signal: GREEN
 mode: night
 plan: non-ascii-url
-phase: 개발
-step: 3/4
+phase: 테스트
+step: 4/4
 attempt: 0
-iteration: 59
-night_iterations: 28
+iteration: 60
+night_iterations: 29
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
-updated: 2026-08-26 (반복 59)
+updated: 2026-08-26 (반복 60)
 ctx: 78% / 200k
-rules: rules/dev.md
+rules: rules/test.md
 ---
 
 # 현재 상태
 
-**`non-ascii-url` 개발 step 2/4 완료. 다음은 step 3/4(`fetcher` 최후 방어선).**
-브랜치 `loop/non-ascii-url`. **192/192 통과**. `crawl_e2e.py` 회귀 없음(수집 15, 간격 1.004s).
-`fetcher.py` 는 아직 안 건드렸다 — 비ASCII URL 을 직접 `fetch()` 하면 여전히 예외가 샌다.
+**`non-ascii-url` 개발 3스텝 전부 완료. 다음은 테스트 phase.**
+브랜치 `loop/non-ascii-url`. **194/194 통과**. `crawl_e2e.py` 회귀 없음.
+원래 버그는 닫혔다 — 소스 총 **8줄**(`urls.py` 신규 + 호출처 4줄 + `fetcher` 2줄).
 
 ## 설계가 정한 것 — `docs/design_non-ascii-url.md`
 
@@ -40,8 +40,8 @@ rules: rules/dev.md
 
 1. ~~`urls.to_ascii` + `tests/test_urls.py`~~ **완료** (62cec7b, 변이 4종 확인)
 2. ~~호출처 3곳 연결~~ **완료** (1f37fb2, 소스 4줄 · 테스트 7건)
-3. **(다음)** `fetcher` 최후 방어선 + `tests/test_fetcher.py`
-4. `e2e/non_ascii_e2e.py` — 로컬 서버, 시나리오 3개 (계획 `## e2e 시나리오`)
+3. ~~`fetcher` 최후 방어선~~ **완료** (359c5f4, 소스 2줄 · 테스트 2건)
+4. `e2e/non_ascii_e2e.py` (e2e phase) — 로컬 서버, 시나리오 3개 (계획 `## e2e 시나리오`)
 
 ## 리뷰에서 볼 것 (개발 중 나온 것)
 
