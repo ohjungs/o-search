@@ -15,7 +15,8 @@ plan_history_<NNN>.md 를 다 열어볼 필요가 없게 하는 것이 목적이
 | plan_search-api | 완료 | loop/search-api | 5/5 | 통과 | 설계 있음(004). 성능 축을 열었다 — p95 기준선 |
 | plan_crawl-delay | 완료 | loop/crawl-delay | 4/4 | 통과 | 설계 있음(005). robots Crawl-delay 존중. 리뷰 10건 중 6건 수정 |
 | plan_quality-eval | 완료 | loop/quality-eval | 4/4 | 통과(3은 반증) | 설계 있음(006). ko 85% · en 90%. **이 코퍼스는 랭킹을 못 잰다**(recall@1 == recall@10) |
-| plan_non-ascii-url | 진행 | loop/non-ascii-url | 4/4 | 미정 | 설계 필요. 한글 URL 이 `UnicodeEncodeError` 로 크롤 루프를 죽인다(재현 완료) |
+| plan_non-ascii-url | 완료 | loop/non-ascii-url | 4/4 | 통과 | 설계 있음(007). 한글 URL 이 `UnicodeEncodeError` 로 크롤 루프를 죽이던 것을 닫음 |
+| plan_crawl-throughput | 완료 | loop/crawl-throughput | 3/3 | 통과(4/4) | 설계 있음(008). **0.5/s → 10.25/s**(기준 5.0). 잠긴 DB 크래시도 닫음. 리뷰 패스 A 5건 중 3건 반영·1건 보류(쿨다운 태우기) |
 
 ## 사양 분할 (docs/specs/concept.md → 계획 순서)
 
@@ -39,9 +40,15 @@ plan_history_<NNN>.md 를 다 열어볼 필요가 없게 하는 것이 목적이
    정답과 방해 문서가 같은 질의어를 갖는 fixture 가 따로 필요하다(digest 후보)
 8. `recrawl` — 30일 재방문·갱신·삭제 반영. 의존: 2
 
-9. `non-ascii-url` — 진행 (plan_non-ascii-url)
+9. `non-ascii-url` — 완료 (plan_history_007)
    비ASCII URL 을 퍼센트/IDNA 로 정규화해 한글 경로를 크롤할 수 있게. 의존: 1
    (사양 분할에 없던 계획. 사용자 지시 + 로컬 재현. 한국어가 1급인 저장소에서
    한국어 위키백과 URL 이 크롤 루프를 통째로 죽인다)
+
+10. `crawl-throughput` — 완료 (plan_history_008)
+    네트워크만 스레드풀로 동시화해 크롤 처리량을 올린다. 의존: 1
+    (사양 분할에 없던 계획. 사용자가 실제 웹에서 잰 초당 0.5문서와 `concept.md:44`
+    의 초당 5문서 사이 10배 격차. 같은 실측에서 1,700문서째 `database is locked`
+    크래시도 함께 나왔다 — 둘 다 이 계획에서 닫았다)
 
 색인 규모 단계(10만→100만)는 별도 계획이 아니라 7번(quality-eval) 이후 운영 측정으로 판정.
