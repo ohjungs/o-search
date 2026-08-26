@@ -1,4 +1,9 @@
-"""크롤 루프: robots 확인 → fetch → 저장 → 링크를 프런티어에. CLI 엔트리 포함."""
+"""크롤 루프: robots 확인 → fetch → 저장 → 링크를 프런티어에. CLI 엔트리 포함.
+
+**네트워크만 동시에 돈다.** `Store`·`Frontier`·카운터는 메인 스레드가 독점하므로
+락도 스레드별 SQLite 커넥션도 없다 (docs/design_crawl-throughput.md).
+"""
+import concurrent.futures
 import sys
 import time
 import urllib.parse
@@ -9,8 +14,29 @@ from websearch.robots import RobotsCache
 from websearch.store import Store
 
 
-def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None, now=time.monotonic):
-    """수집에 성공(2xx + HTML)한 페이지 수를 돌려준다. robots_cache·now 는 테스트 주입 지점."""
+WORKERS = 8  # 동시에 띄우는 요청 수. **보정 손잡이지 상수가 아니다** — CLI 의 --workers
+
+
+def _fetch_one(url, robots, now):
+    """워커 스레드가 하는 일 전부. **공유 상태를 만지지 않는다** (설계 계약 4).
+
+    돌려주는 것: `(allowed, requested_delay, sent_at, FetchResult|None)`.
+    순서는 순차 루프와 같다 — robots 확인 → 간격 조회 → fetch. 사이트가 보는
+    요청 순서가 변하지 않는다.
+    """
+    if not robots.allowed(url):
+        return False, None, None, None
+    requested = robots.delay(url)
+    sent_at = now()  # 간격 시계는 팝이 아니라 **발신**에서 시작한다 (계약 9)
+    return True, requested, sent_at, fetcher.fetch(url)
+
+
+def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None,
+          now=time.monotonic, workers=WORKERS):
+    """수집에 성공(2xx + HTML)한 페이지 수를 돌려준다. robots_cache·now 는 테스트 주입 지점.
+
+    `workers=1` 이면 요청이 하나씩 떠서 순차 루프와 같은 순서로 돈다 — 되돌리기 수단이다.
+    """
     store = Store(db_path)
     robots = robots_cache if robots_cache is not None else RobotsCache()
     frontier = Frontier(now=now)
@@ -23,49 +49,89 @@ def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None, now=time
             ascii_seeds.append(normalized)
     frontier.add(ascii_seeds)
     saved = 0
-    while saved < max_pages and not frontier.empty():
-        url = frontier.next()
-        if url is None:
-            time.sleep(frontier.seconds_until_ready())
-            continue
-        if store.has(url) or not robots.allowed(url):
-            continue
-        # robots 는 방금 allowed() 가 받아 캐시에 넣었다 — delay() 는 그 캐시를 읽는다.
-        # 간격은 이 도메인의 **다음** 팝부터 먹으므로 여기서 알려줘도 늦지 않다
-        # (docs/design_crawl-delay.md 가정, 탐침으로 확인).
-        domain = urllib.parse.urlsplit(url).netloc
-        requested = robots.delay(url)
-        if not frontier.set_delay(domain, requested):
-            # 조용히 1페이지만 받고 끝나면 사용자는 이유를 알 방법이 없다
-            print("%s: %g초 간격 요구 — 상한 %g초를 넘어 이 도메인은 더 가지 않는다"
-                  % (domain, requested, MAX_DELAY), file=sys.stderr)
-        result = fetcher.fetch(url)
-        # 리다이렉트면 최종 URL 이 정본. 못 바꾸면 요청한 url(프런티어를 거쳤으니 ASCII)로 저장한다
-        page_url = urls.to_ascii(result.url or url) or url
-        if page_url != url and store.has(page_url):
-            continue
-        store.upsert(page_url, result.html, result.status)
-        if result.html is not None and 200 <= result.status < 300:
-            saved += 1
-            frontier.add(links.extract(page_url, result.html))
+    inflight = {}  # Future -> (url, domain). **떠 있는 도메인은 다시 팝하지 않는다**(계약 3)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+        while saved < max_pages:
+            busy = {domain for _, domain in inflight.values()}
+            while len(inflight) < workers and saved + len(inflight) < max_pages:
+                url = frontier.next(exclude=busy)
+                if url is None:
+                    break
+                if store.has(url):
+                    continue
+                domain = urllib.parse.urlsplit(url).netloc
+                busy.add(domain)
+                inflight[pool.submit(_fetch_one, url, robots, now)] = (url, domain)
+            if not inflight:
+                if frontier.empty():
+                    break
+                time.sleep(frontier.seconds_until_ready())
+                continue
+            # 던질 것이 없으면 결과를 기다린다 — 0초는 "떠 있는 도메인뿐" 이라는 뜻이라
+            # 타임아웃 대신 완료를 기다린다 (계약 8)
+            wait_for = frontier.seconds_until_ready(exclude=busy)
+            done, _ = concurrent.futures.wait(
+                inflight, timeout=wait_for or None,
+                return_when=concurrent.futures.FIRST_COMPLETED)
+            for future in done:
+                url, domain = inflight.pop(future)
+                saved += _store_result(future, url, domain, store, frontier)
     return saved
+
+
+def _store_result(future, url, domain, store, frontier):
+    """워커 결과 하나를 반영한다. 수집에 성공했으면 1, 아니면 0."""
+    try:
+        allowed, requested, sent_at, result = future.result()
+    except Exception as err:  # 워커 하나가 죽어도 크롤은 안 죽는다 (계약 6)
+        print("%s: 요청이 예외로 끝났다 — %r" % (url, err), file=sys.stderr)
+        return 0
+    if not allowed:
+        return 0
+    frontier.mark_sent(domain, sent_at)
+    if not frontier.set_delay(domain, requested):
+        # 조용히 1페이지만 받고 끝나면 사용자는 이유를 알 방법이 없다
+        print("%s: %g초 간격을 요구해 상한 %g초를 넘는다 — 이 도메인은 더 가지 않는다"
+              % (domain, requested, MAX_DELAY), file=sys.stderr)
+    # 리다이렉트면 최종 URL 이 정본. 못 바꾸면 요청한 url(프런티어를 거쳤으니 ASCII)로 저장한다
+    page_url = urls.to_ascii(result.url or url) or url
+    if page_url != url and store.has(page_url):
+        return 0
+    store.upsert(page_url, result.html, result.status)
+    if result.html is not None and 200 <= result.status < 300:
+        frontier.add(links.extract(page_url, result.html))
+        return 1
+    return 0
+
+
+def _number_flag(args, name, default):
+    """`--name N` 을 뽑아 args 에서 지운다. 없으면 default, 숫자 하나가 아니면 None."""
+    if name not in args:
+        return default
+    i = args.index(name)
+    try:
+        value = int(args[i + 1])
+    except (IndexError, ValueError):
+        return None
+    del args[i:i + 2]
+    return value
 
 
 def main(argv):
     if len(argv) < 2:
-        print("usage: python3 -m websearch.crawl <seed-url> [seed-url ...] [--max N]", file=sys.stderr)
+        print("usage: python3 -m websearch.crawl <seed-url> [seed-url ...] "
+              "[--max N] [--workers N]", file=sys.stderr)
         return 2
     args = list(argv[1:])
-    max_pages = 100
-    if "--max" in args:
-        i = args.index("--max")
-        try:
-            max_pages = int(args[i + 1])
-        except (IndexError, ValueError):
-            print("--max 는 숫자 하나를 받는다", file=sys.stderr)
-            return 2
-        del args[i:i + 2]
-    n = crawl(args, max_pages)
+    max_pages = _number_flag(args, "--max", 100)
+    if max_pages is None:
+        print("--max 는 숫자 하나를 받는다", file=sys.stderr)
+        return 2
+    workers = _number_flag(args, "--workers", WORKERS)
+    if workers is None or workers < 1:
+        print("--workers 는 1 이상의 숫자 하나를 받는다", file=sys.stderr)
+        return 2
+    n = crawl(args, max_pages, workers=workers)
     print("수집 %d 페이지" % n)
     return 0
 

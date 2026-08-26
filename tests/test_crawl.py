@@ -1,5 +1,7 @@
 import io
 import itertools
+import threading
+import time
 import unittest
 import urllib.parse
 from unittest import mock
@@ -18,7 +20,8 @@ PAGES = {
 
 
 class TestCrawl(unittest.TestCase):
-    def _run(self, seeds, max_pages, blocked=("http://a.com/blocked",), delays=None):
+    def _run(self, seeds, max_pages, blocked=("http://a.com/blocked",), delays=None,
+             workers=8):
         fetched = []
         self.fetch_times = []  # (url, 그때의 가짜 시각) — 간격 계약을 여기서 잰다
 
@@ -40,7 +43,8 @@ class TestCrawl(unittest.TestCase):
             # 가짜 시계: sleep 이 시간을 흘려보낸다 — 실제 대기 없이 결정적
             ms.side_effect = lambda s: clock.__setitem__("t", clock["t"] + s)
             n = crawl.crawl(seeds, max_pages, db_path=":memory:",
-                            robots_cache=robots, now=lambda: clock["t"])
+                            robots_cache=robots, now=lambda: clock["t"],
+                            workers=workers)
         return n, fetched, ms
 
     def test_crawls_seed_and_follows_links(self):
@@ -98,11 +102,17 @@ class TestNonAsciiUrl(unittest.TestCase):
         self.assertIn("http://.가/x", err.getvalue())
 
     def test_redirect_final_url_normalized_before_store(self):
-        # 저장 키가 정규형이라야 ASCII 표기로 다시 온 같은 페이지를 두 번 받지 않는다
+        # 저장 키가 정규형이라야 ASCII 표기로 다시 온 같은 페이지를 두 번 받지 않는다.
+        #
+        # **동시 크롤은 "이미 떠 있는 요청" 까지는 못 막는다** — 리다이렉트가
+        # 어디로 갈지는 응답이 와야 알고, 그때 다른 워커는 이미 나갔다.
+        # 큐에 남아 있는 URL 은 그대로 막힌다(제출 전 `store.has(url)`).
+        # workers=1 은 되돌리기 수단이자 **옛 보장이 살아 있다는 증거**다.
         with mock.patch.dict(REDIRECTS, {"http://a.com/moved2": "http://b.com/가"}), \
              mock.patch.dict(PAGES, {"http://b.com/가": "leaf"}):
             _, fetched, _ = self._run(
-                ["http://a.com/moved2", "http://b.com/%EA%B0%80"], max_pages=10)
+                ["http://a.com/moved2", "http://b.com/%EA%B0%80"], max_pages=10,
+                workers=1)
         self.assertEqual(fetched, ["http://a.com/moved2"])
 
     def test_unconvertible_redirect_target_falls_back_to_requested_url(self):
@@ -196,3 +206,104 @@ class TestCrawlDelayWiring(unittest.TestCase):
             self._run(["http://b.com/"], max_pages=10, delays={"b.com": 3600})
         self.assertIn("b.com", err.getvalue())
         self.assertIn("3600", err.getvalue())
+
+
+class TestConcurrency(unittest.TestCase):
+    """동시 fetch 계약 — docs/design_crawl-throughput.md 계약 1·3·6·7.
+
+    시간을 재지 않는다 — 시간으로 동시성을 판정하면 부하 걸린 기계에서 흔들린다.
+    배리어(만나야만 통과)와 동시 실행 수 최고치로 본다.
+    """
+
+    def _crawl(self, seeds, max_pages, fetch, workers=8, now=None):
+        robots = mock.Mock()
+        robots.allowed = lambda url: True
+        robots.delay = lambda url: None
+        kwargs = {"db_path": ":memory:", "robots_cache": robots, "workers": workers}
+        if now is not None:
+            kwargs["now"] = now
+        with mock.patch("websearch.crawl.fetcher") as mf:
+            mf.fetch = fetch
+            return crawl.crawl(list(seeds), max_pages, **kwargs)
+
+    def test_requests_run_concurrently(self):
+        # 순차 루프면 넷이 배리어에서 만날 수 없어 타임아웃한다
+        seeds = ["http://d%d.test/" % i for i in range(8)]
+        barrier = threading.Barrier(4, timeout=5)
+
+        def fake_fetch(url):
+            barrier.wait()  # 넷이 모여야 통과 — 순차면 BrokenBarrierError
+            return FetchResult(200, "leaf", url)
+
+        n = self._crawl(seeds, 8, fake_fetch)
+        self.assertEqual(n, 8, "동시에 넷이 뜨지 못했다")
+
+    def test_never_two_requests_in_flight_on_one_domain(self):
+        # 동시성이 politeness 를 먹는 유일한 경로다. 시계를 빠르게 흘려 간격 자체는
+        # 안 걸리게 해두고, **떠 있는 요청**이 막는지만 본다
+        pages = {"http://one.test/": "".join('<a href="/p%d">p</a>' % i for i in range(6))}
+        state = {"live": 0, "peak": 0}
+        lock = threading.Lock()
+
+        def fake_fetch(url):
+            with lock:
+                state["live"] += 1
+                state["peak"] = max(state["peak"], state["live"])
+            time.sleep(0.05)
+            with lock:
+                state["live"] -= 1
+            return FetchResult(200, pages.get(url, "leaf"), url)
+
+        tick = itertools.count(1000.0, 10.0)  # 매 조회 10초 — 간격은 절대 안 걸린다
+        self._crawl(["http://one.test/"], 7, fake_fetch, now=lambda: next(tick))
+        self.assertEqual(state["peak"], 1,
+                         "한 도메인에 동시 요청 %d개" % state["peak"])
+
+    def test_max_pages_not_exceeded_under_concurrency(self):
+        seeds = ["http://d%d.test/" % i for i in range(8)]
+        fetched, lock = [], threading.Lock()
+
+        def fake_fetch(url):
+            with lock:
+                fetched.append(url)
+            return FetchResult(200, "leaf", url)
+
+        n = self._crawl(seeds, 3, fake_fetch)
+        self.assertEqual(n, 3)
+        self.assertLessEqual(len(fetched), 3, "상한을 넘겨 받았다: %s" % fetched)
+
+    def test_worker_exception_does_not_kill_crawl(self):
+        # 워커 하나가 죽어도 나머지는 간다. 조용히 죽지도 않는다
+        def fake_fetch(url):
+            if url == "http://d1.test/":
+                raise RuntimeError("워커가 죽었다")
+            return FetchResult(200, "leaf", url)
+
+        err = io.StringIO()
+        with mock.patch("sys.stderr", err):
+            n = self._crawl(["http://d%d.test/" % i for i in range(4)], 4, fake_fetch)
+        self.assertEqual(n, 3)
+        self.assertIn("d1.test", err.getvalue())
+
+    def test_single_worker_gets_the_same_pages(self):
+        # 되돌리기 수단(--workers 1)이 진짜 도는지 — 느릴 뿐 결과가 같아야 한다
+        seeds = ["http://d%d.test/" % i for i in range(4)]
+
+        def run(workers):
+            got, lock = [], threading.Lock()
+
+            def fake_fetch(url):
+                with lock:
+                    got.append(url)
+                return FetchResult(200, "leaf", url)
+
+            n = self._crawl(seeds, 4, fake_fetch, workers=workers)
+            return n, sorted(got)
+
+        self.assertEqual(run(1), run(8))
+
+    def test_workers_flag_errors_return_usage_not_traceback(self):
+        # CLI 진입점마다 방어를 따로 쓰다 같은 부류가 3회 재발했다 (digest 반복실패)
+        self.assertEqual(crawl.main(["prog", "http://a.com/", "--workers"]), 2)
+        self.assertEqual(crawl.main(["prog", "http://a.com/", "--workers", "abc"]), 2)
+        self.assertEqual(crawl.main(["prog", "http://a.com/", "--workers", "0"]), 2)

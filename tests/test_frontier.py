@@ -126,3 +126,47 @@ class TestPerDomainDelay(unittest.TestCase):
     def test_drop_reported_to_caller(self):
         self.assertTrue(self.f.set_delay("ok.com", 10.0))
         self.assertFalse(self.f.set_delay("slow.com", 90.0))
+
+
+class TestConcurrentPops(unittest.TestCase):
+    """동시 fetch 계약 — docs/design_crawl-throughput.md 계약 2·3·9."""
+
+    def test_next_skips_excluded_domain(self):
+        f = Frontier(now=lambda: 1000.0)
+        f.add(["http://a.test/1", "http://b.test/1"])
+        self.assertEqual(f.next(exclude={"a.test"}), "http://b.test/1")
+        self.assertIsNone(f.next(exclude={"a.test", "b.test"}))
+
+    def test_mark_sent_moves_the_interval_clock(self):
+        # 팝과 발신 사이에 robots.txt 왕복 0.4초가 끼면, 팝 시각으로 재는 간격은
+        # 실제로는 0.6초다 — 1초 하한을 어긴다 (digest [4])
+        t = {"v": 1000.0}
+        f = Frontier(now=lambda: t["v"])
+        f.add(["http://a.test/1", "http://a.test/2"])
+        f.next()
+        f.mark_sent("a.test", 1000.4)
+        t["v"] = 1001.0
+        self.assertIsNone(f.next(), "팝 시각으로 재고 있다 — 실제 간격은 0.6초다")
+        t["v"] = 1001.5
+        self.assertEqual(f.next(), "http://a.test/2")
+
+    def test_mark_sent_only_moves_later(self):
+        # 이르게 당기는 것이 곧 위반이다
+        t = {"v": 1000.0}
+        f = Frontier(now=lambda: t["v"])
+        f.add(["http://a.test/1", "http://a.test/2"])
+        f.next()
+        f.mark_sent("a.test", 999.0)
+        t["v"] = 1000.5
+        self.assertIsNone(f.next())
+
+    def test_seconds_until_ready_skips_excluded_domain(self):
+        # 요청이 떠 있는 도메인은 0초로 읽힌다 — 그것만 보고 기다리면
+        # 정작 쿨다운이 풀리는 도메인을 놓친다
+        t = {"v": 1000.0}
+        f = Frontier(now=lambda: t["v"])
+        f.add(["http://a.test/1", "http://a.test/2", "http://b.test/1"])
+        f.next()  # a.test 팝 → 1001.0 까지 쿨다운
+        t["v"] = 1000.5
+        self.assertEqual(f.seconds_until_ready(), 0.0)
+        self.assertAlmostEqual(f.seconds_until_ready(exclude={"b.test"}), 0.5)
