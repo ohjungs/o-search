@@ -1,6 +1,6 @@
 """러너 `e2e/quality_eval.py` 의 종료 코드가 갈리는 지점을 고정한다.
 
-`docs/design_quality-eval.md` `## 계약` — `0` 두 언어 모두 ≥80% / `1` 미달 /
+`docs/design_history_006.md` `## 계약` — `0` 두 언어 모두 ≥80% / `1` 미달 /
 `2` 코퍼스 결함(가드 G1·G2·G3). **미달과 결함이 섞이면 숫자를 믿을 수 없다.**
 
 fixture 를 통째로 만들지 않고 **동결된 진짜 fixture 를 최소한만 비틀어** 각 갈림길을
@@ -237,7 +237,7 @@ class TestGuards(QualityEvalCase):
 class TestUnreadableFixture(QualityEvalCase):
     """읽을 수 없는 fixture 는 **사용법 오류(2)** 다 — 품질 미달(1)이 아니다.
 
-    계약(`design_quality-eval.md` `## 계약`)이 `2` 를 "코퍼스 결함·사용법" 으로
+    계약(`design_history_006.md` `## 계약`)이 `2` 를 "코퍼스 결함·사용법" 으로
     묶어둔 이유가 여기 있다. 경로를 잘못 치면 트레이스백과 함께 파이썬 기본 종료
     코드 `1` 이 나가는데, 그 `1` 은 **"검색 품질이 80% 에 못 미친다"** 라는 뜻으로
     이미 예약돼 있다. 스크립트를 CI 가 돌리면 오타가 품질 회귀로 보고된다.

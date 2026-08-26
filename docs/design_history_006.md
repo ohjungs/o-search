@@ -1,6 +1,6 @@
 # 설계: quality-eval — 정답 포함률 측정 하네스
 
-- 슬러그 `quality-eval` · 계획 `docs/plan_quality-eval.md` · 2026-08-25
+- 슬러그 `quality-eval` · 계획 `docs/plan_history_006.md` · 2026-08-25
 
 ## 결정
 

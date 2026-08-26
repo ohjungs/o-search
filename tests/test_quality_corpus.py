@@ -1,7 +1,7 @@
 """품질 평가 fixture(코퍼스·질의 셋)가 계약을 지키는지 본다.
 
-형식은 `docs/design_quality-eval.md` `## 계약`, 개수·구조는 같은 문서 `## 구조`,
-색인 검사는 `docs/plan_quality-eval.md` 스텝 1·2 완료 기준이다.
+형식은 `docs/design_history_006.md` `## 계약`, 개수·구조는 같은 문서 `## 구조`,
+색인 검사는 `docs/plan_history_006.md` 스텝 1·2 완료 기준이다.
 
 fixture 는 **동결**이라 여기서 깨지면 이후 모든 품질 숫자의 기준선이 흔들린다.
 """
@@ -92,7 +92,7 @@ class TestQualityCorpus(unittest.TestCase):
 
 
 class TestQualityQueries(unittest.TestCase):
-    """`plan_quality-eval.md` 스텝 2 완료 기준 — 20/20 이고 정답 URL 이 실제로 있다."""
+    """`plan_history_006.md` 스텝 2 완료 기준 — 20/20 이고 정답 URL 이 실제로 있다."""
 
     @classmethod
     def setUpClass(cls):
@@ -116,7 +116,7 @@ class TestQualityQueries(unittest.TestCase):
 
     def test_queries_are_single_token(self):
         # 다어절은 AND 라 매치 수가 10 밑으로 떨어져 러너 가드 G2 에 걸린다
-        # (`design_quality-eval.md` `## 착수 전 탐침`)
+        # (`design_history_006.md` `## 착수 전 탐침`)
         for query in self.queries:
             self.assertNotIn(" ", query["q"])
 
@@ -131,7 +131,7 @@ class TestQualityQueries(unittest.TestCase):
             self.assertEqual(doc["lang"], query["lang"], query["q"])
 
     def test_answers_are_the_first_ten_of_each_topic(self):
-        # 11~16 은 정답이 없는 순수 방해 문서다 (`design_quality-eval.md` `## 구조`)
+        # 11~16 은 정답이 없는 순수 방해 문서다 (`design_history_006.md` `## 구조`)
         for query in self.queries:
             self.assertLessEqual(int(query["answer"].rsplit("/", 1)[1]), 10, query["q"])
 
