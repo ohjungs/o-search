@@ -4,6 +4,7 @@
 뒤늦게 선언한 문서를 빼기 위해 매 실행 색인 전체를 한 번 훑는다.
 """
 import os
+import re
 import sqlite3
 import sys
 
@@ -11,8 +12,31 @@ from . import extract
 
 SCHEMA = (
     "CREATE VIRTUAL TABLE IF NOT EXISTS docs "
-    "USING fts5(title, body, url UNINDEXED, tokenize='unicode61', prefix='2 3')"
+    "USING fts5(title, body, title_ng, body_ng, url UNINDEXED, "
+    "tokenize='porter unicode61', prefix='2 3')"
 )
+
+# 한글 런의 문자 2-gram 을 담는 보조 열이 `*_ng` 다. `unicode61` 은 복합어를 한 토큰으로
+# 보므로 접두 매치가 뒷부분(`김치찌개보관법` ← `보관법`)에 닿지 못한다.
+# **제목과 본문을 따로 담는 것이 핵심이다** — 한 열로 합치면 정답이 꼴찌로 밀린다
+# (`docs/design_tokenizer.md` `## 계약` 1). `porter` 는 영어 굴절(tuples ← tuple)용이다.
+_HANGUL_RUN = re.compile(r"[가-힣]+")
+# ponytail: 완성형 음절만 본다. 천장 — 옛한글·자모 분리 표기는 잡지 않는다
+_HANGUL_GAP = re.compile(r"(?<=[가-힣])\s+(?=[가-힣])")
+_MARK = "\x02"  # 스니펫이 어느 열에서 왔는지 표시. extract._normalize 가 제어문자를
+#                 지우므로 색인 텍스트에는 절대 들어 있지 않다 (extract.py:16,60)
+
+
+def _bigrams(text):
+    """한글 런의 문자 2-gram 을 공백으로 이어 붙인다. 한글이 없으면 빈 문자열.
+
+    한글 **사이의 공백만** 지운다 — `올레 길` 과 `올레길` 이 같은 2-gram 을 내야
+    띄어쓰기 변형이 매치된다. 다른 문자를 사이에 두고는 잇지 않는다.
+    """
+    grams = []
+    for run in _HANGUL_RUN.findall(_HANGUL_GAP.sub("", text)):
+        grams += [run[i:i + 2] for i in range(len(run) - 1)]
+    return " ".join(grams)
 
 # sqlite_master 는 IF NOT EXISTS 를 지우고 나머지를 원문 그대로 보관한다.
 # 문자열을 따로 적지 않고 SCHEMA 에서 만든다 — 두 벌이면 언젠가 갈라진다.
@@ -54,7 +78,9 @@ def index_pages(db_path):
                 continue  # 색인 거부 선언 — 크롤 윤리 축, robots.txt 와 같다
             title, body = extract.extract_text(html)
             db.execute(
-                "INSERT INTO docs(title, body, url) VALUES (?, ?, ?)", (title, body, url)
+                "INSERT INTO docs(title, body, title_ng, body_ng, url) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (title, body, _bigrams(title), _bigrams(body), url),
             )
             indexed += 1
         # 이미 색인된 문서가 뒤늦게 noindex 를 선언했으면 뺀다. 위 증분 조건이
@@ -87,10 +113,22 @@ def _doc_count(db_path):
 
 
 def _fts_query(query):
-    """어절마다 접두 매치로 재작성한다. 큰따옴표로 감싸 FTS5 문법 문자를 무력화한다."""
+    """어절마다 접두 매치로 재작성한다. 큰따옴표로 감싸 FTS5 문법 문자를 무력화한다.
+
+    질의가 **전부 한글일 때만** 2-gram 구절 분기를 OR 로 덧붙인다. 조건 없이 붙이면
+    `김치 python` 에서 한글 분기가 `python` 을 버려 AND 계약이 무너진다.
+    """
     # 제어문자는 먼저 지운다 — NUL 은 큰따옴표 이스케이프를 통과해 FTS5 문자열을 조기 종료시킨다
     terms = query.translate(extract._CONTROL).split()
-    return " ".join('"%s"*' % term.replace('"', '""') for term in terms)
+    plain = " ".join('"%s"*' % term.replace('"', '""') for term in terms)
+    joined = "".join(terms)
+    if not plain or _HANGUL_RUN.fullmatch(joined) is None:
+        return plain
+    grams = _bigrams(joined).split()
+    if not grams:
+        return plain  # 한 글자 질의 — 2-gram 이 없다
+    phrase = " + ".join('"%s"' % gram for gram in grams)
+    return "(%s) OR ({title_ng} : %s) OR ({body_ng} : %s)" % (plain, phrase, phrase)
 
 
 def search(db_path, query, limit=10, offset=0):
@@ -111,16 +149,23 @@ def search(db_path, query, limit=10, offset=0):
         if sql != _CURRENT_SQL:
             # 빈 목록을 내면 "결과 0건" 과 구분되지 않는다 — 원인이 다르니 소리를 낸다
             raise StaleIndexError(db_path)
-        return db.execute(
-            # -1: 질의어가 실제로 매치된 열에서 스니펫을 뽑는다 (제목만 매치되는 경우)
+        rows = db.execute(
+            # 스니펫은 title(0)·body(1) 에서만 뽑는다. `-1` 은 **매치된 열 중 가장 왼쪽**을
+            # 고르는데, 2-gram 으로만 매치된 문서는 title_ng 가 뽑혀 화면에
+            # `김치 치찌 찌개` 가 나온다 (`docs/design_tokenizer.md` `## 가정`).
             # rowid 로 동점을 가른다 — 같은 틀로 찍힌 페이지들은 bm25 가 정확히 같고,
             # 2차 키가 없으면 페이지 사이 순서가 정해지지 않아 결과가 겹치거나 빠질 수 있다.
             # **url 이 아니라 rowid 인 이유는 값이다**: 2만 문서에서 url 은 p50 을 13→27ms 로
             # 두 배로 만들고(정렬을 새로 한다), rowid 는 12.8ms — 어차피 나오던 순서라 공짜다.
-            "SELECT url, title, snippet(docs, -1, '', '', '…', 20) FROM docs "
+            "SELECT url, title, snippet(docs, 0, ?, '', '…', 20), "
+            "snippet(docs, 1, ?, '', '…', 20) FROM docs "
             "WHERE docs MATCH ? ORDER BY bm25(docs), rowid LIMIT ? OFFSET ?",
-            (match, limit, offset),
+            (_MARK, _MARK, match, limit, offset),
         ).fetchall()
+        # 제목이 매치됐으면 제목에서, 아니면 본문에서. 둘 다 아니면(2-gram 전용 매치)
+        # 본문 앞부분이 나온다 — 사람이 읽을 수 있는 원문이라는 것이 요점이다.
+        return [(url, title, (t_sn if _MARK in t_sn else b_sn).replace(_MARK, ""))
+                for url, title, t_sn, b_sn in rows]
     finally:
         db.close()
 

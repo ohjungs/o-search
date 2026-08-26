@@ -286,6 +286,118 @@ class TestSearch(unittest.TestCase):
             search(os.path.join(self.dir.name, "없는.db"), "김치")
 
 
+class TestHangulBigrams(unittest.TestCase):
+    """`_bigrams` — 한글 런의 문자 2-gram. 복합어 안쪽과 띄어쓰기 변형을 매치시키는 재료."""
+
+    def test_bigrams_of_one_run(self):
+        self.assertEqual(indexer._bigrams("일출봉"), "일출 출봉")
+
+    def test_space_between_hangul_is_removed(self):
+        # 띄어쓰기 변형의 핵심 — '올레 길' 과 '올레길' 이 같은 2-gram 을 낸다
+        self.assertEqual(indexer._bigrams("올레 길"), indexer._bigrams("올레길"))
+        self.assertEqual(indexer._bigrams("올레 길"), "올레 레길")
+
+    def test_non_hangul_is_ignored(self):
+        self.assertEqual(indexer._bigrams("Python tuple 3.9"), "")
+
+    def test_hangul_runs_do_not_bridge_over_other_scripts(self):
+        # '가나 abc 다라' 가 '나다' 를 만들면 없는 이웃을 지어내는 것이다
+        self.assertEqual(indexer._bigrams("가나 abc 다라"), "가나 다라")
+
+    def test_single_char_run_yields_nothing(self):
+        self.assertEqual(indexer._bigrams("밥"), "")
+
+
+class TestTokenizerMatching(unittest.TestCase):
+    """`docs/design_tokenizer.md` 가 고른 안이 실제로 무엇을 매치시키는가."""
+
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.dir.cleanup)
+        self.db_path = os.path.join(self.dir.name, "crawl.db")
+
+    def _seed_and_index(self, rows):
+        store = Store(self.db_path)
+        for url, html in rows:
+            store.upsert(url, html, 200)
+        index_pages(self.db_path)
+
+    def test_korean_compound_tail_matches(self):
+        # 정답 문서에 '보관법' 이라는 낱말은 없다 — 복합어 뒷부분이다
+        self._seed_and_index([
+            ("http://a.test/", "<title>김치찌개보관법 냉장 사흘</title><p>완전히 식힌 뒤 넣는다</p>"),
+        ])
+        self.assertEqual([h[0] for h in search(self.db_path, "보관법")], ["http://a.test/"])
+
+    def test_korean_compound_inner_matches(self):
+        self._seed_and_index([
+            ("http://a.test/", "<title>성산일출봉 새벽 해돋이</title><p>다섯 시에 문을 연다</p>"),
+        ])
+        self.assertEqual([h[0] for h in search(self.db_path, "일출봉")], ["http://a.test/"])
+
+    def test_spacing_variant_matches_both_directions(self):
+        self._seed_and_index([
+            ("http://spaced.test/", "<title>올레 길 7코스</title><p>표지 리본을 따라간다</p>"),
+            ("http://joined.test/", "<title>올레길 안내소</title><p>지도를 나눠 준다</p>"),
+        ])
+        for query in ("올레길", "올레 길"):
+            self.assertEqual(
+                sorted(h[0] for h in search(self.db_path, query)),
+                ["http://joined.test/", "http://spaced.test/"],
+                query,
+            )
+
+    def test_english_inflection_matches(self):
+        self._seed_and_index([
+            ("http://a.test/", "<title>Lists and the tuple type</title>"
+                               "<p>A tuple cannot be changed after it is made.</p>"),
+        ])
+        self.assertEqual([h[0] for h in search(self.db_path, "tuples")], ["http://a.test/"])
+
+    def test_snippet_shows_source_text_not_bigrams(self):
+        # bigram 열이 snippet(-1) 에 뽑히면 화면에 '김치 치찌 찌개' 가 나온다.
+        # 부정 단언만 두면 스니펫이 빈 문자열이어도 통과하므로 긍정 짝을 함께 건다
+        self._seed_and_index([
+            ("http://a.test/", "<title>김치찌개보관법 냉장 사흘이 한계다</title>"
+                               "<p>완전히 식힌 뒤 뚜껑을 덮어 넣는다</p>"),
+        ])
+        url, title, snippet = search(self.db_path, "보관법")[0]
+        self.assertNotIn("치찌 찌개", snippet)
+        # 긍정 짝 — 스니펫이 빈 문자열이어도 위 부정 단언은 참이다.
+        # 2-gram 으로만 매치된 문서라 제목·본문 어느 쪽도 매치되지 않았고,
+        # 계약대로 본문 앞부분이 나온다. 질의어는 title 로 이미 보인다
+        self.assertIn("완전히 식힌 뒤", snippet)
+        self.assertEqual(title, "김치찌개보관법 냉장 사흘이 한계다")
+
+    def test_snippet_still_comes_from_title_when_only_title_matches(self):
+        # 계약 유지 — TestSearch.test_snippet_comes_from_matching_column 과 같은 계약
+        self._seed_and_index([
+            ("http://a.test/", "<title>김치 담그는 법</title><p>봄에는 나물이 좋다</p>"),
+        ])
+        self.assertIn("김치", search(self.db_path, "김치")[0][2])
+
+    def test_mixed_script_query_still_requires_every_term(self):
+        # bigram 분기를 조건 없이 OR 로 붙이면 '김치' 만 있는 문서가 딸려 들어온다
+        self._seed_and_index([
+            ("http://both.test/", "<title>김치</title><p>Learning Python for beginners</p>"),
+            ("http://ko.test/", "<title>김치</title><p>배추와 고춧가루</p>"),
+        ])
+        self.assertEqual([h[0] for h in search(self.db_path, "김치 python")],
+                         ["http://both.test/"])
+
+    def test_korean_two_word_query_still_requires_every_term(self):
+        self._seed_and_index([
+            ("http://a.test/", "<title>김치 담그기</title><p>배추를 절인다</p>"),
+            ("http://b.test/", "<title>김치 볶음밥</title><p>밥을 넣고 볶는다</p>"),
+        ])
+        self.assertEqual([h[0] for h in search(self.db_path, "김치 볶음")], ["http://b.test/"])
+
+    def test_bigram_column_is_not_returned_as_a_field(self):
+        # 공개 계약: (url, title, snippet) 셋뿐이다 — 열이 늘어도 새어 나오지 않는다
+        self._seed_and_index([("http://a.test/", "<title>김치</title><p>맛있다</p>")])
+        self.assertEqual(len(search(self.db_path, "김치")[0]), 3)
+
+
 class TestCli(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.TemporaryDirectory()

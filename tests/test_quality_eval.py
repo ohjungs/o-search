@@ -25,19 +25,23 @@ RUNNER = os.path.join(_ROOT, "e2e", "quality_eval.py")
 CORPUS = os.path.join(_ROOT, "e2e", "quality", "corpus.json")
 QUERIES = os.path.join(_ROOT, "e2e", "quality", "queries.json")
 
-# 실측 기준선(커밋 d014408): ko 17/20 · en 18/20. 미포함은 설계가 예고한
-# 토크나이저 실패뿐이다(복합어 `보관법`·`일출봉`, 띄어쓰기 `올레길`, `loaf`, `tuples`).
-KO_BASELINE = 17
-EN_BASELINE = 18
+# 실측 기준선(`tokenizer` 계획, 2026-08-27): ko 20/20 · en 19/20.
+# 그전 기준선은 ko 17 · en 18 이었고, 미포함 5건은 전부 토크나이저 실패였다
+# (복합어 `보관법`·`일출봉`, 띄어쓰기 `올레길`, 굴절 `tuples`·`loaf`).
+# 앞의 넷을 한글 2-gram 열과 `porter` 로 닫았다. 남은 하나는 영어 **불규칙** 복수라
+# 사전 없이 못 고친다 (`docs/design_tokenizer.md` `## 범위 밖`).
+KO_BASELINE = 20
+EN_BASELINE = 19
 
 # 다른 토픽 문서라 어떤 kimchi 질의어도 들어 있지 않다 → 정답으로 걸면 반드시 미포함.
 # 코퍼스에는 실재하므로 G1 은 통과한다 — 여기서 재는 것은 **품질 미달**이다.
 OFF_TOPIC = "http://q.test/ko/jeju/16"
 
-# `레시피` 는 16건이 매치되고 이 문서가 **16위**다 — 매치는 됐지만 상위 10 밖이다.
+# `레시피` 는 16건이 매치되고 이 문서가 **15위**다 — 매치는 됐지만 상위 10 밖이다.
 # 상위 10 이라는 자름선 자체를 여기서만 잰다 (`OFF_TOPIC` 은 아예 매치되지 않아
 # `순위 밖` 으로 빠지므로 11위와 10위를 가르지 못한다).
-RANKED_LAST = ("레시피", "http://q.test/ko/kimchi/11", 16)
+# (질의어, 정답으로 걸 문서, 매치 수, 순위)
+RANKED_OUT = ("레시피", "http://q.test/ko/kimchi/11", 16, 15)
 
 
 def _load(path):
@@ -76,7 +80,7 @@ class QualityEvalCase(unittest.TestCase):
         return int(line.split()[1].split("/")[0])
 
     def misdirect(self, count):
-        """ko 정답 `count` 개를 틀린 문서로 돌린 질의 셋. 첫 하나는 16위 문서로.
+        """ko 정답 `count` 개를 틀린 문서로 돌린 질의 셋. 첫 하나는 순위 밖 문서로.
 
         정답을 옮길 뿐 코퍼스도 질의어도 그대로라 매치 수가 변하지 않는다 —
         G2 를 건드리지 않고 **포함률만** 떨어뜨린다.
@@ -86,8 +90,8 @@ class QualityEvalCase(unittest.TestCase):
         for query in queries:
             if moved >= count or query["lang"] != "ko":
                 continue
-            if query["q"] == RANKED_LAST[0]:
-                query["answer"] = RANKED_LAST[1]
+            if query["q"] == RANKED_OUT[0]:
+                query["answer"] = RANKED_OUT[1]
             elif query["answer"] != OFF_TOPIC:
                 query["answer"] = OFF_TOPIC
             else:
@@ -118,15 +122,15 @@ class TestVerdict(QualityEvalCase):
         code, out = self.run_eval()
         self.assertEqual(code, 0, out)
         self.assertIn("순위 분포", out)
-        self.assertIn("1위 35", out)
-        self.assertIn("미검출 5", out)
+        self.assertIn("1위 39", out)
+        self.assertIn("미검출 1", out)
         # 2~10위가 0건이면 창이 아무 판정도 가르지 않았다는 뜻이다 — 말로 적는다
         self.assertIn("창이 판정을 가른 질의 0건", out)
 
     def test_unmatched_answer_is_not_called_out_of_rank(self):
         """`순위 밖` 은 "밀렸다" 로 읽힌다. 아예 매치가 안 된 것과 구분해 적는다."""
         code, out = self.run_eval()
-        self.assertIn("[ko] 보관법 → http://q.test/ko/kimchi/07 (매치 12건, 미검출)", out)
+        self.assertIn("[en] loaf → http://q.test/en/sourdough/05 (매치 12건, 미검출)", out)
         self.assertNotIn("순위 밖", out)
 
     def test_exactly_80_percent_passes(self):
@@ -135,9 +139,7 @@ class TestVerdict(QualityEvalCase):
         self.assertEqual(code, 0, out)
         self.assertIn("한국어 16/20 (80%)", out)
         # **매치는 됐지만 상위 10 밖**이면 미포함이다. 순위를 숫자로 알려준다
-        self.assertIn("[ko] %s → %s (매치 %d건, 순위 %d)"
-                      % (RANKED_LAST[0], RANKED_LAST[1], RANKED_LAST[2],
-                         RANKED_LAST[2]), out)
+        self.assertIn("[ko] %s → %s (매치 %d건, 순위 %d)" % RANKED_OUT, out)
 
     def test_below_80_percent_fails_with_1(self):
         code, out = self.run_eval(queries=self.misdirect(KO_BASELINE - 15))
@@ -203,7 +205,7 @@ class TestGuards(QualityEvalCase):
         `레시피` 를 16문서 중 6문서에서 다른 말로 바꿔 매치를 정확히 10건으로 만든다.
         11건이면 통과, 10건이면 측정 불능 — 이 한 건 차이가 이 설계의 핵심이다.
         """
-        term, answer, matches = RANKED_LAST
+        term, answer, matches, _rank = RANKED_OUT
         corpus = _load(CORPUS)
         stripped = 0
         for doc in corpus:
