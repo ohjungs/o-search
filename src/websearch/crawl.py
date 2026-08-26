@@ -14,7 +14,14 @@ def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None, now=time
     store = Store(db_path)
     robots = robots_cache if robots_cache is not None else RobotsCache()
     frontier = Frontier(now=now)
-    frontier.add([a for a in map(urls.to_ascii, seeds) if a])  # 못 바꾸는 시드는 버린다
+    ascii_seeds = []
+    for seed in seeds:  # 시드는 CLI 가 준 것 — 버릴 때는 왜 버렸는지 알린다
+        normalized = urls.to_ascii(seed)
+        if normalized is None:
+            print("%s: URL 로 읽을 수 없는 시드 — 건너뛴다" % seed, file=sys.stderr)
+        else:
+            ascii_seeds.append(normalized)
+    frontier.add(ascii_seeds)
     saved = 0
     while saved < max_pages and not frontier.empty():
         url = frontier.next()

@@ -38,6 +38,17 @@ class TestNonAsciiEncoded(unittest.TestCase):
         once = urls.to_ascii("http://h/위키/대한민국")
         self.assertEqual(urls.to_ascii(once), once)
 
+    def test_empty_query_marker_kept(self):
+        # ASCII 쪽과 같은 규칙 — 끝의 빈 '?'·'#' 가 사라지면 같은 페이지가 두 키가 된다
+        self.assertEqual(urls.to_ascii("http://h/가?"), "http://h/%EA%B0%80?")
+        self.assertEqual(urls.to_ascii("http://h/가#"), "http://h/%EA%B0%80#")
+        self.assertEqual(urls.to_ascii("http://h/가?#f"), "http://h/%EA%B0%80?#f")
+
+    def test_tab_stripped_like_urlsplit(self):
+        # urlsplit 이 탭·개행을 떼므로 호스트 치환의 전제가 유지된다
+        self.assertEqual(urls.to_ascii("http://한글도메인.test/가\t나"),
+                         "http://xn--bj0bj3i97fq8o5lq.test/%EA%B0%80%EB%82%98")
+
     def test_two_spellings_converge(self):
         # 계획의 핵심 목표 — pages 에 /가.html 과 /%EA%B0%80.html 이 2행으로 남지 않는다
         self.assertEqual(urls.to_ascii("http://h/가.html"),

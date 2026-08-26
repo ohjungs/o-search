@@ -1,4 +1,5 @@
 """URL 하나를 받아 HTML 을 가져온다. 타임아웃 10s, 재시도 2회, text/html 만."""
+import http.client
 import urllib.error
 import urllib.request
 from typing import NamedTuple, Optional
@@ -37,8 +38,9 @@ def fetch(url):
                 return FetchResult(resp.status, text, final_url)
         except urllib.error.HTTPError as e:
             return FetchResult(e.code, None, url)  # 확정 응답 — 재시도 무의미
-        except UnicodeError:  # 비ASCII URL — 몇 번 보내도 같다
+        except (UnicodeError, http.client.InvalidURL):
+            # URL 자체가 틀렸다(비ASCII·공백·제어문자·숫자 아닌 포트) — 몇 번 보내도 같다
             return FetchResult(0, None, None)
-        except (urllib.error.URLError, OSError):
-            continue  # 타임아웃·연결 실패 — 재시도
+        except (urllib.error.URLError, OSError, http.client.HTTPException):
+            continue  # 타임아웃·연결 실패·응답 파손 — 재시도
     return FetchResult(0, None, None)

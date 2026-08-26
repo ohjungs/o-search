@@ -38,9 +38,12 @@ def to_ascii(url: str) -> str | None
 1. **ASCII 만 든 URL 은 한 글자도 바꾸지 않고 그대로 돌려준다.** 회귀 위험이 전부 여기 있다.
    덕분에 **멱등**이다 — `to_ascii(to_ascii(u)) == to_ascii(u)`.
    이미 퍼센트 인코딩된 URL 을 다시 인코딩하는 사고(`%` → `%25`)도 이 규칙 하나로 막힌다.
-2. **호스트는 IDNA**(`encode("idna")`), **경로·질의·프래그먼트는 비ASCII 문자만 퍼센트 인코딩**.
+2. **호스트는 IDNA**(`encode("idna")`), **나머지는 비ASCII 문자만 퍼센트 인코딩**.
    ASCII 구분자(`?` `&` `=` `/` `#` `%`)는 손대지 않는다 — 계획이 걱정한 `safe=` 목록 문제가
    "비ASCII 문자 하나씩만 `quote` 한다"로 사라진다.
+   **원본 문자열 위에서 갈아끼운다** — 분해 후 `urlunsplit` 재조립이 아니다. 재조립은
+   빈 `?`·`#` 를 삼켜(`http://h/가?` → `.../%EA%B0%80`) 규칙 1 과 어긋난다.
+   전제로 `urlsplit` 이 떼는 탭·개행을 먼저 뗀다 — 그래야 호스트가 원본의 부분문자열이다.
 3. **못 바꾸면 `None`.** 서로게이트가 든 URL, IDNA 가 거부하는 호스트(빈 라벨·63자 초과).
    예외를 밖으로 내보내지 않는다 — 크롤 루프를 죽인 원인이 그것이다.
 
@@ -48,13 +51,23 @@ def to_ascii(url: str) -> str | None
 
 | 자리 | 하는 일 |
 |---|---|
-| `links.extract` (`links.py:26` 스킴 검사 뒤, 중복 제거 **앞**) | `None` 이면 링크 아님으로 버린다. 뒤의 `seen` 이 두 표기를 1건으로 합친다 |
-| `crawl.crawl` 시드 (`crawl.py:17`) | CLI 는 신뢰 경계. `None` 인 시드는 버리고 나머지는 크롤한다 |
-| `crawl.crawl` 리다이렉트 최종 URL (`crawl.py:36`) | `store` 키를 정규형으로 |
+| `links.extract` (`links.py:30` 스킴 검사 뒤, 중복 제거 **앞**) | `None` 이면 링크 아님으로 버린다. 뒤의 `seen` 이 두 표기를 1건으로 합친다 |
+| `crawl.crawl` 시드 (`crawl.py:19`) | CLI 는 신뢰 경계. `None` 인 시드는 버리고 나머지는 크롤한다. **버릴 때 stderr 로 알린다** — 사용자가 직접 준 URL 이라 조용히 사라지면 안 된다 (`crawl.py:33` 간격 경고와 같은 선례) |
+| `crawl.crawl` 리다이렉트 최종 URL (`crawl.py:44`) | `store` 키를 정규형으로 |
 
-**`fetcher.fetch`**: `UnicodeError` 를 잡아 `FetchResult(0, None, None)`.
-재시도하지 않는다(같은 URL 은 몇 번 해도 같다). `HTTPError` 뒤, `URLError` 앞에 둔다.
-→ `fetch` 를 직접 부르는 쪽에는 **비ASCII URL 이 조용한 실패(status 0)** 로 보인다.
+**`fetcher.fetch`** — 최후 방어선은 **URL 이 틀린 것**과 **연결·응답이 틀린 것**을 나눈다.
+`HTTPError` 뒤에 둘을 순서대로 놓는다:
+
+| 잡는 것 | 하는 일 | 왜 |
+|---|---|---|
+| `UnicodeError` · `http.client.InvalidURL` | `FetchResult(0, None, None)`, **재시도 없음** | URL 자체가 틀렸다(비ASCII·공백·제어문자·숫자 아닌 포트). 몇 번 보내도 같다 |
+| `URLError` · `OSError` · `http.client.HTTPException` | 재시도 | 타임아웃·연결 실패·응답 파손. 다음 번엔 될 수 있다 |
+
+`http.client` 예외는 `HTTPException` 이라 **`OSError` 그물에 걸리지 않는다** — 이것이
+`UnicodeError` 를 흘리던 것과 같은 뿌리다. `InvalidURL` 로 가는 URL 은 셋 다
+`links.extract` 가 평범한 HTML 에서 만들어낸다(`href="/a b"` · 제어문자 · `href="http://h:port/x"`).
+
+→ `fetch` 를 직접 부르는 쪽에는 **틀린 URL 이 조용한 실패(status 0)** 로 보인다.
 정규화를 `fetch` 안에 넣지 않는 이유는 위 표 ① 와 같다.
 
 ## 건드리지 않는 것
@@ -65,9 +78,24 @@ def to_ascii(url: str) -> str | None
 - **일반 URL 정규화** — 끝 슬래시·기본 포트·질의 순서·**퍼센트 표기 대소문자**(`%ea` vs `%EA`).
   비ASCII 하나만 다룬다.
 
+## 설계를 고친 곳 (리뷰 phase, 2026-08-26)
+
+테스트 phase 가 계약의 구멍 둘을 찾아 넘겼다. 코드를 밀고 나가지 않고 계약을 고쳤다
+(`rules/design.md` 6절).
+
+1. **계약 2 — 재조립을 버렸다.** 원래 계약은 "호스트 IDNA + 나머지 퍼센트 인코딩"만
+   말하고 *어떻게 다시 붙이는지*를 안 정했다. 구현이 고른 `urlunsplit` 은 빈 `?`·`#` 를
+   삼켜 **계약 1(ASCII 는 안 바꾼다)과 비ASCII 쪽이 어긋났다** — `http://h/가?` 와
+   `http://h/%EA%B0%80?` 가 다른 키가 돼 "두 표기가 1행" 목표가 이 조합에서만 샜다.
+   원본 문자열 치환으로 바꾸니 재조립이 삼킬 것이 없어지고 함수도 한 줄 짧아졌다.
+2. **`fetcher.fetch` — 잡는 그물이 좁았다.** 원래 계약은 `UnicodeError` 하나만 말했다.
+   같은 자리에서 `http.client.InvalidURL` 이 그대로 새어 나가 크롤 루프를 죽인다.
+   **뿌리는 "`OSError` 계열만 잡는다"** 였고 `UnicodeError` 는 그 뿌리의 증상 하나였다.
+   그물을 뿌리에 맞춰 다시 그었다 — URL 이 틀린 것은 즉시 0, 연결·응답이 틀린 것은 재시도.
+
 ## 되돌리기
 
-새 파일 1 + 한 줄짜리 편집 3 = **커밋 하나로 revert**. 플래그 불필요.
+새 파일 1 + 짧은 편집 3 = **커밋 하나로 revert**. 플래그 불필요.
 
 ## 스텝 (계획의 4스텝 그대로, 경계만 확정)
 

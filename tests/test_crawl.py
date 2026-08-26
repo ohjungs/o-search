@@ -88,10 +88,14 @@ class TestNonAsciiUrl(unittest.TestCase):
         self.assertEqual(n, 1)
 
     def test_unconvertible_seed_dropped_rest_crawled(self):
-        # CLI 는 신뢰 경계 — 못 바꾸는 시드 하나가 나머지 크롤을 막지 않는다
-        n, fetched, _ = self._run(["http://.가/x", "http://a.com/"], max_pages=10)
+        # CLI 는 신뢰 경계 — 못 바꾸는 시드 하나가 나머지 크롤을 막지 않는다.
+        # 조용히 버리지도 않는다 — 사용자가 직접 준 URL 이라 왜 안 갔는지 알려준다
+        err = io.StringIO()
+        with mock.patch("sys.stderr", err):
+            n, fetched, _ = self._run(["http://.가/x", "http://a.com/"], max_pages=10)
         self.assertNotIn("http://.가/x", fetched)
         self.assertEqual(n, 3)
+        self.assertIn("http://.가/x", err.getvalue())
 
     def test_redirect_final_url_normalized_before_store(self):
         # 저장 키가 정규형이라야 ASCII 표기로 다시 온 같은 페이지를 두 번 받지 않는다

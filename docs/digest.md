@@ -40,6 +40,8 @@ history_current.md 가 상한을 넘어 밀려날 때, 밀려나는 내용을 1~
 근거가 이미 있으므로 계획 탐색 5순위로 바로 쓸 수 있다. (discover.md)
 보류(승인 대기)와 다르다 — 이건 막힌 게 아니라 미룬 것이다.
 -->
+- [7] **`robots.allowed()`·`delay()` 도 비ASCII 호스트에서 예외를 흘린다** (2026-08-26 non-ascii-url 리뷰). `robots.py` 는 `URLError`·`OSError` 만 잡고 `crawl` 에도 잡는 곳이 없어 그대로 크롤 루프를 죽인다. **지금은 도달 불가** — URL 이 태어나는 자리에서 이미 ASCII 가 되고, 순서가 밀리면 되살아나는 것은 `test_robots_and_store_never_see_non_ascii_url` 가 막는다. 설계가 `robots.py` 를 범위 밖에 뒀고 `robots.py` 를 직접 부르는 새 호출처가 생길 때가 고칠 때다. **뿌리는 `fetcher` 와 같다: "`OSError` 계열만 잡는다"** — `fetcher` 쪽은 이 계획에서 닫았다(URL 오류는 즉시 0, 연결·응답 오류는 재시도). `robots.py:_fetch_robots` 의 `resp.read()` 무상한 건과 같은 파일이라 함께 열면 싸다
+- [5] **호스트 대소문자를 정규화하지 않는다** — `to_ascii` 는 ASCII URL 을 안 건드리므로 `http://A.com/` 과 `http://a.com/` 이 2행이 된다. 비ASCII 호스트도 IDNA 코덱이 ASCII 라벨은 그대로 두므로(`한국.COM` → `xn--3e0b707e.COM`) 같다. 일반 URL 정규화(끝 슬래시·기본 포트·`%ea` vs `%EA`) 계획 소관 — 계획 `## 안 할 것` 범위였다 (2026-08-26 non-ascii-url 리뷰)
 
 ## 다음 계획 후보 (테스트 phase 갭, 8점 미만)
 - [6] fetcher 가 UA 헤더를 실제로 보내는지 단언 없음
