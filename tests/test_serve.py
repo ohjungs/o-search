@@ -1,4 +1,4 @@
-"""GET /search 가 검색 결과를 JSON 으로 내는지. 서버를 실제로 띄워 확인한다."""
+"""GET /search 의 JSON 과 GET / 의 HTML 화면. 서버를 실제로 띄워 확인한다."""
 import io
 import json
 import os
@@ -74,6 +74,15 @@ class ServeTestCase(unittest.TestCase):
                 return resp.status, json.loads(resp.read().decode()), resp.headers
         except urllib.error.HTTPError as exc:
             return exc.code, json.loads(exc.read().decode()), exc.headers
+
+    def raw(self, path):
+        """(상태코드, 본문 문자열, 헤더). HTML 은 파싱하지 않고 바이트 그대로 본다 —
+        이스케이프를 검사하는 자리에서 파서를 끼우면 파서가 고쳐준 것을 통과로 읽는다."""
+        try:
+            with urllib.request.urlopen(self.base + path, timeout=10) as resp:
+                return resp.status, resp.read().decode(), resp.headers
+        except urllib.error.HTTPError as exc:
+            return exc.code, exc.read().decode(), exc.headers
 
 
 class TestSearchEndpoint(ServeTestCase):
@@ -348,6 +357,146 @@ class TestSlowClient(ServeTestCase):
             self.addCleanup(sock.close)
             sock.sendall(b"GET /sea")  # 줄을 끝내지 않는다
             self.assertEqual(sock.recv(64), b"", "유휴 연결이 끊기지 않았다 — 스레드가 잡혀 있다")
+
+
+# 크롤한 남의 문서에서 온 문자열이 HTML 로 다시 나가는 자리들이다.
+# 아래 XSS 페이지들은 **엔티티로 인코딩된 원본**을 쓴다 — extract_text() 가 그것을
+# 풀어서 제목·본문 텍스트로 만드는 것을 실측 확인했다(2026-08-27):
+#   <title>&lt;script&gt;…</title>  →  '<script>…'
+# 즉 크롤한 페이지가 우리 화면에 <script> 를 문자 그대로 넣을 수 있다. 가상의 위협이 아니다.
+XSS_PAGES = {
+    'http://evil.test/"><b>': "<html><head><title>&lt;script&gt;alert(1)&lt;/script&gt; 김치</title>"
+                              "</head><body><p>&quot;&gt;&lt;img src=x onerror=alert(1)&gt;"
+                              " 김치 김치 김치</p></body></html>",
+    "javascript:alert(1)": "<html><head><title>김치 스킴</title></head>"
+                           "<body><p>김치 김치</p></body></html>",
+}
+
+# 홈·결과 두 화면에 공통으로 요구하는 것 (concept.md:49-54 디자인 축)
+def assert_page_basics(t, body):
+    t.assertIn('<html lang="ko"', body, "lang 이 없으면 스크린리더가 언어를 못 고른다")
+    t.assertIn('name="viewport"', body, "viewport meta 가 없으면 360px 에서 가로 스크롤이 난다")
+    t.assertNotIn("<script", body.lower(), "JS 0KB 계약 위반 (concept.md:50)")
+
+
+class TestHomePage(ServeTestCase):
+    """GET / — 검색 홈. concept.md:49 의 첫 번째 화면."""
+
+    def test_home_is_html_not_404(self):
+        status, body, headers = self.raw("/")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["Content-Type"], "text/html; charset=utf-8")
+        assert_page_basics(self, body)
+
+    def test_home_has_search_input_with_accessible_name(self):
+        _, body, _ = self.raw("/")
+        self.assertIn('name="q"', body)
+        # 라벨이든 aria-label 이든 접근 가능한 이름이 있어야 한다 (concept.md:53)
+        self.assertTrue("aria-label" in body or "<label" in body,
+                        "검색 입력에 접근 가능한 이름이 없다")
+        self.assertIn('role="search"', body)
+
+    def test_empty_q_is_home_not_400(self):
+        """홈은 q 가 없는 것이 정상이다 — _parse() 의 400 을 그대로 물려받으면 안 된다."""
+        for path in ("/", "/?q=", "/?q=%20%20"):
+            status, body, _ = self.raw(path)
+            self.assertEqual(status, 200, path)
+            self.assertIn('name="q"', body)
+
+    def test_form_is_get_so_keyboard_alone_works(self):
+        """폼 GET 이면 탭+엔터로 끝난다. JS 가 붙는 순간 이 단언이 깨진다."""
+        _, body, _ = self.raw("/")
+        self.assertIn('method="get"', body.lower())
+
+
+class TestResultsPage(ServeTestCase):
+    """GET /?q=… — 결과 페이지. concept.md:49 의 두 번째 화면."""
+
+    def test_results_render_title_url_snippet(self):
+        status, body, _ = self.raw("/?q=" + urllib.parse.quote("김치"))
+        self.assertEqual(status, 200)
+        assert_page_basics(self, body)
+        hits = indexer.search(self.db, "김치")
+        self.assertTrue(hits)
+        for url, title, _snippet in hits:
+            self.assertIn(url, body, "URL 이 화면에 없다")
+            self.assertIn(title, body, "제목이 화면에 없다")
+
+    def test_query_is_echoed_into_the_input(self):
+        _, body, _ = self.raw("/?q=" + urllib.parse.quote("김치"))
+        self.assertIn('value="김치"', body)
+
+    def test_no_match_says_so_and_keeps_the_searchbox(self):
+        status, body, _ = self.raw("/?q=zzzznotfound")
+        self.assertEqual(status, 200)
+        self.assertIn('name="q"', body, "결과가 없어도 검색창은 남아야 한다")
+
+    def test_search_endpoint_still_returns_json(self):
+        """회귀 방어 — HTML 을 붙이면서 이미 나가 있는 JSON 계약을 깨지 않는다."""
+        status, body, headers = self.get("/search?q=" + urllib.parse.quote("김치"))
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["Content-Type"], "application/json; charset=utf-8")
+        self.assertTrue(body["results"])
+
+    def test_bad_page_param_is_400_html_without_traceback(self):
+        status, body, headers = self.raw("/?q=%EA%B9%80%EC%B9%98&page=0")
+        self.assertEqual(status, 400)
+        self.assertIn("text/html", headers["Content-Type"])
+        self.assertNotIn("Traceback", body)
+
+    def test_overlong_query_is_400_not_500(self):
+        status, _, _ = self.raw("/?q=" + urllib.parse.quote("가" * 201))
+        self.assertEqual(status, 400)
+
+
+class TestHtmlEscaping(ServeTestCase):
+    """이스케이프는 타협하지 않는 영역이다 (plan_search-ui.md 8절).
+
+    질의어·제목·URL·스니펫 **네 자리 전부**를 본다. 한 자리만 막으면 나머지 셋이 열린다.
+    """
+
+    pages = XSS_PAGES
+
+    def rendered(self, path):
+        """결과 페이지 본문. **먼저 진짜 렌더됐는지 못박는다.**
+
+        이 전제가 없으면 아래 단언들은 화면이 아예 없을 때(404 JSON)도 통과한다 —
+        실제로 그랬다: 구현 전 RED 확인에서 이스케이프 테스트 3개가 공허하게 통과했다.
+        "나쁜 것이 없다"는 "화면이 없다"로도 참이 되므로, 부정 단언에는 반드시
+        긍정 전제가 붙어야 한다.
+        """
+        status, body, _ = self.raw(path)
+        self.assertEqual(status, 200, body)
+        self.assertIn('name="q"', body, "결과 페이지가 렌더되지 않았다")
+        self.assertIn("evil.test", body, "위험한 문서가 결과에 안 실렸다 — 검사할 것이 없다")
+        return body
+
+    def test_query_is_escaped_in_input_and_title(self):
+        payload = '"><script>alert(1)</script>'
+        body = self.rendered("/?q=" + urllib.parse.quote(payload) + "%20" + urllib.parse.quote("김치"))
+        self.assertNotIn("<script>alert(1)</script>", body)
+        self.assertIn("&lt;script&gt;", body)
+        # 속성 자리 탈출: value="…" 를 닫고 나가는 따옴표가 살아 있으면 안 된다
+        self.assertNotIn('value=""><', body)
+
+    def test_crawled_title_and_snippet_are_escaped(self):
+        body = self.rendered("/?q=" + urllib.parse.quote("김치"))
+        self.assertNotIn("<script>alert(1)</script>", body,
+                         "크롤한 문서의 제목이 스크립트로 실행된다")
+        self.assertNotIn("<img src=x onerror=alert(1)>", body,
+                         "크롤한 문서의 본문이 스니펫으로 실행된다")
+
+    def test_crawled_url_is_escaped_in_href_and_text(self):
+        body = self.rendered("/?q=" + urllib.parse.quote("김치"))
+        self.assertNotIn('"><b>', body, "URL 이 href 속성을 탈출한다")
+
+    def test_javascript_scheme_url_is_not_linked(self):
+        """html.escape() 만으로는 못 막는다 — javascript: 에는 &, <, " 가 하나도 없다.
+
+        크롤러가 http/https 만 담는다는 성질에 기대지 않는다. 렌더 시점에 확인한다.
+        """
+        body = self.rendered("/?q=" + urllib.parse.quote("김치"))
+        self.assertNotIn('href="javascript:', body)
 
 
 if __name__ == "__main__":
