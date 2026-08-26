@@ -1,71 +1,57 @@
 ---
-signal: GREEN
+signal: DONE
 mode: night
 plan: non-ascii-url
 phase: e2e
 step: 4/4
 attempt: 0
-iteration: 62
-night_iterations: 31
+iteration: 63
+night_iterations: 32
 night_red: 0
 night_retries: 0
-night_self_amendments: 0
-updated: 2026-08-26 (반복 62)
-ctx: 74% / 200k
+night_self_amendments: 1
+updated: 2026-08-26 (반복 63)
+ctx: 76% / 200k
 rules: rules/e2e.md
 ---
 
 # 현재 상태
 
-**`non-ascii-url` 리뷰 phase 완료. 다음은 e2e phase — 마지막 스텝.**
-브랜치 `loop/non-ascii-url`. **199/199**(`expectedFailure` 0). e2e·성능 7개 전부 종료 0 —
-`quality_eval` ko 85%·en 90%, `perf_search` p95 **6.79ms**. 소스 누적 21줄 + 새 모듈.
+**`non-ascii-url`(007) DONE.** 브랜치 `loop/non-ascii-url`.
+**199/199** · e2e 8개 + 성능 전부 종료 0 · 재시도 0 · RED 0.
 
-## 설계가 정한 것 — `docs/design_non-ascii-url.md`
+지시받은 계획이 끝났다 (`/loop-harness night <할 일>` → **준 것만 하고 정지**).
+새 계획을 탐색하지 않았다. 다음 세션은 `/loop-harness` 로 탐색부터 시작한다.
 
-**URL 이 태어나는 경계에서 ASCII 로 바꾼다.** 대안 셋 중 ②(정공법).
+## 이 계획이 닫은 것
 
-- 새 모듈 `src/websearch/urls.py` 의 `to_ascii(url) -> str | None`
-  - **ASCII 만 든 URL 은 한 글자도 안 바꾼다** → 멱등, `%` 이중 인코딩 사고가 원천 차단
-  - 호스트 IDNA · 그 외는 **비ASCII 문자 하나씩만** `quote` (구분자 `? & = / #` 무손상)
-  - 못 바꾸면 `None` (서로게이트·IDNA 거부 호스트). 예외를 밖으로 흘리지 않는다
-- 호출처 3곳: `links.extract`(중복 제거 앞) · `crawl` 시드 · `crawl` 리다이렉트 최종 URL
-- `fetcher.fetch` 는 **정규화하지 않는다** — `UnicodeError` 를 잡아 `FetchResult(0, None, None)`
-- `robots.py`·`store.py`·스키마는 건드리지 않는다
+`https://ko.wikipedia.org/wiki/대한민국` 을 크롤하면 `UnicodeEncodeError` 가
+`fetch()` 밖으로 새 나가 **크롤 루프가 통째로 죽던 것**. 시드도 링크도 이제 산다.
 
-③(`Frontier.add` 한 곳)을 버린 이유가 이 설계의 핵심이다 — `crawl.py:36`
-`page_url = result.url or url` 이 프런티어를 안 거치고 `store.upsert` 로 직행한다.
+- `src/websearch/urls.py` 신규 — `to_ascii(url) -> str | None`.
+  **ASCII URL 은 한 글자도 안 바꾼다**(멱등) · 호스트 IDNA · 비ASCII 문자만 퍼센트 인코딩 ·
+  못 바꾸면 `None`. `urlsplit`/`urlunsplit` 재조립 없이 **원본 문자열 위에서 갈아끼운다**
+- 정규화 경계 = **URL 이 태어나는 자리** 3곳: `links.extract`(중복 제거 앞) · 시드 · 리다이렉트 최종 URL
+- `fetcher.fetch` 는 정규화하지 않는다 — **URL 오류는 즉시 status 0(재시도 없음),
+  연결·응답 오류는 재시도**
 
-## 남은 스텝
+## 덤으로 닫은 것 — 계획 이전부터 있던 크래시
 
-1. ~~`urls.to_ascii` + `tests/test_urls.py`~~ **완료** (62cec7b, 변이 4종 확인)
-2. ~~호출처 3곳 연결~~ **완료** (1f37fb2, 소스 4줄 · 테스트 7건)
-3. ~~`fetcher` 최후 방어선~~ **완료** (359c5f4, 소스 2줄 · 테스트 2건)
-4. `e2e/non_ascii_e2e.py` (e2e phase) — 로컬 서버, 시나리오 3개 (계획 `## e2e 시나리오`)
+`http.client.InvalidURL` 이 `OSError` 그물을 빠져나가 **크롤 루프를 죽이고 있었다.**
+도달 경로 3개가 전부 평범한 HTML 이다: `href="/a b"`(공백) · 제어문자 ·
+`href="http://h:port/x"`(숫자 아닌 포트). **뿌리는 `fetch` 가 `OSError` 계열만
+잡는다는 것**이었고, `UnicodeError` 는 그 뿌리의 증상 하나였다.
 
-## 리뷰가 한 것 (0bdc98c) — 후보 7건 중 3건 적용
+## 다음 계획 후보 (이 계획이 남긴 것 — `digest.md`)
 
-1. **[100] `fetch` 의 그물을 뿌리에 맞춰 다시 그었다.** `http.client` 예외는 전부
-   `HTTPException` 이라 `OSError` 그물에 안 걸린다 — `UnicodeError` 는 그 뿌리의 증상
-   하나였다. **URL 이 틀린 것**(`UnicodeError`·`InvalidURL`)은 즉시 0·재시도 없음,
-   **연결·응답이 틀린 것**(`HTTPException` 포함)은 재시도로 나눴다
-2. **[90] `to_ascii` 에서 `urlsplit`/`urlunsplit` 재조립을 버렸다** — 원본 문자열 위에서
-   호스트와 비ASCII 문자만 갈아끼운다. 빈 `?`·`#` 를 삼키던 것이 사라지고 **코드가 줄었다**
-3. **[85] 못 바꾸는 시드를 stderr 로 알린다** (`crawl.py:33` 간격 경고와 같은 형식).
-   링크에서 나온 것은 조용히 버리는 그대로
+- **[7] `robots.allowed()`·`delay()` 도 같은 뿌리의 구멍** — 비ASCII 호스트에서 예외를 흘린다.
+  지금은 도달 불가(URL 이 태어나는 자리에서 이미 ASCII)고
+  `test_robots_and_store_never_see_non_ascii_url` 이 그 순서를 지킨다.
+  같은 파일의 `resp.read()` 무상한 건과 **함께 열면 싸다**
+- [5] 호스트 대소문자 미정규화 (`한국.COM` → `xn--3e0b707e.COM`) — 계획 `## 안 할 것` 범위였다
+- e2e 가 **닿지 않는 경로 2개**: 비ASCII `Location:` 리다이렉트(302 를 서버에 추가해야 잰다) ·
+  `fetch` 의 `InvalidURL`(앞에서 다 ASCII 가 돼 e2e 로는 도달 불가 — 단위 테스트가 담당)
 
-**설계 문서를 먼저 고치고 코드를 밀었다**(`rules/design.md` 6절) —
-`design_non-ascii-url.md` 에 `## 설계를 고친 곳 (리뷰 phase)` 절이 있다.
+## 보류 (그대로)
 
-## 남은 것 — e2e phase
-
-`e2e/non_ascii_e2e.py` 신규. 계획 `## e2e 시나리오` 3개:
-① 한글 경로 링크를 따라가는 크롤이 **중단되지 않고** 저장된다
-② 한글 표기와 퍼센트 표기 두 링크 → `pages` **1행**
-③ 정규화 불가 URL 을 시드에 섞으면 그것만 건너뛰고 나머지는 전부 수집
-
-## 보류 (계획 밖 — 손대지 않는다)
-
-- `recrawl` 정책 (`concept.md:31`) — 기존 `pages` 행 소급 정규화가 여기 걸린다
-- `robots.py:_fetch_robots` 의 `resp.read()` 무제한 (`digest.md`)
-- `search-ui` — 경량·디자인 축 측정 명령이 아직 `없음`
+- `recrawl` 정책 (`concept.md:31`) · `search-ui`(경량·디자인 축 측정 명령이 아직 `없음`)

@@ -46,7 +46,7 @@ fetch("http://127.0.0.1:PORT/위키/대한민국")
 
 ## 설계
 
-**필요** → `docs/design_non-ascii-url.md`
+**필요** → `docs/design_history_007.md`
 
 트리거 둘: **대안이 2개 이상 갈린다**(정규화 지점을 `fetcher.fetch` 안으로 넣느냐,
 `links.extract`/`Frontier.add` 경계로 올리느냐 — 어느 쪽이든 크롤은 되지만 `pages` 에

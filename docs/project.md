@@ -18,6 +18,9 @@
 - **e2e**: `PYTHONPATH=src python3 e2e/search_api_e2e.py` (2026-08-25 실행 확인, 15.0s)
 - **e2e**: `PYTHONPATH=src python3 e2e/crawl_delay_e2e.py` (2026-08-25 실행 확인, 4.6s —
   간격을 실제로 재느라 걸린다. 간격 무시로 변이시키면 실패하는 것까지 확인)
+- **e2e**: `PYTHONPATH=src python3 e2e/non_ascii_e2e.py` (2026-08-26 실행 확인, 2.6s —
+  한글 경로 링크·두 표기 중복 제거·살릴 수 없는 시드 건너뛰기. 시드/링크 정규화를 빼는
+  변이 2건에서 실패하는 것까지 확인)
 - **성능 측정**: `PYTHONPATH=src python3 e2e/perf_search.py [문서수] [반복]`
   (2026-08-25 실행 확인, 2.1s — 기본 3000문서 × 5질의 × 200회)
 

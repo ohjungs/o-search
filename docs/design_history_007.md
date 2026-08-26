@@ -1,6 +1,6 @@
 # 설계: 비ASCII URL
 
-- **계획**: `docs/plan_non-ascii-url.md` · **슬러그** `non-ascii-url` · 2026-08-26
+- **계획**: `docs/plan_history_007.md` · **슬러그** `non-ascii-url` · 2026-08-26
 - **트리거**: 새 모듈(`urls.py`) · 대안이 2개 이상 갈림(정규화 경계) · 3개 파일
 
 ## 결정 한 줄

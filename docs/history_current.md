@@ -205,3 +205,12 @@ append 전용. 수정·삭제 금지.
 - 설계를 먼저 고치고 코드를 밀었다(`design.md` 6절) — 계약 2(재조립 금지)·`fetcher` 표 신설·`## 설계를 고친 곳` 절
 - 보류로 넘김: **[7] `robots.allowed()` 도 같은 뿌리의 구멍**(도달 불가 — 순서 계약 테스트가 막는다) · [5] 호스트 대소문자(`한국.COM` → `xn--3e0b707e.COM` 실측). 둘 다 `digest.md`
 - 다음: e2e phase (마지막)
+
+## 반복 63 — 2026-08-26 · e2e phase (non-ascii-url) → **DONE**
+- 한 일: `e2e/non_ascii_e2e.py` 신규(로컬 서버 + 자식 프로세스에서 진짜 `crawl.crawl()`, **2.6s, 종료 0**). 시나리오 3개 전부 통과 — ① 한글 경로 링크 크롤 `수집 3 페이지`·DB 에 비ASCII URL **0건** ② 두 표기 → **1행**(서버 수신도 1건) ③ 서로게이트 시드는 stderr 로 알리고 건너뛰며 나머지 3페이지 전부 수집. `docs/e2e/non-ascii-url/result.md` + `project.md` e2e 줄
+- **변이 4종 중 2종만 잡힌다.** 시드 정규화 제거(exit 1)·링크 정규화 제거(`수집 2 페이지`)는 잡고, **저장 키 정규화**와 **`fetcher` 의 `InvalidURL`** 은 이 시나리오가 **닿지 않는 경로**다 — 전자는 비ASCII `Location:` 리다이렉트에서만, 후자는 `links.py` 가 앞에서 다 ASCII 로 바꿔서. 다중 방어라 단위 테스트가 담당한다. **e2e 를 늘려 덮지 않고 `result.md` 에 적었다**
+- **예상과 달랐던 것**: 변이 A 에서 크롤이 `fetch` 가 아니라 **그 앞 `store.has()`** 에서 죽는다 — 서로게이트를 SQLite 파라미터로 넘기다 `UnicodeEncodeError`. `fetcher` 방어만으로는 이 시드를 못 막는다는 뜻이고, **시드 정규화가 실제로 짐을 진다**는 증거다
+- 앞 관문 전부 종료 0: 199/199(1.59s) · crawl(간격 1.000s) · crawl-delay(2.00s/1.00s) · indexer · noindex · search-api · quality-eval(ko 85%/en 90%) · perf **p95 6.76ms**(기준선 6.71ms)
+- **DONE**: `plan_non-ascii-url.md`·`design_non-ascii-url.md` → `*_history_007.md` 아카이브, `index.md` 9번 완료, `digest.md` 완료 절. 살아 있는 참조(`e2e/non_ascii_e2e.py`·`result.md`)의 옛 파일명도 함께 고쳤다
+- **이 계획이 남긴 것**: 사용자가 실제로 밟은 크래시를 닫았고, **그 뿌리를 따라가다 계획 이전부터 있던 크래시를 하나 더 닫았다**(`InvalidURL`). "URL 이 태어나는 자리에서 정규화한다" 는 경계가 생겼고, `robots.py` 가 그 경계 밖이라는 사실이 순서 계약 테스트로 박혔다
+- 지시받은 계획이 끝났다 → **정지**(새 계획 탐색 안 함)

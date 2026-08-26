@@ -22,6 +22,7 @@ history_current.md 가 상한을 넘어 밀려날 때, 밀려나는 내용을 1~
 
 - 2026-08-25 | plan_search-api (004) | `GET /search?q=&page=` JSON API + 페이지네이션 + 신뢰 경계 + p95 기준선(6.71ms/3000문서). e2e 통과. 재시도 0·RED 0
 - 2026-08-25 | plan_crawl-delay (005) | robots `Crawl-delay` 를 도메인 간격에 반영(하한 1초, 30초 초과는 도메인 포기, 소수·지수 표기 폴백). e2e 통과. 재시도 0·RED 0
+- 2026-08-26 | plan_non-ascii-url (007) | 비ASCII URL 을 **URL 이 태어나는 경계**(`links.extract`·시드·리다이렉트 최종 URL)에서 퍼센트/IDNA 정규화. `src/websearch/urls.py` 신규. **뿌리는 `fetch` 가 `OSError` 계열만 잡는 것**이었고 `UnicodeError` 는 증상 하나 — 그물을 URL 오류(즉시 0)/연결·응답 오류(재시도)로 다시 그어 `http.client.InvalidURL` 크래시도 같이 닫았다. e2e 3시나리오 통과. 재시도 0·RED 0
 - 2026-08-26 | plan_quality-eval (006) | 질의 40개 fixture + `e2e/quality_eval.py`(가드 G1·G2·G3, 종료 코드 0/1/2). **컨셉 기능 2 를 처음 쟀다 — ko 85% · en 90% 합격.** e2e 시나리오 3(절제)은 **반증**: 이 코퍼스는 포함률만 재고 랭킹은 못 잰다. 재시도 0·RED 0
 
 ## 보류 (승인 대기)
