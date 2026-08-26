@@ -33,6 +33,7 @@ from websearch import indexer, serve
 JS_BUDGET = 50 * 1024      # concept.md:50 — gzip 기준
 MIN_CONTRAST = 4.5         # concept.md:53
 MOBILE_WIDTH = 360         # concept.md:54
+ROOT_FONT_PX = 16          # rem→px 환산. 사용자가 기본 글꼴을 키우면 실제로는 더 크다
 DOC_BUDGET = 100 * 1024    # LCP 대리: 왕복이 1이므로 전송 시간의 유일한 변수다
 SERVER_BUDGET_MS = 300     # LCP 대리: 서버 생성 시간. perf_search.py 의 예산과 같은 값
 
@@ -109,7 +110,10 @@ def self_check():
 # ---------- 응답에서 CSS·토큰 뽑기 ----------
 
 TOKEN_RE = re.compile(r"(--[a-z0-9-]+)\s*:\s*([^;}]+)")
-DARK_RE = re.compile(r"@media\s*\(prefers-color-scheme\s*:\s*dark\)\s*\{(.*?)\}\s*\}", re.S)
+# `@media (prefers-color-scheme:dark) and (min-width:20em)` 처럼 조건이 더 붙어도 찾는다.
+# 여는 중괄호까지만 정규식으로 잡고 끝은 중괄호를 세어 찾는다 — non-greedy `.*?\}\s*\}` 는
+# 중첩 깊이를 모른다(리뷰 지적: 블록이 2개면 조용히 어긋난다).
+DARK_START_RE = re.compile(r"@media[^{]*prefers-color-scheme\s*:\s*dark[^{]*\{")
 
 
 def stylesheet(page):
@@ -120,27 +124,60 @@ def stylesheet(page):
     return "\n".join(blocks)
 
 
+def dark_blocks(css):
+    """다크 미디어쿼리들의 (시작, 끝, 본문). 중괄호를 세어 끝을 찾는다."""
+    found = []
+    for match in DARK_START_RE.finditer(css):
+        depth, i = 1, match.end()
+        while i < len(css) and depth:
+            depth += {"{": 1, "}": -1}.get(css[i], 0)
+            i += 1
+        if depth:
+            raise ValueError("다크 미디어쿼리의 중괄호가 닫히지 않았다")
+        found.append((match.start(), i, css[match.end():i - 1]))
+    return found
+
+
 def token_maps(css):
     """(라이트 맵, 다크 맵). 다크는 기본 위에 미디어쿼리 선언을 덮은 것이다.
 
     다크만 대비가 깨지는 것이 가장 흔한 회귀라 같은 쌍을 두 맵 모두에 돌린다.
+    **다크 블록이 없으면 ValueError** — 예전에는 다크 맵이 라이트 맵을 그대로
+    복사해 "다크 7쌍 전부 OK"를 찍었다. 다크 CSS 를 통째로 지워도 종료 0 이었다.
+    잴 것이 없어진 검사가 조용히 통과하는 것을 이 파일 첫머리가 금지한다.
     """
-    dark_block = "".join(DARK_RE.findall(css))
-    light = dict(TOKEN_RE.findall(css.replace(dark_block, "")))
-    dark = dict(light, **dict(TOKEN_RE.findall(dark_block)))
-    return {k: v.strip() for k, v in light.items()}, {k: v.strip() for k, v in dark.items()}
+    blocks = dark_blocks(css)
+    if not blocks:
+        raise ValueError("prefers-color-scheme:dark 블록이 없다 — 다크 대비를 잴 수 없다")
+    # 인덱스로 잘라낸다. 문자열 replace 는 블록이 2개일 때 join 결과가 원문에 없어
+    # 무동작이 되고, 그러면 라이트 맵이 다크 값으로 오염된다(리뷰 실측).
+    light_src, prev = "", 0
+    for start, end, _ in blocks:
+        light_src += css[prev:start]
+        prev = end
+    light_src += css[prev:]
+    light = {k: v.strip() for k, v in TOKEN_RE.findall(light_src)}
+    dark = dict(light)
+    for _, _, body in blocks:
+        dark.update({k: v.strip() for k, v in TOKEN_RE.findall(body)})
+    return light, dark
 
 
 # ---------- 축별 검사 ----------
 
 def check_contrast(css, fail, unmeasurable):
-    light, dark = token_maps(css)
+    try:
+        light, dark = token_maps(css)
+    except ValueError as exc:
+        unmeasurable.append(str(exc))
+        return
     if not light:
         unmeasurable.append("CSS 에 색 토큰(--…)이 하나도 없다")
         return
     # 규약이 커버리지를 강제한다 — --fg- 토큰을 새로 만들고 PAIRS 에 안 적으면 여기서 멈춘다.
     # 이게 없으면 "검사기에 안 적었으니 안 재고 넘어간다"가 가능해진다.
-    declared = {k for k in light if k.startswith("--fg-")}
+    # **두 맵의 합집합**이다 — 다크에만 있는 전경색 토큰이 강제를 빠져나가던 구멍(리뷰 지적).
+    declared = {k for k in set(light) | set(dark) if k.startswith("--fg-")}
     missing = declared - {fg for fg, _ in PAIRS}
     if missing:
         unmeasurable.append("PAIRS 에 짝이 없는 전경색 토큰: %s" % ", ".join(sorted(missing)))
@@ -193,19 +230,30 @@ def check_lcp_proxy(page, server_ms, fail):
         fail.append("서버 생성 %.1f ms > %d ms" % (server_ms, SERVER_BUDGET_MS))
 
 
-def check_mobile(page, css, fail):
+def check_mobile(page, css, fail, unmeasurable):
     if "name=\"viewport\"" not in page:
         fail.append("viewport meta 가 없다 — 360px 에서 확대되어 가로로 넘친다")
-    wide = [(prop, int(px)) for prop, px in
-            re.findall(r"(?<!-)\b((?:min-)?width)\s*:\s*(\d+)px", css)
-            if int(px) > MOBILE_WIDTH]
+    # px 만 보던 검사는 이 제품에서 아무것도 못 봤다 — CSS 가 rem 으로 쓰여 있다(리뷰 지적).
+    # 뷰포트 상대 단위(%·vw)는 100 이하면 정의상 안 넘친다.
+    wide = []
+    for prop, num, unit in re.findall(
+            r"(?<![-\w])((?:min-)?width)\s*:\s*([\d.]+)(r?em|px|vw|%)", css):
+        px = float(num) * ROOT_FONT_PX if unit in ("rem", "em") else float(num)
+        limit = 100 if unit in ("vw", "%") else MOBILE_WIDTH
+        if px > limit:
+            wide.append(("%s:%s%s" % (prop, num, unit), px, limit))
+    # 해석 못 한 단위를 조용히 넘기면 "위반 0건"이 거짓말이 된다.
+    for prop, value in re.findall(r"(?<![-\w])((?:min-)?width)\s*:\s*([^;}]+)", css):
+        # 0 은 단위가 없어도 유효하고, auto 는 넘칠 수 없다. 나머지 모르는 표기는 못 잰 것이다.
+        if not re.fullmatch(r"0|auto|[\d.]+(r?em|px|vw|%)", value.strip()):
+            unmeasurable.append("고정폭 단위를 해석 못 했다: %s:%s" % (prop, value.strip()))
     # 결과에 나가는 것은 크롤한 남의 URL 이다. 공백 없는 긴 URL 하나가 360px 을
     # 그대로 밀어낸다 — 이 제품에서 가로 스크롤의 진짜 원인이라 따로 못박는다.
     wraps = css.count("overflow-wrap:anywhere") + css.count("overflow-wrap: anywhere")
     print("    viewport %s · 360px 초과 고정폭 %d건 · overflow-wrap:anywhere %d곳"
           % ("있음" if "name=\"viewport\"" in page else "없음", len(wide), wraps))
-    for prop, px in wide:
-        fail.append("%s:%dpx > %dpx" % (prop, px, MOBILE_WIDTH))
+    for decl, px, limit in wide:
+        fail.append("%s (= %.0f) > %d" % (decl, px, limit))
     if not wraps:
         fail.append("overflow-wrap:anywhere 가 없다 — 긴 크롤 URL 이 360px 을 넘친다")
 
@@ -257,6 +305,7 @@ def main():
     check_lcp_proxy(results, results_ms, fail)
 
     print("\n  [2] JS 번들 50KB(gzip) 이하")
+    check_js(home, fail)
     check_js(results, fail)
 
     print("\n  [3] 텍스트 대비 4.5:1 이상")
@@ -265,7 +314,7 @@ def main():
 
     print("\n  [4] 모바일 360px 가로 스크롤 없음 — 넘치게 만드는 원인으로 대리")
     if css:
-        check_mobile(results, css, fail)
+        check_mobile(results, css, fail, unmeasurable)
 
     if unmeasurable:
         print("\n측정 불능 %d건:" % len(unmeasurable))
