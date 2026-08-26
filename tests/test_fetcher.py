@@ -89,6 +89,24 @@ class TestFetch(unittest.TestCase):
         self.assertEqual(got, fetcher.FetchResult(0, None, None))
         self.assertEqual(m.call_count, 1)
 
+    @unittest.expectedFailure  # 리뷰 phase 로 넘긴 갭 [9] — 소스 수정이 필요해 테스트만 남긴다
+    def test_malformed_url_fails_quietly_without_retry(self):
+        # 최후 방어선의 구멍 — 이 셋은 http.client.InvalidURL 을 던진다. HTTPException 이라
+        # OSError 도 URLError 도 아니고, UnicodeError 도 아니라 fetch 를 그냥 뚫고 나가
+        # 크롤 루프를 죽인다. 전부 links.extract 가 평범한 HTML 에서 만들어낼 수 있다:
+        # <a href="/a b">, 제어문자, <a href="http://h:port/x"> 오타.
+        # 고침은 한 줄이다: except (UnicodeError, http.client.InvalidURL).
+        # 확인함 — 그 한 줄이면 이 테스트가 통과하고 나머지 195건도 그대로 통과한다.
+        for url in ["http://127.0.0.1:9/a b",
+                    "http://127.0.0.1:9/a\x7fb",
+                    "http://127.0.0.1:notaport/x"]:
+            with self.subTest(url=url):
+                with mock.patch("urllib.request.urlopen",
+                                wraps=urllib.request.urlopen) as m:
+                    got = fetcher.fetch(url)
+                self.assertEqual(got, fetcher.FetchResult(0, None, None))
+                self.assertEqual(m.call_count, 1)  # 같은 URL 을 다시 던져도 같다
+
     def test_retry_succeeds_second_try(self):
         with mock.patch("urllib.request.urlopen", side_effect=[OSError("t"), _resp()]):
             got = fetcher.fetch("http://a.com/")

@@ -1,4 +1,5 @@
 import io
+import itertools
 import unittest
 import urllib.parse
 from unittest import mock
@@ -107,6 +108,50 @@ class TestNonAsciiUrl(unittest.TestCase):
             n, fetched, _ = self._run(["http://a.com/moved3"], max_pages=10)
         self.assertEqual(n, 1)
         self.assertIn("http://a.com/x", fetched)
+
+
+    def test_robots_and_store_never_see_non_ascii_url(self):
+        # 정규화가 URL 이 태어나는 자리에서 끝난다는 계약을 순서로 못박는다.
+        # robots.allowed() 는 비ASCII 호스트에서 UnicodeEncodeError 를 그대로 던지고
+        # (robots.py 는 URLError·OSError 만 잡는다) crawl 에도 잡는 곳이 없다 —
+        # 정규화가 robots 뒤로 밀리는 순간 크롤 루프를 죽인 원래 버그가 되살아난다.
+        # store 쪽은 죽지는 않지만 같은 페이지가 두 표기로 2행이 된다.
+        asked, keys = [], []
+        pages = {
+            "http://a.com/%EA%B0%80":
+                '<a href="/나">n</a><a href="http://한글도메인.test/">i</a>',
+            "http://a.com/%EB%82%98": "leaf",
+            "http://xn--bj0bj3i97fq8o5lq.test/": "leaf",
+        }
+
+        def fake_fetch(url):
+            return (FetchResult(200, pages[url], url) if url in pages
+                    else FetchResult(404, None, url))
+
+        robots = mock.Mock()
+        robots.allowed = lambda url: asked.append(url) or True
+        robots.delay = lambda url: None
+        real_store = crawl.Store
+
+        def recording_store(path):
+            store = real_store(path)
+            has, upsert = store.has, store.upsert
+            store.has = lambda u: keys.append(u) or has(u)
+            store.upsert = lambda u, *a: keys.append(u) or upsert(u, *a)
+            return store
+
+        tick = itertools.count(1000.0, 10.0)  # 매 조회마다 시간이 흘러 간격이 걸리지 않는다
+        with mock.patch("websearch.crawl.fetcher") as mf, \
+             mock.patch("websearch.crawl.Store", recording_store):
+            mf.fetch = fake_fetch
+            n = crawl.crawl(["http://a.com/가"], 10, db_path=":memory:",
+                            robots_cache=robots, now=lambda: next(tick))
+
+        self.assertEqual(n, 3)  # 비ASCII 시드·링크·IDN 호스트를 실제로 다 돌았다
+        for url in asked:
+            self.assertTrue(url.isascii(), "robots 가 비ASCII 를 받았다: %r" % url)
+        for url in keys:
+            self.assertTrue(url.isascii(), "store 키가 비ASCII 다: %r" % url)
 
 
 class TestCrawlDelayWiring(unittest.TestCase):
