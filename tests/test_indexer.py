@@ -358,6 +358,26 @@ class TestTokenizerMatching(unittest.TestCase):
                 query,
             )
 
+    def test_compound_tail_matches_regardless_of_word_order(self):
+        # 리뷰 발견: 질의를 통째로 이어 붙여 하나의 인접 구절로 만들면 2-gram 분기가
+        # **어절이 그 순서로 붙어 있을 때만** 산다. 어순만 바꾸면 0건이 됐다
+        self._seed_and_index([
+            ("http://a.test/", "<title>김치찌개보관법 냉장 사흘</title><p>완전히 식힌 뒤</p>"),
+        ])
+        for query in ("보관법 냉장", "냉장 보관법"):
+            self.assertEqual([h[0] for h in search(self.db_path, query)],
+                             ["http://a.test/"], query)
+
+    def test_compound_tail_matches_beside_another_word(self):
+        self._seed_and_index([
+            ("http://a.test/", "<title>올레 길 7코스 안내</title><p>제주를 걷는다</p>"),
+        ])
+        # '7코스' 는 한글이 아닌 문자를 품는다 — 옛 재작성은 질의 전체가 한글일 때만
+        # 2-gram 분기를 켰으므로 숫자 하나에 분기가 통째로 꺼졌다
+        for query in ("올레길 안내", "7코스 올레길"):
+            self.assertEqual([h[0] for h in search(self.db_path, query)],
+                             ["http://a.test/"], query)
+
     def test_english_inflection_matches(self):
         self._seed_and_index([
             ("http://a.test/", "<title>Lists and the tuple type</title>"

@@ -118,22 +118,29 @@ def _doc_count(db_path):
 
 
 def _fts_query(query):
-    """어절마다 접두 매치로 재작성한다. 큰따옴표로 감싸 FTS5 문법 문자를 무력화한다.
+    """어절마다 (접두 매치 OR 2-gram 구절) 을 만들고 AND 로 잇는다.
 
-    질의가 **전부 한글일 때만** 2-gram 구절 분기를 OR 로 덧붙인다. 조건 없이 붙이면
-    `김치 python` 에서 한글 분기가 `python` 을 버려 AND 계약이 무너진다.
+    **어절 단위인 것이 핵심이다.** 질의를 통째로 이어 붙여 하나의 구절로 만들면
+    2-gram 분기가 어절이 문서 안에 **그 순서로 붙어 있을 때만** 살아서, `냉장 보관법`
+    처럼 어순만 다른 질의가 0건이 된다 (2026-08-27 리뷰). 어절마다 갈라 두면
+    AND 계약이 구조적으로 유지되므로 "질의가 전부 한글일 때만" 이라는 조건도 필요 없다 —
+    한글이 없는 어절은 자기 접두 분기만 낸다.
     """
     # 제어문자는 먼저 지운다 — NUL 은 큰따옴표 이스케이프를 통과해 FTS5 문자열을 조기 종료시킨다
-    terms = query.translate(extract._CONTROL).split()
-    plain = " ".join('"%s"*' % term.replace('"', '""') for term in terms)
-    joined = "".join(terms)
-    if not plain or _HANGUL_RUN.fullmatch(joined) is None:
-        return plain
-    grams = _bigrams(joined).split()
-    if not grams:
-        return plain  # 한 글자 질의 — 2-gram 이 없다
-    phrase = " + ".join('"%s"' % gram for gram in grams)
-    return "(%s) OR ({title_ng} : %s) OR ({body_ng} : %s)" % (plain, phrase, phrase)
+    parts = []
+    for term in query.translate(extract._CONTROL).split():
+        plain = '"%s"*' % term.replace('"', '""')
+        grams = _bigrams(term).split()  # 한 글자·비한글 어절은 비어 있다
+        if not grams:
+            parts.append(plain)
+            continue
+        phrase = " + ".join('"%s"' % gram for gram in grams)
+        # 두 열을 `{title_ng body_ng}` 하나로 묶으면 안 된다 — 한국어 포함률이
+        # 20/20 에서 17/20 으로 떨어진다(정답이 13위로 밀린다). 설계가 열을 나눈
+        # 이유가 질의 쪽에도 그대로 걸린다 (`docs/design_tokenizer.md` `## 계약` 1)
+        parts.append("(%s OR {title_ng} : %s OR {body_ng} : %s)"
+                     % (plain, phrase, phrase))
+    return " AND ".join(parts)
 
 
 def search(db_path, query, limit=10, offset=0):
