@@ -153,3 +153,11 @@ append 전용. 수정·삭제 금지.
 - **재현이 지시보다 넓었다**: `fetch()` 가 예외를 밖으로 흘리는 것 외에, ① `links.extract` 가 한글 URL 을 날것으로 프런티어·`pages` 에 넣어 **같은 페이지가 두 행**이 될 수 있고 ② IDN 호스트는 원인이 다르다(`latin-1` / IDNA) ③ `RobotsCache.allowed` 는 **안 죽는다**(ASCII 호스트면 robots.txt URL 도 ASCII). 셋 다 계획서 `## 실측` 표에 넣었다
 - 설계 필요 판정: 대안이 갈린다(정규화를 fetch 안에 넣나 링크 경계로 올리나 — `pages.url` 키가 달라진다) + 새 모듈 가능성
 - 다음: 설계 phase
+
+## 반복 57 — 2026-08-26 · 설계 (non-ascii-url)
+- 한 일: `docs/design_non-ascii-url.md` 작성. 코드 0줄. 대안 셋을 서로 다른 출발점에서 냈다 — ① `fetch` 안 정규화(최소) ② URL 이 태어나는 경계(정공법) ③ `Frontier.add` 한 곳(되돌리기 우선)
+- **③을 버린 근거가 이번 설계의 소득이다.** 한 줄로 끝나 제일 게을러 보였는데, `crawl.py:36` 의 `page_url = result.url or url`(리다이렉트 최종 URL)이 프런티어를 **안 거치고** `store.upsert` 로 직행한다 — 정규화 안 된 키가 그대로 `pages` 에 남는다. ①은 계획 목표("두 행이 되지 않는다")를 아예 못 채운다(`fetch` 는 저장 키를 정하지 않는다)
+- **계획이 걱정한 `quote(safe=...)` 문제가 규칙 하나로 사라졌다**: "비ASCII 문자만 하나씩 `quote`" 로 하면 ASCII 구분자(`? & = / # %`)를 손댈 일이 없다. 덤으로 "ASCII URL 은 한 글자도 안 바꾼다" 가 **멱등**과 `%` 이중 인코딩 차단을 동시에 준다
+- `robots.py` 는 계약상 건드리지 않는다 — 프런티어를 통과한 ASCII URL 만 받으므로 `_base()` 도 ASCII 다 (계획의 위험 1 종료)
+- 되돌리기: 새 파일 1 + 한 줄 편집 3 = 커밋 하나로 revert. 플래그 불필요
+- 다음: 개발 step 1/4 (`urls.to_ascii` + `tests/test_urls.py`, TDD)
