@@ -2,24 +2,24 @@
 signal: GREEN
 mode: night
 plan: non-ascii-url
-phase: 테스트
+phase: 리뷰
 step: 4/4
 attempt: 0
-iteration: 60
-night_iterations: 29
+iteration: 61
+night_iterations: 30
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
-updated: 2026-08-26 (반복 60)
-ctx: 78% / 200k
-rules: rules/test.md
+updated: 2026-08-26 (반복 61)
+ctx: 76% / 200k
+rules: rules/review.md
 ---
 
 # 현재 상태
 
-**`non-ascii-url` 개발 3스텝 전부 완료. 다음은 테스트 phase.**
-브랜치 `loop/non-ascii-url`. **194/194 통과**. `crawl_e2e.py` 회귀 없음.
-원래 버그는 닫혔다 — 소스 총 **8줄**(`urls.py` 신규 + 호출처 4줄 + `fetcher` 2줄).
+**`non-ascii-url` 테스트 phase 완료. 다음은 리뷰 phase.**
+브랜치 `loop/non-ascii-url`. **196/196**(`expected failures=1`). e2e·성능 7개 전부 종료 0 —
+`quality_eval` ko 85%·en 90%(기준선 동일), `perf_search` p95 **6.80ms**(기준선 7.06ms).
 
 ## 설계가 정한 것 — `docs/design_non-ascii-url.md`
 
@@ -43,12 +43,25 @@ rules: rules/test.md
 3. ~~`fetcher` 최후 방어선~~ **완료** (359c5f4, 소스 2줄 · 테스트 2건)
 4. `e2e/non_ascii_e2e.py` (e2e phase) — 로컬 서버, 시나리오 3개 (계획 `## e2e 시나리오`)
 
-## 리뷰에서 볼 것 (개발 중 나온 것)
+## 리뷰가 처리할 것 — 테스트 phase 가 넘긴 것
 
-- **정규화 못 하는 시드를 조용히 버린다.** CLI 는 신뢰 경계고 `crawl.py:33` 에
-  간격 초과 도메인을 stderr 로 알리는 선례가 있다. 계약 밖이라 step 2 에서 안 넣었다
-- `crawl.py:36` 의 `or url` 폴백은 변이 검사를 **통과해버렸다**(테스트 0건) →
-  step 2 에서 테스트를 하나 더 넣어 막았다. 같은 종류의 무검증 분기가 더 있는지 본다
+1. **[9] `fetch` 가 `http.client.InvalidURL` 을 흘린다 → 크롤 루프가 죽는다.**
+   `HTTPException` 이라 `OSError` 그물에도 `UnicodeError` 에도 안 걸린다.
+   도달 경로 3개가 전부 **평범한 HTML 에서 `links.extract` 가 만들어낸다**:
+   `href="/a b"`(공백) · 제어문자 · `href="http://h:port/x"`(숫자 아닌 포트).
+   **이 계획이 닫은 버그와 정확히 같은 부류다.** 고침은 한 줄이고 테스트 phase 가
+   실제로 적용해 196/196 을 확인한 뒤 되돌렸다. `tests/test_fetcher.py` 에
+   `@unittest.expectedFailure` 로 재현이 남아 있다
+2. **[6] `to_ascii` 가 비ASCII URL 의 끝 `?`·`#` 를 삼킨다.** `http://h/가?` →
+   `.../%EA%B0%80` 인데 `http://h/%EA%B0%80?` 는 그대로 → 계획 목표("두 표기가 1행")가
+   이 조합에서만 샌다
+3. **[7] `robots.allowed()` 도 비ASCII 호스트에서 예외를 흘린다** — `crawl` 경로에서는
+   도달 불가(URL 이 태어나는 자리에서 이미 ASCII). 설계가 `robots.py` 를 범위 밖에 뒀고,
+   순서가 밀리면 되살아나는 것은 새 계약 테스트가 막는다. **보류 후보**
+4. [5] 호스트 대소문자 미정규화 · [4] 비ASCII userinfo 무테스트 — 계획 `## 안 할 것` 범위
+5. 개발 중 나온 것: **정규화 못 하는 시드를 조용히 버린다**(`crawl.py:33` 에 stderr 선례 있음)
+
+**뿌리가 하나다**: `fetcher`·`robots` 둘 다 "`OSError` 계열만 잡는다".
 
 ## 보류 (계획 밖 — 손대지 않는다)
 

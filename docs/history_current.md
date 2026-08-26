@@ -186,3 +186,12 @@ append 전용. 수정·삭제 금지.
 - 재시도 없음 확인은 `mock.patch(..., wraps=urlopen)` 의 `call_count == 1` — 기존 `test_timeout_retries_then_gives_up`(3회)과 대조된다
 - 변이: `except` 2줄 삭제 → 신규 2건 정확히 ERROR
 - 다음: 테스트 phase (갭 탐색 + 전체)
+
+## 반복 61 — 2026-08-26 · 테스트 phase (non-ascii-url)
+- 한 일: 갭 탐색 + 테스트 63줄(`tests/` 2파일). **소스 0줄.** 196/196(`expected failures=1`). e2e·성능 7개 전부 종료 0 — `quality_eval` ko 85%·en 90%(기준선 동일) · `perf_search` **p95 6.80ms**(기준선 7.06ms, 예산 300ms 의 2.3%)
+- **가장 큰 구멍이 비ASCII 가 아니라 ASCII 쪽에 있었다.** `fetch` 가 `http.client.InvalidURL` 을 못 잡는다 — `HTTPException` 이라 `OSError` 그물에도 `UnicodeError` 에도 안 걸린다. 도달 경로 3개가 **전부 평범한 HTML 에서 `links.extract` 가 만들어낸다**(`href="/a b"` 공백 · 제어문자 · 숫자 아닌 포트). **크롤 루프가 통째로 죽는다 — 이 계획이 닫은 버그와 같은 부류다.** 계획 이전부터 있었지만 step 3 이 `fetch` 를 "최후 방어선" 으로 규정한 순간 그 계약의 미완성이 됐다 → 리뷰로
+- **설계가 `robots.py` 를 범위 밖에 둔 근거가 순서 하나뿐이었다** — `robots.allowed()` 도 비ASCII 호스트에서 예외를 흘린다(탐침 확인). `crawl` 에서는 URL 이 태어나는 자리에서 이미 ASCII 라 도달 불가. 그 순서를 `test_robots_and_store_never_see_non_ascii_url` 로 박았다
+- `to_ascii` 가 비ASCII URL 의 끝 `?`·`#` 를 삼킨다(ASCII 는 조기 반환이라 보존) — "두 표기가 1행" 이 이 조합에서만 샌다 → 리뷰로
+- 변이 5종 전부 검출. 새 계약 테스트는 시드·`links` 두 변이에서 **단독 발화**해 실제로 하중을 받는다
+- 재현 못 한 `HTTPException`(`IncompleteRead` 등)은 **고치지 않았다**(`rules/test.md` 2-1절)
+- 다음: 리뷰 phase
