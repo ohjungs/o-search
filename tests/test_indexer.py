@@ -179,6 +179,17 @@ class TestSchemaDrift(unittest.TestCase):
         self.assertEqual(index_pages(self.db_path), 1)
         self.assertEqual(index_pages(self.db_path), 0)
 
+    def test_rebuild_is_not_reported_as_noindex_removal(self):
+        # 재구축은 옛 색인을 버리고 다시 채운다 — 뺀 문서가 하나도 없다. 그런데도
+        # "제외" 로 찍히면 정말 뺐을 때 울리라고 둔 경보가 갈아탄 사람 전원에게 거짓으로 운다
+        self._seed_old_index([("http://a.test/", "<title>가</title><p>첫</p>"),
+                              ("http://b.test/", "<title>나</title><p>둘째</p>")])
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            self.assertEqual(indexer.main(["prog", self.db_path]), 0)
+        self.assertNotIn("색인 제외", buf.getvalue())
+        self.assertIn("2 문서 색인", buf.getvalue())  # 긍정 짝 — 침묵도 통과하지 않는다
+
     def test_search_on_drifted_index_fails_loudly(self):
         # 조용히 빈 목록을 내면 "결과 0건" 과 구분되지 않는다 — 색인 전과는 다른 상황이다
         self._seed_old_index([("http://a.test/", "<title>김치</title><p>김치찌개</p>")])

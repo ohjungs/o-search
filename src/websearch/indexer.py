@@ -100,12 +100,17 @@ def index_pages(db_path):
 
 
 def _doc_count(db_path):
-    """색인된 문서 수. DB 가 없거나 색인 전이면 0 (DB 파일을 만들지 않는다)."""
+    """쓸 수 있는 색인의 문서 수. DB 가 없거나 색인 전이면 0 (DB 파일을 만들지 않는다).
+
+    **옛 정의로 남은 docs 도 0 이다** — index_pages() 가 통째로 버릴 것이고,
+    세어 두면 재구축이 `before + indexed - after` 에서 제거로 둔갑한다.
+    `search()` 도 옛 색인은 쓸 수 없는 것으로 본다(StaleIndexError) — 같은 기준이다.
+    """
     if not os.path.exists(db_path):
         return 0
     db = sqlite3.connect(db_path)
     try:
-        if not db.execute("SELECT 1 FROM sqlite_master WHERE name='docs'").fetchone():
+        if _docs_sql(db) != _CURRENT_SQL:
             return 0
         return db.execute("SELECT count(*) FROM docs").fetchone()[0]
     finally:
