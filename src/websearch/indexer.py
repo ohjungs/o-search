@@ -20,9 +20,16 @@ SCHEMA = (
 # 보므로 접두 매치가 뒷부분(`김치찌개보관법` ← `보관법`)에 닿지 못한다.
 # **제목과 본문을 따로 담는 것이 핵심이다** — 한 열로 합치면 정답이 꼴찌로 밀린다
 # (`docs/design_tokenizer.md` `## 계약` 1). `porter` 는 영어 굴절(tuples ← tuple)용이다.
+# `prefix='2 3'` 은 테이블 단위라 `*_ng` 열에도 붙는다 — 2-gram 토큰은 길이가 전부 2 라
+# `prefix=2` 는 토큰 자체의 사본이고 `prefix=3` 은 영영 매치되지 않는다. 열별로 끌 수
+# 없어서 지불하는 값이고, 색인이 커진 원인 중 하나다 (2026-08-27 리뷰)
 _HANGUL_RUN = re.compile(r"[가-힣]+")
 # ponytail: 완성형 음절만 본다. 천장 — 옛한글·자모 분리 표기는 잡지 않는다
 _HANGUL_GAP = re.compile(r"(?<=[가-힣])\s+(?=[가-힣])")
+# ponytail: 공백을 **전부** 지우므로 문장·문단 경계도 넘는다 — `먹는다 물을` 이
+# `다물` 이라는 없던 이웃을 만든다(2026-08-27 리뷰 실측). 띄어쓰기 변형(`올레 길`
+# ↔ `올레길`)을 잡으려면 어차피 지워야 해서 감수한 값이다. 실제 크롤 산문에서
+# 오탐이 보이면 `extract` 가 블록 경계에 한글 아닌 표식을 넣는 쪽으로 올린다
 _MARK = "\x02"  # 스니펫이 어느 열에서 왔는지 표시. extract._normalize 가 제어문자를
 #                 지우므로 색인 텍스트에는 절대 들어 있지 않다 (extract.py:16,60)
 
@@ -176,7 +183,8 @@ def search(db_path, query, limit=10, offset=0):
         ).fetchall()
         # 제목이 매치됐으면 제목에서, 아니면 본문에서. 둘 다 아니면(2-gram 전용 매치)
         # 본문 앞부분이 나온다 — 사람이 읽을 수 있는 원문이라는 것이 요점이다.
-        return [(url, title, (t_sn if _MARK in t_sn else b_sn).replace(_MARK, ""))
+        # 본문이 아예 없는 문서(링크 페이지)는 빈 문자열이 되므로 제목으로 떨어진다.
+        return [(url, title, (t_sn if _MARK in t_sn else b_sn or t_sn).replace(_MARK, ""))
                 for url, title, t_sn, b_sn in rows]
     finally:
         db.close()
@@ -213,6 +221,11 @@ def main(argv):
                 print("%s\n  %s\n  %s" % (title or "(제목 없음)", url, text))
     except FileNotFoundError:
         print("DB 파일이 없다: %s" % db_path, file=sys.stderr)
+        return 2
+    except StaleIndexError:
+        # 트레이스백은 복구법을 안 알려 준다 — docstring 에 적어 둔 것을 화면에 낸다
+        print("색인이 옛 정의로 남아 있다. 먼저 색인을 다시 돌린다: "
+              "python3 -m websearch.indexer %s" % db_path, file=sys.stderr)
         return 2
     return 0
 

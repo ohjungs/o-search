@@ -196,6 +196,15 @@ class TestSchemaDrift(unittest.TestCase):
         with self.assertRaises(indexer.StaleIndexError):
             search(self.db_path, "김치")
 
+    def test_cli_query_on_drifted_index_is_an_error_not_a_traceback(self):
+        # 리뷰 발견: 바로 옆에서 FileNotFoundError 는 정성껏 처리하는데 이쪽만
+        # 트레이스백 + rc=1 로 나간다. 복구법(색인 다시 돌리기)이 화면에 안 보인다
+        self._seed_old_index([("http://a.test/", "<title>김치</title><p>김치찌개</p>")])
+        buf = io.StringIO()
+        with contextlib.redirect_stderr(buf):
+            self.assertEqual(indexer.main(["prog", self.db_path, "--query", "김치"]), 2)
+        self.assertIn("색인", buf.getvalue())  # 긍정 짝 — 침묵도 통과하지 않는다
+
 
 class TestSearch(unittest.TestCase):
     def setUp(self):
@@ -399,6 +408,12 @@ class TestTokenizerMatching(unittest.TestCase):
         # 계약대로 본문 앞부분이 나온다. 질의어는 title 로 이미 보인다
         self.assertIn("완전히 식힌 뒤", snippet)
         self.assertEqual(title, "김치찌개보관법 냉장 사흘이 한계다")
+
+    def test_snippet_is_not_empty_when_document_has_no_body(self):
+        # 리뷰 발견: 2-gram 으로만 매치된 문서는 본문 스니펫을 쓰는데, 본문이 없는
+        # 문서(링크 페이지·짧은 글)는 빈 문자열이 그대로 화면에 나간다
+        self._seed_and_index([("http://a.test/", "<title>김치찌개보관법 냉장 사흘</title>")])
+        self.assertIn("김치찌개보관법", search(self.db_path, "보관법")[0][2])
 
     def test_snippet_still_comes_from_title_when_only_title_matches(self):
         # 계약 유지 — TestSearch.test_snippet_comes_from_matching_column 과 같은 계약
