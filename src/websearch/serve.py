@@ -82,9 +82,10 @@ padding:.9rem 1rem;border-bottom:1px solid var(--line)}
 .brand{font-size:1.25rem;font-weight:700;letter-spacing:-.03em;text-decoration:none}
 main{max-width:44rem;padding:1.5rem 1rem}
 .home{margin:12vh auto;text-align:center}
-.home .brand{display:block;font-size:2.5rem;margin-bottom:1.5rem}
+.home .brand{display:block;font-size:2.5rem;margin:0 0 1.5rem}
 .home .sb{margin:0 auto}
-.meta{color:var(--fg-muted);font-size:.85rem;margin:0 0 1.5rem}
+/* h1 이지만 화면에서는 작은 안내문이다 — 제목 계층은 의미용, 크기는 시안용 */
+.meta{color:var(--fg-muted);font-size:.85rem;font-weight:400;margin:0 0 1.5rem}
 .hits{list-style:none;margin:0;padding:0}
 .hit{margin-bottom:1.6rem}
 /* 결과에 나가는 것은 크롤한 남의 URL 이다 — 공백 없는 긴 URL 하나가 360px 을 밀어낸다 */
@@ -115,8 +116,11 @@ def _safe_href(url):
     하나도 없어서 이스케이프를 그대로 통과한다. 크롤러가 http/https 만 담는다는
     성질에 기대지 않고 렌더 시점에 확인한다(그 성질이 깨지는 날 여기가 유일한 방어다).
     허용 목록이라 새 스킴(data:, vbscript:)이 생겨도 자동으로 막힌다.
+    콜론까지 봐야 한다 — `"http".split(":")[0]` 은 `"http"` 라, 스킴이 아예 없는
+    상대 경로(`//evil.test/x`)가 통과했다.
     """
-    return url if url.split(":", 1)[0].lower() in ("http", "https") else None
+    scheme, sep, _ = url.partition(":")
+    return url if sep and scheme.lower() in ("http", "https") else None
 
 
 def _render(title, body):
@@ -125,7 +129,7 @@ def _render(title, body):
 
 def _home():
     return _render("%s — 웹 검색" % BRAND,
-                   '<main class="home"><span class="brand">%s</span>%s</main>'
+                   '<main class="home"><h1 class="brand">%s</h1>%s</main>'
                    % (BRAND, SEARCHBOX % ("", " autofocus")))
 
 
@@ -134,9 +138,11 @@ def _results(query, hits):
     질의어(사용자)·제목·URL·스니펫(크롤한 문서). 넷 다 html.escape() 를 지난다."""
     box = SEARCHBOX % (html.escape(query, quote=True), "")
     head = '<header><a class="brand" href="/">%s</a>%s</header>' % (BRAND, box)
+    # h1 이 결과 목록의 주제를 말한다 — 없으면 스크린리더에 h2 만 늘어선다.
     if not hits:
         return _render("%s — %s" % (query, BRAND),
-                       head + '<main><p class="meta">검색 결과가 없습니다.</p></main>')
+                       head + '<main><h1 class="meta">‘%s’ 검색 결과가 없습니다.</h1></main>'
+                       % html.escape(query))
     items = []
     for url, title, snippet in hits:
         safe_url = html.escape(url, quote=True)
@@ -147,15 +153,19 @@ def _results(query, hits):
                    if href else "<h2>%s</h2>" % label)
         items.append('<li class="hit"><div class="url">%s</div>%s<p>%s</p></li>'
                      % (safe_url, heading, html.escape(snippet[:MAX_SNIPPET])))
+    # "N건"은 전체 건수가 아니라 이 페이지에 실린 수다 — 그렇게 읽히게 적는다.
     return _render("%s — %s" % (query, BRAND),
-                   head + '<main><p class="meta">%d건</p><ol class="hits">%s</ol></main>'
-                   % (len(items), "".join(items)))
+                   head + '<main><h1 class="meta">‘%s’ 검색 결과 %d건</h1>'
+                          '<ol class="hits">%s</ol></main>'
+                   % (html.escape(query), len(items), "".join(items)))
 
 
-def _error_page(reason):
+def _error_page(reason, query=""):
+    """질의어를 되돌려준다 — 버리면 사용자가 다시 친다.
+    autofocus 는 주지 않는다(:104 와 같은 이유로, 오류 문구를 지나쳐 끌려간다)."""
     return _render("%s — 검색할 수 없습니다" % BRAND,
-                   '<main><p class="meta">%s</p>%s</main>'
-                   % (html.escape(reason), SEARCHBOX % ("", " autofocus")))
+                   '<main><h1 class="meta">%s</h1>%s</main>'
+                   % (html.escape(reason), SEARCHBOX % (html.escape(query, quote=True), "")))
 
 
 def make_server(db_path, port=8000):
@@ -199,7 +209,8 @@ def make_server(db_path, port=8000):
         def _do_html(self, params):
             # 홈은 q 가 없는 것이 정상이라 _parse() 앞에서 가른다. _parse() 를 고치면
             # /search 의 400 계약이 바뀐다 — 검증은 재사용하되 손대지는 않는다.
-            if not (params.get("q") or [""])[0].strip():
+            typed = (params.get("q") or [""])[0].strip()
+            if not typed:
                 self._send_html(200, _home())
                 return
             try:
@@ -207,16 +218,21 @@ def make_server(db_path, port=8000):
                 hits = indexer.search(db_path, query, limit=PAGE_SIZE,
                                       offset=(page - 1) * PAGE_SIZE)
             except ValueError as exc:
-                self._send_html(400, _error_page(str(exc)))
+                self._send_html(400, _error_page(str(exc), typed))
             except Exception as exc:  # 트레이스백을 응답 본문에 싣지 않는다
                 self.log_error("검색 화면 실패: %r", exc)
-                self._send_html(500, _error_page("검색 중 오류가 났다"))
+                self._send_html(500, _error_page("검색 중 오류가 났다", typed))
             else:
                 self._send_html(200, _results(query, hits))
 
         def _send_html(self, status, body):
             self.send_response(status)
             self.send_header("Content-Type", "text/html; charset=utf-8")
+            # 이스케이프가 뚫린 날 남는 두 번째 방어선이다. JS 가 0KB 라 잃을 것이 없다.
+            self.send_header("Content-Security-Policy",
+                             "default-src 'none'; style-src 'unsafe-inline'; "
+                             "script-src 'none'; form-action 'self'; base-uri 'none'")
+            self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
@@ -226,6 +242,7 @@ def make_server(db_path, port=8000):
             body = json.dumps(payload, ensure_ascii=False).encode()
             self.send_response(status)
             self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)

@@ -370,6 +370,9 @@ XSS_PAGES = {
                               " 김치 김치 김치</p></body></html>",
     "javascript:alert(1)": "<html><head><title>김치 스킴</title></head>"
                            "<body><p>김치 김치</p></body></html>",
+    # 멀쩡한 URL 하나가 있어야 "링크가 통째로 사라지는" 변이를 잡을 수 있다.
+    "http://ok.test/kimchi": "<html><head><title>평범한 김치 문서</title></head>"
+                            "<body><p>김치 김치 김치</p></body></html>",
 }
 
 # 홈·결과 두 화면에 공통으로 요구하는 것 (concept.md:49-54 디자인 축)
@@ -377,6 +380,9 @@ def assert_page_basics(t, body):
     t.assertIn('<html lang="ko"', body, "lang 이 없으면 스크린리더가 언어를 못 고른다")
     t.assertIn('name="viewport"', body, "viewport meta 가 없으면 360px 에서 가로 스크롤이 난다")
     t.assertNotIn("<script", body.lower(), "JS 0KB 계약 위반 (concept.md:50)")
+    # 스크린리더 사용자가 화면을 훑는 첫 수단이 제목 계층이다. h2 만 있고 h1 이
+    # 없으면 결과 목록이 무엇에 속한 목록인지 말해주는 것이 아무것도 없다.
+    t.assertIn("<h1", body, "h1 이 없다 — 제목 계층이 h2 부터 시작한다")
 
 
 class TestHomePage(ServeTestCase):
@@ -438,6 +444,18 @@ class TestResultsPage(ServeTestCase):
         self.assertEqual(headers["Content-Type"], "application/json; charset=utf-8")
         self.assertTrue(body["results"])
 
+    def test_responses_carry_nosniff_and_html_carries_a_csp(self):
+        """이스케이프가 이 계획에서 가장 공들인 자리다. 두 헤더가 그 뒤를 받친다 —
+        한 줄이 뚫렸을 때 CSP 가 인라인 스크립트 실행을 막고, nosniff 는 브라우저가
+        JSON 을 HTML 로 재해석하는 경로를 닫는다. JS 0KB 라 CSP 가 잃을 것이 없다."""
+        for path in ("/", "/?q=" + urllib.parse.quote("김치"), "/search?q=" + urllib.parse.quote("김치")):
+            with self.subTest(path=path):
+                _, _, headers = self.raw(path)
+                self.assertEqual(headers.get("X-Content-Type-Options"), "nosniff", path)
+        _, _, headers = self.raw("/")
+        csp = headers.get("Content-Security-Policy", "")
+        self.assertIn("script-src 'none'", csp, "CSP 가 없다 — 이스케이프가 단일 방어선이다")
+
     def test_bad_page_param_is_400_html_without_traceback(self):
         status, body, headers = self.raw("/?q=%EA%B9%80%EC%B9%98&page=0")
         self.assertEqual(status, 400)
@@ -490,6 +508,14 @@ class TestHtmlEscaping(ServeTestCase):
         body = self.rendered("/?q=" + urllib.parse.quote("김치"))
         self.assertNotIn('"><b>', body, "URL 이 href 속성을 탈출한다")
 
+    def test_benign_url_actually_becomes_a_link(self):
+        """이 파일의 XSS 단언은 전부 assertNotIn 이다 — **_safe_href 가 무조건
+        None 을 돌려줘도 전부 통과한다.** 링크가 사라지는 변이를 아무도 못 잡는다.
+        위생 검사에는 반드시 긍정 짝이 있어야 한다(리뷰 지적)."""
+        body = self.rendered("/?q=" + urllib.parse.quote("김치"))
+        self.assertIn('href="http://ok.test/', body,
+                      "멀쩡한 http URL 이 링크가 되지 않았다 — 허용 목록이 전부를 막고 있다")
+
     def test_hostile_query_strings_do_not_500_on_the_html_path(self):
         """`/search` 에만 있던 단언을 화면 경로에도 건다.
 
@@ -503,6 +529,17 @@ class TestHtmlEscaping(ServeTestCase):
                 status, body, _ = self.raw("/?q=" + urllib.parse.quote(q))
                 self.assertEqual(status, 200, body[:200])
                 self.assertIn('name="q"', body)
+
+    def test_scheme_allowlist_needs_an_actual_scheme(self):
+        """`"http".split(":", 1)[0]` 은 `"http"` 다 — 콜론이 없는 문자열이
+        허용 목록을 통과했다. 상대 경로가 크롤 결과에 섞이면 링크가 서버 자신을
+        가리킨다. 신뢰 경계라 짧아도 닫는다(리뷰 지적)."""
+        for bad in ("http", "https", "javascript", "//evil.test/x", "/relative"):
+            with self.subTest(url=bad):
+                self.assertIsNone(serve._safe_href(bad))
+        for good in ("http://a.test/", "https://a.test/", "HTTPS://A.test/"):
+            with self.subTest(url=good):
+                self.assertEqual(serve._safe_href(good), good)
 
     def test_javascript_scheme_url_is_not_linked(self):
         """html.escape() 만으로는 못 막는다 — javascript: 에는 &, <, " 가 하나도 없다.
@@ -535,6 +572,15 @@ class TestHtmlPathFailsSafely(ServeTestCase):
         """막다른 화면을 주지 않는다 — 오류 페이지에도 검색창이 남는다."""
         _, body, _ = self.raw("/?q=%EA%B9%80%EC%B9%98")
         self.assertIn('name="q"', body)
+
+    def test_error_page_keeps_what_you_typed_and_does_not_steal_focus(self):
+        """오류 페이지가 `SEARCHBOX % ("", " autofocus")` 였다 — 두 가지가 틀렸다.
+        방금 친 질의어를 버려서 다시 치게 만들고, autofocus 가 스크린리더 사용자를
+        오류 문구를 지나쳐 입력창으로 끌고 간다(serve.py:104 주석이 결과 페이지에
+        대해 직접 금지한 것과 같은 상황이다)."""
+        _, body, _ = self.raw("/?q=%EA%B9%80%EC%B9%98")
+        self.assertIn('value="김치"', body, "오류 페이지가 입력한 질의어를 버렸다")
+        self.assertNotIn("autofocus", body, "오류 문구를 지나쳐 입력창으로 끌려간다")
 
     def test_home_still_renders_without_a_db(self):
         """홈은 색인을 읽지 않는다 — DB 가 죽어도 첫 화면은 떠야 한다."""
