@@ -1,24 +1,31 @@
 ---
-signal: GREEN
+signal: DONE
 mode: night
 plan: crawl-throughput
-phase: e2e
+phase: 완료
 step: 3/3
 attempt: 0
-iteration: 70
-night_iterations: 7
+iteration: 71
+night_iterations: 8
 night_red: 0
 night_retries: 0
 night_self_amendments: 1
-updated: 2026-08-27 (반복 70)
+updated: 2026-08-27 (반복 71)
 ctx: 81% / 200k
-rules: rules/e2e.md
+rules: rules/discover.md
 ---
 
 # 현재 상태
 
-**`crawl-throughput`(008) 개발 3스텝 + 테스트 phase 완료.** 브랜치 `loop/crawl-throughput`.
-**다음은 리뷰 phase** (`rules/review.md`) — 계획 3스텝 전체를 본다.
+**`crawl-throughput`(008) DONE.** 브랜치 `loop/crawl-throughput`. 계획·설계·개발 3스텝·
+테스트·리뷰(패스 A/B)·e2e 전부 통과. **e2e 4/4** — `docs/e2e/crawl-throughput/result.md`.
+
+**사용자 실측 초당 0.5문서 → 같은 조건 e2e 에서 초당 10.25문서.**
+`concept.md:44` 기준 5.0의 2배다. 순차(1.95/s) 대비 **5.3배**이고 간격 위반 0·중복 0.
+1,700문서에서 크롤을 죽이던 `database is locked` 도 닫았다.
+
+**다음은 discover** (`rules/discover.md`) — 다음 계획을 고른다.
+**가장 유력한 후보는 아래 "남긴 것" 1번**(쿨다운 태우기)이다.
 
 ## 스텝 3이 만든 것 — 잠긴 DB 에 크롤이 안 죽는다
 
@@ -111,7 +118,19 @@ rules: rules/e2e.md
 **리뷰어가 정상 확인한 것**: 도메인 간격 계약 성립(`exclude=busy` + `mark_sent` 의 max 단조성),
 `saved + len(inflight) < max_pages` 게이트, `seconds_until_ready() or None` 의 바쁜대기 차단
 
-## e2e phase 가 볼 것
+## e2e 결과 4/4 (반복 71)
+
+| # | 시나리오 | 결과 |
+|---|---|---|
+| 1 | 48문서를 10초 안에 | **4.68초 · 10.25/s** |
+| 2 | 도메인 간격 1초 | 12도메인 전부 0.95s 이상 · 위반 0 |
+| 3 | 같은 URL 두 번 안 받는다 | 중복 0 |
+| 4 | 워커 1로도 같은 결과 | **sha1 동일** · 24.59초 · 1.95/s |
+
+시나리오 4를 위해 `perf_crawl.py` 가 인자로 워커 수를 받게 했다(6줄).
+되돌리기 경로가 **느릴 뿐 결과가 같다**는 걸 e2e 수준에서 처음 증명했다.
+
+## 남긴 것 (다음 계획 후보 / 사람이 볼 자리)
 
 1. **계약 바꾼 곳 하나** — `test_redirect_final_url_normalized_before_store` 를
    `workers=1` 로 좁혔다. 아래 절 참조. 이게 정당한 축소인지 판정한다

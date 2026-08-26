@@ -19,9 +19,12 @@
 실행: PYTHONPATH=src python3 e2e/perf_crawl.py
 """
 import collections
+import hashlib
 import http.server
 import os
 import sys
+import urllib.parse
+import sqlite3
 import tempfile
 import threading
 import time
@@ -91,6 +94,10 @@ def page_gaps():
 
 
 def main():
+    # 인자로 워커 수를 받는다. 시나리오 4(되돌리기 경로가 같은 결과를 낸다) 를
+    # e2e 수준에서 돌리기 위한 것 — `perf_crawl.py 1` 로 실행한다. 기본은 8.
+    workers = int(sys.argv[1]) if len(sys.argv) > 1 else 8
+
     servers = []
     for _ in range(DOMAINS):
         server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
@@ -101,7 +108,11 @@ def main():
 
     started = time.monotonic()
     with tempfile.TemporaryDirectory() as tmp:
-        saved = crawl(seeds, MAX_PAGES, db_path=os.path.join(tmp, "crawl.db"))
+        db_path = os.path.join(tmp, "crawl.db")
+        saved = crawl(seeds, MAX_PAGES, db_path=db_path, workers=workers)
+        # 저장된 URL 집합. 포트가 실행마다 달라 경로만 본다 — 그래야 두 실행을 비교할 수 있다
+        paths = sorted(urllib.parse.urlsplit(u).path for (u,) in
+                       sqlite3.connect(db_path).execute("SELECT url FROM pages"))
     elapsed = time.monotonic() - started
     for server in servers:
         server.shutdown()
@@ -126,7 +137,16 @@ def main():
     dupes = [k for k, n in seen.items() if n > 1]
     assert not dupes, "같은 URL 을 두 번 요청했다: %s" % dupes[:5]
 
-    # ① 처리량
+    # 시나리오 4: 워커 수가 달라도 **결과 문서 집합이 같다**. 포트가 매번 달라 경로로 비교한다
+    print("문서집합(경로 %d개) sha1: %s"
+          % (len(paths), hashlib.sha1("\n".join(paths).encode()).hexdigest()))
+
+    # ① 처리량 — 되돌리기 경로(workers=1)는 느린 게 정상이라 이 판정에서 뺀다
+    if workers < 8:
+        print("workers=%d — 되돌리기 경로라 처리량 판정은 건너뛴다 "
+              "(간격·중복·문서집합은 위에서 그대로 봤다)" % workers)
+        return 0
+
     assert rate >= TARGET_RATE, (
         "초당 %.2f문서 — concept.md:44 기준 %.1f 미달. "
         "도메인 %d개를 순차로 받으면 1/%.1fs = 초당 %.1f문서가 상한이다"
