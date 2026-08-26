@@ -107,6 +107,85 @@ class TestIndexPages(unittest.TestCase):
         self.assertEqual([row[0] for row in self._docs()], ["http://a.test/"])
 
 
+class TestSchemaDrift(unittest.TestCase):
+    """`SCHEMA` 는 CREATE ... IF NOT EXISTS 다 — 정의를 바꿔도 옛 DB 는 옛 정의로 남는다.
+
+    그 조용한 불일치를 감지해 `docs` 를 재구축하는 경로. `docs` 는 `pages` 에서
+    파생된 색인이라 버리고 다시 만들어도 원본이 사라지지 않는다.
+    """
+
+    OLD_SCHEMA = ("CREATE VIRTUAL TABLE docs "
+                  "USING fts5(title, body, url UNINDEXED, tokenize='unicode61')")
+
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.dir.cleanup)
+        self.db_path = os.path.join(self.dir.name, "crawl.db")
+
+    def _connect(self):
+        db = sqlite3.connect(self.db_path)
+        self.addCleanup(db.close)
+        return db
+
+    def _docs_sql(self):
+        return self._connect().execute(
+            "SELECT sql FROM sqlite_master WHERE name = 'docs'").fetchone()[0]
+
+    def _seed_old_index(self, rows):
+        """옛 정의로 만든 docs 에 색인까지 끝난 DB — 코드만 새것으로 갈아탄 상황."""
+        store = Store(self.db_path)
+        for url, html in rows:
+            store.upsert(url, html, 200)
+        db = self._connect()
+        db.execute(self.OLD_SCHEMA)
+        for url, html in rows:
+            db.execute("INSERT INTO docs(title, body, url) VALUES (?, ?, ?)",
+                       ("제목", html, url))
+        db.commit()
+
+    def test_drifted_docs_table_is_rebuilt_to_current_schema(self):
+        self._seed_old_index([("http://a.test/", "<title>김치</title><p>김치찌개</p>")])
+        self.assertNotEqual(self._docs_sql(), indexer.SCHEMA.replace(" IF NOT EXISTS", ""))
+        index_pages(self.db_path)
+        self.assertEqual(self._docs_sql(),
+                         indexer.SCHEMA.replace(" IF NOT EXISTS", ""))
+
+    def test_rebuild_reindexes_every_page_and_search_works(self):
+        self._seed_old_index([
+            ("http://a.test/", "<title>김치</title><p>김치찌개 끓이기</p>"),
+            ("http://b.test/", "<title>제주</title><p>올레 길 걷기</p>"),
+        ])
+        self.assertEqual(index_pages(self.db_path), 2)  # 전량 재색인
+        db = self._connect()
+        self.assertEqual(db.execute("SELECT count(*) FROM docs").fetchone()[0], 2)
+        self.assertEqual([h[0] for h in search(self.db_path, "김치찌개")], ["http://a.test/"])
+
+    def test_rebuild_does_not_touch_pages(self):
+        # 긍정 짝 — "docs 가 재구축됐다" 만 보면 pages 가 날아가도 통과한다
+        rows = [("http://a.test/", "<title>가</title><p>첫</p>"),
+                ("http://b.test/", "<title>나</title><p>둘째</p>")]
+        self._seed_old_index(rows)
+        before = self._connect().execute(
+            "SELECT url, html FROM pages ORDER BY url").fetchall()
+        index_pages(self.db_path)
+        after = self._connect().execute(
+            "SELECT url, html FROM pages ORDER BY url").fetchall()
+        self.assertEqual(after, before)
+        self.assertEqual(len(after), 2)
+
+    def test_current_schema_is_left_alone(self):
+        # 드리프트가 없는데 재구축하면 매 실행이 전량 재색인이 된다
+        Store(self.db_path).upsert("http://a.test/", "<title>가</title><p>첫</p>", 200)
+        self.assertEqual(index_pages(self.db_path), 1)
+        self.assertEqual(index_pages(self.db_path), 0)
+
+    def test_search_on_drifted_index_fails_loudly(self):
+        # 조용히 빈 목록을 내면 "결과 0건" 과 구분되지 않는다 — 색인 전과는 다른 상황이다
+        self._seed_old_index([("http://a.test/", "<title>김치</title><p>김치찌개</p>")])
+        with self.assertRaises(indexer.StaleIndexError):
+            search(self.db_path, "김치")
+
+
 class TestSearch(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.TemporaryDirectory()

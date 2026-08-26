@@ -14,6 +14,20 @@ SCHEMA = (
     "USING fts5(title, body, url UNINDEXED, tokenize='unicode61', prefix='2 3')"
 )
 
+# sqlite_master 는 IF NOT EXISTS 를 지우고 나머지를 원문 그대로 보관한다.
+# 문자열을 따로 적지 않고 SCHEMA 에서 만든다 — 두 벌이면 언젠가 갈라진다.
+_CURRENT_SQL = SCHEMA.replace(" IF NOT EXISTS", "")
+
+
+class StaleIndexError(RuntimeError):
+    """색인이 옛 SCHEMA 로 만들어져 있다. `index_pages()` 를 돌리면 재구축된다."""
+
+
+def _docs_sql(db):
+    """`docs` 의 정의 원문. 아직 색인 전이면 None."""
+    row = db.execute("SELECT sql FROM sqlite_master WHERE name = 'docs'").fetchone()
+    return row[0] if row else None
+
 
 def index_pages(db_path):
     """미색인 pages 행을 추출·삽입하고 넣은 문서 수를 돌려준다.
@@ -24,6 +38,10 @@ def index_pages(db_path):
         raise FileNotFoundError(db_path)
     db = sqlite3.connect(db_path)
     try:
+        # SCHEMA 는 IF NOT EXISTS 라 정의를 바꿔도 옛 DB 는 옛 정의로 조용히 남는다.
+        # docs 는 pages 에서 파생된 색인이므로 버리고 다시 만들어도 원본이 사라지지 않는다.
+        if _docs_sql(db) not in (None, _CURRENT_SQL):
+            db.execute("DROP TABLE docs")
         db.execute(SCHEMA)
         # ponytail: 전표 스캔. 10만 문서에서 느려지면 pages 에 색인 상태 컬럼을 둔다
         rows = db.execute(
@@ -87,8 +105,12 @@ def search(db_path, query, limit=10, offset=0):
         return []
     db = sqlite3.connect(db_path)
     try:
-        if not db.execute("SELECT 1 FROM sqlite_master WHERE name='docs'").fetchone():
+        sql = _docs_sql(db)
+        if sql is None:
             return []  # 아직 색인 전
+        if sql != _CURRENT_SQL:
+            # 빈 목록을 내면 "결과 0건" 과 구분되지 않는다 — 원인이 다르니 소리를 낸다
+            raise StaleIndexError(db_path)
         return db.execute(
             # -1: 질의어가 실제로 매치된 열에서 스니펫을 뽑는다 (제목만 매치되는 경우)
             # rowid 로 동점을 가른다 — 같은 틀로 찍힌 페이지들은 bm25 가 정확히 같고,
