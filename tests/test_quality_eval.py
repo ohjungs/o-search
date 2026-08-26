@@ -43,6 +43,10 @@ OFF_TOPIC = "http://q.test/ko/jeju/16"
 # (질의어, 정답으로 걸 문서, 매치 수, 순위)
 RANKED_OUT = ("레시피", "http://q.test/ko/kimchi/11", 16, 15)
 
+# 오탐 기준선 (평균, 최소, 최대). 매치를 넓히면 여기가 먼저 움직인다.
+# `unicode61` 때는 평균 13.8 · 최소 11 · 최대 28 이었다 — 2-gram 을 붙인 뒤와 대조한다.
+MATCH_BASELINE = ("14.0", 11, 28)
+
 
 def _load(path):
     with open(path, encoding="utf-8") as f:
@@ -126,6 +130,18 @@ class TestVerdict(QualityEvalCase):
         self.assertIn("미검출 1", out)
         # 2~10위가 0건이면 창이 아무 판정도 가르지 않았다는 뜻이다 — 말로 적는다
         self.assertIn("창이 판정을 가른 질의 0건", out)
+
+    def test_match_count_summary_is_reported(self):
+        """포함률은 **정답이 들어왔는가**만 센다 — 무엇이 함께 딸려 왔는지는 못 잰다.
+
+        매치를 넓히는 변경(`tokenizer` 계획)은 정의상 오탐을 늘릴 수 있다.
+        그것을 재는 숫자가 없으면 "정답 4건 더 찾았다"만 보고 닫게 된다.
+        판정은 바꾸지 않는 진단 한 줄이다.
+        """
+        code, out = self.run_eval()
+        self.assertEqual(code, 0, out)
+        self.assertIn("매치 수: 평균 %s · 최소 %d · 최대 %d"
+                      % (MATCH_BASELINE[0], MATCH_BASELINE[1], MATCH_BASELINE[2]), out)
 
     def test_unmatched_answer_is_not_called_out_of_rank(self):
         """`순위 밖` 은 "밀렸다" 로 읽힌다. 아예 매치가 안 된 것과 구분해 적는다."""

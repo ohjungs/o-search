@@ -112,6 +112,18 @@ def rank_histogram(measured):
             % (top1, TOP_N, window, TOP_N, pushed, missing, window + pushed))
 
 
+def match_summary(measured):
+    """질의당 매치 수 요약. **판정은 바꾸지 않는다.**
+
+    포함률은 "정답이 들어왔는가"만 센다 — 무엇이 **함께 딸려 왔는지**는 못 잰다.
+    매치를 넓히는 변경(토크나이저·질의 재작성)은 정의상 오탐을 늘릴 수 있고,
+    이 줄이 없으면 "정답을 더 찾았다"만 보고 무엇을 잃었는지 모른 채 닫게 된다.
+    """
+    counts = [matches for _, matches, _ in measured]
+    return ("매치 수: 평균 %.1f · 최소 %d · 최대 %d — 넓힌 만큼 딸려 온 것을 본다"
+            % (sum(counts) / len(counts), min(counts), max(counts)))
+
+
 def report(measured):
     """포함률을 출력하고 종료 코드(0·1·2)를 돌려준다."""
     unmeasurable = ["G2 매치가 %d건뿐이다(≤%d) — 측정 불능: [%s] %s"
@@ -145,6 +157,7 @@ def report(measured):
         if percent < THRESHOLD:
             code = 1
     print(rank_histogram(measured))
+    print(match_summary(measured))
     for line in misses:
         print(line)
     print("합격선 %d%% — %s" % (THRESHOLD, "통과" if code == 0 else "미달"))
