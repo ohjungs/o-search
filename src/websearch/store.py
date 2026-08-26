@@ -17,7 +17,10 @@ class Store:
         parent = os.path.dirname(path)
         if path != ":memory:" and parent:
             os.makedirs(parent, exist_ok=True)
-        self._db = sqlite3.connect(path)
+        # WAL: 읽는 연결(indexer)이 쓰는 연결(crawl)을 막지 않는다. timeout: 쓰기끼리
+        # 부딪히면 죽는 대신 기다린다. 실측에서 1,700문서째에 크롤을 죽인 게 이거다
+        self._db = sqlite3.connect(path, timeout=30)
+        self._db.execute("PRAGMA journal_mode=WAL")
         self._db.execute(SCHEMA)
 
     def upsert(self, url, html, status):
