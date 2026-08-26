@@ -52,7 +52,9 @@ class QualityEvalCase(unittest.TestCase):
             ("--queries", queries, QUERIES),
         ):
             path = default
-            if data is not None:
+            if isinstance(data, str):   # 경로를 그대로 준다 (없는 파일·깨진 JSON 용)
+                path = data
+            elif data is not None:
                 path = os.path.join(self.tmp, flag[2:] + ".json")
                 with open(path, "w", encoding="utf-8") as f:
                     json.dump(data, f, ensure_ascii=False)
@@ -162,6 +164,31 @@ class TestGuards(QualityEvalCase):
         self.assertEqual(code, 2, out)
         self.assertIn("G1", out)
         self.assertNotIn("한국어 15/20", out)
+
+
+class TestUnreadableFixture(QualityEvalCase):
+    """읽을 수 없는 fixture 는 **사용법 오류(2)** 다 — 품질 미달(1)이 아니다.
+
+    계약(`design_quality-eval.md` `## 계약`)이 `2` 를 "코퍼스 결함·사용법" 으로
+    묶어둔 이유가 여기 있다. 경로를 잘못 치면 트레이스백과 함께 파이썬 기본 종료
+    코드 `1` 이 나가는데, 그 `1` 은 **"검색 품질이 80% 에 못 미친다"** 라는 뜻으로
+    이미 예약돼 있다. 스크립트를 CI 가 돌리면 오타가 품질 회귀로 보고된다.
+    """
+
+    def test_missing_file_is_usage_error_not_shortfall(self):
+        code, out = self.run_eval(corpus=os.path.join(self.tmp, "없는파일.json"))
+        self.assertEqual(code, 2, out)
+        self.assertNotIn("Traceback", out)
+        self.assertIn("없는파일.json", out)
+
+    def test_malformed_json_is_usage_error_not_shortfall(self):
+        path = os.path.join(self.tmp, "깨진.json")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write('[{"url": ')
+        code, out = self.run_eval(queries=path)
+        self.assertEqual(code, 2, out)
+        self.assertNotIn("Traceback", out)
+        self.assertIn("깨진.json", out)
 
 
 if __name__ == "__main__":

@@ -39,8 +39,12 @@ _QUALITY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "quality")
 
 
 def _load(path):
-    with open(path, encoding="utf-8") as f:
-        return json.load(f)
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError) as exc:
+        # 깨진 JSON 의 원 메시지에는 파일 이름이 없다 — 두 파일 중 어느 쪽인지 붙인다
+        raise ValueError("%s — %s" % (path, exc)) from None
 
 
 def fixture_defects(corpus, queries):
@@ -129,7 +133,13 @@ def main(argv=None):
     parser.add_argument("--queries", default=os.path.join(_QUALITY, "queries.json"))
     args = parser.parse_args(argv)
 
-    corpus, queries = _load(args.corpus), _load(args.queries)
+    try:
+        corpus, queries = _load(args.corpus), _load(args.queries)
+    except (OSError, ValueError) as exc:
+        # 경로 오타·깨진 JSON 도 종료 코드 2 다. 트레이스백은 파이썬 기본값 1 로
+        # 나가는데 그 1 은 "품질 미달" 로 이미 예약돼 있다 (`## 계약`)
+        print("fixture 를 읽을 수 없다: %s" % exc, file=sys.stderr)
+        return 2
     defects = fixture_defects(corpus, queries)
     if defects:
         for line in defects:
