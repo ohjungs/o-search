@@ -11,7 +11,7 @@ night_red: 0
 night_retries: 0
 night_self_amendments: 0
 updated: 2026-08-26 (반복 51)
-ctx: 45% / 200k
+ctx: 57% / 200k
 rules: rules/dev.md
 ---
 

@@ -91,7 +91,7 @@ def report(measured):
     """포함률을 출력하고 종료 코드(0·1·2)를 돌려준다."""
     unmeasurable = ["G2 매치가 %d건뿐이다(≤%d) — 측정 불능: [%s] %s"
                     % (matches, TOP_N, query["lang"], query["q"])
-                    for query, matches, _ in measured if matches < TOP_N]
+                    for query, matches, _ in measured if matches <= TOP_N]
     if unmeasurable:
         # 못 잰 것을 미달로 보고하면 코퍼스 결함이 품질 숫자로 둔갑한다
         for line in unmeasurable:
