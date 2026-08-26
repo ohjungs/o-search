@@ -1,57 +1,59 @@
 ---
-signal: DONE
+signal: GREEN
 mode: night
-plan: non-ascii-url
-phase: e2e
-step: 4/4
+plan: crawl-throughput
+phase: 설계
+step: 0/3
 attempt: 0
-iteration: 63
-night_iterations: 32
+iteration: 64
+night_iterations: 1
 night_red: 0
 night_retries: 0
-night_self_amendments: 1
-updated: 2026-08-26 (반복 63)
-ctx: 76% / 200k
-rules: rules/e2e.md
+night_self_amendments: 0
+updated: 2026-08-27 (반복 64)
+ctx: 82% / 200k
+rules: rules/design.md
 ---
 
 # 현재 상태
 
-**`non-ascii-url`(007) DONE.** 브랜치 `loop/non-ascii-url`.
-**199/199** · e2e 8개 + 성능 전부 종료 0 · 재시도 0 · RED 0.
+**`crawl-throughput`(008) 계획 완료.** 브랜치 `loop/crawl-throughput`.
+계획서 `docs/plan_crawl-throughput.md`. **다음은 설계 phase.**
 
-지시받은 계획이 끝났다 (`/loop-harness night <할 일>` → **준 것만 하고 정지**).
-새 계획을 탐색하지 않았다. 다음 세션은 `/loop-harness` 로 탐색부터 시작한다.
+## 문제 (사용자 실측)
 
-## 이 계획이 닫은 것
+크롤 처리량 **초당 0.5문서**. `concept.md:44` 기준은 **초당 5문서** — 10배 차이.
+원인은 `src/websearch/crawl.py:26-51` 이 한 번에 한 페이지씩 순차로 받아
+**네트워크 대기가 곧 총 소요시간**이라는 것. 같은 실측에서 1,700문서쯤
+`store.upsert` 가 `sqlite3.OperationalError: database is locked` 로 크롤을 죽였다
+(`indexer` 가 같은 DB 를 읽는 중).
 
-`https://ko.wikipedia.org/wiki/대한민국` 을 크롤하면 `UnicodeEncodeError` 가
-`fetch()` 밖으로 새 나가 **크롤 루프가 통째로 죽던 것**. 시드도 링크도 이제 산다.
+## 스텝 (3개)
 
-- `src/websearch/urls.py` 신규 — `to_ascii(url) -> str | None`.
-  **ASCII URL 은 한 글자도 안 바꾼다**(멱등) · 호스트 IDNA · 비ASCII 문자만 퍼센트 인코딩 ·
-  못 바꾸면 `None`. `urlsplit`/`urlunsplit` 재조립 없이 **원본 문자열 위에서 갈아끼운다**
-- 정규화 경계 = **URL 이 태어나는 자리** 3곳: `links.extract`(중복 제거 앞) · 시드 · 리다이렉트 최종 URL
-- `fetcher.fetch` 는 정규화하지 않는다 — **URL 오류는 즉시 status 0(재시도 없음),
-  연결·응답 오류는 재시도**
+| # | 무엇 | 의존 | 건드릴 파일 |
+|---|---|---|---|
+| 1 | 처리량 e2e 하니스 `e2e/perf_crawl.py` — 지금 코드로 **RED** 를 본다 | 없음 | e2e 신규 1 |
+| 2 | 크롤 루프 동시 fetch (스레드풀) | 1 | crawl·frontier + 테스트 2 |
+| 3 | `store` 가 잠긴 DB 에 안 죽는다 | 없음 | store + 테스트 1 |
 
-## 덤으로 닫은 것 — 계획 이전부터 있던 크래시
+임계경로 1 → 2. 스텝 3은 독립이라 순서 자유(야간이라 순차로 돈다).
 
-`http.client.InvalidURL` 이 `OSError` 그물을 빠져나가 **크롤 루프를 죽이고 있었다.**
-도달 경로 3개가 전부 평범한 HTML 이다: `href="/a b"`(공백) · 제어문자 ·
-`href="http://h:port/x"`(숫자 아닌 포트). **뿌리는 `fetch` 가 `OSError` 계열만
-잡는다는 것**이었고, `UnicodeError` 는 그 뿌리의 증상 하나였다.
+## 다음 스텝 — 설계
 
-## 다음 계획 후보 (이 계획이 남긴 것 — `digest.md`)
+**설계 트리거 3개에 걸렸다** (`rules/design.md` 1절): 공개 인터페이스 변경
+(`crawl.crawl()`·`Frontier.next()`) · 3개 이상 파일 · 대안이 갈림.
+산출물 `docs/design_crawl-throughput.md` 가 답할 것:
+① 동시성 수단 ② 프런티어·저장소 동시 접근 안전 ③ 워커 하나가 죽어도
+크롤 전체가 안 죽는 실패 격리 ④ 되돌리기 수단.
 
-- **[7] `robots.allowed()`·`delay()` 도 같은 뿌리의 구멍** — 비ASCII 호스트에서 예외를 흘린다.
-  지금은 도달 불가(URL 이 태어나는 자리에서 이미 ASCII)고
-  `test_robots_and_store_never_see_non_ascii_url` 이 그 순서를 지킨다.
-  같은 파일의 `resp.read()` 무상한 건과 **함께 열면 싸다**
-- [5] 호스트 대소문자 미정규화 (`한국.COM` → `xn--3e0b707e.COM`) — 계획 `## 안 할 것` 범위였다
-- e2e 가 **닿지 않는 경로 2개**: 비ASCII `Location:` 리다이렉트(302 를 서버에 추가해야 잰다) ·
-  `fetch` 의 `InvalidURL`(앞에서 다 ASCII 가 돼 e2e 로는 도달 불가 — 단위 테스트가 담당)
+**깨뜨릴 가정 하나**(`design.md` 3-2절): 동시성이 politeness 를 먹지 않는가 —
+`Frontier.next()` 는 팝 시점에 `_last_fetch` 를 찍는데, 응답이 1초보다 오래 걸리면
+**같은 도메인이 in-flight 인 채로 다시 팝될 수 있다.** 이게 참이면
+"도메인당 in-flight 1개" 를 설계가 명시해야 한다.
+
+- 이미 한 것: 계획서만. **소스 0줄** — 코드는 아직 아무것도 안 건드렸다
 
 ## 보류 (그대로)
 
 - `recrawl` 정책 (`concept.md:31`) · `search-ui`(경량·디자인 축 측정 명령이 아직 `없음`)
+- digest `[7]` `robots.allowed()` 비ASCII 예외 누수 — 이 계획 범위 밖
