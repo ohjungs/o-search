@@ -17,6 +17,7 @@ plan_history_<NNN>.md 를 다 열어볼 필요가 없게 하는 것이 목적이
 | plan_quality-eval | 완료 | loop/quality-eval | 4/4 | 통과(3은 반증) | 설계 있음(006). ko 85% · en 90%. **이 코퍼스는 랭킹을 못 잰다**(recall@1 == recall@10) |
 | plan_non-ascii-url | 완료 | loop/non-ascii-url | 4/4 | 통과 | 설계 있음(007). 한글 URL 이 `UnicodeEncodeError` 로 크롤 루프를 죽이던 것을 닫음 |
 | plan_crawl-throughput | 완료 | loop/crawl-throughput | 3/3 | 통과(4/4) | 설계 있음(008). **0.5/s → 10.25/s**(기준 5.0). 잠긴 DB 크래시도 닫음. 리뷰 패스 A 5건 중 3건 반영·1건 보류(쿨다운 태우기) |
+| plan_search-ui | **진행** | loop/search-ui | 0/2 | — | 기점 `loop/crawl-throughput`. 디자인 축을 처음 연다 — 측정 명령부터 만든다(`e2e/design_check.py`). 반복 72 의 "사람 판단 대기"는 오독이었다(`status.md`) |
 
 ## 사양 분할 (docs/specs/concept.md → 계획 순서)
 
