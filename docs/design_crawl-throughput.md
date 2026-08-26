@@ -57,8 +57,9 @@
 3. **도메인당 in-flight 1개.** 메인 루프가 in-flight 도메인 집합을 들고
    `frontier.next(exclude=busy)` 로만 팝한다. **동시성이 politeness 를 먹는 것을 막는
    유일한 장치다** — 테스트로 박는다
-4. **워커는 공유 상태를 만지지 않는다.** 워커 함수는 `(url, robots_cache)` 를 받아
-   `(allowed: bool, delay: float|None, FetchResult)` 를 돌려준다.
+4. **워커는 공유 상태를 만지지 않는다.** 워커 함수는 `(url, robots_cache, now)` 를 받아
+   `(allowed: bool, delay: float|None, sent_at: float|None, FetchResult|None)` 를 돌려준다.
+   (`sent_at` 은 **계약 9가 뒤에 넣은 것** — 아래 "설계를 고친 곳" 참조)
    `Store`·`Frontier` 접근 금지 — SQLite 커넥션은 계속 메인 스레드 전용이다
    (`RobotsCache` 는 예외: base 당 캐시 dict 쓰기뿐이고, 계약 3 때문에
    같은 base 를 두 워커가 동시에 받을 수 없다)
@@ -70,7 +71,10 @@
 7. **`max_pages` 상한** — `saved + len(inflight) < max_pages` 일 때만 새로 던진다.
    반환값이 `max_pages` 를 넘지 않는다(오늘의 계약 유지)
 8. **놀지 않는다** — 던질 URL 이 없으면 `futures.wait(..., FIRST_COMPLETED,
-   timeout=frontier.seconds_until_ready())` 로 기다린다. in-flight 가 0일 때만 `sleep`
+   timeout=frontier.seconds_until_ready(exclude=busy))` 로 기다린다.
+   in-flight 가 0일 때만 `sleep`.
+   **`exclude=` 는 구현 중에 필요해졌다** — 떠 있는 도메인은 대기시간이 0으로 읽혀,
+   그 0에 가리면 정작 쿨다운이 풀리는 도메인을 놓치고 완료만 기다린다
 9. **간격 시계는 팝이 아니라 발신에서 시작한다** — `Frontier.mark_sent(domain, at)` 신설.
    워커가 `fetcher.fetch()` **직전** 시각을 재서 결과 튜플에 실어 보내고, 메인이
    그것으로 `_last_fetch[domain]` 을 덮는다. 워커는 여전히 프런티어를 안 만진다(계약 4).

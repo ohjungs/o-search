@@ -61,7 +61,22 @@ rules: rules/review.md
   주입한 `itertools.count` 시계다. 실시간 단언은 `e2e/perf_crawl.py` 안에만 있다
 - **③ 격리** — 새 테스트는 `tempfile` + `addCleanup`, 커넥션은 만든 스레드가 소유
 
-## 리뷰 phase 가 볼 것
+## 리뷰 phase 진행 중 (반복 69)
+
+**패스 B(대조) 끝. 패스 A(백지)는 별도 세션에 넘겼고 결과 대기 중이다.**
+
+- **패스 B 자동 수정 2건 적용** — 설계 문서가 코드와 어긋나 있었다
+  (`rules/review.md` 렌즈 1 "코드만 바꾸고 문서를 남겨두면 반려"):
+  계약 4의 워커 반환 튜플이 3개로 적혀 있었다(실제 4개 — 계약 9가 `sent_at` 을 넣었다) ·
+  계약 8에 `seconds_until_ready(exclude=)` 의 `exclude` 가 빠져 있었다
+- **렌즈 4 (과거 리뷰 지적 재발) — 없다.** `04b9fb6` 이 `frontier.py` 에 박은
+  "간격은 늘어나는 방향으로만" 을 `mark_sent` 도 지킨다(`max(...)`, `frontier.py:82`).
+  `set_delay` 는 안 건드렸다
+- **렌즈 3 (과거 결정 되살리기) — 없다.** `store.py` 이력에 WAL·timeout 을
+  의도적으로 피한 커밋이 없다(`git log -S journal_mode` 무소득). digest 에도 없다
+- **렌즈 5 (주석 지침 위반) — 없다.** 수정한 파일에 "이렇게 하지 마라" 류 지침 없음
+
+## 리뷰 phase 가 볼 것 (패스 A 에게 맡긴 것 + 아침에 사람이 볼 것)
 
 1. **계약 바꾼 곳 하나** — `test_redirect_final_url_normalized_before_store` 를
    `workers=1` 로 좁혔다. 아래 절 참조. 이게 정당한 축소인지 판정한다
