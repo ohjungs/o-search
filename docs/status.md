@@ -2,24 +2,24 @@
 signal: GREEN
 mode: night
 plan: non-ascii-url
-phase: 리뷰
+phase: e2e
 step: 4/4
 attempt: 0
-iteration: 61
-night_iterations: 30
+iteration: 62
+night_iterations: 31
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
-updated: 2026-08-26 (반복 61)
-ctx: 76% / 200k
-rules: rules/review.md
+updated: 2026-08-26 (반복 62)
+ctx: 74% / 200k
+rules: rules/e2e.md
 ---
 
 # 현재 상태
 
-**`non-ascii-url` 테스트 phase 완료. 다음은 리뷰 phase.**
-브랜치 `loop/non-ascii-url`. **196/196**(`expected failures=1`). e2e·성능 7개 전부 종료 0 —
-`quality_eval` ko 85%·en 90%(기준선 동일), `perf_search` p95 **6.80ms**(기준선 7.06ms).
+**`non-ascii-url` 리뷰 phase 완료. 다음은 e2e phase — 마지막 스텝.**
+브랜치 `loop/non-ascii-url`. **199/199**(`expectedFailure` 0). e2e·성능 7개 전부 종료 0 —
+`quality_eval` ko 85%·en 90%, `perf_search` p95 **6.79ms**. 소스 누적 21줄 + 새 모듈.
 
 ## 설계가 정한 것 — `docs/design_non-ascii-url.md`
 
@@ -43,25 +43,26 @@ rules: rules/review.md
 3. ~~`fetcher` 최후 방어선~~ **완료** (359c5f4, 소스 2줄 · 테스트 2건)
 4. `e2e/non_ascii_e2e.py` (e2e phase) — 로컬 서버, 시나리오 3개 (계획 `## e2e 시나리오`)
 
-## 리뷰가 처리할 것 — 테스트 phase 가 넘긴 것
+## 리뷰가 한 것 (0bdc98c) — 후보 7건 중 3건 적용
 
-1. **[9] `fetch` 가 `http.client.InvalidURL` 을 흘린다 → 크롤 루프가 죽는다.**
-   `HTTPException` 이라 `OSError` 그물에도 `UnicodeError` 에도 안 걸린다.
-   도달 경로 3개가 전부 **평범한 HTML 에서 `links.extract` 가 만들어낸다**:
-   `href="/a b"`(공백) · 제어문자 · `href="http://h:port/x"`(숫자 아닌 포트).
-   **이 계획이 닫은 버그와 정확히 같은 부류다.** 고침은 한 줄이고 테스트 phase 가
-   실제로 적용해 196/196 을 확인한 뒤 되돌렸다. `tests/test_fetcher.py` 에
-   `@unittest.expectedFailure` 로 재현이 남아 있다
-2. **[6] `to_ascii` 가 비ASCII URL 의 끝 `?`·`#` 를 삼킨다.** `http://h/가?` →
-   `.../%EA%B0%80` 인데 `http://h/%EA%B0%80?` 는 그대로 → 계획 목표("두 표기가 1행")가
-   이 조합에서만 샌다
-3. **[7] `robots.allowed()` 도 비ASCII 호스트에서 예외를 흘린다** — `crawl` 경로에서는
-   도달 불가(URL 이 태어나는 자리에서 이미 ASCII). 설계가 `robots.py` 를 범위 밖에 뒀고,
-   순서가 밀리면 되살아나는 것은 새 계약 테스트가 막는다. **보류 후보**
-4. [5] 호스트 대소문자 미정규화 · [4] 비ASCII userinfo 무테스트 — 계획 `## 안 할 것` 범위
-5. 개발 중 나온 것: **정규화 못 하는 시드를 조용히 버린다**(`crawl.py:33` 에 stderr 선례 있음)
+1. **[100] `fetch` 의 그물을 뿌리에 맞춰 다시 그었다.** `http.client` 예외는 전부
+   `HTTPException` 이라 `OSError` 그물에 안 걸린다 — `UnicodeError` 는 그 뿌리의 증상
+   하나였다. **URL 이 틀린 것**(`UnicodeError`·`InvalidURL`)은 즉시 0·재시도 없음,
+   **연결·응답이 틀린 것**(`HTTPException` 포함)은 재시도로 나눴다
+2. **[90] `to_ascii` 에서 `urlsplit`/`urlunsplit` 재조립을 버렸다** — 원본 문자열 위에서
+   호스트와 비ASCII 문자만 갈아끼운다. 빈 `?`·`#` 를 삼키던 것이 사라지고 **코드가 줄었다**
+3. **[85] 못 바꾸는 시드를 stderr 로 알린다** (`crawl.py:33` 간격 경고와 같은 형식).
+   링크에서 나온 것은 조용히 버리는 그대로
 
-**뿌리가 하나다**: `fetcher`·`robots` 둘 다 "`OSError` 계열만 잡는다".
+**설계 문서를 먼저 고치고 코드를 밀었다**(`rules/design.md` 6절) —
+`design_non-ascii-url.md` 에 `## 설계를 고친 곳 (리뷰 phase)` 절이 있다.
+
+## 남은 것 — e2e phase
+
+`e2e/non_ascii_e2e.py` 신규. 계획 `## e2e 시나리오` 3개:
+① 한글 경로 링크를 따라가는 크롤이 **중단되지 않고** 저장된다
+② 한글 표기와 퍼센트 표기 두 링크 → `pages` **1행**
+③ 정규화 불가 URL 을 시드에 섞으면 그것만 건너뛰고 나머지는 전부 수집
 
 ## 보류 (계획 밖 — 손대지 않는다)
 
