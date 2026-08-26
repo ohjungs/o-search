@@ -1,0 +1,168 @@
+"""러너 `e2e/quality_eval.py` 의 종료 코드가 갈리는 지점을 고정한다.
+
+`docs/design_quality-eval.md` `## 계약` — `0` 두 언어 모두 ≥80% / `1` 미달 /
+`2` 코퍼스 결함(가드 G1·G2·G3). **미달과 결함이 섞이면 숫자를 믿을 수 없다.**
+
+fixture 를 통째로 만들지 않고 **동결된 진짜 fixture 를 최소한만 비틀어** 각 갈림길을
+때린다 — 손으로 쓴 64문서를 테스트가 다시 흉내 내면 그게 또 하나의 코퍼스가 된다.
+"""
+
+import json
+import os
+import subprocess
+import sys
+import tempfile
+import unittest
+
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+RUNNER = os.path.join(_ROOT, "e2e", "quality_eval.py")
+CORPUS = os.path.join(_ROOT, "e2e", "quality", "corpus.json")
+QUERIES = os.path.join(_ROOT, "e2e", "quality", "queries.json")
+
+# 실측 기준선(커밋 d014408): ko 17/20 · en 18/20. 미포함은 설계가 예고한
+# 토크나이저 실패뿐이다(복합어 `보관법`·`일출봉`, 띄어쓰기 `올레길`, `loaf`, `tuples`).
+KO_BASELINE = 17
+
+# 다른 토픽 문서라 어떤 kimchi 질의어도 들어 있지 않다 → 정답으로 걸면 반드시 미포함.
+# 코퍼스에는 실재하므로 G1 은 통과한다 — 여기서 재는 것은 **품질 미달**이다.
+OFF_TOPIC = "http://q.test/ko/jeju/16"
+
+# `레시피` 는 16건이 매치되고 이 문서가 **16위**다 — 매치는 됐지만 상위 10 밖이다.
+# 상위 10 이라는 자름선 자체를 여기서만 잰다 (`OFF_TOPIC` 은 아예 매치되지 않아
+# `순위 밖` 으로 빠지므로 11위와 10위를 가르지 못한다).
+RANKED_LAST = ("레시피", "http://q.test/ko/kimchi/11", 16)
+
+
+def _load(path):
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+class QualityEvalCase(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.tmp = tmp.name
+
+    def run_eval(self, corpus=None, queries=None):
+        """러너를 돌려 (종료 코드, stdout+stderr). 인자는 비틀어 쓸 객체."""
+        args = [sys.executable, RUNNER]
+        for flag, data, default in (
+            ("--corpus", corpus, CORPUS),
+            ("--queries", queries, QUERIES),
+        ):
+            path = default
+            if data is not None:
+                path = os.path.join(self.tmp, flag[2:] + ".json")
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(data, f, ensure_ascii=False)
+            args += [flag, path]
+        done = subprocess.run(args, capture_output=True, text=True, timeout=120)
+        return done.returncode, done.stdout + done.stderr
+
+    def misdirect(self, count):
+        """ko 정답 `count` 개를 틀린 문서로 돌린 질의 셋. 첫 하나는 16위 문서로.
+
+        정답을 옮길 뿐 코퍼스도 질의어도 그대로라 매치 수가 변하지 않는다 —
+        G2 를 건드리지 않고 **포함률만** 떨어뜨린다.
+        """
+        queries = _load(QUERIES)
+        moved = 0
+        for query in queries:
+            if moved >= count or query["lang"] != "ko":
+                continue
+            if query["q"] == RANKED_LAST[0]:
+                query["answer"] = RANKED_LAST[1]
+            elif query["answer"] != OFF_TOPIC:
+                query["answer"] = OFF_TOPIC
+            else:
+                continue
+            moved += 1
+        self.assertEqual(moved, count)
+        return queries
+
+
+class TestVerdict(QualityEvalCase):
+    def test_frozen_fixture_passes(self):
+        code, out = self.run_eval()
+        self.assertEqual(code, 0, out)
+        self.assertIn("한국어 %d/20 (85%%)" % KO_BASELINE, out)
+        self.assertIn("영어 18/20 (90%)", out)
+
+    def test_exactly_80_percent_passes(self):
+        # 경계는 통과 쪽이다 — `concept.md:22` 가 "80% 이상"이다
+        code, out = self.run_eval(queries=self.misdirect(KO_BASELINE - 16))
+        self.assertEqual(code, 0, out)
+        self.assertIn("한국어 16/20 (80%)", out)
+        # **매치는 됐지만 상위 10 밖**이면 미포함이다. 순위를 숫자로 알려준다
+        self.assertIn("[ko] %s → %s (매치 %d건, 순위 %d)"
+                      % (RANKED_LAST[0], RANKED_LAST[1], RANKED_LAST[2],
+                         RANKED_LAST[2]), out)
+
+    def test_below_80_percent_fails_with_1(self):
+        code, out = self.run_eval(queries=self.misdirect(KO_BASELINE - 15))
+        self.assertEqual(code, 1, out)
+        self.assertIn("한국어 15/20 (75%)", out)
+        # 미스는 어느 질의가 왜 틀렸는지까지 나와야 다음 반복이 원인을 본다
+        self.assertIn("[ko] 레시피", out)
+
+
+class TestGuards(QualityEvalCase):
+    """가드는 전부 종료 코드 2 다 — 품질 미달(1)과 섞이면 숫자의 의미가 사라진다."""
+
+    def test_g1_answer_not_in_corpus(self):
+        queries = _load(QUERIES)
+        queries[0]["answer"] = "http://q.test/ko/kimchi/99"
+        code, out = self.run_eval(queries=queries)
+        self.assertEqual(code, 2, out)
+        self.assertIn("G1", out)
+        self.assertIn("http://q.test/ko/kimchi/99", out)
+
+    def test_g2_no_match_at_all_is_unmeasurable(self):
+        # limit=10 이라 매치가 10건 이하면 정답은 구조적으로 늘 상위 10 안이다
+        queries = _load(QUERIES)
+        queries[0]["q"] = "코퍼스에없는어휘"
+        code, out = self.run_eval(queries=queries)
+        self.assertEqual(code, 2, out)
+        self.assertIn("G2", out)
+        self.assertIn("코퍼스에없는어휘", out)
+
+    def test_g2_fires_at_exactly_10_matches(self):
+        """경계는 **가드 쪽**이다 — 10건이면 정답은 이미 구조적으로 상위 10 안이다.
+
+        `레시피` 를 16문서 중 6문서에서 다른 말로 바꿔 매치를 정확히 10건으로 만든다.
+        11건이면 통과, 10건이면 측정 불능 — 이 한 건 차이가 이 설계의 핵심이다.
+        """
+        term, answer, matches = RANKED_LAST
+        corpus = _load(CORPUS)
+        stripped = 0
+        for doc in corpus:
+            if stripped >= matches - 10 or doc["url"] == answer:
+                continue
+            if term in doc["title"] + doc["body"]:
+                doc["title"] = doc["title"].replace(term, "조리법")
+                doc["body"] = doc["body"].replace(term, "조리법")
+                stripped += 1
+        self.assertEqual(stripped, matches - 10)
+        code, out = self.run_eval(corpus=corpus)
+        self.assertEqual(code, 2, out)
+        self.assertIn("G2 매치가 10건뿐이다", out)
+        self.assertIn(term, out)
+
+    def test_g3_query_count_not_20_per_language(self):
+        code, out = self.run_eval(queries=_load(QUERIES)[:-1])
+        self.assertEqual(code, 2, out)
+        self.assertIn("G3", out)
+
+    def test_guard_beats_quality_verdict(self):
+        # 미달과 결함이 동시에 있으면 **결함이 이긴다** — 못 재는 것을 미달로 보고하지 않는다
+        queries = self.misdirect(KO_BASELINE - 15)
+        queries[0]["answer"] = "http://q.test/ko/kimchi/99"
+        code, out = self.run_eval(queries=queries)
+        self.assertEqual(code, 2, out)
+        self.assertIn("G1", out)
+        self.assertNotIn("한국어 15/20", out)
+
+
+if __name__ == "__main__":
+    unittest.main()
