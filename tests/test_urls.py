@@ -114,6 +114,21 @@ class TestDomainKey(unittest.TestCase):
         self.assertEqual(urls.domain_key("https://b.test:443/1"),
                          urls.domain_key("https://b.test/2"))
 
+    def test_a_leading_zero_does_not_make_a_new_server(self):
+        # RFC 3986 3.2.3 은 `port = *DIGIT` 이라 `080` 은 `80` 이다. 문자열로 비교하면
+        # `'080' != '80'` 이라 같은 서버가 두 칸이 되고 **간격 계약이 샌다**
+        self.assertEqual(urls.domain_key("http://b.test:080/1"), "b.test")
+        self.assertEqual(urls.domain_key("https://b.test:0443/1"), "b.test")
+        # 대조군 — 앞자리 0 만 뗀다. 기본이 아닌 포트는 자기 칸에 그대로 남는다
+        self.assertEqual(urls.domain_key("http://b.test:08080/1"), "b.test:8080")
+        self.assertNotEqual(urls.domain_key("http://b.test:08080/1"),
+                            urls.domain_key("http://b.test/1"))
+
+    def test_an_unreadable_port_keeps_its_own_lane(self):
+        # 대조군 — 숫자가 아니면 앞자리 0 도 안 뗀다. 017 의 계약("읽을 수 없는 포트는
+        # 자기 칸에 그대로")이 살아 있는지 본다
+        self.assertEqual(urls.domain_key("http://b.test:0abc/1"), "b.test:0abc")
+
     def test_the_other_scheme_default_port_is_not_stripped(self):
         # `http://h:443` 은 443 이 http 의 기본이 아니라 **다른 서버**다.
         # 스킴을 안 보고 포트만 지우면 여기서 갈린다
@@ -204,6 +219,39 @@ class TestNormalize(unittest.TestCase):
         # `/p/` 와 `/p` 는 **다른 문서일 수 있다** — 어느 쪽으로도 밀지 않는다
         self.assertEqual(urls.normalize("http://a.test/p"), "http://a.test/p")
         self.assertEqual(urls.normalize("http://a.test/p/"), "http://a.test/p/")
+
+    def test_dot_segments_fold(self):
+        # RFC 3986 6.2.2.3. **절대 href 는 `urljoin` 이 안 접는다**(실측) — 그래서
+        # `/a/../p` 와 `/p` 가 두 문서로 남아 있었다
+        self.assertEqual(urls.normalize("http://a.test/a/../p"), "http://a.test/p")
+        # `.` 는 자기만 사라진다 — 앞 세그먼트를 데려가는 것은 `..` 뿐이다
+        self.assertEqual(urls.normalize("http://a.test/a/./p"), "http://a.test/a/p")
+        self.assertEqual(urls.normalize("http://a.test/a/b/../c"), "http://a.test/a/c")
+
+    def test_dots_do_not_climb_above_the_root(self):
+        # 5.2.4 는 루트 위의 `..` 를 버린다. 안 버리면 경로가 `p` 가 돼 스킴 뒤가 깨진다
+        self.assertEqual(urls.normalize("http://a.test/../p"), "http://a.test/p")
+        self.assertEqual(urls.normalize("http://a.test/a/../../p"), "http://a.test/p")
+
+    def test_a_trailing_dot_segment_leaves_a_directory(self):
+        # `/a/..` 가 가리키는 것은 디렉터리라 `/` 로 끝난다 — 여기서 슬래시를 잃으면
+        # 위 `끝 슬래시는 안 건드린다` 계약을 이 경로에서만 어기는 것이 된다
+        self.assertEqual(urls.normalize("http://a.test/a/.."), "http://a.test/")
+        self.assertEqual(urls.normalize("http://a.test/a/b/."), "http://a.test/a/b/")
+
+    def test_only_dot_segments_fold_nothing_else(self):
+        # **대조군.** `posixpath.normpath` 를 쓰면 여기가 빨개진다 — 빈 세그먼트를 접고
+        # 끝 슬래시를 뗀다. 둘 다 RFC 가 동치로 인정하지 않는 것이라 다른 문서를 합친다
+        for u in ("http://a.test/a//b", "http://a.test/a/b/", "http://a.test//x",
+                  "http://a.test/a/%2E%2E/p", "http://a.test/..a/p"):
+            with self.subTest(url=u):
+                self.assertEqual(urls.normalize(u), u)
+
+    def test_dots_in_the_query_are_not_a_path(self):
+        # 대조군 — 질의 문자열의 `..` 는 세그먼트가 아니다. 여기까지 접으면 서버가
+        # 받는 질의가 달라진다(요청 내용 변경)
+        self.assertEqual(urls.normalize("http://a.test/p?f=a/../b"),
+                         "http://a.test/p?f=a/../b")
 
     def test_percent_triplets_uppercase(self):
         self.assertEqual(urls.normalize("http://a.test/%ea%b0%80"),

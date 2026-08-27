@@ -54,9 +54,34 @@ def domain_key(url):
     host, colon, port = netloc.rpartition(":")
     if not colon or "]" in port:  # 포트가 아니라 IPv6 리터럴의 콜론이다
         host, port = netloc, ""
+    if port.isdigit():  # `port = *DIGIT` (3.2.3) 이라 `:080` 은 `:80` 이다
+        port = port.lstrip("0")  # 숫자가 아니면 안 건드린다 — 위 계약대로 자기 칸에 둔다
     if port == _DEFAULT_PORT.get(scheme):
         port = ""
     return host.lower() + (":" + port if port else "")
+
+
+def _fold_dots(path):
+    """RFC 3986 5.2.4 `remove_dot_segments`. `/a/../p` → `/p`.
+
+    **`.` 과 `..` 만 접는다.** 빈 세그먼트(`/a//b`)와 끝 슬래시(`/a/b/`)는 RFC 가
+    동치로 인정하지 않는 것이라 그대로 둔다 — 그래서 `posixpath.normpath` 를 안 쓴다
+    (저것은 셋 다 접어 `/a//b` 와 `/a/b` 를 합친다. **다른 문서를 하나로 만드는 쪽의
+    실수**다). `urljoin` 왕복도 안 쓴다 — `urlunsplit` 이 빈 질의 `?` 를 삼킨다.
+
+    퍼센트 인코딩된 점(`%2E%2E`)은 세그먼트가 아니다. unreserved 디코딩(6.2.2.2)은
+    이 저장소가 안 하는 별개 규칙이라 여기서도 안 한다.
+    """
+    out = []
+    for seg in path.split("/"):
+        if seg == "..":
+            if len(out) > 1:  # 루트 위로는 안 올라간다. `/../p` 는 `/p` 다
+                out.pop()
+        elif seg != ".":
+            out.append(seg)
+    if path.rpartition("/")[2] in (".", ".."):
+        out.append("")  # `/a/..` 가 가리키는 것은 디렉터리라 `/` 로 끝난다
+    return "/".join(out) or "/"
 
 
 def _quoted(text):
@@ -104,11 +129,13 @@ def normalize(url):
     색인한다. `to_ascii` 위에 얹는다: 저쪽 계약("ASCII 는 한 글자도 안 바꾼다")은
     멱등성과 이중 인코딩 방지를 한 규칙으로 사는 것이라 건드리지 않는다.
 
-    거는 것은 **RFC 3986 6.2.2 가 의미를 안 바꾼다고 인정하는 것 중 다섯**이다:
+    거는 것은 **RFC 3986 6.2.2 가 의미를 안 바꾼다고 인정하는 것 중 여섯**이다:
     스킴 소문자 · 호스트 소문자 · 스킴별 기본 포트 제거 · 빈 경로 `/` ·
-    퍼센트 3연 hex 대문자. **점 세그먼트(6.2.2.3)는 안 접는다** — 상대 링크는
-    `urljoin` 이 이미 접고, 절대 href 의 `/a/../p` 는 실물에서 중복원으로 잰 적이
-    없다(digest 후보). 여기에 **프래그먼트 제거**를 더한다: `#` 뒤는 요청에 안 실려
+    퍼센트 3연 hex 대문자 · **점 세그먼트 접기(6.2.2.3, `_fold_dots`)**.
+    점 세그먼트는 018 이 "상대 링크는 `urljoin` 이 접는다" 며 미뤘던 것인데
+    **절대 href 는 `urljoin` 도 안 접는다**(실측: `urljoin('http://a.com/',
+    'http://b.com/a/../p')` 는 그대로다) — 019 가 닫았다.
+    여기에 **프래그먼트 제거**를 더한다: `#` 뒤는 요청에 안 실려
     서버가 주는 문서가 같다. `links` 만 자기 앞에서 떼고 있었는데, 시드와 리다이렉트
     최종 URL 은 그쪽을 안 지난다 — 열쇠를 정하는 자리는 여기 하나다.
     앞의 셋은 `domain_key` 가 이미 하므로 그것을 부른다
@@ -134,5 +161,7 @@ def normalize(url):
     userinfo, at, _ = netloc.rpartition("@")
     if not tail.startswith("/"):  # 빈 경로는 `/` 와 동치 (6.2.3). `?`·`#` 앞에도 붙는다
         tail = "/" + tail
+    path, mark, query = tail.partition("?")  # 질의의 `..` 는 세그먼트가 아니다
+    tail = _fold_dots(path) + mark + query
     return "%s://%s%s%s" % (scheme, userinfo + at, domain_key(url),
                             _TRIPLET.sub(lambda m: m.group().upper(), tail))
