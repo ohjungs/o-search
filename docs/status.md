@@ -1,64 +1,59 @@
 ---
-signal: DONE
-plan: null
+signal: GREEN
+plan: deadline
 mode: night
-phase: null
-step: null
+phase: 설계
+step: 0/4
 attempt: 0
-iteration: 122
-night_iterations: 5
+iteration: 123
+night_iterations: 6
 night_red: 0
 night_retries: 0
-updated: 2026-08-28 (반복 122 · 019 DONE)
-ctx: 68% / 200k
-stopped: 컨텍스트 여유 부족 — 새 계획 한 벌을 못 돈다. RED 아님
+updated: 2026-08-27 23:55 (반복 123 · 020 계획)
+ctx: 41% / 200k
 rules: 1411a37
 ---
 
 # 현재 상태
 
-**계획 019 `normalize-gaps` DONE.** 브랜치 `loop/normalize-gaps` (기점 `33e531d`).
-계획서는 `docs/plan_history_017.md`, e2e 결과는 `docs/e2e/normalize-gaps/result.md`.
+**계획 020 `deadline` 착수.** 브랜치 `loop/deadline` (기점 `aeb2eeb`).
+계획서는 `docs/plan_deadline.md`.
 
-018 이 못 접은 두 표기를 닫았다. `urls._fold_dots` 가 RFC 3986 5.2.4 를 세그먼트
-단위로 돌아 `.`·`..` 만 접고, `domain_key` 는 숫자 포트의 앞자리 0 만 뗀다.
+크롤에 **총 시간 예산**이 없다. `MAX_DELAY = 30` 이 막는 것은 요청 하나당 대기뿐이라
+페이지 수만큼 곱해진다 — digest `[4]` 가 "무인 크롤이 밤을 통째로 쓴다" 로 남긴 것.
 
-**실측.** 단위 **388건 OK**. e2e **14종 전부 rc=0** — `url_normalize_e2e` 는 표기
-**10개가 문서 6개**로 접히고(날 `/a/../p` 수신 **0회**), 대조군 `/a//b`·`/a/b` 는
-**둘 다 따로** 받는다. 같은 서버 페이지 간격 최소 **1.005초**.
-변이가 서로를 안 대신한다 — 단위 8종(M1~M8) · e2e 3종이 각각 **다른 단언**에서만 죽는다.
+**착수 전 실측 (`aeb2eeb`, 로컬 실서버).**
+1. 한 도메인 `Crawl-delay: 2` · 5페이지 → 총 **8.05초**, 간격 2.01 · 2.01 · 2.01 · 2.00.
+   `crawl()` 시그니처와 CLI 플래그(`--max`·`--workers`) 어디에도 시간 인자가 **0개**다.
+   `--max 100` + `Crawl-delay: 30` 이면 99 × 30 = **2970초(약 50분)**.
+2. 같은 뿌리의 둘째 증상 — SIGINT 를 **0.51초**에 보냈는데 종료는 **6.07초**
+   (대기 **5.56초**). `before_send` 가 재시도 앞에서 3초씩 두 번 자고
+   `with ThreadPoolExecutor` 가 그것을 기다린다. 상한 30 이면 같은 자리가 60초다.
 
-**두 번 배웠다.**
-1. **`posixpath.normpath` 를 골랐다면 018 의 계약이 뒷문으로 깨졌을 것이다.** 변이
-   M4 가 018 의 기존 테스트를 죽여 그것을 **내 주장이 아니라 남의 테스트로** 확인했다
-2. **백지 리뷰가 019 자신의 회귀를 잡았다.** `lstrip("0")` 이 `:0` 을 통째로 먹어
-   빈 포트가 되고, **빈 포트는 기본 포트**라 요청이 80 번으로 나갔다. "앞자리만 뗀다"
-   는 이름이 그 경우를 가렸다 (`or "0"` 로 닫음)
+## 다음 행동
 
-**새로 기록한 것 1건** (고치지 않음): `links.extract` 의 `urljoin` 이 RFC 보다 넓게
-접어(루트 표식까지 pop) 상대 href 와 절대 href 가 **231/3905 모양에서 갈린다** —
-`digest.md` 새 `[4]`. 019 가 갈리던 범위를 이 한 부류로 줄였지만 안 닫았다.
-기존 DB 재키잉은 아래 판단 필요 1번이다.
+**설계** — `rules/design.md` 로 `docs/design_deadline.md` 를 쓴다.
+트리거 둘에 걸렸다: ① 공개 인터페이스 변경(`crawl()` 시그니처 + CLI 플래그)
+② 대안이 갈린다.
 
-## 판단 필요 — 사람에게 묻는다 (018 에서 이월, 019 가 안 건드린다)
+**설계가 정할 것은 하나다.** A(메인 스레드만 예산을 본다)는 `time.sleep` 이음매를
+안 건드리지만 위 실측 2(Ctrl-C 5.56초)를 **못 닫는다**. B(`threading.Event` 를
+워커까지)는 둘 다 닫지만 `time.sleep` 을 `Event.wait` 로 바꿔야 하고,
+`tests/test_crawl.py` 가 **9곳**에서 `mock.patch("websearch.crawl.time.sleep")` 으로
+가짜 시계를 흘려보낸다 — 그 이음매가 사라지면 간격을 재는 테스트가 통째로 죽는다.
+**깨진 테스트를 지우는 답은 없다.** 옮길 축이 있으면 B, 없으면 A 로 가고
+그때는 문제 2 를 `digest.md` 에 닫지 않은 채로 남긴다.
 
-1. **기존 `data/crawl.db` 의 옛 열쇠 행 통합** — 마이그레이션이라 야간 금지.
-   019 도 **새 DB 에서만 목적을 달성한다**
-2. **URL 자격증명이 `pages.url` PK 이자 검색 결과 링크** — 보안 경계, 줄 수 무관 야간 금지
-3. `loop/*` 브랜치 **머지 판단** (17개가 한 줄로 쌓여 있다 — 실측 `git branch --list`)
-4. **`project.md` 의 기본 브랜치 `main` 이 저장소에 없다.** 실제 이력은 `loop/*` 팁이
-   줄줄이 달린 한 줄이다. 019 는 관례를 따르고 문서를 안 고쳤다 — 사람이 정한다
+## 설계
 
-## 다음에 할 일 — 계획 없음
+`docs/design_deadline.md` — **아직 없다.** 이번 phase 의 산출물이다.
 
-`docs/digest.md ## 다음 계획 후보` 와 `## 판단 필요` 에서 고른다. 지금 위에 있는 것:
-recrawl(`store.has` 상태 불문 스킵 + indexer 증분 + 옛 열쇠 행 통합 — 셋이 같은
-수술이다) · `--deadline`(Ctrl-C 최악 대기와 총 크롤 시간 예산이 같은 답이다) ·
-`X-Robots-Tag` 헤더 · `links` 의 `urljoin` 이 RFC 보다 넓게 접는 것(digest 새 `[4]`,
-231/3905 모양 — 실물에서 본 적 없어 비용 대비가 안 맞는다고 적어 뒀다).
+## 정지 사유
+
+없음.
 
 ## 열지 않는 것
 
-recrawl(`store.has` 상태 불문 스킵 · indexer 증분) · `X-Robots-Tag` · `loop/*` 병합 ·
-옛 표기로 저장된 기존 행의 마이그레이션 · 끝 슬래시 일반화 · 퍼센트 디코딩 ·
-`to_ascii` 수정 · userinfo 처리
+recrawl(`store.has` 상태 불문 스킵 · indexer 증분) · `X-Robots-Tag` ·
+`fetcher` 재시도 구조 변경(digest `[high]` — 옳지만 크다) · `loop/*` 병합 ·
+옛 열쇠 행 통합과 URL userinfo(승인 대기 `[high]` 둘).

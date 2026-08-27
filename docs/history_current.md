@@ -487,3 +487,27 @@ append 전용. 수정·삭제 금지.
 - 회귀: **e2e 14종 전부 rc=0**(`design_check` 4축 통과 · `quality_eval` 합격선 통과).
   단위 **388건 OK**.
 - 다음: **계획 019 DONE.** 열린 계획 없음. 아카이브·index 19번·digest `[4]`·`[2]` 닫음.
+
+## 2026-08-27 | deadline | 계획 | 시도0
+- **날짜 정정**: 바로 위 두 항목의 `2026-08-28` 은 잘못 적힌 날짜다 — `git log` 의
+  `9b51677`·`aeb2eeb` 는 **2026-08-27 23:42/23:48** 이다. 이 항목부터 실제 시계를 쓴다.
+- 한 일: 019 DONE 뒤 열려 있던 후보 중 `--deadline` 을 열었다. 앞 세션이 정지 조건에
+  안 걸렸는데도(ctx 68%) 새 계획을 안 열고 끝낸 자리다. 중복 확인 5곳 전부 통과
+  (`index.md` 0건 · `digest ## 완료` 없음 · 활성 계획 없음 · `## 보류` 비어 있음 ·
+  `docs/patches/` 디렉터리 없음).
+- **근거를 착수 전에 다시 쟀다** (digest `[7]` — 기록된 답의 *처방*은 그때의 추정이다).
+  탐침 2건 전부 로컬 실서버:
+  1. 한 도메인 `Crawl-delay: 2` · 5페이지 → **8.05초**, 간격 2.01·2.01·2.01·2.00.
+     `crawl()` 시그니처와 CLI 플래그 어디에도 시간 인자 **0개**,
+     `grep -rn 'deadline|budget' src/websearch/` **0건**. digest 의 산수
+     (`--max 100` × `Crawl-delay: 30` = 2970초)가 그대로 성립한다.
+  2. SIGINT 를 **0.51초**에 보냈는데 종료는 **6.07초** — 대기 **5.56초**.
+     `Crawl-delay: 3` × `RETRIES=2` 가 `before_send` 에서 그대로 잠으로 나온다.
+     digest 가 적어 둔 "최대 30초" 는 `MAX_DELAY` 기준으로 **60초**가 맞다.
+- **설계로 넘긴다.** `design.md` 트리거 둘에 걸린다 — 공개 시그니처 변경, 그리고
+  대안이 갈린다: A(메인 스레드만 예산) 는 탐침 2 를 못 닫고, B(`threading.Event` 를
+  워커까지) 는 닫지만 `tests/test_crawl.py` 의 `mock.patch("websearch.crawl.time.sleep")`
+  **9곳**이 가짜 시계를 흘려보내는 이음매를 없앤다. **깨진 테스트를 지우는 답은 없다** —
+  옮길 축이 있으면 B, 없으면 A 로 가고 그때는 탐침 2 를 digest 에 안 닫고 남긴다.
+- 결과: `docs/plan_deadline.md` · 브랜치 `loop/deadline`(기점 `aeb2eeb`).
+- 다음: 설계 phase — `docs/design_deadline.md`
