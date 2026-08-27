@@ -2,15 +2,15 @@
 signal: GREEN
 mode: night
 plan: crawl-politeness
-phase: 설계
-step: 1/6
+phase: 개발
+step: 2/6
 attempt: 0
-iteration: 90
-night_iterations: 1
+iteration: 91
+night_iterations: 2
 night_red: 0
 night_retries: 0
-updated: 2026-08-27 (반복 90 · 계획 phase 완료)
-ctx: 52% / 200k
+updated: 2026-08-27 (반복 91 · 설계 phase 완료)
+ctx: 57% / 200k
 rules: 1411a37
 ---
 
@@ -27,10 +27,20 @@ rules: 1411a37
 
 계획 `docs/plan_crawl-politeness.md`. 브랜치 `loop/crawl-politeness` (기점 `cdbd842`).
 
-**설계로 넘긴다** — 3개 파일 · 공개 인터페이스 변경 · 대안이 갈린다 · 동시화 계약 4
-(메인 스레드는 네트워크를 안 한다)를 건드린다. 다음 반복이 `docs/design_crawl-politeness.md`
-를 쓴다. 어떤 대안을 고르든 **선언된 간격보다 빠르게 때리지 않는다. 모르면 느린 쪽.
-성능과 부딪히면 성능을 깎는다** (`docs/specs/concept.md` 갈림길 1순위 = 크롤 윤리).
+**설계 완료** → `docs/design_crawl-politeness.md`. 고른 것:
+
+- A: `RobotsCache.known_delay(url)` — **네트워크를 안 타는** 캐시 조회. 예외 가지가 이것으로
+  이미 아는 간격을 건다. 성공·예외 두 가지가 같은 `_apply_delay()` 를 지난다.
+  (버린 것: 워커가 안 죽게 만들기 = 스택을 잃는다 / 발신 전 선반영 = 동시화 계약 4 를 깬다)
+- B: `fetcher.fetch(url, before_send=None, retries=RETRIES)` — 발신 훅. 간격을 알고 재우고
+  **재는** 것은 전부 `crawl._fetch_one` 의 클로저다. `sent_at` 은 **마지막 발신**이 된다.
+  (버린 것: fetcher 안 sleep = 마지막 발신을 **추정**하게 된다 / 재시도를 프런티어로
+  승격 = 옳지만 크다 → `digest.md` 후보)
+- 간격이 `MAX_DELAY` 를 넘으면 **재시도를 안 한다**(`retries=0`). 깎아서 때리지 않는다
+- **새 주입 지점을 안 만든다** — 기존 `mock.patch("websearch.crawl.time.sleep")` 패턴을 쓴다.
+  `crawl()`·`_fetch_one()` 시그니처 불변
+
+다음 반복은 스텝 2(문제 A). **테스트를 먼저 쓴다** — 고정할 것 6쌍이 설계 5절에 있다.
 
 ## 다음 계획 (이번 계획이 DONE 되면)
 
