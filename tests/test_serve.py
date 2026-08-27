@@ -592,10 +592,6 @@ class TestHtmlPathFailsSafely(ServeTestCase):
         self.assertIn('name="q"', body)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class TestPagerUi(ServeTestCase):
     """결과 화면의 이전/다음. **주소창을 편집할 줄 아는 사람만 11번째 결과를 보면 안 된다.**
 
@@ -682,13 +678,24 @@ class TestPagerUi(ServeTestCase):
         XSS 를 막는 것은 `urlencode` 쪽이다(`"`·`<` 를 퍼센트 인코딩한다). 이 단언이
         지키는 것은 **그 뒤에 남는 구분자 하나**뿐이고, 그래서 그렇게만 적는다.
         """
-        _, body, _ = self.raw(self.Q)
-        self.assertIn('href="/?q=%EA%B9%80%EC%B9%98&amp;page=2"', body)
+        self.assertIn("&amp;page=2", self.pager(self.Q)["next"])
 
-    def test_pager_link_escapes_the_query(self):
-        """질의는 사용자가 쓴 문자열이다 — 이동 링크도 이스케이프를 지나야 한다."""
-        _, body, _ = self.raw("/?q=" + urllib.parse.quote('"><script>x</script>'))
-        self.assertNotIn("<script>", body)
+    def test_pager_link_survives_a_hostile_query(self):
+        """질의는 사용자가 쓴 문자열이다 — 이동 링크도 안전하게 나가야 한다.
+
+        **HTTP 로는 이 자리를 못 잰다.** 특수문자 질의는 히트가 0건이라 `_pager` 가
+        조기 반환하고 이동 블록 자체가 안 그려진다 — 화면을 훑는 단언은 검색창의
+        이스케이프를 보고 통과할 뿐 이동 링크는 재지 않는다. 그리는 함수를 직접 부른다.
+        """
+        payload = '"><script>x</script>'
+        nav = serve._pager(payload, page=2, has_next=True)
+        self.assertNotIn("<script>", nav)
+        hrefs = re.findall(r'href="([^"]*)"', nav)
+        self.assertEqual(len(hrefs), 2, "잴 링크가 없다 — 공집합 위에서 참이 됐다")
+        for href in hrefs:
+            # 긍정 짝: 막기만 한 게 아니라 질의가 **살아서** 돌아와야 한다
+            q = urllib.parse.parse_qs(urllib.parse.urlsplit(html_unescape(href)).query)
+            self.assertEqual(q["q"], [payload], "이동 링크가 질의를 망가뜨렸다: %s" % href)
 
 
 class TestPagerBoundaries(ServeTestCase):
@@ -735,3 +742,7 @@ class TestPagerAbsent(ServeTestCase):
         _, body, _ = self.raw("/?q=%EA%B9%80%EC%B9%98")
         self.assertNotIn("<nav", body, "갈 곳이 없는데 이동 블록을 그렸다")
         self.assertIn('<li class="hit">', body, "결과 자체는 나와야 한다")
+
+
+if __name__ == "__main__":
+    unittest.main()

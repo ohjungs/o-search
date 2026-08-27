@@ -2,15 +2,15 @@
 signal: GREEN
 mode: night
 plan: pagination-ui
-phase: 리뷰
-step: 4/5
+phase: e2e
+step: 5/5
 attempt: 0
-iteration: 99
-night_iterations: 10
+iteration: 100
+night_iterations: 11
 night_red: 0
 night_retries: 0
-updated: 2026-08-27 (반복 99 · 테스트 phase 완료)
-ctx: 55% / 200k
+updated: 2026-08-27 (반복 100 · 리뷰 완료)
+ctx: 62% / 200k
 rules: 1411a37
 ---
 
@@ -72,7 +72,27 @@ rules: 1411a37
 - 변이 2종 추가 확인: 가드 삭제→1건 · `>`→`>=`→2건. **누적 9종 전부 잡힌다**
 - 회귀: `design_check` 0 · `search_api_e2e` 0 · `perf_search` 0
 
-다음 반복은 **스텝 4(리뷰)** — `rules/review.md` 대로 **별도 백지 세션**에 넘긴다.
+**스텝 4(리뷰) 완료.** 별도 백지 세션(diff + 소스만, `docs/` 차단)이 지적 4건을 냈고
+**critical 1건이 진짜였다.**
+
+- **[critical] 새 테스트 15건이 `if __name__ == "__main__"` 뒤에 있었다.**
+  `python3 tests/test_serve.py` 로 직접 돌리면 `unittest.main()` 이 그 자리에서
+  `SystemExit` 을 내고 아래 클래스는 **정의조차 안 된다** — 55건 OK, `discover` 로는
+  70건 OK. **양쪽 다 초록이라 사라졌다는 신호가 없다.** 가드를 파일 끝으로 옮겼다
+- **[major] 이스케이프 테스트가 이동 링크를 안 재고 있었다.** 특수문자 질의는 히트가
+  0건이라 `_pager` 가 조기 반환한다 — 통과시킨 것은 검색창의 이스케이프였고 그건 이미
+  다른 테스트가 덮는다. `_pager()` 를 직접 부르고, 링크 2개를 세어 **공집합 위에서 참**이
+  되는 것을 막고, 질의가 살아 돌아오는지를 긍정 짝으로 붙였다
+- **[minor] `limit=PAGE_SIZE + 1` 이 두 벌이었다.** `_has_next` 는 한 벌로 뽑고 그
+  판정의 **전제**는 두 벌로 뒀다 — 한쪽만 되돌아가면 조용히 `False` 가 난다.
+  `_page_hits(db_path, query, page)` 한 벌로 합쳤다
+- **[minor] `has_next` 가 두 사실을 합친다** — 009 부터 있던 공개 계약이라 안 건드리고
+  digest `[4]` 로 넘겼다(사용자 확인 후보)
+- 변이 3종 추가 확인: href 이스케이프 삭제→1건 · `urlencode` 생략→1건 · `+1` 삭제→5건.
+  **`urlencode` 생략은 고치기 전 테스트로는 안 잡혔다** — major 지적이 실물이었다는 증거
+- 311건 통과(직접 실행도 **70건**) · `design_check` 0 · `search_api` 0 · p95 9.22ms
+
+다음 반복은 **스텝 5(e2e)** — `docs/e2e/pagination-ui/result.md`.
 
 ## 직전 계획 (014 `crawl-politeness`) — DONE
 

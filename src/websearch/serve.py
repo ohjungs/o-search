@@ -137,6 +137,17 @@ def _home():
                    % (BRAND, SEARCHBOX % ("", " autofocus")))
 
 
+def _page_hits(db_path, query, page):
+    """한 페이지 + **탐침 한 줄**. `_has_next` 의 전제가 여기 붙어 있다.
+
+    `+ 1` 을 호출부에 두 벌로 두면 한쪽만 `PAGE_SIZE` 로 되돌아갔을 때 `_has_next` 가
+    예외 없이 조용히 `False` 를 내고 그 경로의 다음 링크가 영영 사라진다. 판정과 그
+    판정을 성립시키는 질의는 같은 자리에 있어야 한다.
+    """
+    return indexer.search(db_path, query, limit=PAGE_SIZE + 1,
+                          offset=(page - 1) * PAGE_SIZE)
+
+
 def _has_next(hits, page):
     """다음 페이지가 있는가. **JSON 화면 두 경로가 나눠 쓰는 한 벌이다.**
 
@@ -233,10 +244,9 @@ def make_server(db_path, port=8000):
                 return
             try:
                 query, page = _parse(urllib.parse.parse_qs(parts.query))
-                # limit+1 로 받아 11번째 유무로 has_next 를 판정한다 — 개수 질의는
-                # 두 번째 전수 질의라 p95 에 그대로 얹힌다 (design_search-api.md 계약)
-                hits = indexer.search(db_path, query, limit=PAGE_SIZE + 1,
-                                      offset=(page - 1) * PAGE_SIZE)
+                # 탐침 한 줄로 has_next 를 판정한다 — 개수 질의는 두 번째 전수 질의라
+                # p95 에 그대로 얹힌다 (design_search-api.md 계약)
+                hits = _page_hits(db_path, query, page)
             except ValueError as exc:
                 self._send(400, {"error": str(exc)})
             except Exception as exc:  # 트레이스백을 응답 본문에 싣지 않는다
@@ -262,10 +272,7 @@ def make_server(db_path, port=8000):
                 return
             try:
                 query, page = _parse(params)
-                # JSON 경로와 **같은 수법**으로 받는다 — 11번째의 유무가 곧 has_next 다.
-                # 개수 질의를 더하지 않으므로 p95 에 얹히는 것이 없다
-                hits = indexer.search(db_path, query, limit=PAGE_SIZE + 1,
-                                      offset=(page - 1) * PAGE_SIZE)
+                hits = _page_hits(db_path, query, page)  # JSON 경로와 **같은 한 벌**
             except ValueError as exc:
                 self._send_html(400, _error_page(str(exc), typed))
             except Exception as exc:  # 트레이스백을 응답 본문에 싣지 않는다
