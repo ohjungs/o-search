@@ -55,7 +55,10 @@ def _fetch_one(url, robots, now):
     # 안 보내는 것이 맞고, 요구대로 자면 워커가 하루를 붙든다 (설계 2-4절)
     result = fetcher.fetch(url, before_send=before_send,
                            retries=fetcher.RETRIES if interval <= MAX_DELAY else 0)
-    return True, requested, sends[-1] if sends else now(), result
+    # 훅이 한 번도 안 불렸으면 **요청이 나가지 않았다**(`Request()` 생성 실패).
+    # 그때 시각을 지어내면 나가지도 않은 요청으로 도메인 쿨다운을 태운다
+    # (cooldown-burn 계약 1). `mark_sent` 는 None 을 받으면 시계를 안 건다
+    return True, requested, sends[-1] if sends else None, result
 
 
 def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None,
@@ -65,7 +68,9 @@ def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None,
     `workers=1` 이면 요청이 하나씩 떠서 순차 루프와 같은 순서로 돈다 — 되돌리기 수단이다.
 
     **Ctrl-C 가 즉시 안 먹는다.** `ThreadPoolExecutor` 는 나갈 때 떠 있는 요청을 기다려서,
-    최악 `fetcher` 타임아웃 10초 × 재시도만큼 늦는다(동시화 전에는 즉시 끊겼다).
+    최악 `fetcher` 타임아웃 10초 × 재시도 **+ 재시도 사이의 간격 대기**(도메인 간격 ×
+    재시도, 상한 30초)만큼 늦는다 — 요청 하나당 최악 90초다(동시화 전에는 즉시 끊겼다).
+    재시도 대기는 예의를 위해 치르기로 한 값이다(docs/design_crawl-politeness.md 2-3절).
     저장은 upsert 마다 커밋이라 **유실은 없다**. `cancel_futures` 로는 안 줄어든다 —
     취소되는 건 대기 중인 작업뿐인데 여기선 제출한 것이 곧 실행 중인 것이다.
     """

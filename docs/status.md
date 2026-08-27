@@ -2,15 +2,15 @@
 signal: GREEN
 mode: night
 plan: crawl-politeness
-phase: 리뷰
-step: 5/6
+phase: e2e
+step: 6/6
 attempt: 0
-iteration: 94
-night_iterations: 5
+iteration: 95
+night_iterations: 6
 night_red: 0
 night_retries: 0
-updated: 2026-08-27 (반복 94 · 테스트 phase 완료)
-ctx: 55% / 200k
+updated: 2026-08-27 (반복 95 · 리뷰 phase 완료)
+ctx: 50% / 200k
 rules: 1411a37
 ---
 
@@ -67,8 +67,29 @@ to 5.0`, digest 가 적은 실측과 같은 값이다. 그 뒤 `RobotsCache.know
 - 갭 ②: `Crawl-delay: 0` 이 하한 1초를 뚫는지 (재시도 경로에서도)
 - 변이 3종 추가 확인: 예외 가지 `_apply_delay` 삭제→2 · `<=`→`<`→1 · 하한 제거→2
 
-다음 반복은 **스텝 5(리뷰)** — `rules/review.md` 대로 **별도 백지 세션**에 넘긴다.
-`docs/` 는 주지 않는다. diff 와 소스만 본다.
+**스텝 5(리뷰) 완료.** `rules/review.md` 대로 **별도 백지 세션**(diff + 소스만, `docs/` 차단)에
+넘겼다. 지적 4건, 자기 점수 86/100. 그 세션이 294건 통과와 `crawl_delay_e2e` 를 독립으로 재확인했다.
+
+- **채택 ②** `_fetch_one` 이 훅을 한 번도 안 불렀는데 `now()` 를 발신 시각으로 지어냈다 —
+  `Request()` 생성 실패(스킴 없는 시드)는 **요청이 안 나간 것**이라 쿨다운을 태우면 안 된다.
+  `sends[-1] if sends else None` 로 고쳤다(`mark_sent` 는 None 을 무시한다).
+  robots 차단 가지·`fetcher` docstring 과 같은 계약이 됐다
+- **채택 ③** `crawl()` docstring 의 Ctrl-C 문단이 낡았다 — 재시도 사이 간격 대기가 붙어
+  최악이 요청당 30 → **90초**다. 값을 치른 이유(윤리 > 성능)까지 적었다
+- **보류 ①** → `digest.md`. 재시도 간격은 **스킴별 robots** 만 본다. 탐침: `http` 만
+  `Crawl-delay: 5` 를 걸면 URL 사이는 5.000초로 맞는데 `https` URL 의 **재시도는 1.000초**
+  간격이다. 절대 조건 위반은 아니다(https 쪽 선언이 없다). 고치려면 `Frontier.interval()`
+  공개 읽기가 필요해 **이번 계획 파일 목록 밖** — 계획의 "하지 않을 것" 이라 미뤘다
+- **버림 ④**(확신 60, 통과선 미달) — 다만 그 아래 관찰은 값이 있어 `digest.md` 에 적었다
+
+**리뷰가 내 테스트에서 거짓 초록 8건을 꺼냈다.** ②를 고치자 7건이 깨졌는데 **제품이 아니라
+가짜가 틀렸다** — 시그니처가 바뀔 때 가짜 10곳에 `**kw` 를 붙였고, 그 가짜들은 `before_send`
+를 받고 **안 불렀다**. 진짜 fetcher 는 요청이 나가면 반드시 부른다. 즉 그 위에서 잰 간격은
+전부 크롤러가 "요청이 안 나갔다" 로 읽는 상태에서 나온 값이었다. 얇은 래퍼 `sending()` 하나로
+훅 계약까지 흉내내게 고쳤다. **294 → 296건 전부 통과**(새 테스트 `TestNoSendMeansNoClock`,
+부정·긍정 짝). 변이 2종 확인: `now()` 로 되돌리기 → 1건, `sending()` 이 훅을 안 부르게 → 8건.
+
+다음 반복은 **스텝 6(e2e)** — `docs/e2e/crawl-politeness/result.md` 시나리오 4개.
 
 ## 다음 계획 (이번 계획이 DONE 되면)
 

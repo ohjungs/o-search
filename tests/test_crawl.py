@@ -13,6 +13,20 @@ from websearch.fetcher import FetchResult
 
 REDIRECTS = {"http://a.com/moved": "http://b.com/"}
 
+
+def sending(fn):
+    """가짜 fetch 를 **진짜처럼 발신 훅을 부르는** 가짜로 감싼다.
+
+    `**kw` 로 `before_send` 를 조용히 삼키는 가짜는 있을 수 없는 fetcher 다 — 진짜는
+    요청이 나갈 때 반드시 훅을 부른다. 안 부르면 크롤러는 "요청이 안 나갔다" 로 읽어
+    도메인 시계를 걸지 않고, 그 위에서 잰 간격은 전부 거짓이 된다.
+    """
+    def fetch(url, before_send=None, **kw):
+        if before_send is not None:
+            before_send()
+        return fn(url)
+    return fetch
+
 PAGES = {
     "http://a.com/": '<a href="/1">1</a><a href="/blocked">b</a><a href="http://b.com/">b</a>',
     "http://a.com/1": '<a href="/">home</a>',
@@ -41,7 +55,7 @@ class TestCrawl(unittest.TestCase):
         clock = {"t": 1000.0}
         with mock.patch("websearch.crawl.fetcher") as mf, \
              mock.patch("websearch.crawl.time.sleep") as ms:
-            mf.fetch = fake_fetch
+            mf.fetch = sending(fake_fetch)
             mf.RETRIES = fetcher.RETRIES
             # 가짜 시계: sleep 이 시간을 흘려보낸다 — 실제 대기 없이 결정적
             ms.side_effect = lambda s: clock.__setitem__("t", clock["t"] + s)
@@ -161,7 +175,7 @@ class TestNonAsciiUrl(unittest.TestCase):
         tick = itertools.count(1000.0, 10.0)  # 매 조회마다 시간이 흘러 간격이 걸리지 않는다
         with mock.patch("websearch.crawl.fetcher") as mf, \
              mock.patch("websearch.crawl.Store", recording_store):
-            mf.fetch = fake_fetch
+            mf.fetch = sending(fake_fetch)
             mf.RETRIES = fetcher.RETRIES
             n = crawl.crawl(["http://a.com/가"], 10, db_path=":memory:",
                             robots_cache=robots, now=lambda: next(tick))
@@ -229,7 +243,7 @@ class TestConcurrency(unittest.TestCase):
         if now is not None:
             kwargs["now"] = now
         with mock.patch("websearch.crawl.fetcher") as mf:
-            mf.fetch = fetch
+            mf.fetch = sending(fetch)
             mf.RETRIES = fetcher.RETRIES
             return crawl.crawl(list(seeds), max_pages, **kwargs)
 
@@ -350,7 +364,7 @@ class TestCooldownBurn(unittest.TestCase):
              mock.patch("websearch.crawl.Store", skipping_store), \
              mock.patch("websearch.crawl.time.sleep") as ms, \
              mock.patch("sys.stderr", io.StringIO()):
-            mf.fetch = fake_fetch
+            mf.fetch = sending(fake_fetch)
             mf.RETRIES = fetcher.RETRIES
             ms.side_effect = lambda s: clock.__setitem__("t", clock["t"] + s)
             crawl.crawl(seeds, 10, db_path=":memory:", robots_cache=robots,
@@ -400,7 +414,7 @@ class TestCooldownBurn(unittest.TestCase):
         with mock.patch("websearch.crawl.fetcher") as mf, \
              mock.patch("websearch.crawl.time.sleep") as ms, \
              mock.patch("sys.stderr", io.StringIO()):
-            mf.fetch = fake_fetch
+            mf.fetch = sending(fake_fetch)
             mf.RETRIES = fetcher.RETRIES
             ms.side_effect = lambda s: clock.__setitem__("t", clock["t"] + s)
             crawl.crawl(["http://hub.test/"], 10, db_path=":memory:",
@@ -475,7 +489,7 @@ class TestDelaySurvivesWorkerException(unittest.TestCase):
         with mock.patch("websearch.crawl.fetcher") as mf, \
              mock.patch("websearch.crawl.time.sleep") as ms, \
              mock.patch("sys.stderr", io.StringIO()):
-            mf.fetch = fake_fetch
+            mf.fetch = sending(fake_fetch)
             mf.RETRIES = fetcher.RETRIES
             ms.side_effect = lambda s: clock.__setitem__("t", clock["t"] + s)
             crawl.crawl(["http://hub.test/"], 10, db_path=":memory:",
@@ -618,7 +632,7 @@ class TestUnkeepableDelayFoundOnFailure(unittest.TestCase):
         with mock.patch("websearch.crawl.fetcher") as mf, \
              mock.patch("websearch.crawl.time.sleep") as ms, \
              mock.patch("sys.stderr", err):
-            mf.fetch = fake_fetch
+            mf.fetch = sending(fake_fetch)
             mf.RETRIES = fetcher.RETRIES
             ms.side_effect = lambda s: clock.__setitem__("t", clock["t"] + s)
             crawl.crawl(["http://hub.test/"], 10, db_path=":memory:",
@@ -636,3 +650,28 @@ class TestUnkeepableDelayFoundOnFailure(unittest.TestCase):
         sent, err = self._run(5.0)
         self.assertEqual(len(sent), 2)
         self.assertNotIn("더 가지 않는다", err)
+
+
+class TestNoSendMeansNoClock(unittest.TestCase):
+    """훅이 한 번도 안 불렸으면 도메인 시계를 걸지 않는다 (cooldown-burn 계약 1).
+
+    `fetcher.fetch` 는 `Request()` 생성이 실패하면 훅을 못 부르고 돌아온다. 그때
+    `_fetch_one` 이 "지금" 을 발신 시각으로 지어내면 **나가지도 않은 요청**이
+    쿨다운을 태운다 — robots 가 막은 URL 을 안 태우는 것과 같은 이유다.
+    """
+
+    def test_unsendable_url_reports_no_send_time(self):
+        allowed, _, sent_at, result = crawl._fetch_one(
+            "example.com", FakeRobots(), now=lambda: 1000.0)  # 스킴이 없다
+        self.assertTrue(allowed)
+        self.assertEqual(result, FetchResult(0, None, None))
+        self.assertIsNone(sent_at, "나가지도 않은 요청에 발신 시각이 붙었다")
+
+    def test_a_real_send_does_report_a_time(self):
+        # 긍정 짝. 위 테스트만 있으면 "언제나 None" 으로도 통과한다
+        with mock.patch("websearch.crawl.fetcher") as mf:
+            mf.RETRIES = fetcher.RETRIES
+            mf.fetch = sending(lambda url: FetchResult(200, "hi", url))
+            _, _, sent_at, _ = crawl._fetch_one(
+                "http://a.test/", FakeRobots(), now=lambda: 1000.0)
+        self.assertEqual(sent_at, 1000.0)
