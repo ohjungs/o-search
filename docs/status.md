@@ -1,20 +1,44 @@
 ---
 signal: GREEN
-plan: null
+plan: domain-key
 mode: night
-phase: null
-step: -
+phase: 계획
+step: 1/5
 attempt: 0
-iteration: 106
-night_iterations: 17
+iteration: 107
+night_iterations: 18
 night_red: 0
 night_retries: 0
-updated: 2026-08-27 (반복 106 · 계획 016 DONE)
+updated: 2026-08-27 (반복 107 · 계획 017 열었다)
 ctx: 50% / 200k
 rules: 1411a37
 ---
 
 # 현재 상태
+
+**계획 017 `domain-key` 를 열었다.** 계획 `docs/plan_domain-key.md`.
+브랜치 `loop/domain-key` (기점 `677ed3e`).
+
+**문제: 대소문자 하나로 예의 계약이 통째로 빠져나간다.** 도메인 열쇠를 날 `netloc`
+으로 쓰는데(`frontier.py:57` · `crawl.py:108`) 호스트는 대소문자 무관이고 `:80`/`:443`
+은 기본 포트다. **진짜 크롤 루프 실측**: `Crawl-delay: 3` 을 선언한 서버가 `LOCALHOST`
+와 `localhost` 링크 탓에 **2밀리초 안에 요청 4개**를 받는다(같은 `robots.txt` 를 두 번
+받는 것 포함). 대조군(`localhost` 두 번째 페이지)은 3.009초로 제대로 기다린다.
+**절대 조건 위반이다** — 그리고 014·016 이 닫은 구멍들과 달리 **아무것도 잘못되지
+않아도** 열린다. 사이트가 자기 링크에 호스트를 대문자로 쓰기만 하면 된다.
+
+**설계 phase 를 안 연다.** `design.md` 4절 트리거 넷 어디에도 안 걸린다 — `Frontier`
+와 `RobotsCache` 는 내부 계약이고, 방향은 **더 기다리는 쪽**이라 절대 조건과 같은 편이다.
+
+**함정 하나** (계획 2절에 실측 근거 있음): `urlsplit(...).port` 는 `:abc`·`:99999` 에
+**ValueError 를 던진다.** 지금 `netloc` 은 절대 안 던지므로 그것을 쓰면 **없던 크래시
+경로**가 생긴다 — 문자열로만 가른다. 기대 6이 그것을 잰다.
+
+**하지 않을 것:** URL 정규화(digest `[5]`). `http://A.com/` 과 `http://a.com/` 은 이
+계획 뒤에도 두 번 수집되고 두 행으로 저장된다 — 여기서 고치는 것은 **예의 계약이 세는
+단위** 하나뿐이다. URL 동일성은 크롤 **양**의 문제고 이것은 크롤 **윤리**의 문제다.
+
+## 직전 계획 (016 `retry-interval`) — DONE
 
 **계획 016 `retry-interval` DONE.** 브랜치 `loop/retry-interval` (기점 `5e7b525`).
 계획서는 `docs/plan_history_014.md`, e2e 기록은 `docs/e2e/retry-interval/result.md`,
@@ -47,14 +71,9 @@ e2e 실측 **5.01초**(고치기 전 1.0) · 대조군 **1.00초**로 남의 값
 
 ## 다음 계획 (후보)
 
-1. **도메인 열쇠 정규화** (digest `[high]`, 016 리뷰 #1) — `Frontier.add` 와 `crawl` 이
-   열쇠를 날 `netloc` 으로 쓴다(`frontier.py:57` · `crawl.py:108`). 호스트는 대소문자
-   무관이고 `:80`/`:443` 은 기본 포트라 `http://b.test` · `http://B.test` ·
-   `http://b.test:80` 은 **같은 서버**인데 칸이 셋으로 갈린다. 탐침 실측: 셋이
-   **t=1000.000 에 전부 발신, 간격 0.000초**이고 선언한 `Crawl-delay: 5` 가 나머지
-   둘에는 안 걸린다. **절대 조건 쪽이라 1순위.** 처방은 열쇠를 만드는 한 곳짜리 헬퍼
-   (호스트 소문자화 + 스킴별 기본 포트 제거) — 착수 때 다시 잰다(digest `[7]`)
-2. `docs/index.md` 사양 분할의 남은 항목 — 색인 규모는 운영 측정 대기
+1. `docs/index.md` 사양 분할의 남은 항목 — 색인 규모는 운영 측정 대기
+2. `Ctrl-C` 최악 대기(digest `[4]`·`[6]`) — 진짜 답은 `--deadline` 이거나 워커가
+   주기적으로 보는 중단 플래그다. 016 이 최악값을 키웠다
 
 ## 열지 않는 것
 
