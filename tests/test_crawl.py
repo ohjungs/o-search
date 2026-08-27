@@ -219,6 +219,34 @@ class TestCrawlDelayWiring(unittest.TestCase):
                                       delays={"b.com": 3600})
         self.assertEqual(fetched, ["http://b.com/"])
 
+    def test_one_server_paces_itself_across_spellings(self):
+        """대소문자만 다른 링크가 선언한 간격을 나눠 갖는가 — **계획 017 의 RED.**
+
+        `_gaps` 가 이미 `domain_key` 로 묶으므로 이 테스트가 재는 것은 열쇠가 아니라
+        **크롤 루프**다: 제출 직전(`crawl.py`)·큐(`frontier.add`)·robots 캐시가
+        전부 같은 자를 써야 두 요청이 5초 떨어진다. 고치기 전 실측은 0.000초.
+        """
+        self._run(["http://a.com/", "http://A.com/"], max_pages=10,
+                  delays={"a.com": 5.0})
+        gaps = self._gaps("a.com")
+        self.assertTrue(gaps, "a.com 을 두 번 이상 요청해야 잴 수 있다")
+        spellings = {url for url, _ in self.fetch_times if "A.com" in url}
+        self.assertTrue(spellings, "대문자 표기가 아예 안 나갔다 — 재려던 상황이 없다")
+        for gap in gaps:
+            self.assertGreaterEqual(gap, 5.0, "%s" % (self.fetch_times,))
+
+    def test_a_real_port_is_not_paced_by_the_other_server(self):
+        # **대조군.** 위가 통과하는 가장 게으른 방법은 전부 한 칸에 넣는 것이다 —
+        # 그러면 남의 5초가 여기 걸린다. `perf_crawl` 의 도메인 12개가 이쪽이다
+        pages = {"http://b.com:8001/": "x", "http://b.com:8002/": "y"}
+        with mock.patch.dict(PAGES, pages):
+            self._run(["http://b.com:8001/", "http://b.com:8002/"], max_pages=10,
+                      delays={"b.com:8001": 5.0})
+        times = [t for _, t in self.fetch_times]
+        self.assertEqual(len(times), 2, "%s" % (self.fetch_times,))
+        self.assertLess(max(times) - min(times), 5.0,
+                        "포트가 다른 서버가 남의 선언을 기다렸다: %s" % (self.fetch_times,))
+
     def test_dropped_domain_is_reported_not_silent(self):
         # 조용히 1페이지만 받고 끝나면 사용자는 이유를 알 방법이 없다
         with mock.patch("sys.stderr", new_callable=io.StringIO) as err:

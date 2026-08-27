@@ -99,6 +99,59 @@ class TestCrawlDelay(unittest.TestCase):
         self.assertEqual(c.delay("http://a.com/page"), 1000.0)
 
 
+class TestOneServerOneRobotsDocument(unittest.TestCase):
+    """`robots.txt` 를 **서버당 한 번**만 받는가 (계획 017 기대 5).
+
+    실측(고치기 전): `LOCALHOST` 와 `localhost` 링크가 섞이면 같은 서버의
+    `robots.txt` 를 **두 번** 받고, 그 두 번째가 선언한 간격을 안 지키고 나간다.
+    받는 것 자체가 요청이라 이것도 예의 계약 안이다.
+    """
+
+    def _counting(self):
+        fetch = mock.Mock(return_value=(200, "User-agent: *\nCrawl-delay: 3"))
+        return fetch, _cache_with(fetch)
+
+    def test_host_case_does_not_fetch_it_twice(self):
+        fetch, c = self._counting()
+        c.allowed("http://a.com/1")
+        c.allowed("http://A.COM/2")
+        self.assertEqual(fetch.call_count, 1)
+
+    def test_the_declaration_reaches_the_other_spelling(self):
+        # 두 번 안 받는 것만으로는 부족하다 — 받아 둔 값이 다른 표기에도 읽혀야 한다
+        _, c = self._counting()
+        self.assertEqual(c.delay("http://a.com/1"), 3.0)
+        self.assertEqual(c.delay("http://A.COM/2"), 3.0)
+        self.assertEqual(c.known_delay("http://A.COM/2"), 3.0)
+
+    def test_default_port_is_the_same_document(self):
+        fetch, c = self._counting()
+        c.allowed("http://a.com/1")
+        c.allowed("http://a.com:80/2")
+        self.assertEqual(fetch.call_count, 1)
+
+    def test_the_other_scheme_is_its_own_document(self):
+        # **대조군.** `robots.txt` 는 스킴별 문서다 — 한쪽 선언을 다른 쪽에 쓰면
+        # 없는 지시를 지어내는 것이고, 016 이 그 자리를 이미 정리했다
+        fetch, c = self._counting()
+        c.allowed("http://a.com/1")
+        c.allowed("https://a.com/2")
+        self.assertEqual(fetch.call_count, 2)
+
+    def test_a_real_port_is_its_own_document(self):
+        # **대조군.** 포트가 다르면 다른 서버고 `robots.txt` 도 각자의 것이다
+        fetch, c = self._counting()
+        c.allowed("http://a.com:8001/1")
+        c.allowed("http://a.com:8002/2")
+        self.assertEqual(fetch.call_count, 2)
+
+    def test_it_asks_the_address_it_keyed_by(self):
+        # 열쇠와 실제로 GET 하는 주소가 갈리면, 한 번만 받되 **엉뚱한 곳에서** 받는다
+        fetch, c = self._counting()
+        c.allowed("http://A.COM:80/1")
+        self.assertEqual(fetch.call_args[0][0], "http://a.com")
+
+
 class TestRobotsRequestIdentifiesUs(unittest.TestCase):
     def test_robots_txt_request_carries_our_user_agent(self):
         # robots.txt 를 익명으로 가져오면, UA 별로 다른 robots 를 내주는 사이트가

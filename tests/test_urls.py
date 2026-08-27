@@ -142,6 +142,13 @@ class TestDomainKey(unittest.TestCase):
                             urls.domain_key("http://[::1]/2"))
         self.assertIn("::1", urls.domain_key("http://[::1]/2"))
 
+    def test_ipv6_hex_case_is_one_server_too(self):
+        # 콜론을 포트 구분자로 착각하면 마지막 그룹만 소문자화를 못 받는다 —
+        # `[FE80::AB]` 와 `[fe80::ab]` 가 칸 둘이 된다. 대소문자 버그가 IPv6 로
+        # 옮겨간 것뿐이라 같은 절대 조건이 걸린다 (변이 M5 가 여기서 죽는다)
+        self.assertEqual(urls.domain_key("http://[FE80::AB]/1"),
+                         urls.domain_key("http://[fe80::ab]/2"))
+
     def test_an_unreadable_port_does_not_raise(self):
         """`urlsplit(...).port` 는 여기서 ValueError 를 던진다 — 크롤 루프가 죽는다.
 

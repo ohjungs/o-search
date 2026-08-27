@@ -2,22 +2,22 @@
 signal: GREEN
 plan: domain-key
 mode: night
-phase: 개발
-step: 2/5
+phase: 테스트
+step: 3/5
 attempt: 0
-iteration: 108
-night_iterations: 19
+iteration: 109
+night_iterations: 20
 night_red: 0
 night_retries: 0
-updated: 2026-08-27 (반복 108 · 017 스텝 2 개발 끝)
-ctx: 62% / 200k
+updated: 2026-08-27 (반복 109 · 017 테스트 phase 끝)
+ctx: 71% / 200k
 rules: 1411a37
 ---
 
 # 현재 상태
 
-**계획 017 `domain-key` 스텝 2(개발) 끝.** 계획 `docs/plan_domain-key.md`.
-브랜치 `loop/domain-key` (기점 `677ed3e`). 다음은 스텝 3(테스트 phase).
+**계획 017 `domain-key` 스텝 3(테스트) 끝.** 계획 `docs/plan_domain-key.md`.
+브랜치 `loop/domain-key` (기점 `677ed3e`). 다음은 스텝 4(백지 리뷰).
 
 **열쇠를 만드는 자리를 하나로 모았다.** `urls.domain_key(url)` — userinfo 를 떼고
 호스트를 소문자로, 스킴의 **기본** 포트만 지운다. 세 호출부(`frontier.add` ·
@@ -32,12 +32,18 @@ URL 은 **자기 칸에 그대로** 둔다. 열쇠를 만들다 크롤 루프를
 `FakeRobots._host` 와 테스트의 도메인 비교들이 전부 날 `netloc` 이었다 — 그대로면
 대문자 호스트가 가짜 안에서는 여전히 두 서버라 이번 수정을 검증하지 못한다.
 
-**339건 OK** · `perf_crawl` [차단] **10.34/s** · `crawl_politeness`·`crawl_delay`·
+**변이 9종 중 M5(`"]" in port` 가드)만 살아남았었다.** 가드가 없어도 `[::1]` 은
+다시 붙지만 **마지막 그룹이 소문자화를 못 받아** `[FE80::AB]` 가 칸 둘이 된다 —
+대소문자 버그가 IPv6 로 옮겨간 것뿐이다. 단언 하나로 죽였다. 나머지 8종은 전부 죽는다.
+
+**갭 ⑥ 둘을 메웠다:** `robots` 는 **서버당 `robots.txt` 한 번**(기대 5)을,
+`crawl` 은 대소문자만 다른 씨앗 둘로 **루프 전체**의 간격 5초를 잰다. 양쪽 다
+대조군(다른 스킴·기본이 아닌 포트)을 붙였다 — 안 붙이면 "전부 한 칸" 으로도 통과한다.
+
+**348건 OK** · `perf_crawl` [차단] **10.34/s** · `crawl_politeness`·`crawl_delay`·
 `retry_interval` 전부 0.
 
-**남은 것:** 스텝 3 테스트 phase(`rules/test.md` 6개 카테고리 · 무변이 기준선 먼저 ·
-변이 기준은 "이 줄을 안 썼다면") → 스텝 4 백지 리뷰 → 스텝 5 e2e.
-기대 3(기본이 아닌 포트는 여전히 다른 도메인)과 기대 6(안 죽는다)이 가장 쉽게 빠진다.
+**남은 것:** 스텝 4 백지 리뷰(diff + 소스만, `docs/` 차단) → 스텝 5 e2e.
 
 **하지 않을 것:** URL 정규화(digest `[5]`). `http://A.com/` 과 `http://a.com/` 은 이
 계획 뒤에도 두 번 수집되고 두 행으로 저장된다 — 고치는 것은 **예의 계약이 세는 단위**
