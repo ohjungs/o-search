@@ -2,22 +2,22 @@
 signal: GREEN
 mode: night
 plan: cooldown-burn
-phase: 테스트
+phase: 리뷰
 step: 2/2
 attempt: 0
-iteration: 85
-night_iterations: 9
+iteration: 86
+night_iterations: 10
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
-updated: 2026-08-27 (반복 85)
+updated: 2026-08-27 (반복 86)
 ctx: 37% / 200k
-rules: rules/test.md
+rules: rules/review.md
 ---
 
 # 현재 상태
 
-**`cooldown-burn` 스텝 2/2 완료. 다음은 테스트 phase(갭 탐색).**
+**`cooldown-burn` 테스트 phase 완료. 다음은 리뷰 phase.**
 브랜치 `loop/cooldown-burn` (기점 `9bd3771`, `loop/tokenizer`).
 계획 `docs/plan_cooldown-burn.md` · 설계 `docs/design_cooldown-burn.md`.
 
@@ -26,6 +26,7 @@ rules: rules/test.md
 | 83 | `5a66070` | 설계 — 대안 A(최소) 채택 |
 | 84 | `a159e30` | 스텝 1 — 간격 시계를 팝에서 떼어 실제 발신에 건다 |
 | 85 | `46b69cf` | 스텝 2 — `perf_crawl` 에 [차단]·[예외] 시나리오 |
+| 86 | `f00cfca` | 테스트 — 첫 요청이 예외로 끝나는 빈 상태 경계 |
 
 ## 지금 값
 
@@ -51,14 +52,17 @@ rules: rules/test.md
 
 오른쪽 열이 이 계획의 교훈이다. **검사 하나가 초록이라고 구멍이 없는 것이 아니다.**
 
-## 테스트 phase 가 볼 것
+## 테스트 phase 가 찾은 것 (반복 86) — 갭 후보 둘, 하나는 실재
 
-- `rules/test.md` 갭 탐색. 새로 만진 public 표면은 `Frontier.next`(계약 변경) ·
-  `_store_result`(시그니처에 `now` 추가) · `perf_crawl` 시나리오 2개
-- 이미 있는 것: 스킵·차단이 안 태움 + **긍정 짝** · 예외 뒤 간격 유지 ·
-  `test_next_does_not_start_the_clock`
-- 생각해 볼 갭: `mark_sent` 를 **한 번도 안 부른** 도메인(첫 요청)이 예외로 끝나는 경로,
-  `set_delay` 가 걸린 도메인에서 예외가 났을 때 요구 간격이 유지되는가
+1. **첫 요청이 예외로 끝나는 빈 상태 경계 — 동작은 옳고 테스트가 없었다.** `_last_fetch`
+   에 항목이 없으면 `next()` 는 `last is None` 을 "제한 없음" 으로 읽는다. 기존
+   예외 테스트는 홈이 먼저 성공해서 이 경계를 안 지났다. **테스트를 추가했고**(`f00cfca`)
+   변이로 잡는 것까지 확인했다
+2. **[보류·digest 등록] `Crawl-delay` 도메인의 첫 요청이 예외면 그 뒤가 1초로 나간다 —
+   robots 위반.** 실측 1.0s(대조군 5.0s). `except` 가지가 `set_delay()` 를 못 부른다.
+   **이 계획이 연 것이 아니다** — 착수 전 `9bd3771` 이 같은 값을 낸다(대조 실측).
+   고치려면 캐시 peek 같은 새 공개 API 가 필요하고 **동시화 계약 4**와 부딪힌다 →
+   설계 결정이라 야간 자동 적용 대상이 아니다. `digest.md` `## 판단 필요` 에 올렸다
 
 ## 열지 않는 것 (승인 대기 — 야간 금지)
 
