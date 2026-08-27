@@ -148,13 +148,19 @@ def run_crawl(workers, max_pages=MAX_PAGES):
 
 
 def assert_gaps_kept(label):
-    """간격을 깎아서 빨라진 것이면 통과시키면 안 된다 (concept.md:59). 재는 도메인 수를 돌려준다."""
+    """간격을 깎아서 빨라진 것이면 통과시키면 안 된다 (concept.md:59).
+
+    `(재는 도메인 수, 실측 최소 간격)` 을 돌려준다. **하한이 아니라 실측치를 돌려주는
+    이유**: "전부 0.95s 이상" 만 찍으면 1.004s 와 3.0s 가 같은 줄로 보인다. 여유가
+    얼마나 남았는지는 회귀가 나기 **전에** 알아야 값이 있다 (기준선에는 값만이 아니라
+    어떤 세계에서 잰 숫자인지를 적는다 — docs/project.md).
+    """
     gaps = page_gaps()
     measured = [d for d, g in gaps.items() if g]
     assert measured, "%s: 간격을 재려면 한 도메인을 두 번 이상 요청해야 한다" % label
     too_fast = ["%s %.3fs" % (d, g) for d, gs in gaps.items() for g in gs if g < MIN_GAP]
     assert not too_fast, "%s: 도메인 간격 1초를 깼다: %s" % (label, too_fast[:5])
-    return len(measured)
+    return len(measured), min(g for gs in gaps.values() for g in gs)
 
 
 def scenario_blocked():
@@ -185,12 +191,12 @@ def scenario_blocked():
                     if p.startswith("/p") and p not in BLOCKED and n in NETLOCS]
     assert allowed_hits, "[차단] 허용 경로를 하나도 안 받았다 — 차단이 과했다"
 
-    n = assert_gaps_kept("[차단]")
+    n, lo = assert_gaps_kept("[차단]")
     assert rate >= BASELINE_BLOCKED, (
         "[차단] 초당 %.2f문서 — 기준선 %.1f 미달. 요청도 안 보낸 URL 이 도메인 쿨다운을 "
         "태우고 있는지 본다 (docs/design_cooldown-burn.md)" % (rate, BASELINE_BLOCKED))
-    print("[차단] 통과: %.2f/s (기준선 %.1f) · 도메인 %d개 간격 전부 %.2fs 이상 · "
-          "차단 경로 요청 0건" % (rate, BASELINE_BLOCKED, n, MIN_GAP))
+    print("[차단] 통과: %.2f/s (기준선 %.1f) · 도메인 %d개 최소 간격 %.3fs (하한 %.2fs) · "
+          "차단 경로 요청 0건" % (rate, BASELINE_BLOCKED, n, lo, MIN_GAP))
 
 
 def scenario_worker_exception():
@@ -225,9 +231,9 @@ def scenario_worker_exception():
 
     assert saved > 0, "[예외] 크롤이 통째로 죽었다"
     assert "주입한 워커 예외" in err.getvalue(), "[예외] 예외가 조용히 삼켜졌다"
-    n = assert_gaps_kept("[예외]")
-    print("[예외] 통과: 워커 예외 %d종을 섞어도 도메인 %d개 간격 전부 %.2fs 이상 "
-          "(수집 %d문서)" % (len(boom), n, MIN_GAP, saved))
+    n, lo = assert_gaps_kept("[예외]")
+    print("[예외] 통과: 워커 예외 %d종을 섞어도 도메인 %d개 최소 간격 %.3fs "
+          "(하한 %.2fs · 수집 %d문서)" % (len(boom), n, lo, MIN_GAP, saved))
 
 
 def main():
@@ -244,7 +250,7 @@ def main():
         saved, MAX_PAGES)
 
     # ② 윤리 먼저 본다. 간격을 깎아서 빨라진 것이면 통과시키면 안 된다 (concept.md:59)
-    measured_n = assert_gaps_kept("[열림]")
+    measured_n, lo = assert_gaps_kept("[열림]")
 
     # ③ 같은 URL 을 두 번 받으면 처리량 숫자가 부풀고 남의 서버도 두 번 맞는다
     seen = collections.Counter((netloc, path) for _, netloc, path in REQUEST_LOG
@@ -269,8 +275,8 @@ def main():
         "도메인 %d개를 순차로 받으면 1/%.1fs = 초당 %.1f문서가 상한이다"
         % (rate, TARGET_RATE, DOMAINS, LATENCY, 1 / LATENCY))
 
-    print("[열림] 통과: 처리량 %.2f/s (기준 %.1f) · 도메인 %d개 간격 전부 %.2fs 이상 · 중복 0"
-          % (rate, TARGET_RATE, measured_n, MIN_GAP))
+    print("[열림] 통과: 처리량 %.2f/s (기준 %.1f) · 도메인 %d개 최소 간격 %.3fs "
+          "(하한 %.2fs) · 중복 0" % (rate, TARGET_RATE, measured_n, lo, MIN_GAP))
 
     # **여기서 끝내면 안 된다.** 위 숫자는 아무것도 막지 않는 세계의 것이고,
     # 현실의 사이트는 대개 무언가를 막는다 (docs/design_cooldown-burn.md 범위 밖 절)
