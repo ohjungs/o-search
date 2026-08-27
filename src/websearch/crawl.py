@@ -94,6 +94,11 @@ def _store_result(future, url, domain, store, frontier, now):
     **간격 시계를 거는 유일한 자리다** (docs/design_cooldown-burn.md 계약 2·3).
     robots 가 막았으면 페이지 요청이 안 나갔으니 걸지 않는다 — 그 도메인을 재우면
     요청도 없이 쿨다운을 태우는 것이다.
+
+    **"시계를 거는 유일한 자리" 지 "요청이 나가는 유일한 자리" 가 아니다.** 이 계약
+    밖으로 나가는 요청이 둘 있다: `robots.txt` 왕복(digest [4] 로 간격 측정에서 제외)과
+    `fetcher` 의 재시도(연결 실패 시 3회가 간격 없이 나간다 — 실측 0.4ms 간격).
+    후자는 이 계획이 연 것이 아니고 `digest.md ## 판단 필요` 에 올려 뒀다.
     """
     try:
         allowed, requested, sent_at, result = future.result()

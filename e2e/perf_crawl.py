@@ -16,6 +16,12 @@
   ② 도메인 간격  도메인별 페이지 요청 간격이 전부 >= 0.95초
   ③ 중복 없음    같은 URL 을 두 번 요청하지 않았다
 
+**세 세계에서 잰다.** 같은 하네스로 robots.txt 만 갈아끼운다:
+  [열림] 아무것도 안 막는 사이트 — 위 판정 3개
+  [차단] 페이지 11개 중 6개를 막는 사이트 — 기준선 처리량 + 막힌 경로 요청 0건
+  [예외] 워커가 예외로 끝나는 경우 — 간격이 유지되는가
+뒤의 둘은 **workers=8 일 때만 돈다** (되돌리기 경로는 아래 main 에서 일찍 끝난다).
+
 실행: PYTHONPATH=src python3 e2e/perf_crawl.py
 """
 import collections
@@ -160,7 +166,7 @@ def scenario_blocked():
     global ROBOTS_BODY
     ROBOTS_BODY = BLOCKING_ROBOTS
     try:
-        # 막힌 페이지가 6개라 도메인당 받을 수 있는 것은 홈 + p6~p11 = 6개다
+        # 막힌 페이지가 /p1~/p6 이라 도메인당 받을 수 있는 것은 홈 + /p7~/p11 = 6개다
         rate, saved, elapsed, _ = run_crawl(8, max_pages=MAX_PAGES)
     finally:
         ROBOTS_BODY = OPEN_ROBOTS
@@ -170,11 +176,13 @@ def scenario_blocked():
     assert saved == MAX_PAGES, "[차단] 수집 %d, 기대 %d" % (saved, MAX_PAGES)
 
     # ③ robots 준수 — 막힌 경로를 한 번이라도 때리면 처리량이 아무리 좋아도 실패다
-    hits = [(n, p) for _, n, p in REQUEST_LOG if p in BLOCKED]
+    # netloc 으로 **이 세계의 서버만** 본다 — 앞 시나리오의 늦은 핸들러 스레드가
+    # REQUEST_LOG.clear() 뒤에 한 줄 흘리면 남의 세계 요청으로 여기가 빨개진다
+    hits = [(n, p) for _, n, p in REQUEST_LOG if p in BLOCKED and n in NETLOCS]
     assert not hits, "[차단] robots 가 막은 경로를 요청했다: %s" % hits[:5]
     # 긍정 짝 — 허용 경로는 실제로 받았다. 없으면 "아무것도 안 받음" 으로도 통과한다
-    allowed_hits = [p for _, _, p in REQUEST_LOG
-                    if p.startswith("/p") and p not in BLOCKED]
+    allowed_hits = [p for _, n, p in REQUEST_LOG
+                    if p.startswith("/p") and p not in BLOCKED and n in NETLOCS]
     assert allowed_hits, "[차단] 허용 경로를 하나도 안 받았다 — 차단이 과했다"
 
     n = assert_gaps_kept("[차단]")
@@ -251,7 +259,9 @@ def main():
     # ① 처리량 — 되돌리기 경로(workers=1)는 느린 게 정상이라 이 판정에서 뺀다
     if workers < 8:
         print("workers=%d — 되돌리기 경로라 처리량 판정은 건너뛴다 "
-              "(간격·중복·문서집합은 위에서 그대로 봤다)" % workers)
+              "(간격·중복·문서집합은 위에서 그대로 봤다). "
+              "**[차단]·[예외] 시나리오도 안 돈다** — 둘 다 동시성 계약을 재는 것이라 "
+              "워커 1개에서는 잴 것이 없다" % workers)
         return 0
 
     assert rate >= TARGET_RATE, (
