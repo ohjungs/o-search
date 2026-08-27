@@ -112,3 +112,36 @@ class TestRobotsRequestIdentifiesUs(unittest.TestCase):
         req = opener.call_args[0][0]
         self.assertEqual(req.get_header("User-agent"), robots.USER_AGENT)
         self.assertEqual(req.full_url, "http://a.com/robots.txt")
+
+
+class TestKnownDelay(unittest.TestCase):
+    """`known_delay()` 는 **캐시만 본다** — 메인 스레드가 부를 수 있는 유일한 조회다.
+
+    동시화 설계 계약 4(메인 스레드는 네트워크를 안 한다). `delay()` 와 달리 아직 안 받은
+    도메인에 대해 robots.txt 를 받으러 나가지 않는다 (design_crawl-politeness.md 1-1절).
+    """
+
+    def test_returns_none_without_touching_the_network(self):
+        fetch = mock.Mock(return_value=(200, "User-agent: *\nCrawl-delay: 5"))
+        c = _cache_with(fetch)
+        self.assertIsNone(c.known_delay("http://a.com/page"))
+        self.assertEqual(fetch.call_count, 0, "캐시 조회가 robots.txt 를 받으러 나갔다")
+
+    def test_returns_the_delay_once_it_is_cached(self):
+        # 긍정 짝. 위 테스트만 있으면 "언제나 None" 으로도 통과한다
+        fetch = mock.Mock(return_value=(200, "User-agent: *\nCrawl-delay: 5"))
+        c = _cache_with(fetch)
+        c.allowed("http://a.com/page")          # 여기서 받는다
+        self.assertEqual(c.known_delay("http://a.com/other"), 5.0)
+        self.assertEqual(fetch.call_count, 1, "캐시가 있는데 또 받았다")
+
+    def test_returns_none_when_robots_declares_no_delay(self):
+        # "모른다" 와 "지시가 없다" 는 둘 다 None 이고, 둘 다 호출부의 기본값이 답이다
+        c = _cache_with(lambda base: (200, "User-agent: *\nAllow: /"))
+        c.allowed("http://a.com/page")
+        self.assertIsNone(c.known_delay("http://a.com/page"))
+
+    def test_does_not_leak_another_domains_delay(self):
+        c = _cache_with(lambda base: (200, "User-agent: *\nCrawl-delay: 5"))
+        c.allowed("http://slow.com/page")
+        self.assertIsNone(c.known_delay("http://other.com/page"))

@@ -84,14 +84,29 @@ def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None,
                 return_when=concurrent.futures.FIRST_COMPLETED)
             for future in done:
                 url, domain = inflight.pop(future)
-                saved += _store_result(future, url, domain, store, frontier, now)
+                saved += _store_result(future, url, domain, store, frontier, now,
+                                       robots)
     return saved
 
 
-def _store_result(future, url, domain, store, frontier, now):
+def _apply_delay(frontier, domain, requested):
+    """robots 가 요청한 간격을 프런티어에 건다. **성공 가지와 예외 가지가 함께 지나는 자리다.**
+
+    `requested` 가 None 이면 프런티어의 하한(`DOMAIN_INTERVAL`)이 답이다 —
+    `robots.known_delay` 의 주석 참조. 상한을 넘으면 그 도메인을 통째로 버린다.
+    """
+    if not frontier.set_delay(domain, requested):
+        # 조용히 1페이지만 받고 끝나면 사용자는 이유를 알 방법이 없다
+        print("%s: %g초 간격을 요구해 상한 %g초를 넘는다 — 이 도메인은 더 가지 않는다"
+              % (domain, requested, MAX_DELAY), file=sys.stderr)
+
+
+def _store_result(future, url, domain, store, frontier, now, robots):
     """워커 결과 하나를 반영한다. 수집에 성공했으면 1, 아니면 0.
 
     **간격 시계를 거는 유일한 자리다** (docs/design_cooldown-burn.md 계약 2·3).
+    **간격 값을 거는 자리도 여기 하나다** — 성공이든 예외든 `_apply_delay()` 를 지난다
+    (docs/design_crawl-politeness.md 1-5절).
     robots 가 막았으면 페이지 요청이 안 나갔으니 걸지 않는다 — 그 도메인을 재우면
     요청도 없이 쿨다운을 태우는 것이다.
 
@@ -108,15 +123,16 @@ def _store_result(future, url, domain, store, frontier, now):
         # 위반이며, `mark_sent` 가 `max` 로 늦은 쪽으로만 움직인다.
         # 여기를 빼면 다음 요청이 즉시 나간다 (설계 탐침 실측 0.310s).
         frontier.mark_sent(domain, now())
+        # **간격 값도 여기서 건다.** 반환값이 안 왔다고 `Crawl-delay` 를 잊으면 다음 요청이
+        # 기본 1초로 나간다 — robots 위반이다(실측: 5초 선언 도메인이 1.0초로 떨어졌다).
+        # 캐시에 이미 있는 값만 본다 — 메인 스레드는 네트워크를 안 한다(동시화 계약 4).
+        _apply_delay(frontier, domain, robots.known_delay(url))
         print("%s: 요청이 예외로 끝났다 — %r" % (url, err), file=sys.stderr)
         return 0
     if not allowed:
         return 0
     frontier.mark_sent(domain, sent_at)
-    if not frontier.set_delay(domain, requested):
-        # 조용히 1페이지만 받고 끝나면 사용자는 이유를 알 방법이 없다
-        print("%s: %g초 간격을 요구해 상한 %g초를 넘는다 — 이 도메인은 더 가지 않는다"
-              % (domain, requested, MAX_DELAY), file=sys.stderr)
+    _apply_delay(frontier, domain, requested)
     # 리다이렉트면 최종 URL 이 정본. 못 바꾸면 요청한 url(프런티어를 거쳤으니 ASCII)로 저장한다
     page_url = urls.to_ascii(result.url or url) or url
     if page_url != url and store.has(page_url):

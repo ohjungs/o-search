@@ -326,3 +326,21 @@ append 전용. 수정·삭제 금지.
   패치해 가짜 시계를 굴린다(`tests/test_crawl.py:41·343·391`). `crawl()` 시그니처 불변
 - 잃는 것을 숫자로 적었다: 재시도 요청은 워커를 최대 `2 × interval` 더 붙든다. 컨셉
   우선순위상 받아들인다. 타임아웃 실패는 이미 10초가 벌어져 **잠들지 않는다**
+
+## 반복 92 — 개발 스텝 2 (`crawl-politeness`, 문제 A) · **GREEN**
+
+- **RED 를 먼저 봤다**: `AssertionError: 1.0 not greater than or equal to 5.0`.
+  `digest.md` 가 적어 둔 실측(예외 뒤 1.0초 / 대조군 5.0초)과 **같은 값**이 나왔다 —
+  테스트가 진짜 그 구멍을 겨누고 있다는 증거다
+- 넣은 것 둘: `RobotsCache.known_delay(url)`(네트워크 없는 캐시 조회) ·
+  `crawl._apply_delay(frontier, domain, requested)`(성공 가지와 예외 가지가 **함께**
+  지나는 자리). 상한 초과 안내 출력이 두 곳으로 갈라지지 않는다
+- **테스트 mock 을 실제 계약에 맞췄다** — `mock.Mock()` 로 만든 robots 는 `known_delay` 가
+  Mock 을 돌려줘 `set_delay` 비교에서 TypeError 를 냈다. 5곳에 `known_delay` 를 붙였다.
+  프로덕션 코드에 mock 용 방어를 넣지 않았다
+- **269 → 276건 전부 통과.** 무변이 기준선 `OK` 를 먼저 잡고 변이를 셌다:
+  ① 예외 가지의 `_apply_delay` 삭제(= 원래 버그) → 새 테스트 1건 실패
+  ② `known_delay` 가 네트워크를 타게 → 2건 실패(계약 4 를 지키는지 진짜로 잰다)
+  ③ 성공 가지의 `_apply_delay` 삭제 → 기존 3건 + 긍정 짝 1건 실패
+- 긍정 짝·음성 대조를 함께 넣었다: 예외가 없으면 그대로 5.0(잴 대상이 살아 있다) ·
+  선언이 없는 도메인은 1.0 그대로(모르는 값을 지어내지 않는다)

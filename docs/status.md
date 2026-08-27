@@ -3,14 +3,14 @@ signal: GREEN
 mode: night
 plan: crawl-politeness
 phase: 개발
-step: 2/6
+step: 3/6
 attempt: 0
-iteration: 91
-night_iterations: 2
+iteration: 92
+night_iterations: 3
 night_red: 0
 night_retries: 0
-updated: 2026-08-27 (반복 91 · 설계 phase 완료)
-ctx: 57% / 200k
+updated: 2026-08-27 (반복 92 · 스텝 2 완료 — 문제 A 닫힘)
+ctx: 62% / 200k
 rules: 1411a37
 ---
 
@@ -40,7 +40,16 @@ rules: 1411a37
 - **새 주입 지점을 안 만든다** — 기존 `mock.patch("websearch.crawl.time.sleep")` 패턴을 쓴다.
   `crawl()`·`_fetch_one()` 시그니처 불변
 
-다음 반복은 스텝 2(문제 A). **테스트를 먼저 쓴다** — 고정할 것 6쌍이 설계 5절에 있다.
+## 이미 한 것
+
+**스텝 2(문제 A) 완료** · 커밋은 아래. RED 를 먼저 봤다 — `1.0 not greater than or equal
+to 5.0`, digest 가 적은 실측과 같은 값이다. 그 뒤 `RobotsCache.known_delay()`(네트워크
+없는 캐시 조회)와 `crawl._apply_delay()`(성공·예외가 함께 지나는 자리)를 넣어 닫았다.
+`_store_result` 가 `robots` 를 받도록 인자가 하나 늘었다(private, 호출부 1곳).
+**269 → 276건 전부 통과.** 변이 3종이 전부 잡힌다(무변이 기준선 `OK` 를 먼저 잡고 셌다).
+
+다음 반복은 **스텝 3(문제 B)** — `fetcher.fetch(url, before_send=None, retries=RETRIES)`.
+설계 2절 그대로. 테스트를 먼저 쓴다. 고정할 것은 설계 5절 표의 3~6번이다.
 
 ## 다음 계획 (이번 계획이 DONE 되면)
 

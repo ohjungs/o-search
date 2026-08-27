@@ -36,6 +36,7 @@ class TestCrawl(unittest.TestCase):
         robots.allowed = lambda url: url not in blocked
         robots.delay = lambda url: (delays or {}).get(
             urllib.parse.urlsplit(url).netloc)
+        robots.known_delay = robots.delay  # 캐시 조회도 같은 계약을 흉내낸다
         clock = {"t": 1000.0}
         with mock.patch("websearch.crawl.fetcher") as mf, \
              mock.patch("websearch.crawl.time.sleep") as ms:
@@ -145,6 +146,7 @@ class TestNonAsciiUrl(unittest.TestCase):
         robots = mock.Mock()
         robots.allowed = lambda url: asked.append(url) or True
         robots.delay = lambda url: None
+        robots.known_delay = robots.delay  # 캐시 조회도 같은 계약을 흉내낸다
         real_store = crawl.Store
 
         def recording_store(path):
@@ -219,6 +221,7 @@ class TestConcurrency(unittest.TestCase):
         robots = mock.Mock()
         robots.allowed = lambda url: True
         robots.delay = lambda url: None
+        robots.known_delay = robots.delay  # 캐시 조회도 같은 계약을 흉내낸다
         kwargs = {"db_path": ":memory:", "robots_cache": robots, "workers": workers}
         if now is not None:
             kwargs["now"] = now
@@ -330,6 +333,7 @@ class TestCooldownBurn(unittest.TestCase):
         robots = mock.Mock()
         robots.allowed = lambda url: url not in blocked
         robots.delay = lambda url: None
+        robots.known_delay = robots.delay  # 캐시 조회도 같은 계약을 흉내낸다
         real_store = crawl.Store
 
         def skipping_store(path):
@@ -387,6 +391,7 @@ class TestCooldownBurn(unittest.TestCase):
         robots = mock.Mock()
         robots.allowed = lambda url: True
         robots.delay = lambda url: None
+        robots.known_delay = robots.delay  # 캐시 조회도 같은 계약을 흉내낸다
         with mock.patch("websearch.crawl.fetcher") as mf, \
              mock.patch("websearch.crawl.time.sleep") as ms, \
              mock.patch("sys.stderr", io.StringIO()):
@@ -405,3 +410,81 @@ class TestCooldownBurn(unittest.TestCase):
         gaps = self._gaps(["http://a.test/"], self.PAGES, boom={"http://a.test/x"})
         for gap in gaps:
             self.assertGreaterEqual(gap, 1.0, "예외 뒤 간격이 깨졌다: %s" % gaps)
+
+
+class FakeRobots:
+    """`RobotsCache` 의 계약만 흉내낸다 (design_crawl-politeness.md 1-1절).
+
+    `delay()` 는 필요하면 받아 오지만 `known_delay()` 는 **이미 받아 둔 것만** 준다 —
+    그 차이가 이 테스트들이 재는 것이다.
+    """
+
+    def __init__(self, delays=None, blocked=()):
+        self._delays = delays or {}       # netloc -> 초
+        self._blocked = blocked
+        self.loaded = set()               # robots.txt 를 실제로 받은 netloc
+
+    @staticmethod
+    def _host(url):
+        return urllib.parse.urlsplit(url).netloc
+
+    def allowed(self, url):
+        self.loaded.add(self._host(url))
+        return url not in self._blocked
+
+    def delay(self, url):
+        self.loaded.add(self._host(url))
+        return self._delays.get(self._host(url))
+
+    def known_delay(self, url):
+        host = self._host(url)
+        return self._delays.get(host) if host in self.loaded else None
+
+
+class TestDelaySurvivesWorkerException(unittest.TestCase):
+    """`Crawl-delay` 를 선언한 도메인이 예외 한 번에 기본 1초로 떨어지지 않는가.
+
+    실측(반복 86): `Crawl-delay: 5` 도메인의 첫 요청이 예외 → 다음 간격 **1.0초**.
+    `_fetch_one` 이 간격을 반환값으로만 넘겨서, 예외 가지가 `set_delay` 를 못 불렀다.
+    """
+
+    # hub 가 b.test 의 URL 둘을 물어다 준다 — b.test 안에서 간격을 재려면 요청이 둘 필요하다
+    PAGES = {"http://hub.test/": '<a href="http://b.test/1">1</a>'
+                                 '<a href="http://b.test/2">2</a>',
+             "http://b.test/1": "leaf", "http://b.test/2": "leaf"}
+
+    def _b_gaps(self, delay, boom=()):
+        """b.test 로 **실제로 나간** 요청들의 간격. 예외로 끝난 요청도 나간 것이다."""
+        sent = []
+        clock = {"t": 1000.0}
+
+        def fake_fetch(url, **kw):
+            if urllib.parse.urlsplit(url).netloc == "b.test":
+                sent.append(clock["t"])
+            if url in boom:
+                raise RuntimeError("워커가 죽었다")
+            return FetchResult(200, self.PAGES.get(url), url)
+
+        robots = FakeRobots({"b.test": delay})
+        with mock.patch("websearch.crawl.fetcher") as mf, \
+             mock.patch("websearch.crawl.time.sleep") as ms, \
+             mock.patch("sys.stderr", io.StringIO()):
+            mf.fetch = fake_fetch
+            ms.side_effect = lambda s: clock.__setitem__("t", clock["t"] + s)
+            crawl.crawl(["http://hub.test/"], 10, db_path=":memory:",
+                        robots_cache=robots, now=lambda: clock["t"], workers=8)
+        self.assertEqual(len(sent), 2, "b.test 를 두 번 요청해야 간격을 잰다: %s" % sent)
+        return [b - a for a, b in zip(sent, sent[1:])]
+
+    def test_declared_delay_survives_a_dead_worker(self):
+        gaps = self._b_gaps(5.0, boom={"http://b.test/1"})
+        self.assertGreaterEqual(gaps[0], 5.0,
+                                "예외 한 번에 Crawl-delay 가 기본 1초로 떨어졌다: %s" % gaps)
+
+    def test_declared_delay_holds_without_any_exception(self):
+        # 긍정 짝. 위 테스트만 있으면 "5초를 어디서도 안 쓴다" 를 못 본다
+        self.assertEqual(self._b_gaps(5.0), [5.0])
+
+    def test_domain_without_declared_delay_keeps_the_floor(self):
+        # 음성 대조. 모르는 값을 지어내지 않는다 — 하한 1초가 답이다
+        self.assertEqual(self._b_gaps(None, boom={"http://b.test/1"}), [1.0])

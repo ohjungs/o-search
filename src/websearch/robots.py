@@ -83,6 +83,19 @@ class RobotsCache:
         allowed() 와 **같은 캐시 한 번**을 쓴다 — robots.txt 를 두 번 받지 않는다.
         """
         self._parser(url)  # 아직 안 받았으면 여기서 받는다
+        return self.known_delay(url)
+
+    def known_delay(self, url):
+        """**이미 받아 둔** robots 의 간격(초). 없으면 None.
+
+        `delay()` 와 달리 **네트워크를 타지 않는다** — 메인 스레드가 불러도 되는 유일한
+        조회다(동시화 계약 4: 메인 스레드는 네트워크를 안 한다). 워커가 `_load` 에서 쓰고
+        메인이 여기서 읽지만, dict 의 단일 키 get/set 은 GIL 아래 원자적이라 락을 두지 않는다.
+
+        **None 의 뜻은 둘이고 둘 다 호출부의 기본값이 답이다**: ① 아직 robots.txt 를
+        못 읽었다 — 그러면 페이지 요청도 안 나갔다. ② 읽었는데 Crawl-delay 지시가 없다.
+        "모르니까 느린 쪽" 이라며 큰 값을 지어내는 자리가 아니다.
+        """
         return self._delays.get(_base(url))
 
     def _parser(self, url):
