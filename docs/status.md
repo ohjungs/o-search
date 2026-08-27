@@ -1,52 +1,40 @@
 ---
-signal: GREEN
-plan: normalize-gaps
+signal: DONE
+plan: null
 mode: night
-phase: e2e
-step: 4/4
+phase: null
+step: null
 attempt: 0
-iteration: 121
-night_iterations: 4
+iteration: 122
+night_iterations: 5
 night_red: 0
 night_retries: 0
-updated: 2026-08-28 (반복 121 · 019 리뷰 3/4)
-ctx: 67% / 200k
+updated: 2026-08-28 (반복 122 · 019 DONE)
+ctx: 82% / 200k
 rules: 1411a37
 ---
 
 # 현재 상태
 
-**계획 019 `normalize-gaps` 스텝 3/4 리뷰 완료 — 다음은 스텝 4/4 e2e.**
-브랜치 `loop/normalize-gaps` (기점 `33e531d` = 018 끝). 계획서 `docs/plan_normalize-gaps.md`.
+**계획 019 `normalize-gaps` DONE.** 브랜치 `loop/normalize-gaps` (기점 `33e531d`).
+계획서는 `docs/plan_history_017.md`, e2e 결과는 `docs/e2e/normalize-gaps/result.md`.
 
-**백지 리뷰가 019 자신이 만든 회귀 1건을 잡았다.** 지적 7건 중 4건 반영, 3건은 기록.
+018 이 못 접은 두 표기를 닫았다. `urls._fold_dots` 가 RFC 3986 5.2.4 를 세그먼트
+단위로 돌아 `.`·`..` 만 접고, `domain_key` 는 숫자 포트의 앞자리 0 만 뗀다.
 
-**반영 [자동수정]**
-1. **`:0` 이 기본 포트로 합쳐졌다** — `lstrip("0")` 이 `"0"` 을 통째로 먹어 빈 포트가
-   되고, 빈 포트는 기본 포트다. 실측 `domain_key('http://b.test:0/p')` 가
-   **착수 전 `b.test:0` → 019 가 `b.test`**. `:0` 은 80 이 아니라 **요청이 다른 포트로
-   나간다** — `normalize` 가 userinfo 를 안 떼는 것과 같은 이유로 틀렸다.
-   `port.lstrip("0") or "0"` 로 닫았다
-2. `isdigit()` 은 `٠٨٠`·`²` 에도 참이라 RFC 3.2.3 의 `DIGIT` 보다 넓다 →
-   `port.isascii() and port.isdigit()`. **동작은 안 바뀐다**(변이 M7 이 아무것도 안
-   죽인다 — 말과 코드를 맞춘 것이지 버그 수정이 아니다)
-3. 테스트 공백 — `..` 가 **빈 세그먼트를 pop** 하는 경우가 두 계약("점만 접는다" /
-   "빈 세그먼트는 그대로")이 부딪히는 유일한 입력인데 못 박혀 있지 않았다
-4. `mark` 를 8줄 간격으로 두 뜻에 쓰던 것 → `sep`
+**실측.** 단위 **388건 OK**. e2e **14종 전부 rc=0** — `url_normalize_e2e` 는 표기
+**10개가 문서 6개**로 접히고(날 `/a/../p` 수신 **0회**), 대조군 `/a//b`·`/a/b` 는
+**둘 다 따로** 받는다. 같은 서버 페이지 간격 최소 **1.005초**.
+변이가 서로를 안 대신한다 — 단위 8종(M1~M8) · e2e 3종이 각각 **다른 단언**에서만 죽는다.
 
-**새 변이로 재확인.** M6(`or "0"` 없음) → `test_port_zero_is_not_the_default_port` 만
-죽는다. M8(빈 세그먼트를 pop 대상에서 뺌) → `test_dots_pop_an_empty_segment_like_any_other`
-만 죽는다. **388건 OK.**
+**두 번 배웠다.**
+1. **`posixpath.normpath` 를 골랐다면 018 의 계약이 뒷문으로 깨졌을 것이다.** 변이
+   M4 가 018 의 기존 테스트를 죽여 그것을 **내 주장이 아니라 남의 테스트로** 확인했다
+2. **백지 리뷰가 019 자신의 회귀를 잡았다.** `lstrip("0")` 이 `:0` 을 통째로 먹어
+   빈 포트가 되고, **빈 포트는 기본 포트**라 요청이 80 번으로 나갔다. "앞자리만 뗀다"
+   는 이름이 그 경우를 가렸다 (`or "0"` 로 닫음)
 
-**리뷰어의 독립 검증**: `_fold_dots` 를 RFC 5.2.4 레퍼런스와 세그먼트 전수 공간
-3905개로 대조 — **불일치 0**, 멱등성 퍼징 실패 0, 정크 6만 건에 예외 0.
-
-**기록만 (안 고침)**: `links.extract` 의 `urljoin` 이 RFC 보다 넓게 접어 231개 모양이
-갈린다 → `digest.md ## 판단 필요` 새 `[4]`. 기존 DB 재키잉은 이미 아래 판단 필요 1번.
-
-## 다음 스텝 — 4/4 e2e
-
-`e2e/url_normalize_e2e.py` 에 축 추가(계획서 4절 시나리오 4개). 새 파일 안 만든다.
+## 판단 필요` 새 `[4]`. 기존 DB 재키잉은 이미 아래 판단 필요 1번.
 
 ## 판단 필요` `[4]`·`[2]`).
 같은 병이고 고치는 파일이 하나라 묶었다:
@@ -76,6 +64,14 @@ rules: 1411a37
 3. `loop/*` 브랜치 **머지 판단** (16개가 한 줄로 쌓여 있다)
 4. **`project.md` 의 기본 브랜치 `main` 이 저장소에 없다.** 실제 이력은 `loop/*` 팁이
    줄줄이 달린 한 줄이다. 019 는 관례를 따르고 문서를 안 고쳤다 — 사람이 정한다
+
+## 다음에 할 일 — 계획 없음
+
+`docs/digest.md ## 다음 계획 후보` 와 `## 판단 필요` 에서 고른다. 지금 위에 있는 것:
+recrawl(`store.has` 상태 불문 스킵 + indexer 증분 + 옛 열쇠 행 통합 — 셋이 같은
+수술이다) · `--deadline`(Ctrl-C 최악 대기와 총 크롤 시간 예산이 같은 답이다) ·
+`X-Robots-Tag` 헤더 · `links` 의 `urljoin` 이 RFC 보다 넓게 접는 것(digest 새 `[4]`,
+231/3905 모양 — 실물에서 본 적 없어 비용 대비가 안 맞는다고 적어 뒀다).
 
 ## 열지 않는 것
 

@@ -17,13 +17,21 @@
   3 퍼센트 표기: `/%ea%b0%80` 와 `/%EA%B0%80` → 수신 **1회**, 받은 경로는 대문자
   4 대조군 — **기본이 아닌 포트**(`http://a.test:8080/p`)는 다른 서버다.
     자기 `/p` 를 따로 **1회** 받는다. 여기가 죽으면 정규화가 과한 것이다
-  5 `pages` 는 **4행**(`/` · `/p` · `/%EA%B0%80` · 대조군 `/p`)
-  6 잴 대상이 사라지면(수신 표본 부족) **종료 코드 2**
+  5 점 세그먼트: **절대** href `http://a.test/a/../p` → `/p` 로 접혀 수신 **1회**,
+    날 `/a/../p` 는 **한 번도 안 나간다**. 절대 href 는 `urljoin` 이 안 접는다 —
+    상대 href 로 쓰면 크롤러가 아니라 `urljoin` 을 재게 돼 시나리오가 무의미해진다
+  6 앞자리 0 기본 포트: `http://a.test:080/p` 도 같은 `/p` 다
+  7 대조군 — `/a//b` 와 `/a/b` 는 **두 문서**다. 서버가 둘 다 받는다.
+    여기가 죽으면 접기가 빈 세그먼트까지 먹은 것이다(`posixpath.normpath` 의 실수)
+  8 예의 — 같은 서버 도착 간격이 **1초 이상**이다. 이것은 `normalize` 가 아니라
+    `domain_key` 의 두 번째 방어선을 잰다(정규화가 먼저 접으면 여기까지 안 온다)
+  9 `pages` 는 **6행**(`/` · `/p` · `/%EA%B0%80` · `/a//b` · `/a/b` · 대조군 `/p`)
+ 10 잴 대상이 사라지면(수신 표본 부족) **종료 코드 2**
 
 바깥 네트워크는 안 탄다 — 이름 해석 대신 `PORTS` 가 로컬 임시 포트로 보낸다.
 **갈린 표기도 전부 PORTS 에 등록한다**: 등록을 빼면 정규화를 지운 변이가
 "연결 실패" 로 죽어서, 재려던 "두 번 받았다" 를 관찰할 수 없다.
-간격 1초가 실제로 걸려 시간이 걸리는 것이 정상이다. 약 4초.
+간격 1초가 실제로 걸려 시간이 걸리는 것이 정상이다. 약 6초.
 
 실행: PYTHONPATH=src python3 e2e/url_normalize_e2e.py
      PYTHONPATH=src python3 e2e/url_normalize_e2e.py --control  # 측정 불능 = 종료 2
@@ -45,7 +53,7 @@ from websearch import crawl  # noqa: E402
 
 HOST = "a.test"
 # 같은 서버를 가리키는 표기 전부. 정규화가 살아 있으면 첫 것만 실제로 나간다
-SAME = [HOST, "A.test", HOST + ":80"]
+SAME = [HOST, "A.test", HOST + ":80", HOST + ":080"]
 # 대조군 — 기본이 아닌 포트라 **다른 서버**다. 진짜 다른 소켓에 물린다
 OTHER = HOST + ":8080"
 
@@ -133,6 +141,8 @@ def run(db_path):
         "http://%s" % HOST, "http://%s/" % HOST,                            # 2
         "/%ea%b0%80", KOREAN,                                               # 3
         "http://%s/p" % OTHER,                                              # 4 대조군
+        "http://%s/a/../p" % HOST, "http://%s:080/p" % HOST,                # 5, 6
+        "/a//b", "/a/b",                                                    # 7 대조군
     ])
     other = serve("other", [])
     PORTS.update(dict.fromkeys(SAME, same.server_address[1]))
@@ -171,11 +181,33 @@ def check(db_path):
     assert len(ctrl) == 1, ("대조군(%s)이 `/p` 를 %d회 받았다 — 1회여야 한다. "
                             "0이면 기본이 아닌 포트까지 접은 것이다" % (OTHER, len(ctrl)))
 
-    # 5 — 저장도 문서 수만큼이다. 수신이 1회여도 열쇠가 갈리면 여기서 갈린다
+    # 5 — 점 세그먼트. 날 `/a/../p` 는 한 번도 안 나간다
+    dotted = hits("same", "/a/../p")
+    assert not dotted, ("날 `/a/../p` 가 %d회 나갔다 — 접혔으면 0이다" % len(dotted))
+
+    # 7 — 대조군. 빈 세그먼트는 안 접는다. **둘 다** 따로 받아야 한다
+    for path in ("/a//b", "/a/b"):
+        twin = hits("same", path)
+        assert len(twin) == 1, (
+            "대조군 `%s` 를 %d회 받았다 — 1회여야 한다. 0이면 접기가 빈 세그먼트까지 "
+            "먹어 두 문서를 합친 것이다" % (path, len(twin)))
+
+    # 8 — 예의. 같은 서버의 **페이지** 도착이 1초 이상 벌어진다.
+    # `robots.txt` 는 뺀다 — 간격을 선언하는 쪽이라 그 선언 전에 나가고,
+    # 여기 넣으면 시드와 붙어 0.001초가 잡힌다(실측). `pages()` 가 그래서 있다
+    stamps = sorted(row[0] for row in pages("same"))
+    gaps = [round(b - a, 3) for a, b in zip(stamps, stamps[1:])]
+    measured(gaps, "같은 서버 도착 간격", least=4)
+    assert min(gaps) >= 0.95, (
+        "같은 서버 도착 간격이 %.3f초다 — 1초 이상이어야 한다. 표기가 갈려 칸이 "
+        "둘이 된 것이다(간격 전부: %s)" % (min(gaps), gaps))
+
+    # 9 — 저장도 문서 수만큼이다. 수신이 1회여도 열쇠가 갈리면 여기서 갈린다
     with sqlite3.connect(db_path) as db:
         urls = sorted(row[0] for row in db.execute("SELECT url FROM pages"))
     want = sorted(["http://%s/" % HOST, "http://%s/p" % HOST,
-                   "http://%s%s" % (HOST, KOREAN), "http://%s/p" % OTHER])
+                   "http://%s%s" % (HOST, KOREAN), "http://%s/p" % OTHER,
+                   "http://%s/a//b" % HOST, "http://%s/a/b" % HOST])
     assert urls == want, "pages 행이 다르다\n  받은 것: %s\n  기대: %s" % (urls, want)
     return urls
 
@@ -192,7 +224,7 @@ def main(argv):
         urls = check(db_path)
     print("OK %.1fs — 표기 %d개가 문서 %d개로 접혔다: %s"
           % (time.monotonic() - started,
-             len(SAME) + 4, len(urls), urls))
+             len(SAME) + 6, len(urls), urls))
     return 0
 
 
