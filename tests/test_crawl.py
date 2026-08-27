@@ -38,7 +38,7 @@ PAGES = {
 
 class TestCrawl(unittest.TestCase):
     def _run(self, seeds, max_pages, blocked=("http://a.com/blocked",), delays=None,
-             workers=8):
+             workers=8, deadline=None):
         fetched = []
         self.fetch_times = []  # (url, 그때의 가짜 시각) — 간격 계약을 여기서 잰다
 
@@ -70,7 +70,7 @@ class TestCrawl(unittest.TestCase):
             ms.side_effect = lambda s: clock.__setitem__("t", clock["t"] + s)
             n = crawl.crawl(seeds, max_pages, db_path=":memory:",
                             robots_cache=robots, now=lambda: clock["t"],
-                            workers=workers)
+                            workers=workers, deadline=deadline)
         return n, fetched, ms
 
     def test_crawls_seed_and_follows_links(self):
@@ -1004,3 +1004,66 @@ class TestUrlNormalization(unittest.TestCase):
         self.assertEqual(fetched, ["http://a.com/p"])
         self.assertEqual(n, 1)
         self.assertTrue(self.store.has("http://a.com/p"))
+
+
+class TestDeadline(unittest.TestCase):
+    """총 크롤 시간 예산 — docs/design_deadline.md.
+
+    예산이 하는 일은 **"덜 보낸다" 뿐**이고 "빨리 보낸다" 는 아니다. 후자가 되는
+    순간 `test_budget_never_shortens_the_interval` 이 먼저 죽는다.
+
+    시간은 가짜 시계로만 흐른다 — 잔 만큼이 곧 흐른 시간이라 `ms` 의 인자 합이
+    경과 시간이다(`TestCrawl._run` 의 `ms.side_effect`).
+    """
+
+    _run = TestCrawl._run
+    _gaps = TestCrawlDelayWiring._gaps
+
+    @staticmethod
+    def _elapsed(ms):
+        return sum(call.args[0] for call in ms.call_args_list)
+
+    def test_short_budget_does_not_fill_max_pages(self):
+        # a.com 이 5초를 요구하는데 예산이 3초다 — 셋째 페이지는 살 수 없다
+        n, _, ms = self._run(["http://a.com/"], max_pages=3,
+                             delays={"a.com": 5.0}, deadline=3)
+        self.assertLess(n, 3, "예산이 있는데도 max_pages 를 채웠다")
+        # 남은 예산으로 잘랐다. 안 자르면 5초 대기가 통째로 지나 8초가 된다
+        self.assertEqual(self._elapsed(ms), 3.0)
+
+    def test_no_deadline_fills_max_pages(self):
+        """**대조군.** 예산을 안 주면 오늘과 한 글자도 다르면 안 된다."""
+        n, _, ms = self._run(["http://a.com/"], max_pages=3,
+                             delays={"a.com": 5.0})
+        self.assertEqual(n, 3)
+        self.assertGreater(self._elapsed(ms), 3.0, "위 테스트가 재는 대기가 사라졌다")
+
+    def test_budget_never_shortens_the_interval(self):
+        """**간격 대조군.** 예산으로 끊긴 크롤도 `Crawl-delay` 를 지킨다.
+
+        예산을 지키려고 간격을 깎는 코드는 RED 다
+        (`project.md ## 한도` · `concept.md` 갈림길 1순위).
+        """
+        n, _, _ = self._run(["http://a.com/"], max_pages=10,
+                            delays={"a.com": 5.0}, deadline=8)
+        gaps = self._gaps("a.com")
+        self.assertTrue(gaps, "a.com 을 두 번 이상 요청해야 잴 수 있다")
+        for gap in gaps:
+            self.assertGreaterEqual(gap, 5.0, "%s" % (self.fetch_times,))
+        self.assertLess(n, 10, "예산이 크롤을 끊지 않았다면 간격을 잰 것이 아니다")
+
+    def test_deadline_flag_errors_return_usage_not_traceback(self):
+        for bad in (["--deadline"], ["--deadline", "abc"], ["--deadline", "0"],
+                    ["--deadline", "-1"]):
+            self.assertEqual(crawl.main(["prog", "http://a.com/"] + bad), 2, bad)
+
+    def test_exhausted_budget_is_reported(self):
+        # 조용히 적게 수집한 것과 "예산대로 끝났다" 가 구별되지 않으면 안 된다
+        with mock.patch("sys.stderr", new_callable=io.StringIO) as err:
+            self._run(["http://a.com/"], max_pages=3, delays={"a.com": 5.0},
+                      deadline=3)
+        self.assertIn("예산", err.getvalue())
+        self.assertIn("3", err.getvalue())
+        with mock.patch("sys.stderr", new_callable=io.StringIO) as quiet:
+            self._run(["http://a.com/"], max_pages=3, delays={"a.com": 5.0})
+        self.assertNotIn("예산", quiet.getvalue())  # 대조군 — 안 끊겼으면 말이 없다

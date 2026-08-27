@@ -71,10 +71,16 @@ def _fetch_one(url, robots, now, floor):
 
 
 def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None,
-          now=time.monotonic, workers=WORKERS):
+          now=time.monotonic, workers=WORKERS, deadline=None):
     """수집에 성공(2xx + HTML)한 페이지 수를 돌려준다. robots_cache·now 는 테스트 주입 지점.
 
     `workers=1` 이면 요청이 하나씩 떠서 순차 루프와 같은 순서로 돈다 — 되돌리기 수단이다.
+
+    `deadline` 은 **총 크롤 시간 예산(상대 초)** 이다. `None` 이면 오늘과 같은 경로만
+    돈다 — 기본값이 곧 꺼진 플래그다(docs/design_deadline.md 6절).
+    예산이 하는 일은 **"덜 보낸다"** 뿐이고 "빨리 보낸다" 는 아니다: 간격은 안 깎는다.
+    **메인 스레드만 예산을 본다** — 이미 떠 있는 요청은 그대로 끝까지 간다.
+    그래서 실제 종료는 예산 + 최악 90초다(설계 5절 2번).
 
     **Ctrl-C 가 즉시 안 먹는다.** `ThreadPoolExecutor` 는 나갈 때 떠 있는 요청을 기다려서,
     최악 `fetcher` 타임아웃 10초 × 재시도 **+ 재시도 사이의 간격 대기**(도메인 간격 ×
@@ -95,9 +101,17 @@ def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None,
             ascii_seeds.append(normalized)
     frontier.add(ascii_seeds)
     saved = 0
+    started = now()
     inflight = {}  # Future -> (url, domain). **떠 있는 도메인은 다시 팝하지 않는다**(계약 3)
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
         while saved < max_pages:
+            # 남은 예산. None 이면 예산이 없다는 뜻이라 아래 두 자리가 오늘 그대로 흐른다
+            left = None if deadline is None else deadline - (now() - started)
+            if left is not None and left <= 0:
+                # 조용히 적게 수집한 것과 "예산대로 끝났다" 는 구별돼야 한다
+                print("예산 %g초 소진 — %d페이지에서 멈춘다" % (deadline, saved),
+                      file=sys.stderr)
+                break
             busy = {domain for _, domain in inflight.values()}
             while len(inflight) < workers and saved + len(inflight) < max_pages:
                 url = frontier.next(exclude=busy)
@@ -112,7 +126,11 @@ def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None,
             if not inflight:
                 if frontier.empty():
                     break
-                time.sleep(frontier.seconds_until_ready())
+                # 예산이 지난 뒤 최대 `MAX_DELAY` 만큼 더 자는 것을 막는다. **깎는 게
+                # 아니라 자르는 것이다** — 깨어나서 위의 소진 검사로 끝낼 뿐,
+                # 짧아진 간격으로 요청이 나가지는 않는다
+                wait = frontier.seconds_until_ready()
+                time.sleep(wait if left is None else min(wait, left))
                 continue
             # 던질 것이 없으면 결과를 기다린다 — 0초는 "떠 있는 도메인뿐" 이라는 뜻이라
             # 타임아웃 대신 완료를 기다린다 (계약 8)
@@ -198,7 +216,7 @@ def _number_flag(args, name, default):
 def main(argv):
     if len(argv) < 2:
         print("usage: python3 -m websearch.crawl <seed-url> [seed-url ...] "
-              "[--max N] [--workers N]", file=sys.stderr)
+              "[--max N] [--workers N] [--deadline SECONDS]", file=sys.stderr)
         return 2
     args = list(argv[1:])
     max_pages = _number_flag(args, "--max", 100)
@@ -209,7 +227,14 @@ def main(argv):
     if workers is None or workers < 1:
         print("--workers 는 1 이상의 숫자 하나를 받는다", file=sys.stderr)
         return 2
-    n = crawl(args, max_pages, workers=workers)
+    # `--deadline` 은 없는 것이 정상값(`None`)이라 `_number_flag` 의 오류값과 겹친다.
+    # 그래서 있었는지를 따로 본다 — `--workers` 처럼 default 로는 못 가른다
+    given = "--deadline" in args
+    deadline = _number_flag(args, "--deadline", None)
+    if given and (deadline is None or deadline < 1):
+        print("--deadline 은 1 이상의 숫자 하나를 받는다", file=sys.stderr)
+        return 2
+    n = crawl(args, max_pages, workers=workers, deadline=deadline)
     print("수집 %d 페이지" % n)
     return 0
 
