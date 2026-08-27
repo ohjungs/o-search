@@ -256,3 +256,21 @@ append 전용. 수정·삭제 금지.
 - e2e 변이 2종 전부 잡힘 — 예외 가지 `_apply_delay` 삭제 · 발신 훅 `sleep` 삭제
 - 결과 `docs/e2e/crawl-politeness/result.md`. 계획 → `plan_history_012.md`,
   설계 → `design_history_012.md`, `index.md` 14번, `digest.md` `[high]` 2건 닫음
+
+## 반복 97 — 계획 phase (`pagination-ui`, 015) · **GREEN**
+
+- `docs/plan_pagination-ui.md`. 브랜치 `loop/pagination-ui` (기점 `716d245`)
+- **읽고 확인한 것**: HTML 경로(`serve.py:217`)는 이미 `page` 를 받아 `offset` 을 건다 —
+  `?q=X&page=2` 는 **손으로 치면 나온다**. `_results()` 가 이동 링크를 안 그릴 뿐이다.
+  JSON 경로는 `limit=PAGE_SIZE + 1` 로 11번째의 유무를 봐 `has_next` 를 낸다
+  (`serve.py:189-204`). **HTML 경로만 `limit=PAGE_SIZE` 라 그 판정을 못 한다**
+- **설계 phase 를 안 열었다** — `design.md` 4절 트리거 넷 어디에도 안 걸린다
+  (파일 하나 · JSON API 불변 · 주소 계약은 이미 있는 것을 쓴다). 스텝 5개
+- 계획 단계에서 **함정 둘을 미리 박았다**: ① 새 `--fg-*` 토큰을 만들면
+  `design_check.PAIRS` 에도 적어야 하고 안 적으면 검사기가 **종료 2(측정 불능)**
+  ② `PAGE_SIZE + 1` 로 받으면 "N건" 이 11 로 샌다
+- **하지 않을 것에 근거를 적었다**: 총 건수 표시는 COUNT 두 번째 전수 질의라 p95 에
+  얹힌다(`design_search-api.md` 계약) → 총 건수를 모르니 **페이지 번호 목록도 못 만든다**.
+  이전/다음만이 지금 아는 정보로 정직하게 그릴 수 있는 것이다
+- e2e 시나리오는 **링크의 존재가 아니라 따라간 결과**를 잰다 — 다음 링크를 실제로
+  따라가 11번째 문서가 보이는지. 문서가 11개 미만이면 종료 코드 2
