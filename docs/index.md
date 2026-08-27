@@ -17,6 +17,7 @@ plan_history_<NNN>.md 를 다 열어볼 필요가 없게 하는 것이 목적이
 | plan_quality-eval | 완료 | loop/quality-eval | 4/4 | 통과(3은 반증) | 설계 있음(006). ko 85% · en 90%. **이 코퍼스는 랭킹을 못 잰다**(recall@1 == recall@10) |
 | plan_non-ascii-url | 완료 | loop/non-ascii-url | 4/4 | 통과 | 설계 있음(007). 한글 URL 이 `UnicodeEncodeError` 로 크롤 루프를 죽이던 것을 닫음 |
 | plan_crawl-throughput | 완료 | loop/crawl-throughput | 3/3 | 통과(4/4) | 설계 있음(008). **0.5/s → 10.25/s**(기준 5.0). 잠긴 DB 크래시도 닫음. 리뷰 패스 A 5건 중 3건 반영·1건 보류(쿨다운 태우기) |
+| plan_tokenizer | 완료 | loop/tokenizer | 3/3 | 통과(6/6) | 설계 있음(010). **미검출 5 → 1**(ko 20/20 · en 19/20). 한글 2-gram 을 제목·본문 **열로 나눠** 넣고 질의는 **어절마다** 분기. 오탐 13.8→14.0 으로 안 늘었다. 리뷰 보류였던 `porter` 는 **양쪽을 다시 재서 유지로 닫음**(굴절 96.3% vs 1.0%, 접두 손실 11.2%가 그 값) |
 | plan_search-ui | 완료 | loop/search-ui | 2/2 | 통과(5/5) | 설계 있음(009). **브라우저로 쓸 수 있는 제품이 처음 생겼다.** 디자인 4축 측정 명령(`e2e/design_check.py`)을 만들어 열었다 — JS 0 B · 최저 대비 4.87:1. 리뷰가 **검사기의 눈먼 자리 4곳**을 찾아 닫음(초록불이 근거 없이 켜져 있었다) |
 
 ## 사양 분할 (docs/specs/concept.md → 계획 순서)
@@ -54,5 +55,11 @@ plan_history_<NNN>.md 를 다 열어볼 필요가 없게 하는 것이 목적이
     (사양 분할에 없던 계획. 사용자가 실제 웹에서 잰 초당 0.5문서와 `concept.md:44`
     의 초당 5문서 사이 10배 격차. 같은 실측에서 1,700문서째 `database is locked`
     크래시도 함께 나왔다 — 둘 다 이 계획에서 닫았다)
+
+11. `tokenizer` — 완료 (plan_history_010)
+    한글 문자 2-gram 전용 열 둘(`title_ng`·`body_ng`) + `porter`. 의존: 7(quality-eval)
+    (사양 분할에 없던 계획. `quality-eval` 이 실측으로 못박은 미검출 5건이 **랭킹이 아니라
+    매치 문제**였다 — 복합어 뒷부분·띄어쓰기 변형·영어 굴절. `trigram` 은 한국어 질의
+    20개 중 10개가 2자라 실측으로 먼저 버렸다(35/40 → 27/40))
 
 색인 규모 단계(10만→100만)는 별도 계획이 아니라 7번(quality-eval) 이후 운영 측정으로 판정.
