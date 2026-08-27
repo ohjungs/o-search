@@ -97,3 +97,18 @@ class TestCrawlDelay(unittest.TestCase):
         # "1e3" 의 앞 숫자만 집으면 1000초를 요구한 사이트를 1초로 때린다
         c = _cache_with(lambda base: (200, "User-agent: *\nCrawl-delay: 1e3"))
         self.assertEqual(c.delay("http://a.com/page"), 1000.0)
+
+
+class TestRobotsRequestIdentifiesUs(unittest.TestCase):
+    def test_robots_txt_request_carries_our_user_agent(self):
+        # robots.txt 를 익명으로 가져오면, UA 별로 다른 robots 를 내주는 사이트가
+        # 우리에게 맞는 규칙을 못 준다. 페이지 요청과 같은 이름으로 물어야 한다
+        with mock.patch("urllib.request.urlopen") as opener:
+            opener.return_value.__enter__ = lambda s: s
+            opener.return_value.__exit__ = lambda s, *a: False
+            opener.return_value.status = 200
+            opener.return_value.read.return_value = b"User-agent: *\nAllow: /"
+            robots.RobotsCache()._fetch_robots("http://a.com")
+        req = opener.call_args[0][0]
+        self.assertEqual(req.get_header("User-agent"), robots.USER_AGENT)
+        self.assertEqual(req.full_url, "http://a.com/robots.txt")

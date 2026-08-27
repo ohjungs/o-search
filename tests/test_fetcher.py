@@ -6,7 +6,7 @@ from unittest import mock
 import urllib.error
 import urllib.request
 
-from websearch import fetcher
+from websearch import fetcher, robots
 
 
 def _resp(status=200, ctype="text/html; charset=utf-8", body=b"<html>hi</html>",
@@ -118,3 +118,30 @@ class TestFetch(unittest.TestCase):
             got = fetcher.fetch("http://a.com/")
         self.assertEqual(got.status, 200)
         self.assertEqual(m.call_count, 2)
+
+
+class TestUserAgentIsSent(unittest.TestCase):
+    """사이트가 **우리를 식별할 수 있어야** 한다 — 크롤 윤리의 전제다.
+
+    익명 크롤러는 사이트가 차단할 수도, 연락할 수도 없다. 그리고 우리가 robots 를
+    **지킬 때 쓰는 이름**과 **사이트에 대는 이름**이 다르면, 사이트는 자기가 쓴
+    규칙이 우리에게 적용되는지 알 수 없다. 그 일치까지 여기서 잰다.
+    """
+
+    def test_page_request_carries_our_user_agent(self):
+        with mock.patch("urllib.request.urlopen", return_value=_resp()) as opener:
+            fetcher.fetch("http://a.com/")
+        req = opener.call_args[0][0]
+        self.assertEqual(req.get_header("User-agent"), robots.USER_AGENT)
+
+    def test_announced_name_is_the_name_robots_matching_uses(self):
+        # robots.py 는 `USER_AGENT.split("/")[0]` 로 그룹을 고른다. 사이트가
+        # `User-agent: websearchbot` 라고 쓴 규칙이 우리에게 걸리려면 대는 이름의
+        # 슬래시 앞부분이 그것과 같아야 한다
+        self.assertTrue(robots.USER_AGENT, "UA 가 비어 있으면 익명 크롤러다")
+        announced = robots.USER_AGENT.split("/")[0].lower()
+        c = robots.RobotsCache()
+        c._fetch_robots = lambda base: (
+            200, "User-agent: %s\nDisallow: /x\n\nUser-agent: *\nAllow: /\n" % announced)
+        self.assertFalse(c.allowed("http://a.com/x"),
+                         "대는 이름과 robots 를 지킬 때 쓰는 이름이 갈렸다")
