@@ -95,9 +95,13 @@ class TestUnconvertible(unittest.TestCase):
 class TestDomainKey(unittest.TestCase):
     """예의 계약이 세는 단위. **같은 서버는 한 칸이다.**
 
-    URL 동일성이 아니다 — `http://A.com/` 과 `http://a.com/` 은 이 뒤에도 두 번
-    수집되고 두 행으로 저장된다(digest `[5]`, 별개의 수술). 여기서 같아지는 것은
-    **간격을 세는 칸** 하나뿐이다.
+    URL 동일성이 아니다 — 여기서 같아지는 것은 **간격을 세는 칸** 하나뿐이고,
+    어느 문서인가는 `normalize` 가 정한다(계획 018 이 그 수술을 했다).
+
+    **018 이후 이 접기는 두 번째 방어선이다.** `normalize` 가 URL 이 태어나는
+    자리에서 먼저 접으므로 크롤 루프는 갈린 표기를 보지 않는다 — 그래서 이
+    클래스가 `domain_key` 를 **직접** 부르는 유일한 자다. 정규화를 안 지나는
+    호출처가 생기는 날 예의 계약을 지키는 것이 여기다.
     """
 
     def test_host_case_does_not_make_a_new_server(self):
@@ -236,6 +240,11 @@ class TestNormalize(unittest.TestCase):
             with self.subTest(url=u):
                 once = urls.normalize(u)
                 self.assertEqual(urls.normalize(once), once)
+
+    def test_a_schemeless_url_is_left_alone(self):
+        # `links.extract` 가 http(s) 만 넘기고 시드는 CLI 가 준다 — 도달하지 않는
+        # 가지지만, 여기서 던지면 크롤이 끝난다. 갈 곳이 없으면 그대로 돌려준다
+        self.assertEqual(urls.normalize("a.com/p"), "a.com/p")
 
     def test_unparsable_url_does_not_raise(self):
         # digest [7]: 열쇠를 안전하게 만들어도 협력자가 URL 을 다시 판다.

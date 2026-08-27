@@ -2,14 +2,14 @@
 signal: GREEN
 plan: url-normalize
 mode: night
-phase: 테스트
-step: 3
+phase: 리뷰
+step: 4
 attempt: 0
-iteration: 114
-night_iterations: 25
+iteration: 115
+night_iterations: 26
 night_red: 0
 night_retries: 0
-updated: 2026-08-27 (반복 114 · 018 스텝 2/5)
+updated: 2026-08-27 (반복 115 · 018 스텝 3/5)
 ctx: 71% / 200k
 rules: 1411a37
 ---
@@ -41,25 +41,18 @@ rules: 1411a37
 문서를 만들면 6절 복사가 된다. 새 모듈 없음 · 데이터 구조 변경 없음 · 공개 계약
 변경 없음(`to_ascii` 는 그대로). 014~017 도 같은 판단으로 설계를 안 만들었다.
 
-## 다음에 할 일 — 스텝 3 (테스트 phase)
+## 다음에 할 일 — 스텝 4 (리뷰)
 
-`rules/test.md` — 새로 쓰는 곳이 아니라 **빠뜨린 것을 찾고 전체를 돌리는** 곳.
-계획서 5절의 변이 3종을 여기서 돌린다.
+**백지 세션.** `docs/`·`git log` 을 안 주고 **diff 와 소스만** 준다
+(`rules/review.md`). 이 저장소에서 백지 격리가 거짓 검증 5건과 진짜 크래시 1건을
+전부 잡았다 — 같은 사람이 쓰고 리뷰하는 구조의 해독제다.
 
-- 이미 한 것: **스텝 1·2 완료.** `urls.normalize` 신설 + 호출부 셋 배선
-  (`links.py:33` · `crawl.py:91` 시드 · `crawl.py:175` 리다이렉트 최종 URL).
-  **381건 OK**(전 354 → 368 → 381). 둘 다 커밋함
-- **스텝 2 가 017 의 테스트 하나와 e2e 하나를 깼다 — 정상이고 기록이 남았다.**
-  018 이 대소문자·기본 포트 표기를 **URL 이 태어나는 자리에서** 접으므로 그 표기는
-  크롤 루프까지 오지 않는다. 017 이 재던 축이 사라진 것이다. 둘 다 **조용히
-  통과하지 않고 "재려던 상황이 없다" 로 실패했다** — 긍정 짝을 심어 둔 값이다
-  - `tests/test_crawl.py::test_one_server_paces_itself_across_spellings` 는
-    **스킴 축**(`http`/`https` — 018 이 안 접는 유일한 살아 있는 축)으로 다시 썼다.
-    017 의 접기는 없어진 게 아니라 **두 번째 방어선**이고 `TestDomainKey` 가 단위로 잰다
-  - **`e2e/domain_key_e2e.py` 는 아직 안 고쳤다** — 스텝 5 에서 같이 고친다.
-    실측 실패 문구: `세 표기가 다 도착하지 않았다: ['a.test']`
-- 완료 기준: 갭 탐색 결과를 `history_current.md` 에 적고 전체 스위트 + 회귀 e2e
-  (`crawl_delay`·`crawl_politeness`·`retry_interval`·`non_ascii`)를 돌린다
+- 이미 한 것: **스텝 1·2·3 완료.** `urls.normalize` 신설 + 호출부 셋 배선 +
+  테스트 phase(변이 7종·갭 2건·회귀 e2e 5종). **382건 OK**. 셋 다 커밋함
+- 리뷰에 줄 diff: `git diff e08bc8f..HEAD -- src tests`
+- **남은 미결 하나**: `e2e/domain_key_e2e.py` 가 018 때문에 실패한다
+  (`세 표기가 다 도착하지 않았다: ['a.test']`). 스텝 5 에서 스킴 축으로 고친다
+- 완료 기준: 지적을 `severity.md` 로 판정하고 받은 것을 반영한 뒤 전체 스위트
 
 ## 열지 않는 것
 
