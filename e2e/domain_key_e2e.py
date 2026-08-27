@@ -9,12 +9,23 @@
 그리고 **크롤러 내부 상태가 아니라 서버가 받은 시각**을 잰다
 (`crawl_politeness_e2e.py`·`retry_interval_e2e.py` 와 같은 자세).
 
-  1 `Crawl-delay: 2` 서버에 **대소문자가 다른 호스트**로 링크가 걸린다
+**축을 바꿨다 — 계획 018 이 원래 축을 지웠다.** 이 파일은 대소문자(`A.test`)와
+기본 포트(`a.test:80`)로 표기를 갈랐는데, 018 의 `urls.normalize` 가 **URL 이
+태어나는 자리에서** 그 둘을 접는다. 표기 셋이 링크 단계에서 하나가 되니 서버에
+하나만 도착하고, 재려던 상황 자체가 안 만들어졌다(실측: `세 표기가 다 도착하지
+않았다: ['a.test']` 로 크게 실패 — 조용한 통과가 아니었다).
+
+새 자는 **userinfo** 다. `normalize` 는 userinfo 를 보존하고(떼면 요청 내용이
+바뀐다) `domain_key` 는 뗀다 — `http://u@a.test/p` 와 `http://a.test/p` 는
+**다른 문서지만 같은 서버**다. 017 이전의 날 `netloc` 에서는 `u@a.test` 와
+`a.test` 로 칸이 갈리므로 이 파일은 여전히 017 의 회귀 탐지기다.
+
+  1 `Crawl-delay: 2` 서버에 **userinfo 가 다른 링크**가 걸린다
     → 서버 수신 간격 ≥ 2초 · 그 서버의 `robots.txt` 는 **1회**
-  2 **기본 포트를 붙인 링크**(`http://a.test:80/`)도 같은 칸 — 같은 자로 잰다
-  3 대조군: **기본이 아닌 포트**(`http://a.test:443/`, 스킴은 http)는 여전히 다른
+    (`robots._base` 도 같은 자를 쓴다 — 표기마다 받으면 여기서 죽는다)
+  2 대조군: **기본이 아닌 포트**(`http://a.test:443/`, 스킴은 http)는 여전히 다른
     도메인 — 남의 2초에 안 묶이고 자기 하한 1초로 돈다
-  4 잴 대상이 사라지면(요청 표본 부족) **종료 코드 2**
+  3 잴 대상이 사라지면(요청 표본 부족) **종료 코드 2**
 
 바깥 네트워크는 안 탄다 — 이름 해석 대신 `PORTS` 가 로컬 임시 포트로 보낸다.
 표기 세 개는 **같은 서버**로, 대조군만 **다른 서버**로 간다. 시간이 걸리는 것이
@@ -42,8 +53,9 @@ FLOOR = 1.0      # frontier.DOMAIN_INTERVAL — 대조군이 쓰는 하한
 JITTER = 0.05    # 왕복 지터가 서버 수신 시각에 실린다 — crawl_e2e.py 와 같은 값
 
 HOST = "a.test"
-# 같은 서버를 가리키는 세 표기. 대소문자 + 기본 포트.
-SAME = [HOST, "A.test", HOST + ":80"]
+# 같은 서버를 가리키는 세 표기. **userinfo** 축이다 — 018 이 접지 않고 `domain_key`
+# 는 접는, 살아 있는 유일한 축이다(위 독스트링). Host 헤더에 그대로 실려 구분된다
+SAME = [HOST, "u@" + HOST, "bot@" + HOST]
 # 대조군 — **기본이 아닌 포트**다. http 스킴에서 443 은 기본이 아니다.
 OTHER = HOST + ":443"
 
@@ -94,8 +106,13 @@ def serve(role, links):
 
 
 def _routed(host, **kw):
-    """이름을 풀지 않고 `PORTS` 가 가리키는 로컬 포트로 보낸다 — 바깥으로 안 나간다."""
-    return http.client.HTTPConnection("127.0.0.1", PORTS[host], **kw)
+    """이름을 풀지 않고 `PORTS` 가 가리키는 로컬 포트로 보낸다 — 바깥으로 안 나간다.
+
+    `http.client` 는 userinfo 가 붙은 채로 넘긴다(`u@a.test`). 진짜 이름 해석도
+    그것을 안 보므로 여기서 뗀다 — Host 헤더에는 그대로 실려 표기가 구분된다.
+    """
+    return http.client.HTTPConnection(
+        "127.0.0.1", PORTS[host.rpartition("@")[2]], **kw)
 
 
 class _LocalHTTP(urllib.request.HTTPHandler):
@@ -130,7 +147,7 @@ def pages(role):
 def run():
     # 세 표기가 전부 같은 서버로 간다. 링크는 **표기를 바꿔가며** 건다 —
     # 상대 경로 `/p3` 는 시드 표기(a.test)로 풀린다
-    same = serve("same", ["http://A.test/p1", "http://%s:80/p2" % HOST, "/p3"])
+    same = serve("same", ["http://u@%s/p1" % HOST, "http://bot@%s/p2" % HOST, "/p3"])
     other = serve("other", ["/q1", "/q2"])
     PORTS.update(dict.fromkeys(SAME, same.server_address[1]))
     PORTS[OTHER] = other.server_address[1]
