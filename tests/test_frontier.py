@@ -1,4 +1,5 @@
 import unittest
+import urllib.parse
 
 from websearch.frontier import Frontier
 
@@ -9,6 +10,19 @@ class FakeClock:
 
     def __call__(self):
         return self.t
+
+
+def pop(f, now, exclude=()):
+    """`next()` 하고 **요청이 나갔다고 알린다.** 크롤 루프가 하는 일이 이것이다.
+
+    간격 시계를 거는 자리는 `mark_sent()` 하나뿐이다 — 팝은 요청이 아니다
+    (design_cooldown-burn.md 계약 1·2). 팝만 하고 요청을 안 보내는 경우
+    (`store.has` 스킵·robots 차단)를 재는 곳은 `tests/test_crawl.py` 다.
+    """
+    url = f.next(exclude)
+    if url is not None:
+        f.mark_sent(urllib.parse.urlsplit(url).netloc, now())
+    return url
 
 
 class TestFrontier(unittest.TestCase):
@@ -35,19 +49,20 @@ class TestFrontier(unittest.TestCase):
 
     def test_same_domain_respects_interval(self):
         self.f.add(["http://a.com/1", "http://a.com/2"])
-        self.assertEqual(self.f.next(), "http://a.com/1")
+        self.assertEqual(pop(self.f, self.clock), "http://a.com/1")
         self.assertIsNone(self.f.next())  # 1초 안 지남 — 낼 것 없음
         self.clock.t += 1.0
         self.assertEqual(self.f.next(), "http://a.com/2")
 
     def test_other_domain_served_while_first_cooling(self):
         self.f.add(["http://a.com/1", "http://a.com/2", "http://b.com/1"])
-        self.assertEqual(self.f.next(), "http://a.com/1")
-        self.assertEqual(self.f.next(), "http://b.com/1")  # a 쿨다운 중엔 b
+        self.assertEqual(pop(self.f, self.clock), "http://a.com/1")
+        self.assertEqual(pop(self.f, self.clock), "http://b.com/1")  # a 쿨다운 중엔 b
+        self.assertIsNone(self.f.next())  # 둘 다 쿨다운 — 라운드로빈이 아니라 간격이 막는다
 
     def test_wait_time_reported(self):
         self.f.add(["http://a.com/1", "http://a.com/2"])
-        self.f.next()
+        pop(self.f, self.clock)
         self.assertIsNone(self.f.next())
         self.assertAlmostEqual(self.f.seconds_until_ready(), 1.0)
         self.assertFalse(self.f.empty())
@@ -62,25 +77,25 @@ class TestPerDomainDelay(unittest.TestCase):
 
     def test_declared_delay_slows_only_that_domain(self):
         self.f.add(["http://a.com/1", "http://a.com/2", "http://b.com/1", "http://b.com/2"])
-        self.assertEqual(self.f.next(), "http://a.com/1")
+        self.assertEqual(pop(self.f, self.clock), "http://a.com/1")
         self.f.set_delay("a.com", 5.0)  # 크롤 루프가 robots 를 읽은 직후 알려준다
-        self.assertEqual(self.f.next(), "http://b.com/1")
+        self.assertEqual(pop(self.f, self.clock), "http://b.com/1")
         self.clock.t += 1.5  # b 는 1초면 되고 a 는 아직 멀었다
-        self.assertEqual(self.f.next(), "http://b.com/2")
+        self.assertEqual(pop(self.f, self.clock), "http://b.com/2")
         self.assertIsNone(self.f.next())
         self.clock.t += 3.5
         self.assertEqual(self.f.next(), "http://a.com/2")
 
     def test_wait_time_uses_declared_delay(self):
         self.f.add(["http://a.com/1", "http://a.com/2"])
-        self.f.next()
+        pop(self.f, self.clock)
         self.f.set_delay("a.com", 4.0)
         self.assertAlmostEqual(self.f.seconds_until_ready(), 4.0)
 
     def test_delay_never_goes_below_the_floor(self):
         # 1초는 전제 조건이다 (concept.md) — 사이트가 풀어줄 수 있는 것이 아니다
         self.f.add(["http://a.com/1", "http://a.com/2"])
-        self.f.next()
+        pop(self.f, self.clock)
         self.f.set_delay("a.com", 0.1)
         self.clock.t += 0.5  # 요청받은 0.1초는 지났다 — 하한이 없으면 여기서 나온다
         self.assertIsNone(self.f.next())
@@ -90,8 +105,9 @@ class TestPerDomainDelay(unittest.TestCase):
 
     def test_no_directive_keeps_default_interval(self):
         self.f.add(["http://a.com/1", "http://a.com/2"])
-        self.f.next()
+        pop(self.f, self.clock)
         self.f.set_delay("a.com", None)
+        self.assertIsNone(self.f.next())  # 아직 1초가 안 지났다
         self.clock.t += 1.0
         self.assertEqual(self.f.next(), "http://a.com/2")
 
@@ -109,7 +125,7 @@ class TestPerDomainDelay(unittest.TestCase):
         self.f.add(["http://ok.com/1", "http://ok.com/2", "http://over.com/1"])
         self.f.set_delay("ok.com", 30.0)
         self.f.set_delay("over.com", 30.1)
-        self.assertEqual(self.f.next(), "http://ok.com/1")
+        self.assertEqual(pop(self.f, self.clock), "http://ok.com/1")
         self.assertIsNone(self.f.next())          # over.com 은 버려졌다
         self.clock.t += 30.0
         self.assertEqual(self.f.next(), "http://ok.com/2")
@@ -120,7 +136,7 @@ class TestPerDomainDelay(unittest.TestCase):
         self.f.add(["http://a.com/1", "http://a.com/2"])
         self.f.set_delay("a.com", 20.0)
         self.f.set_delay("a.com", None)
-        self.f.next()
+        pop(self.f, self.clock)
         self.assertAlmostEqual(self.f.seconds_until_ready(), 20.0)
 
     def test_drop_reported_to_caller(self):
@@ -136,6 +152,17 @@ class TestConcurrentPops(unittest.TestCase):
         f.add(["http://a.test/1", "http://b.test/1"])
         self.assertEqual(f.next(exclude={"a.test"}), "http://b.test/1")
         self.assertIsNone(f.next(exclude={"a.test", "b.test"}))
+
+    def test_next_does_not_start_the_clock(self):
+        # 팝은 요청이 아니다. 팝해 놓고 요청을 안 보내는 경로가 실제로 둘 있고
+        # (`store.has` 스킵·robots 차단), 팝이 시계를 걸면 **요청도 없이** 그 도메인이
+        # 쉰다 (design_cooldown-burn.md). 시계를 거는 자리는 `mark_sent()` 하나다
+        t = {"v": 1000.0}
+        f = Frontier(now=lambda: t["v"])
+        f.add(["http://a.test/1", "http://a.test/2"])
+        self.assertEqual(f.next(), "http://a.test/1")
+        self.assertEqual(f.next(), "http://a.test/2",
+                         "팝이 간격 시계를 걸고 있다 — 요청은 아직 하나도 안 나갔다")
 
     def test_mark_sent_moves_the_interval_clock(self):
         # 팝과 발신 사이에 robots.txt 왕복 0.4초가 끼면, 팝 시각으로 재는 간격은
@@ -155,7 +182,7 @@ class TestConcurrentPops(unittest.TestCase):
         t = {"v": 1000.0}
         f = Frontier(now=lambda: t["v"])
         f.add(["http://a.test/1", "http://a.test/2"])
-        f.next()
+        pop(f, lambda: t["v"])
         f.mark_sent("a.test", 999.0)
         t["v"] = 1000.5
         self.assertIsNone(f.next())
@@ -166,7 +193,7 @@ class TestConcurrentPops(unittest.TestCase):
         t = {"v": 1000.0}
         f = Frontier(now=lambda: t["v"])
         f.add(["http://a.test/1", "http://a.test/2", "http://b.test/1"])
-        f.next()  # a.test 팝 → 1001.0 까지 쿨다운
+        pop(f, lambda: t["v"])  # a.test 발신 → 1001.0 까지 쿨다운
         t["v"] = 1000.5
         self.assertEqual(f.seconds_until_ready(), 0.0)
         self.assertAlmostEqual(f.seconds_until_ready(exclude={"b.test"}), 0.5)

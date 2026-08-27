@@ -84,15 +84,25 @@ def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None,
                 return_when=concurrent.futures.FIRST_COMPLETED)
             for future in done:
                 url, domain = inflight.pop(future)
-                saved += _store_result(future, url, domain, store, frontier)
+                saved += _store_result(future, url, domain, store, frontier, now)
     return saved
 
 
-def _store_result(future, url, domain, store, frontier):
-    """워커 결과 하나를 반영한다. 수집에 성공했으면 1, 아니면 0."""
+def _store_result(future, url, domain, store, frontier, now):
+    """워커 결과 하나를 반영한다. 수집에 성공했으면 1, 아니면 0.
+
+    **간격 시계를 거는 유일한 자리다** (docs/design_cooldown-burn.md 계약 2·3).
+    robots 가 막았으면 페이지 요청이 안 나갔으니 걸지 않는다 — 그 도메인을 재우면
+    요청도 없이 쿨다운을 태우는 것이다.
+    """
     try:
         allowed, requested, sent_at, result = future.result()
     except Exception as err:  # 워커 하나가 죽어도 크롤은 안 죽는다 (계약 6)
+        # **요청이 나갔는지 알 수 없다** — 예외는 fetch 전에도 후에도 날 수 있다.
+        # 보수적으로 지금 시각으로 건다. 늦게 잡는 것은 안전하고 이르게 당기는 것만
+        # 위반이며, `mark_sent` 가 `max` 로 늦은 쪽으로만 움직인다.
+        # 여기를 빼면 다음 요청이 즉시 나간다 (설계 탐침 실측 0.310s).
+        frontier.mark_sent(domain, now())
         print("%s: 요청이 예외로 끝났다 — %r" % (url, err), file=sys.stderr)
         return 0
     if not allowed:

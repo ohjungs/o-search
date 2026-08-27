@@ -307,3 +307,68 @@ class TestConcurrency(unittest.TestCase):
         self.assertEqual(crawl.main(["prog", "http://a.com/", "--workers"]), 2)
         self.assertEqual(crawl.main(["prog", "http://a.com/", "--workers", "abc"]), 2)
         self.assertEqual(crawl.main(["prog", "http://a.com/", "--workers", "0"]), 2)
+
+
+class TestCooldownBurn(unittest.TestCase):
+    """팝했지만 **요청을 안 보낸** URL 이 도메인 쿨다운을 태우지 않는가.
+
+    design_cooldown-burn.md 계약 2·3. 시간을 재지 않고 **가짜 시계**로 결정적으로 본다 —
+    `time.sleep` 이 시계를 흘려보내므로 간격이 정확히 몇 초였는지 단언할 수 있다.
+    """
+
+    def _gaps(self, seeds, pages, blocked=(), boom=(), skip=()):
+        """a.test 로 **실제로 나간 요청들**의 간격. 예외로 끝난 요청도 나간 것이다."""
+        sent = []
+        clock = {"t": 1000.0}
+
+        def fake_fetch(url):
+            sent.append(clock["t"])          # 여기가 발신 시점이다
+            if url in boom:
+                raise RuntimeError("워커가 죽었다")
+            return FetchResult(200, pages.get(url), url)
+
+        robots = mock.Mock()
+        robots.allowed = lambda url: url not in blocked
+        robots.delay = lambda url: None
+        real_store = crawl.Store
+
+        def skipping_store(path):
+            store = real_store(path)
+            has = store.has
+            store.has = lambda u: u in skip or has(u)
+            return store
+
+        with mock.patch("websearch.crawl.fetcher") as mf, \
+             mock.patch("websearch.crawl.Store", skipping_store), \
+             mock.patch("websearch.crawl.time.sleep") as ms, \
+             mock.patch("sys.stderr", io.StringIO()):
+            mf.fetch = fake_fetch
+            ms.side_effect = lambda s: clock.__setitem__("t", clock["t"] + s)
+            crawl.crawl(seeds, 10, db_path=":memory:", robots_cache=robots,
+                        now=lambda: clock["t"], workers=8)
+        return [b - a for a, b in zip(sent, sent[1:])]
+
+    # 링크 순서가 곧 팝 순서다 — 안 보내는 URL 을 먼저 팝하게 해야 태우는지 보인다
+    PAGES = {"http://a.test/": '<a href="/x">x</a><a href="/2">2</a>',
+             "http://a.test/2": "leaf"}
+
+    def test_store_skipped_url_does_not_burn_cooldown(self):
+        gaps = self._gaps(["http://a.test/"], self.PAGES, skip={"http://a.test/x"})
+        self.assertEqual(gaps, [1.0], "요청도 안 보낸 URL 이 쿨다운을 태웠다")
+
+    def test_robots_blocked_url_does_not_burn_cooldown(self):
+        gaps = self._gaps(["http://a.test/"], self.PAGES, blocked={"http://a.test/x"})
+        self.assertEqual(gaps, [1.0], "robots 가 막은 URL 이 쿨다운을 태웠다")
+
+    def test_real_request_does_burn_cooldown(self):
+        # 긍정 짝. 위 둘만 있으면 "아무것도 안 태운다" 로도 통과한다
+        pages = {"http://a.test/": '<a href="/x">x</a><a href="/2">2</a>',
+                 "http://a.test/x": "leaf", "http://a.test/2": "leaf"}
+        self.assertEqual(self._gaps(["http://a.test/"], pages), [1.0, 1.0])
+
+    def test_worker_exception_still_holds_the_interval(self):
+        # **요청은 나갔고 결과만 터졌다.** 여기서 시계를 안 걸면 다음 요청이 즉시 나간다
+        # — 008 리뷰가 경고했고 설계 탐침이 0.310s 로 실증한 구멍이다
+        gaps = self._gaps(["http://a.test/"], self.PAGES, boom={"http://a.test/x"})
+        for gap in gaps:
+            self.assertGreaterEqual(gap, 1.0, "예외 뒤 간격이 깨졌다: %s" % gaps)

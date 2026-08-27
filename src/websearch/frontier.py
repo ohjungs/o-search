@@ -50,10 +50,16 @@ class Frontier:
     def next(self, exclude=()):
         """지금 요청해도 되는 URL 하나. 전 도메인이 쿨다운이면 None.
 
+        **간격 시계를 걸지 않는다 — 읽어서 거르기만 한다.** 팝은 요청이 아니다.
+        팝해 놓고 요청을 안 보내는 경로가 실제로 둘 있어(`store.has` 스킵·robots 차단),
+        팝이 시계를 걸면 요청도 없이 그 도메인이 쉰다
+        (docs/design_cooldown-burn.md 계약 1). 시계는 `mark_sent()` 만 건다.
+
         `exclude` 는 **지금 요청이 떠 있는 도메인**이다. 경과 시간만으로 재면
         응답이 간격보다 오래 걸릴 때 같은 도메인을 in-flight 인 채로 다시 내준다 —
         순차 루프에서는 불가능했고 동시화가 처음 여는 구멍이다
-        (docs/design_crawl-throughput.md 계약 3).
+        (docs/design_crawl-throughput.md 계약 3). **팝과 발신 사이의 창도 이것이 덮는다** —
+        `crawl` 이 제출 전에 `busy` 에 넣으므로 그 사이 같은 도메인이 다시 안 나온다.
         """
         for domain in list(self._queues):
             if domain in exclude:
@@ -67,7 +73,6 @@ class Frontier:
                 del self._queues[domain]
             else:
                 self._queues.move_to_end(domain)  # 라운드로빈
-            self._last_fetch[domain] = self._now()
             return url
         return None
 
