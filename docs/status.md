@@ -2,15 +2,15 @@
 signal: GREEN
 mode: night
 plan: crawl-politeness
-phase: 테스트
-step: 4/6
+phase: 리뷰
+step: 5/6
 attempt: 0
-iteration: 93
-night_iterations: 4
+iteration: 94
+night_iterations: 5
 night_red: 0
 night_retries: 0
-updated: 2026-08-27 (반복 93 · 스텝 3 완료 — 문제 B 닫힘)
-ctx: 71% / 200k
+updated: 2026-08-27 (반복 94 · 테스트 phase 완료)
+ctx: 55% / 200k
 rules: 1411a37
 ---
 
@@ -57,7 +57,18 @@ to 5.0`, digest 가 적은 실측과 같은 값이다. 그 뒤 `RobotsCache.know
 `e2e/perf_crawl.py` 의 `exploding_fetch`. `websearch.crawl.fetcher` 를 통째로 Mock 하는
 곳에는 `mf.RETRIES` 도 심어야 한다(모듈이 Mock 이면 `fetcher.RETRIES` 도 Mock 이다).
 
-다음 반복은 **스텝 4(테스트 phase)** — 새로 쓰는 곳이 아니라 **빠뜨린 것을 찾는** 곳이다.
+**스텝 4(테스트 phase) 완료.** 6개 카테고리로 훑어 갭 3건을 찾아 메웠다
+(289 → **294건**, 전부 통과). `crawl_delay_e2e.py` 종료 코드 0 재확인.
+
+- 갭 ⑥: **예외 가지가 `_apply_delay` 를 이번에 처음 지난다** — 상한 초과 도메인을
+  버리는 분기에 테스트가 0이었다(`TestUnkeepableDelayFoundOnFailure`, 긍정 짝 포함)
+- 갭 ②: `MAX_DELAY` **정확히 그 값**. `set_delay` 는 `>` 로 버리고 `_fetch_one` 은 `<=` 로
+  재시도한다 — 부등호 둘이 어긋나면 갈라지는 자리다. 30.0 / 30.1 을 짝으로 고정
+- 갭 ②: `Crawl-delay: 0` 이 하한 1초를 뚫는지 (재시도 경로에서도)
+- 변이 3종 추가 확인: 예외 가지 `_apply_delay` 삭제→2 · `<=`→`<`→1 · 하한 제거→2
+
+다음 반복은 **스텝 5(리뷰)** — `rules/review.md` 대로 **별도 백지 세션**에 넘긴다.
+`docs/` 는 주지 않는다. diff 와 소스만 본다.
 
 ## 다음 계획 (이번 계획이 DONE 되면)
 

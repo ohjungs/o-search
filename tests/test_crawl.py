@@ -7,6 +7,7 @@ import urllib.parse
 from unittest import mock
 
 from websearch import crawl, fetcher
+from websearch.frontier import MAX_DELAY
 from websearch.fetcher import FetchResult
 
 
@@ -526,7 +527,7 @@ class TestRetriesKeepTheInterval(unittest.TestCase):
                     return FetchResult(200, self.PAGES.get(url), url)
             return FetchResult(0, None, None)
 
-        robots = FakeRobots({"b.test": delay} if delay else {})
+        robots = FakeRobots({"b.test": delay} if delay is not None else {})
         with mock.patch("websearch.crawl.fetcher") as mf, \
              mock.patch("websearch.crawl.time.sleep") as ms, \
              mock.patch("sys.stderr", io.StringIO()):
@@ -571,3 +572,67 @@ class TestRetriesKeepTheInterval(unittest.TestCase):
     def test_keepable_interval_still_retries(self):
         # 긍정 짝. 위 테스트만 있으면 "재시도가 통째로 사라졌다" 로도 통과한다
         self.assertEqual(len(self._b_sends(delay=5.0, failing={"http://b.test/1"})), 4)
+
+    def test_zero_delay_still_gets_the_floor_between_retries(self):
+        # 경계값 0. `Crawl-delay: 0` 은 "얼마든지 빨리 와도 된다" 지만 도메인당 1초는
+        # 컨셉의 하한이라 내리지 않는다 — 재시도에도 같이 걸려야 한다
+        sent = self._b_sends(delay=0.0, failing={"http://b.test/1"})
+        gaps = [b - a for a, b in zip(sent, sent[1:])]
+        self.assertEqual(len(sent), 4)
+        for gap in gaps:
+            self.assertGreaterEqual(gap, 1.0, "0초 선언이 하한을 뚫었다: %s" % gaps)
+
+    def test_interval_exactly_at_the_cap_still_retries(self):
+        # 경계값. `set_delay` 는 `> MAX_DELAY` 에서 버리고 `_fetch_one` 은
+        # `<= MAX_DELAY` 에서 재시도한다 — 두 부등호가 어긋나면 여기가 갈라진다
+        self.assertEqual(len(self._b_sends(delay=MAX_DELAY,
+                                           failing={"http://b.test/1"})), 4)
+
+    def test_a_hair_over_the_cap_does_not_retry(self):
+        # 음성 짝. 위 테스트와 붙어야 경계가 어느 쪽인지 고정된다
+        self.assertEqual(len(self._b_sends(delay=MAX_DELAY + 0.1,
+                                           failing={"http://b.test/1"})), 1)
+
+
+class TestUnkeepableDelayFoundOnFailure(unittest.TestCase):
+    """예외로 끝난 요청에서 알아낸 간격이 상한을 넘으면 그 도메인을 버리는가.
+
+    성공 가지에는 테스트가 있었지만(`TestCrawlDelayWiring`), 예외 가지는 `_apply_delay` 를
+    이번에 처음 지난다 — 초록불인데 새 분기는 아무도 안 밟는 자리였다 (test.md 갭 ⑥).
+    """
+
+    PAGES = {"http://hub.test/": '<a href="http://b.test/1">1</a>'
+                                 '<a href="http://b.test/2">2</a>'}
+
+    def _run(self, delay):
+        sent, err = [], io.StringIO()
+        clock = {"t": 1000.0}
+
+        def fake_fetch(url, **kw):
+            if urllib.parse.urlsplit(url).netloc == "b.test":
+                sent.append(url)
+                raise RuntimeError("워커가 죽었다")
+            return FetchResult(200, self.PAGES.get(url), url)
+
+        robots = FakeRobots({"b.test": delay})
+        with mock.patch("websearch.crawl.fetcher") as mf, \
+             mock.patch("websearch.crawl.time.sleep") as ms, \
+             mock.patch("sys.stderr", err):
+            mf.fetch = fake_fetch
+            mf.RETRIES = fetcher.RETRIES
+            ms.side_effect = lambda s: clock.__setitem__("t", clock["t"] + s)
+            crawl.crawl(["http://hub.test/"], 10, db_path=":memory:",
+                        robots_cache=robots, now=lambda: clock["t"], workers=8)
+        return sent, err.getvalue()
+
+    def test_over_the_cap_domain_is_dropped_and_reported(self):
+        sent, err = self._run(MAX_DELAY + 30)
+        self.assertEqual(len(sent), 1, "버려야 할 도메인에 계속 갔다: %s" % sent)
+        self.assertIn("b.test", err)
+        self.assertIn("더 가지 않는다", err, "조용히 멈추면 이유를 알 방법이 없다")
+
+    def test_keepable_domain_keeps_going_after_a_failure(self):
+        # 긍정 짝. 위 테스트만 있으면 "예외가 나면 무조건 버린다" 로도 통과한다
+        sent, err = self._run(5.0)
+        self.assertEqual(len(sent), 2)
+        self.assertNotIn("더 가지 않는다", err)
