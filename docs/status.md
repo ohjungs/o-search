@@ -2,14 +2,14 @@
 signal: GREEN
 mode: night
 plan: retry-interval
-phase: 테스트
-step: 3/5
+phase: 리뷰
+step: 4/5
 attempt: 0
-iteration: 103
-night_iterations: 14
+iteration: 104
+night_iterations: 15
 night_red: 0
 night_retries: 0
-updated: 2026-08-27 (반복 103 · 스텝 2 완료)
+updated: 2026-08-27 (반복 104 · 테스트 phase 완료)
 ctx: 68% / 200k
 rules: 1411a37
 ---
@@ -61,7 +61,24 @@ digest `[5]` 가 적어 둔 실측과 **같은 숫자**다. `Frontier._interval`
   도메인은 **1.0 ≤ g < 2.0** 임을 잰다 — 없으면 "전부 5초로 재우기" 로도 통과한다
 - `robots.delay` 를 스킴 무관으로 바꾸지 않았다. `robots.txt` 는 스킴별로 다른 문서다
 
-다음 반복은 **스텝 3(테스트 phase)**.
+**스텝 3(테스트 phase) 완료.** 갭 2건을 메웠다(315 → **322건**). ③격리·④flaky·⑤보안은
+해당 없음(전역 없음·가짜 시계·입력 처리 변경 없음).
+
+- 갭 ② (**9점**) **하한 보장의 자리가 호출부로 옮겨갈 뻔했다.** `floor` 를 도입하면서
+  `max(DOMAIN_INTERVAL, ...)` 를 지웠는데, 오늘은 `frontier.interval()` 이 언제나 하한
+  이상을 주지만 그 보장이 **한 곳에만** 있으면 더 작은 값을 넘기는 호출이 하나 생기는
+  순간 조용히 사라진다. **하한은 컨셉의 절대 조건이다** — `max` 에 남기고 `floor=0.0`
+  으로 직접 불러 1초가 지켜지는지 재는 테스트를 붙였다
+- 갭 ⑥ (8점) **`Frontier.interval` 은 새 공개 읽기인데 직접 테스트가 0**이었다.
+  `next`·`seconds_until_ready` 가 간접적으로 쓰지만 그 둘은 "언제 팝할까" 를 재는 쪽이라
+  **값이 내려가지 않는다**는 성질은 아무도 단언하지 않았다 — `crawl` 이 이제 그 성질에
+  기댄다. 단조성·0선언·상한초과·도메인 격리 6건
+- **가드 위치를 먼저 확인했다**(digest `[7]`) — `tests/` 전체에 뒤에 코드가 오는 가드 없음
+- 변이 5종 전부 잡힘: `floor` 미사용→1 · `DOMAIN_INTERVAL` 삭제→1 · `interval` 기본값
+  0→23 · `set_delay` 단조성 삭제→16 · 제출 시 하한 고정→1
+- 회귀: `perf_crawl` [차단] **10.30/s** · `crawl_politeness` 0 · 낮은 갭 1건 digest `[6]`
+
+다음 반복은 **스텝 4(리뷰)** — `rules/review.md` 대로 **별도 백지 세션**에 넘긴다.
 
 ## 직전 계획 (015 `pagination-ui`) — DONE
 
