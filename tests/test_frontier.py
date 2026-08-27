@@ -1,7 +1,7 @@
 import unittest
 import urllib.parse
 
-from websearch.frontier import Frontier
+from websearch.frontier import Frontier, DOMAIN_INTERVAL, MAX_DELAY
 
 
 class FakeClock:
@@ -197,3 +197,46 @@ class TestConcurrentPops(unittest.TestCase):
         t["v"] = 1000.5
         self.assertEqual(f.seconds_until_ready(), 0.0)
         self.assertAlmostEqual(f.seconds_until_ready(exclude={"b.test"}), 0.5)
+
+
+class TestIntervalIsPublicNow(unittest.TestCase):
+    """`interval(domain)` 은 `crawl` 이 **워커에 넘길 바닥값**으로 읽는 공개 계약이다.
+
+    간접적으로는 `next`·`seconds_until_ready` 가 이미 쓰고 있었지만, 그 둘은
+    "언제 팝할까" 를 재는 쪽이라 **값 자체가 내려가지 않는다**는 성질은 아무도
+    단언하지 않았다. `crawl` 이 그 성질에 기대기 시작했으므로 여기서 못박는다.
+    """
+
+    def test_unknown_domain_reads_as_the_floor(self):
+        self.assertEqual(Frontier().interval("a.test"), DOMAIN_INTERVAL)
+
+    def test_declared_delay_is_what_it_reads_back(self):
+        f = Frontier()
+        f.set_delay("a.test", 5.0)
+        self.assertEqual(f.interval("a.test"), 5.0)
+
+    def test_it_never_goes_down(self):
+        # 이 성질이 `crawl` 의 바닥값이 바닥인 이유다 — 내려가면 재시도가 빨라진다
+        f = Frontier()
+        f.set_delay("a.test", 5.0)
+        f.set_delay("a.test", 2.0)
+        f.set_delay("a.test", None)
+        self.assertEqual(f.interval("a.test"), 5.0)
+
+    def test_a_zero_declaration_still_reads_as_the_floor(self):
+        # `Crawl-delay: 0` 은 "얼마든지 빨리" 지만 도메인당 1초는 컨셉의 하한이다
+        f = Frontier()
+        f.set_delay("a.test", 0.0)
+        self.assertEqual(f.interval("a.test"), DOMAIN_INTERVAL)
+
+    def test_a_dropped_domain_reads_as_the_floor_again(self):
+        # 상한 초과는 도메인을 통째로 버린다(`_delays` 에서도 지운다). 그 뒤 읽으면
+        # 하한이다 — 30초를 넘는 값이 바닥값으로 새어 나가면 워커가 하루를 붙든다
+        f = Frontier()
+        f.set_delay("a.test", MAX_DELAY + 1)
+        self.assertEqual(f.interval("a.test"), DOMAIN_INTERVAL)
+
+    def test_domains_do_not_share_their_intervals(self):
+        f = Frontier()
+        f.set_delay("a.test", 5.0)
+        self.assertEqual(f.interval("b.test"), DOMAIN_INTERVAL)

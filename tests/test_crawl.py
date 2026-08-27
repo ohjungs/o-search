@@ -690,6 +690,38 @@ class TestRetryUsesWhatTheFrontierKnows(unittest.TestCase):
         for gap in gaps:
             self.assertGreaterEqual(gap, 7.0, "자기 선언 7초가 5초로 깎였다: %s" % gaps)
 
+    def test_a_smaller_floor_cannot_undercut_the_absolute_minimum(self):
+        """**하한은 절대 조건이다** — 바닥값을 낮게 넘겨도 1초 아래로 안 내려간다.
+
+        `floor` 를 도입하면서 `DOMAIN_INTERVAL` 보장의 자리가 `_fetch_one` 안에서
+        호출부로 옮겨갈 뻔했다. 오늘은 `frontier.interval()` 이 언제나 하한 이상을
+        주지만, 그 보장이 **한 곳에만** 있으면 더 작은 값을 넘기는 호출이 하나
+        생기는 순간 조용히 사라진다. 여기서 막는다.
+        """
+        sent = []
+        clock = {"t": 1000.0}
+
+        def flaky_fetch(url, before_send=None, retries=fetcher.RETRIES):
+            for _ in range(1 + retries):
+                if before_send is not None:
+                    before_send()
+                sent.append(clock["t"])
+            return FetchResult(0, None, None)
+
+        with mock.patch("websearch.crawl.fetcher") as mf, \
+             mock.patch("websearch.crawl.time.sleep") as ms:
+            mf.fetch = flaky_fetch
+            mf.RETRIES = fetcher.RETRIES
+            ms.side_effect = lambda s: clock.__setitem__("t", clock["t"] + s)
+            crawl._fetch_one("http://b.test/1", FakeRobots(),
+                             now=lambda: clock["t"], floor=0.0)
+
+        gaps = [b - a for a, b in zip(sent, sent[1:])]
+        self.assertTrue(gaps, "재시도 표본이 없다 — 잴 대상이 사라졌다")
+        for gap in gaps:
+            self.assertGreaterEqual(gap, DOMAIN_INTERVAL,
+                                    "바닥값 0이 도메인 하한을 뚫었다: %s" % gaps)
+
     def test_worker_never_touches_the_frontier(self):
         """설계 계약 4 — 바닥값은 **제출 시점에 메인 스레드가** 읽어 넘긴다.
 

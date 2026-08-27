@@ -41,7 +41,10 @@ def _fetch_one(url, robots, now, floor):
     if not robots.allowed(url):
         return False, None, None, None
     requested = robots.delay(url)
-    interval = max(floor, requested or 0)
+    # `DOMAIN_INTERVAL` 을 여기 남겨 둔다. `floor` 는 오늘 언제나 그 이상이지만,
+    # **하한은 컨셉의 절대 조건**이라 그 보장이 호출부 한 곳에만 있으면 안 된다 —
+    # 더 작은 값을 넘기는 호출이 하나 생기는 순간 조용히 사라지는 종류의 것이다
+    interval = max(DOMAIN_INTERVAL, floor, requested or 0)
     sends = []  # 이 URL 로 실제로 나간 시도들의 시각
 
     def before_send():
