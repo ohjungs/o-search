@@ -17,12 +17,24 @@ class FetchResult(NamedTuple):
     url: Optional[str] = None  # 리다이렉트 후 최종 URL — 저장 키·링크 base 로 쓴다
 
 
-def fetch(url):
+def fetch(url, before_send=None, retries=RETRIES):
+    """`before_send` 는 **시도 하나하나 앞에서** 불린다 — 재시도 앞에서도 불린다.
+
+    도메인 간격을 지키며 재우는 것도, 발신 시각을 재는 것도 **호출부의 몫**이다.
+    `fetcher` 는 간격이라는 개념을 모른다 (docs/design_crawl-politeness.md 2-1절).
+    훅이 뒤가 아니라 앞에서 불려야 호출부가 재는 것이 응답이 아니라 **발신**이 된다.
+
+    `retries=0` 은 "간격을 지킬 수 없는 도메인이니 다시 보내지 않는다" 는 뜻이다(설계 2-4절).
+    `Request()` 생성이 실패하면 훅은 한 번도 안 불린다 — 나가지도 않은 요청으로
+    도메인 시계를 걸면 안 된다.
+    """
     try:
         req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     except ValueError:  # 스킴 없음 등 — CLI 시드는 신뢰 경계다
         return FetchResult(0, None, None)
-    for attempt in range(1 + RETRIES):
+    for attempt in range(1 + retries):
+        if before_send is not None:
+            before_send()
         try:
             with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
                 final_url = resp.geturl()

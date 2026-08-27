@@ -2,15 +2,15 @@
 signal: GREEN
 mode: night
 plan: crawl-politeness
-phase: 개발
-step: 3/6
+phase: 테스트
+step: 4/6
 attempt: 0
-iteration: 92
-night_iterations: 3
+iteration: 93
+night_iterations: 4
 night_red: 0
 night_retries: 0
-updated: 2026-08-27 (반복 92 · 스텝 2 완료 — 문제 A 닫힘)
-ctx: 62% / 200k
+updated: 2026-08-27 (반복 93 · 스텝 3 완료 — 문제 B 닫힘)
+ctx: 71% / 200k
 rules: 1411a37
 ---
 
@@ -48,8 +48,16 @@ to 5.0`, digest 가 적은 실측과 같은 값이다. 그 뒤 `RobotsCache.know
 `_store_result` 가 `robots` 를 받도록 인자가 하나 늘었다(private, 호출부 1곳).
 **269 → 276건 전부 통과.** 변이 3종이 전부 잡힌다(무변이 기준선 `OK` 를 먼저 잡고 셌다).
 
-다음 반복은 **스텝 3(문제 B)** — `fetcher.fetch(url, before_send=None, retries=RETRIES)`.
-설계 2절 그대로. 테스트를 먼저 쓴다. 고정할 것은 설계 5절 표의 3~6번이다.
+**스텝 3(문제 B) 완료.** `fetcher.fetch(url, before_send=None, retries=RETRIES)` 를 넣고
+간격을 알고·재우고·**재는** 일은 전부 `_fetch_one` 의 클로저가 한다. `sent_at` 이
+**마지막 발신**이 됐다. 상한 초과 도메인은 `retries=0`.
+**276 → 289건 전부 통과.** 변이 4종 전부 잡힌다.
+
+**시그니처가 바뀌어 가짜 fetch 를 전부 고쳤다** — `tests/test_crawl.py` 10곳(`**kw`)과
+`e2e/perf_crawl.py` 의 `exploding_fetch`. `websearch.crawl.fetcher` 를 통째로 Mock 하는
+곳에는 `mf.RETRIES` 도 심어야 한다(모듈이 Mock 이면 `fetcher.RETRIES` 도 Mock 이다).
+
+다음 반복은 **스텝 4(테스트 phase)** — 새로 쓰는 곳이 아니라 **빠뜨린 것을 찾는** 곳이다.
 
 ## 다음 계획 (이번 계획이 DONE 되면)
 

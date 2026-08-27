@@ -6,7 +6,7 @@ import unittest
 import urllib.parse
 from unittest import mock
 
-from websearch import crawl
+from websearch import crawl, fetcher
 from websearch.fetcher import FetchResult
 
 
@@ -25,7 +25,7 @@ class TestCrawl(unittest.TestCase):
         fetched = []
         self.fetch_times = []  # (url, 그때의 가짜 시각) — 간격 계약을 여기서 잰다
 
-        def fake_fetch(url):
+        def fake_fetch(url, **kw):  # 진짜 fetch 는 before_send·retries 를 받는다
             fetched.append(url)
             self.fetch_times.append((url, clock["t"]))
             target = REDIRECTS.get(url, url)
@@ -41,6 +41,7 @@ class TestCrawl(unittest.TestCase):
         with mock.patch("websearch.crawl.fetcher") as mf, \
              mock.patch("websearch.crawl.time.sleep") as ms:
             mf.fetch = fake_fetch
+            mf.RETRIES = fetcher.RETRIES
             # 가짜 시계: sleep 이 시간을 흘려보낸다 — 실제 대기 없이 결정적
             ms.side_effect = lambda s: clock.__setitem__("t", clock["t"] + s)
             n = crawl.crawl(seeds, max_pages, db_path=":memory:",
@@ -139,7 +140,7 @@ class TestNonAsciiUrl(unittest.TestCase):
             "http://xn--bj0bj3i97fq8o5lq.test/": "leaf",
         }
 
-        def fake_fetch(url):
+        def fake_fetch(url, **kw):  # 진짜 fetch 는 before_send·retries 를 받는다
             return (FetchResult(200, pages[url], url) if url in pages
                     else FetchResult(404, None, url))
 
@@ -160,6 +161,7 @@ class TestNonAsciiUrl(unittest.TestCase):
         with mock.patch("websearch.crawl.fetcher") as mf, \
              mock.patch("websearch.crawl.Store", recording_store):
             mf.fetch = fake_fetch
+            mf.RETRIES = fetcher.RETRIES
             n = crawl.crawl(["http://a.com/가"], 10, db_path=":memory:",
                             robots_cache=robots, now=lambda: next(tick))
 
@@ -227,6 +229,7 @@ class TestConcurrency(unittest.TestCase):
             kwargs["now"] = now
         with mock.patch("websearch.crawl.fetcher") as mf:
             mf.fetch = fetch
+            mf.RETRIES = fetcher.RETRIES
             return crawl.crawl(list(seeds), max_pages, **kwargs)
 
     def test_requests_run_concurrently(self):
@@ -234,7 +237,7 @@ class TestConcurrency(unittest.TestCase):
         seeds = ["http://d%d.test/" % i for i in range(8)]
         barrier = threading.Barrier(4, timeout=5)
 
-        def fake_fetch(url):
+        def fake_fetch(url, **kw):  # 진짜 fetch 는 before_send·retries 를 받는다
             barrier.wait()  # 넷이 모여야 통과 — 순차면 BrokenBarrierError
             return FetchResult(200, "leaf", url)
 
@@ -248,7 +251,7 @@ class TestConcurrency(unittest.TestCase):
         state = {"live": 0, "peak": 0}
         lock = threading.Lock()
 
-        def fake_fetch(url):
+        def fake_fetch(url, **kw):  # 진짜 fetch 는 before_send·retries 를 받는다
             with lock:
                 state["live"] += 1
                 state["peak"] = max(state["peak"], state["live"])
@@ -266,7 +269,7 @@ class TestConcurrency(unittest.TestCase):
         seeds = ["http://d%d.test/" % i for i in range(8)]
         fetched, lock = [], threading.Lock()
 
-        def fake_fetch(url):
+        def fake_fetch(url, **kw):  # 진짜 fetch 는 before_send·retries 를 받는다
             with lock:
                 fetched.append(url)
             return FetchResult(200, "leaf", url)
@@ -277,7 +280,7 @@ class TestConcurrency(unittest.TestCase):
 
     def test_worker_exception_does_not_kill_crawl(self):
         # 워커 하나가 죽어도 나머지는 간다. 조용히 죽지도 않는다
-        def fake_fetch(url):
+        def fake_fetch(url, **kw):  # 진짜 fetch 는 before_send·retries 를 받는다
             if url == "http://d1.test/":
                 raise RuntimeError("워커가 죽었다")
             return FetchResult(200, "leaf", url)
@@ -295,7 +298,7 @@ class TestConcurrency(unittest.TestCase):
         def run(workers):
             got, lock = [], threading.Lock()
 
-            def fake_fetch(url):
+            def fake_fetch(url, **kw):  # 진짜 fetch 는 before_send·retries 를 받는다
                 with lock:
                     got.append(url)
                 return FetchResult(200, "leaf", url)
@@ -324,7 +327,7 @@ class TestCooldownBurn(unittest.TestCase):
         sent = []
         clock = {"t": 1000.0}
 
-        def fake_fetch(url):
+        def fake_fetch(url, **kw):  # 진짜 fetch 는 before_send·retries 를 받는다
             sent.append(clock["t"])          # 여기가 발신 시점이다
             if url in boom:
                 raise RuntimeError("워커가 죽었다")
@@ -347,6 +350,7 @@ class TestCooldownBurn(unittest.TestCase):
              mock.patch("websearch.crawl.time.sleep") as ms, \
              mock.patch("sys.stderr", io.StringIO()):
             mf.fetch = fake_fetch
+            mf.RETRIES = fetcher.RETRIES
             ms.side_effect = lambda s: clock.__setitem__("t", clock["t"] + s)
             crawl.crawl(seeds, 10, db_path=":memory:", robots_cache=robots,
                         now=lambda: clock["t"], workers=8)
@@ -381,7 +385,7 @@ class TestCooldownBurn(unittest.TestCase):
         sent = []
         clock = {"t": 1000.0}
 
-        def fake_fetch(url):
+        def fake_fetch(url, **kw):  # 진짜 fetch 는 before_send·retries 를 받는다
             if urllib.parse.urlsplit(url).netloc == "b.test":
                 sent.append(clock["t"])
             if url == "http://b.test/1":
@@ -396,6 +400,7 @@ class TestCooldownBurn(unittest.TestCase):
              mock.patch("websearch.crawl.time.sleep") as ms, \
              mock.patch("sys.stderr", io.StringIO()):
             mf.fetch = fake_fetch
+            mf.RETRIES = fetcher.RETRIES
             ms.side_effect = lambda s: clock.__setitem__("t", clock["t"] + s)
             crawl.crawl(["http://hub.test/"], 10, db_path=":memory:",
                         robots_cache=robots, now=lambda: clock["t"], workers=8)
@@ -470,6 +475,7 @@ class TestDelaySurvivesWorkerException(unittest.TestCase):
              mock.patch("websearch.crawl.time.sleep") as ms, \
              mock.patch("sys.stderr", io.StringIO()):
             mf.fetch = fake_fetch
+            mf.RETRIES = fetcher.RETRIES
             ms.side_effect = lambda s: clock.__setitem__("t", clock["t"] + s)
             crawl.crawl(["http://hub.test/"], 10, db_path=":memory:",
                         robots_cache=robots, now=lambda: clock["t"], workers=8)
@@ -488,3 +494,80 @@ class TestDelaySurvivesWorkerException(unittest.TestCase):
     def test_domain_without_declared_delay_keeps_the_floor(self):
         # 음성 대조. 모르는 값을 지어내지 않는다 — 하한 1초가 답이다
         self.assertEqual(self._b_gaps(None, boom={"http://b.test/1"}), [1.0])
+
+
+class TestRetriesKeepTheInterval(unittest.TestCase):
+    """`fetcher` 의 재시도가 도메인 간격을 지키는가 (design_crawl-politeness.md 2절).
+
+    실측(반복 87 리뷰 탐침): 연결 거부 도메인 1건 → **TCP 연결 3회, 간격 0.0002초**.
+    재시도는 `fetcher` 안에서 일어나 `mark_sent` 를 한 번도 안 지나므로 프런티어는
+    이것을 요청 1회로 안다.
+
+    여기서 쓰는 가짜 `fetch` 는 **진짜와 같은 순서로 훅을 부른다** — 진짜가 그러는지는
+    `tests/test_fetcher.py` 의 `TestSendHook` 이 따로 고정한다.
+    """
+
+    PAGES = {"http://hub.test/": '<a href="http://b.test/1">1</a>'
+                                 '<a href="http://b.test/2">2</a>',
+             "http://b.test/1": "leaf", "http://b.test/2": "leaf"}
+
+    def _b_sends(self, delay=None, failing=()):
+        """b.test 로 나간 **모든 시도**의 시각. 재시도도 나간 요청이다."""
+        sent = []
+        clock = {"t": 1000.0}
+
+        def flaky_fetch(url, before_send=None, retries=fetcher.RETRIES):
+            for _ in range(1 + retries):
+                if before_send is not None:
+                    before_send()
+                if urllib.parse.urlsplit(url).netloc == "b.test":
+                    sent.append(clock["t"])
+                if url not in failing:
+                    return FetchResult(200, self.PAGES.get(url), url)
+            return FetchResult(0, None, None)
+
+        robots = FakeRobots({"b.test": delay} if delay else {})
+        with mock.patch("websearch.crawl.fetcher") as mf, \
+             mock.patch("websearch.crawl.time.sleep") as ms, \
+             mock.patch("sys.stderr", io.StringIO()):
+            mf.fetch = flaky_fetch
+            mf.RETRIES = fetcher.RETRIES
+            ms.side_effect = lambda s: clock.__setitem__("t", clock["t"] + s)
+            crawl.crawl(["http://hub.test/"], 10, db_path=":memory:",
+                        robots_cache=robots, now=lambda: clock["t"], workers=8)
+        return sent
+
+    def test_retries_are_spaced_by_the_domain_interval(self):
+        sent = self._b_sends(failing={"http://b.test/1"})
+        self.assertEqual(len(sent), 4, "시도 3회 + 다음 URL 1회를 봐야 한다: %s" % sent)
+        gaps = [b - a for a, b in zip(sent, sent[1:])]
+        for gap in gaps:
+            self.assertGreaterEqual(gap, 1.0, "재시도가 간격 없이 몰아쳤다: %s" % gaps)
+
+    def test_next_url_waits_for_the_last_retry_not_the_first(self):
+        # 마지막 발신이 아니라 **첫** 발신으로 시계를 걸면, 마지막 재시도 직후 0초 만에
+        # 다음 요청이 나간다. 고치면서 여는 구멍이라 따로 잰다
+        sent = self._b_sends(failing={"http://b.test/1"})
+        self.assertGreaterEqual(sent[-1] - sent[-2], 1.0,
+                                "마지막 재시도 직후에 다음 URL 이 나갔다: %s" % sent)
+
+    def test_happy_path_keeps_the_interval_exactly(self):
+        # 긍정 짝. 재시도 대기가 성공 경로로 새면 여기가 1.0 을 넘긴다 (계약 9 불변)
+        sent = self._b_sends()
+        self.assertEqual([b - a for a, b in zip(sent, sent[1:])], [1.0])
+
+    def test_declared_delay_paces_the_retries_too(self):
+        sent = self._b_sends(delay=5.0, failing={"http://b.test/1"})
+        gaps = [b - a for a, b in zip(sent, sent[1:])]
+        for gap in gaps:
+            self.assertGreaterEqual(gap, 5.0, "재시도가 Crawl-delay 를 무시했다: %s" % gaps)
+
+    def test_unkeepable_interval_means_no_retry_at_all(self):
+        # 설계 2-4절. 상한(30초)을 넘게 요구한 도메인은 어차피 버려진다. 버릴 도메인이라도
+        # 이미 나간 요청 뒤에 몰아치면 안 되고, 60초를 자며 워커를 붙들 수도 없다
+        sent = self._b_sends(delay=60.0, failing={"http://b.test/1"})
+        self.assertEqual(len(sent), 1, "간격을 못 지키는 도메인에 다시 보냈다: %s" % sent)
+
+    def test_keepable_interval_still_retries(self):
+        # 긍정 짝. 위 테스트만 있으면 "재시도가 통째로 사라졌다" 로도 통과한다
+        self.assertEqual(len(self._b_sends(delay=5.0, failing={"http://b.test/1"})), 4)

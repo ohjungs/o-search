@@ -215,13 +215,14 @@ def scenario_worker_exception():
     boom = {"/p1", "/p2"}
     real_fetch = crawl_mod.fetcher.fetch
 
-    def exploding_fetch(url):
-        result = real_fetch(url)  # 요청은 정말로 나갔다
+    def exploding_fetch(url, **kw):  # 진짜 fetch 는 before_send·retries 를 받는다
+        result = real_fetch(url, **kw)  # 요청은 정말로 나갔다
         if urllib.parse.urlsplit(url).path in boom:
             raise RuntimeError("주입한 워커 예외 — %s" % url)
         return result
 
-    crawl_mod.fetcher = types.SimpleNamespace(fetch=exploding_fetch)
+    crawl_mod.fetcher = types.SimpleNamespace(fetch=exploding_fetch,
+                                              RETRIES=_real_fetcher.RETRIES)
     err = io.StringIO()
     try:
         with contextlib.redirect_stderr(err):

@@ -145,3 +145,67 @@ class TestUserAgentIsSent(unittest.TestCase):
             200, "User-agent: %s\nDisallow: /x\n\nUser-agent: *\nAllow: /\n" % announced)
         self.assertFalse(c.allowed("http://a.com/x"),
                          "대는 이름과 robots 를 지킬 때 쓰는 이름이 갈렸다")
+
+
+class TestSendHook(unittest.TestCase):
+    """재시도가 **간격 없이 몰아치지 않게** 하는 손잡이 (design_crawl-politeness.md 2-1절).
+
+    `fetcher` 는 간격이라는 개념을 모른다. 시도 하나하나 앞에서 `before_send()` 를 부를
+    뿐이고, 재우는 것도 발신 시각을 재는 것도 `crawl._fetch_one` 이 넘긴 클로저가 한다.
+    """
+
+    def test_hook_runs_before_every_attempt_including_retries(self):
+        calls = []
+        with mock.patch("urllib.request.urlopen",
+                        side_effect=[OSError("t"), OSError("t"), _resp()]) as m:
+            got = fetcher.fetch("http://a.com/", before_send=lambda: calls.append(1))
+        self.assertEqual(got.status, 200)
+        self.assertEqual(m.call_count, 3)
+        self.assertEqual(len(calls), 3, "훅이 시도마다 불리지 않았다")
+
+    def test_hook_runs_once_when_the_first_attempt_succeeds(self):
+        # 긍정 짝. 위 테스트만 있으면 "훅이 항상 3번" 으로도 통과한다
+        calls = []
+        with mock.patch("urllib.request.urlopen", return_value=_resp()):
+            fetcher.fetch("http://a.com/", before_send=lambda: calls.append(1))
+        self.assertEqual(len(calls), 1)
+
+    def test_hook_runs_before_the_request_not_after(self):
+        # 훅이 뒤에 불리면 클로저가 재는 것은 발신이 아니라 응답 시각이 된다 —
+        # 계약 9(시계는 실제 발신에서 시작한다)가 조용히 뒤집힌다
+        order = []
+        with mock.patch("urllib.request.urlopen",
+                        side_effect=lambda *a, **k: (order.append("send"), _resp())[1]):
+            fetcher.fetch("http://a.com/", before_send=lambda: order.append("hook"))
+        self.assertEqual(order, ["hook", "send"])
+
+    def test_settled_answers_do_not_call_the_hook_again(self):
+        # HTTPError 는 확정 응답이라 재시도가 없다 — 훅도 한 번뿐이어야 한다
+        err = urllib.error.HTTPError("http://a.com/", 404, "nf", {}, None)
+        calls = []
+        with mock.patch("urllib.request.urlopen", side_effect=err):
+            got = fetcher.fetch("http://a.com/", before_send=lambda: calls.append(1))
+        self.assertEqual(got.status, 404)
+        self.assertEqual(len(calls), 1)
+
+    def test_bad_url_never_reaches_the_hook(self):
+        # `Request()` 생성이 터지면 발신 자체가 없다. 훅을 부르면 나가지도 않은 요청으로
+        # 도메인 시계를 걸게 된다
+        calls = []
+        got = fetcher.fetch("example.com", before_send=lambda: calls.append(1))
+        self.assertEqual(got, fetcher.FetchResult(0, None, None))
+        self.assertEqual(calls, [])
+
+    def test_retries_can_be_turned_off(self):
+        # 간격을 지킬 수 없는 도메인(MAX_DELAY 초과)에는 다시 보내지 않는다 — 설계 2-4절.
+        # 깎아서 때리는 것보다 안 보내는 것이 맞다
+        with mock.patch("urllib.request.urlopen", side_effect=OSError("t")) as m:
+            got = fetcher.fetch("http://a.com/", retries=0)
+        self.assertEqual(got, fetcher.FetchResult(0, None, None))
+        self.assertEqual(m.call_count, 1)
+
+    def test_default_still_retries_twice(self):
+        # 긍정 짝. 위 테스트만 있으면 "재시도가 아예 사라졌다" 를 못 본다
+        with mock.patch("urllib.request.urlopen", side_effect=OSError("t")) as m:
+            fetcher.fetch("http://a.com/")
+        self.assertEqual(m.call_count, 1 + fetcher.RETRIES)

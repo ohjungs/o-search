@@ -9,7 +9,7 @@ import time
 import urllib.parse
 
 from websearch import fetcher, links, urls
-from websearch.frontier import Frontier, MAX_DELAY
+from websearch.frontier import Frontier, DOMAIN_INTERVAL, MAX_DELAY
 from websearch.robots import RobotsCache
 from websearch.store import Store
 
@@ -27,12 +27,35 @@ def _fetch_one(url, robots, now):
     돌려주는 것: `(allowed, requested_delay, sent_at, FetchResult|None)`.
     순서는 순차 루프와 같다 — robots 확인 → 간격 조회 → fetch. 사이트가 보는
     요청 순서가 변하지 않는다.
+
+    **재시도도 요청이다.** `fetcher` 는 간격을 모르므로 여기서 넘기는 훅이 재운다
+    (docs/design_crawl-politeness.md 2절). 그래서 `sent_at` 은 **마지막** 발신 시각이다 —
+    첫 발신으로 시계를 걸면 마지막 재시도 직후 0초 만에 다음 요청이 나간다.
     """
     if not robots.allowed(url):
         return False, None, None, None
     requested = robots.delay(url)
-    sent_at = now()  # 간격 시계는 팝이 아니라 **발신**에서 시작한다 (계약 9)
-    return True, requested, sent_at, fetcher.fetch(url)
+    interval = max(DOMAIN_INTERVAL, requested or 0)
+    sends = []  # 이 URL 로 실제로 나간 시도들의 시각
+
+    def before_send():
+        """발신 직전. 재시도면 마지막 발신에서 간격이 찰 때까지 잔다.
+
+        워커 스레드를 최대 `retries × interval` 만큼 붙든다 — 컨셉 우선순위상
+        크롤 윤리가 성능 위라 받아들인 값이다(설계 2-3절). 타임아웃 실패는 이미
+        10초가 벌어져 있어 남은 시간이 음수가 되고 잠들지 않는다.
+        """
+        if sends:
+            remaining = interval - (now() - sends[-1])
+            if remaining > 0:
+                time.sleep(remaining)
+        sends.append(now())  # 간격 시계는 팝이 아니라 **발신**에서 시작한다 (계약 9)
+
+    # 간격을 지킬 수 없는 도메인(상한 초과)에는 다시 보내지 않는다 — 깎아서 때리는 것보다
+    # 안 보내는 것이 맞고, 요구대로 자면 워커가 하루를 붙든다 (설계 2-4절)
+    result = fetcher.fetch(url, before_send=before_send,
+                           retries=fetcher.RETRIES if interval <= MAX_DELAY else 0)
+    return True, requested, sends[-1] if sends else now(), result
 
 
 def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None,
@@ -111,9 +134,9 @@ def _store_result(future, url, domain, store, frontier, now, robots):
     요청도 없이 쿨다운을 태우는 것이다.
 
     **"시계를 거는 유일한 자리" 지 "요청이 나가는 유일한 자리" 가 아니다.** 이 계약
-    밖으로 나가는 요청이 둘 있다: `robots.txt` 왕복(digest [4] 로 간격 측정에서 제외)과
-    `fetcher` 의 재시도(연결 실패 시 3회가 간격 없이 나간다 — 실측 0.4ms 간격).
-    후자는 이 계획이 연 것이 아니고 `digest.md ## 판단 필요` 에 올려 뒀다.
+    밖으로 나가는 요청이 아직 하나 있다: `robots.txt` 왕복(digest [4] 로 간격 측정에서 제외).
+    `fetcher` 의 재시도도 밖으로 나가지만 이제는 `_fetch_one` 의 발신 훅이 재우고,
+    `sent_at` 이 **마지막** 발신이라 프런티어가 보는 시각이 실제와 어긋나지 않는다.
     """
     try:
         allowed, requested, sent_at, result = future.result()
