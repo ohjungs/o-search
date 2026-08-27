@@ -1,7 +1,8 @@
 """방문 예정 URL 큐. 도메인 라운드로빈 + 같은 도메인 1초 간격을 큐 수준에서 보장."""
 import collections
 import time
-import urllib.parse
+
+from websearch.urls import domain_key
 
 DOMAIN_INTERVAL = 1.0  # 초 — concept.md 크롤 윤리, 내리지 않는다
 # robots 가 이보다 긴 간격을 요구하면 지킬 수 없다고 보고 그 도메인을 버린다.
@@ -21,7 +22,7 @@ class Frontier:
     def set_delay(self, domain, seconds):
         """robots 가 요청한 간격을 반영한다. 계속 크롤할 도메인이면 True.
 
-        간격은 **늘어나는 방향으로만** 움직인다 — 같은 netloc 이 http/https 로 섞여 들어오면
+        간격은 **늘어나는 방향으로만** 움직인다 — 같은 서버가 http/https 로 섞여 들어오면
         한쪽엔 지시가 없어서(None), 낮은 쪽이 이기면 20초를 요구한 사이트를 1초로 때린다.
         DOMAIN_INTERVAL 아래로도 내려가지 않는다.
         MAX_DELAY 를 넘으면 그 도메인을 통째로 버린다(큐를 비우고 이후 add 도 받지 않는다).
@@ -45,8 +46,8 @@ class Frontier:
         **이 값을 "언제나 안 내려간다" 로 읽으면 안 된다**(`test_a_dropped_domain_
         reads_as_the_floor_again`). 읽기 전에 그 도메인이 살아 있는지 먼저 본다.
         `robots.delay()` 와 다른 점: 저쪽은 **스킴별** robots.txt 의 값이고
-        이쪽은 **netloc 단위**로 모은 값이다. 같은 서버에 스킴이 둘이면
-        여기가 더 크다.
+        이쪽은 **서버 단위**(`urls.domain_key`)로 모은 값이다. 같은 서버에 스킴이
+        둘이거나 링크가 호스트를 대문자로 썼으면 여기가 더 크다.
         """
         return self._delays.get(domain, DOMAIN_INTERVAL)
 
@@ -54,7 +55,7 @@ class Frontier:
         for url in urls:
             if url in self._seen:
                 continue
-            domain = urllib.parse.urlsplit(url).netloc
+            domain = domain_key(url)  # add 의 인자 이름이 urls 라 함수를 직접 들여온다
             if domain in self._dropped:
                 continue
             self._seen.add(url)

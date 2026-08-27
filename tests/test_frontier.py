@@ -1,6 +1,6 @@
 import unittest
-import urllib.parse
 
+from websearch import urls
 from websearch.frontier import Frontier, DOMAIN_INTERVAL, MAX_DELAY
 
 
@@ -21,7 +21,7 @@ def pop(f, now, exclude=()):
     """
     url = f.next(exclude)
     if url is not None:
-        f.mark_sent(urllib.parse.urlsplit(url).netloc, now())
+        f.mark_sent(urls.domain_key(url), now())  # 진짜 crawl 이 쓰는 그 열쇠다
     return url
 
 
@@ -131,7 +131,7 @@ class TestPerDomainDelay(unittest.TestCase):
         self.assertEqual(self.f.next(), "http://ok.com/2")
 
     def test_interval_never_shrinks(self):
-        # 같은 netloc 이 http/https 로 섞여 들어오면 한쪽은 지시가 없다.
+        # 같은 서버가 http/https 로 섞여 들어오면 한쪽은 지시가 없다.
         # 낮은 쪽이 이기면 20초를 요구한 사이트를 1초로 때린다
         self.f.add(["http://a.com/1", "http://a.com/2"])
         self.f.set_delay("a.com", 20.0)
@@ -197,6 +197,79 @@ class TestConcurrentPops(unittest.TestCase):
         t["v"] = 1000.5
         self.assertEqual(f.seconds_until_ready(), 0.0)
         self.assertAlmostEqual(f.seconds_until_ready(exclude={"b.test"}), 0.5)
+
+
+class TestSameServerIsOneSlot(unittest.TestCase):
+    """대소문자·기본 포트로 갈라진 URL 이 **간격을 나눠 갖는가.**
+
+    실측(고치기 전): 셋을 넣으면 t=1000.000 에 **전부** 나가고 간격이 0.000초다.
+    `http://b.test` 에만 건 `Crawl-delay: 5` 는 나머지 둘에 아예 안 걸린다.
+    진짜 크롤 루프에서도 같은 값이 나온다 — `Crawl-delay: 3` 선언 서버가
+    `LOCALHOST`/`localhost` 링크 탓에 2밀리초 안에 요청 4개를 받는다.
+
+    **절대 조건("선언된 값보다 빨리 치지 않는다") 쪽이라 이것이 이 계획의 RED 다.**
+    """
+
+    def setUp(self):
+        self.clock = FakeClock()
+        self.f = Frontier(now=self.clock)
+
+    def _drain(self, urls_in, limit=5):
+        """지금 낼 수 있는 것을 전부 내고 `(시각, url)` 로 돌려준다. 크롤 루프의 자세다."""
+        self.f.add(urls_in)
+        sent = []
+        for _ in range(limit):
+            url = pop(self.f, self.clock)
+            if url is None:
+                break
+            sent.append((self.clock.t, url))
+        return sent
+
+    def test_upper_case_host_waits_its_turn(self):
+        sent = self._drain(["http://b.test/1", "http://B.test/2"])
+        self.assertEqual(len(sent), 1,
+                         "같은 서버 두 URL 이 같은 시각에 나갔다: %s" % (sent,))
+
+    def test_default_port_waits_its_turn(self):
+        sent = self._drain(["http://b.test/1", "http://b.test:80/2"])
+        self.assertEqual(len(sent), 1,
+                         "기본 포트를 붙였다고 새 서버가 됐다: %s" % (sent,))
+
+    def test_https_default_port_waits_its_turn(self):
+        sent = self._drain(["https://b.test/1", "https://b.test:443/2"])
+        self.assertEqual(len(sent), 1, "%s" % (sent,))
+
+    def test_a_real_port_is_still_its_own_server(self):
+        # **대조군.** 없으면 "전부 한 칸으로 합치기" 로도 위 셋이 통과한다 —
+        # 그러면 `perf_crawl` 의 도메인 12개가 한 줄로 서서 처리량이 죽는다
+        sent = self._drain(["http://b.test:8001/1", "http://b.test:8002/2"])
+        self.assertEqual(len(sent), 2,
+                         "포트가 다른 두 서버가 서로를 기다렸다: %s" % (sent,))
+
+    def test_a_declaration_reaches_the_other_spelling(self):
+        # 선언은 한 표기에만 걸리지만 요청은 다른 표기로도 나간다
+        self.f.set_delay(urls.domain_key("http://b.test/1"), 5.0)
+        self.f.add(["http://b.test/1", "http://B.test/2"])
+        self.assertEqual(pop(self.f, self.clock), "http://b.test/1")
+        self.clock.t += 1.5  # 하한은 넘었지만 선언한 5초는 한참 남았다
+        self.assertIsNone(self.f.next(),
+                          "대문자 표기가 선언한 5초를 피해 나갔다")
+        self.clock.t += 3.5
+        self.assertEqual(self.f.next(), "http://B.test/2")
+
+    def test_in_flight_covers_the_other_spelling(self):
+        # 동시화 계약 3 — 떠 있는 도메인은 다시 안 내준다. 열쇠가 갈리면
+        # 같은 서버로 요청 둘이 **동시에** 뜬다
+        self.f.add(["http://b.test/1", "http://B.test/2"])
+        first = self.f.next()
+        busy = {urls.domain_key(first)}
+        self.assertIsNone(self.f.next(exclude=busy),
+                          "요청이 떠 있는데 같은 서버를 다시 내줬다")
+
+    def test_an_unreadable_port_does_not_kill_the_queue(self):
+        # 크롤 루프를 죽인 원인이 이런 자리에서 새어 나온 예외다
+        sent = self._drain(["http://b.test:abc/1", "http://b.test:99999/2"])
+        self.assertEqual(len(sent), 2, "%s" % (sent,))
 
 
 class TestIntervalIsPublicNow(unittest.TestCase):

@@ -300,3 +300,21 @@ append 전용. 수정·삭제 금지.
 - 설계 phase 안 연다 — `Frontier`·`RobotsCache` 는 내부 계약이고 방향은 더 기다리는 쪽
 - **URL 정규화는 안 한다**(digest `[5]`). 이 계획 뒤에도 `http://A.com/` 은 두 번
   수집된다 — 크롤 **양**의 문제와 크롤 **윤리**의 문제를 한 계획에 섞지 않는다
+
+## 반복 108 — 개발 스텝 2 (`domain-key`, 017) · **GREEN**
+
+- **RED 를 먼저 봤다.** 열쇠를 날 `netloc` 으로 되돌리면 단언 **10건**이 죽는다
+  (프런티어 5 · `domain_key` 5). 계획 탐침과 같은 자리다
+- `urls.domain_key(url)` 하나를 만들고 세 호출부가 그것만 쓴다 —
+  `frontier.add` · `crawl` 제출 직전 · `robots._base`(`스킴 + "://" + domain_key`).
+  **문자열로만 가른다**: `urlsplit(...).port` 의 ValueError 를 안 부른다.
+  `urlsplit` 자체가 던지는 자리(닫히지 않은 IPv6)도 감싸서 **읽을 수 없는 URL 은
+  자기 칸에 그대로 둔다** — 열쇠를 만들다 크롤 루프를 죽이는 쪽이 더 나쁘다
+- `Frontier.add(self, urls)` 의 인자 이름이 모듈을 가려서 함수를 직접 들여왔다.
+  공개 인자 이름을 바꾸는 쪽(직교 편집)이 아니라 import 를 바꿨다
+- **가짜를 진짜와 같은 열쇠 위에 다시 세웠다**(016 이 남긴 교훈 · digest `[6]`).
+  `FakeRobots._host` · 가짜 `robots.delay` · 테스트의 도메인 비교 6곳이 전부
+  `urlsplit(url).netloc` 이었다 — 그대로 두면 **대문자 호스트가 가짜 안에서는
+  여전히 두 서버**라 이번 수정이 맞는지 가짜가 대답하지 못한다
+- **339건 OK** · `perf_crawl` [차단] **10.34/s**(기준선 9.0) · `crawl_politeness` 0 ·
+  `crawl_delay` 0 · `retry_interval` 0(재시도 5.01초 그대로)

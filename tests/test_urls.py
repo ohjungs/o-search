@@ -92,5 +92,74 @@ class TestUnconvertible(unittest.TestCase):
                 self.assertTrue(got is None or got.isascii())
 
 
+class TestDomainKey(unittest.TestCase):
+    """예의 계약이 세는 단위. **같은 서버는 한 칸이다.**
+
+    URL 동일성이 아니다 — `http://A.com/` 과 `http://a.com/` 은 이 뒤에도 두 번
+    수집되고 두 행으로 저장된다(digest `[5]`, 별개의 수술). 여기서 같아지는 것은
+    **간격을 세는 칸** 하나뿐이다.
+    """
+
+    def test_host_case_does_not_make_a_new_server(self):
+        self.assertEqual(urls.domain_key("http://B.test/1"),
+                         urls.domain_key("http://b.test/2"))
+
+    def test_default_port_is_the_same_server(self):
+        self.assertEqual(urls.domain_key("http://b.test:80/1"),
+                         urls.domain_key("http://b.test/2"))
+        self.assertEqual(urls.domain_key("https://b.test:443/1"),
+                         urls.domain_key("https://b.test/2"))
+
+    def test_the_other_scheme_default_port_is_not_stripped(self):
+        # `http://h:443` 은 443 이 http 의 기본이 아니라 **다른 서버**다.
+        # 스킴을 안 보고 포트만 지우면 여기서 갈린다
+        self.assertNotEqual(urls.domain_key("http://b.test:443/1"),
+                            urls.domain_key("http://b.test/2"))
+        self.assertNotEqual(urls.domain_key("https://b.test:80/1"),
+                            urls.domain_key("https://b.test/2"))
+
+    def test_a_real_port_still_makes_its_own_server(self):
+        # **대조군.** 이것이 없으면 "전부 한 칸으로 합치기" 로도 위 테스트가 통과한다.
+        # `e2e/perf_crawl.py` 의 도메인 12개가 전부 이쪽이다
+        self.assertNotEqual(urls.domain_key("http://b.test:8001/1"),
+                            urls.domain_key("http://b.test:8002/1"))
+        self.assertNotEqual(urls.domain_key("http://b.test:8001/1"),
+                            urls.domain_key("http://b.test/1"))
+
+    def test_two_hosts_are_still_two_servers(self):
+        self.assertNotEqual(urls.domain_key("http://a.test/1"),
+                            urls.domain_key("http://b.test/1"))
+
+    def test_credentials_are_not_part_of_the_server(self):
+        self.assertEqual(urls.domain_key("http://u:p@b.test/1"),
+                         urls.domain_key("http://b.test/2"))
+
+    def test_ipv6_literal_survives_whole(self):
+        # `[::1]` 의 콜론은 포트 구분자가 아니다 — 여기서 자르면 주소가 망가진다
+        self.assertEqual(urls.domain_key("http://[::1]:80/1"),
+                         urls.domain_key("http://[::1]/2"))
+        self.assertNotEqual(urls.domain_key("http://[::1]:8080/1"),
+                            urls.domain_key("http://[::1]/2"))
+        self.assertIn("::1", urls.domain_key("http://[::1]/2"))
+
+    def test_an_unreadable_port_does_not_raise(self):
+        """`urlsplit(...).port` 는 여기서 ValueError 를 던진다 — 크롤 루프가 죽는다.
+
+        지금 열쇠를 만드는 `netloc` 은 **절대 안 던진다**. 그 성질을 잃지 않는 것이
+        이 계획에서 새로 생길 수 있는 유일한 크래시 경로다.
+        """
+        for url in ["http://b.test:abc/1", "http://b.test:99999/1",
+                    "http://b.test:/1", "http://:80/1", "http://[::1/1",
+                    "", "http://", "not a url"]:
+            with self.subTest(url=url):
+                self.assertIsInstance(urls.domain_key(url), str)
+
+    def test_it_is_idempotent_on_its_own_output(self):
+        # 열쇠를 다시 URL 로 만들어 넣어도 같은 값이어야 한다 — 아니면 어느 자리에서
+        # 부르느냐에 따라 칸이 갈린다
+        key = urls.domain_key("http://B.test:80/1")
+        self.assertEqual(urls.domain_key("http://" + key + "/2"), key)
+
+
 if __name__ == "__main__":
     unittest.main()

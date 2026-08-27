@@ -7,7 +7,7 @@ import unittest
 import urllib.parse
 from unittest import mock
 
-from websearch import crawl, fetcher
+from websearch import crawl, fetcher, urls
 from websearch.frontier import DOMAIN_INTERVAL, MAX_DELAY
 from websearch.fetcher import FetchResult
 
@@ -50,8 +50,7 @@ class TestCrawl(unittest.TestCase):
 
         robots = mock.Mock()
         robots.allowed = lambda url: url not in blocked
-        robots.delay = lambda url: (delays or {}).get(
-            urllib.parse.urlsplit(url).netloc)
+        robots.delay = lambda url: (delays or {}).get(urls.domain_key(url))
         robots.known_delay = robots.delay  # 캐시 조회도 같은 계약을 흉내낸다
         clock = {"t": 1000.0}
         with mock.patch("websearch.crawl.fetcher") as mf, \
@@ -195,7 +194,7 @@ class TestCrawlDelayWiring(unittest.TestCase):
 
     def _gaps(self, domain):
         times = [t for url, t in self.fetch_times
-                 if urllib.parse.urlsplit(url).netloc == domain]
+                 if urls.domain_key(url) == domain]
         return [b - a for a, b in zip(times, times[1:])]
 
     def test_declared_delay_paces_that_domain(self):
@@ -402,7 +401,7 @@ class TestCooldownBurn(unittest.TestCase):
         clock = {"t": 1000.0}
 
         def fake_fetch(url, **kw):  # 진짜 fetch 는 before_send·retries 를 받는다
-            if urllib.parse.urlsplit(url).netloc == "b.test":
+            if urls.domain_key(url) == "b.test":
                 sent.append(clock["t"])
             if url == "http://b.test/1":
                 raise RuntimeError("첫 요청이 죽었다")
@@ -447,14 +446,15 @@ class FakeRobots:
 
     @staticmethod
     def _host(url):
-        """**진짜와 같은 열쇠를 쓴다** — `robots._base`, 즉 `스킴://netloc`.
+        """**진짜와 같은 열쇠를 쓴다** — `robots._base`, 즉 `스킴://도메인 열쇠`.
 
         netloc 만으로 열쇠를 잡으면 `http://b.test` 와 `https://b.test` 가 한 칸을
         나눠 써 **있을 수 없는 협력자**가 된다: 진짜 `robots.txt` 는 스킴별로 다른
         문서라 한쪽 선언이 다른 쪽에 보일 수 없다. 그 위에서 잰 값은 거짓이다
-        (digest `[6]` 과 같은 부류).
+        (digest `[6]` 과 같은 부류). 반대쪽도 같다 — 진짜는 호스트 대소문자와
+        기본 포트를 정규화하므로 여기서 안 하면 없는 두 번째 서버가 생긴다.
         """
-        return "{0.scheme}://{0.netloc}".format(urllib.parse.urlsplit(url))
+        return "%s://%s" % (urllib.parse.urlsplit(url).scheme, urls.domain_key(url))
 
     def allowed(self, url):
         self.loaded.add(self._host(url))
@@ -487,7 +487,7 @@ class TestDelaySurvivesWorkerException(unittest.TestCase):
         clock = {"t": 1000.0}
 
         def fake_fetch(url, **kw):
-            if urllib.parse.urlsplit(url).netloc == "b.test":
+            if urls.domain_key(url) == "b.test":
                 sent.append(clock["t"])
             if url in boom:
                 raise RuntimeError("워커가 죽었다")
@@ -543,7 +543,7 @@ class TestRetriesKeepTheInterval(unittest.TestCase):
             for _ in range(1 + retries):
                 if before_send is not None:
                     before_send()
-                if urllib.parse.urlsplit(url).netloc == "b.test":
+                if urls.domain_key(url) == "b.test":
                     sent.append(clock["t"])
                 if url not in failing:
                     return FetchResult(200, self.PAGES.get(url), url)
@@ -648,7 +648,7 @@ class TestRetryUsesWhatTheFrontierKnows(unittest.TestCase):
             for _ in range(1 + retries):
                 if before_send is not None:
                     before_send()
-                if urllib.parse.urlsplit(url).netloc == "b.test":
+                if urls.domain_key(url) == "b.test":
                     sent.append((url, clock["t"]))
                 if url not in failing:
                     return FetchResult(200, pages.get(url), url)
@@ -797,7 +797,7 @@ class TestUnkeepableDelayFoundOnFailure(unittest.TestCase):
         clock = {"t": 1000.0}
 
         def fake_fetch(url, **kw):
-            if urllib.parse.urlsplit(url).netloc == "b.test":
+            if urls.domain_key(url) == "b.test":
                 sent.append(url)
                 raise RuntimeError("워커가 죽었다")
             return FetchResult(200, self.PAGES.get(url), url)

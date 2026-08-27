@@ -5,6 +5,8 @@ import urllib.parse
 import urllib.request
 import urllib.robotparser
 
+from websearch import urls
+
 USER_AGENT = "websearchbot/0.1"
 
 # stdlib 은 정수 Crawl-delay 만 받는다(RobotFileParser 가 isdigit 으로 거른다).
@@ -63,7 +65,13 @@ def _applicable_delay(body):
 
 
 def _base(url):
-    return "{0.scheme}://{0.netloc}".format(urllib.parse.urlsplit(url))
+    """robots.txt 를 받아 둘 열쇠이자 그것을 받을 주소. **스킴별로 다른 문서다.**
+
+    호스트 부분은 `urls.domain_key` 와 같은 자를 쓴다 — 대소문자만 다른 링크가
+    같은 서버의 `robots.txt` 를 두 번 받게 하고(실측 2회), 그 두 번이 선언한
+    간격을 지키지 않고 나간다.
+    """
+    return "%s://%s" % (urllib.parse.urlsplit(url).scheme, urls.domain_key(url))
 
 
 class RobotsCache:

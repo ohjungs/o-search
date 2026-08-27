@@ -2,6 +2,36 @@
 import urllib.parse
 
 _STRIPPED = dict.fromkeys(map(ord, "\t\r\n"))  # urlsplit 이 URL 에서 떼어내는 문자
+_DEFAULT_PORT = {"http": "80", "https": "443"}
+
+
+def domain_key(url):
+    """**예의 계약이 세는 단위.** 같은 서버는 한 칸이다.
+
+    호스트는 대소문자 무관이고 `:80`/`:443` 은 각 스킴의 기본 포트라
+    `http://b.test` · `http://B.test` · `http://b.test:80` 은 **같은 서버**다.
+    날 `netloc` 으로 세면 칸이 셋으로 갈려, 3초를 요구한 서버가 2밀리초 안에
+    요청 넷을 받는다(실측). 그것이 절대 조건 위반이라 이 함수가 있다.
+
+    **URL 동일성이 아니다** — 위 셋은 이 뒤에도 각각 수집되고 각각 저장된다
+    (digest `[5]` 의 URL 정규화는 별개의 수술이다). 여기서 같아지는 것은
+    간격·in-flight·`Crawl-delay` 를 세는 칸 하나뿐이다.
+
+    **문자열로만 가른다.** `urlsplit(...).port` 는 `:abc`·`:99999` 에 ValueError 를
+    던지는데 지금 `netloc` 은 절대 안 던진다 — 열쇠를 만들다 크롤 루프를 죽이는 것은
+    이 함수가 막으려는 것보다 나쁘다. 읽을 수 없는 포트는 **자기 칸에 그대로 둔다**.
+    """
+    try:
+        split = urllib.parse.urlsplit(url)
+    except ValueError:  # 닫히지 않은 IPv6 리터럴 — urlsplit 조차 못 읽는다
+        return url.partition("://")[2].partition("/")[0].lower()
+    netloc = split.netloc.rpartition("@")[2]  # userinfo 는 서버가 아니다
+    host, colon, port = netloc.rpartition(":")
+    if not colon or "]" in port:  # 포트가 아니라 IPv6 리터럴의 콜론이다
+        host, port = netloc, ""
+    if port == _DEFAULT_PORT.get(split.scheme):
+        port = ""
+    return host.lower() + (":" + port if port else "")
 
 
 def _quoted(text):

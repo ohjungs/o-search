@@ -6,7 +6,6 @@
 import concurrent.futures
 import sys
 import time
-import urllib.parse
 
 from websearch import fetcher, links, urls
 from websearch.frontier import Frontier, DOMAIN_INTERVAL, MAX_DELAY
@@ -105,7 +104,7 @@ def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None,
                     break
                 if store.has(url):
                     continue
-                domain = urllib.parse.urlsplit(url).netloc
+                domain = urls.domain_key(url)
                 busy.add(domain)
                 inflight[pool.submit(_fetch_one, url, robots, now,
                                      frontier.interval(domain))] = (url, domain)
