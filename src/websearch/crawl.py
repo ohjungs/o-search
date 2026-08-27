@@ -88,7 +88,7 @@ def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None,
     frontier = Frontier(now=now)
     ascii_seeds = []
     for seed in seeds:  # 시드는 CLI 가 준 것 — 버릴 때는 왜 버렸는지 알린다
-        normalized = urls.to_ascii(seed)
+        normalized = urls.normalize(seed)
         if normalized is None:
             print("%s: URL 로 읽을 수 없는 시드 — 건너뛴다" % seed, file=sys.stderr)
         else:
@@ -172,7 +172,7 @@ def _store_result(future, url, domain, store, frontier, now, robots):
     frontier.mark_sent(domain, sent_at)
     _apply_delay(frontier, domain, requested)
     # 리다이렉트면 최종 URL 이 정본. 못 바꾸면 요청한 url(프런티어를 거쳤으니 ASCII)로 저장한다
-    page_url = urls.to_ascii(result.url or url) or url
+    page_url = urls.normalize(result.url or url) or url
     if page_url != url and store.has(page_url):
         return 0
     store.upsert(page_url, result.html, result.status)

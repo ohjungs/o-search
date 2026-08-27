@@ -30,7 +30,7 @@ def extract(base_url, html_text):
         absolute, _ = urllib.parse.urldefrag(absolute)
         if not absolute.startswith(("http://", "https://")):
             continue
-        absolute = urls.to_ascii(absolute)  # 정규화가 seen 앞 — 두 표기가 1건으로 합쳐진다
+        absolute = urls.normalize(absolute)  # 정규화가 seen 앞 — 여러 표기가 1건이 된다
         if absolute is None:
             continue
         if absolute not in seen:

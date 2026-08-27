@@ -49,3 +49,12 @@ class TestABrokenHrefIsSkipped(unittest.TestCase):
         out = links.extract("http://a.com/",
                             '<a href="http://[::1/x">bad</a><a href="/ok">ok</a>')
         self.assertEqual(out, ["http://a.com/ok"])
+
+class TestOneDocumentIsOneLink(unittest.TestCase):
+    def test_notations_of_one_url_collapse_to_one_link(self):
+        # 계획 018 — 정규화가 `seen` 앞이라 세 표기가 1건이 된다. 마지막 `/P` 는
+        # **대조군**이다: 경로 대소문자까지 접으면 다른 문서를 합치는 것이다
+        out = links.extract("http://a.com/", (
+            '<a href="http://b.com/p">1</a><a href="http://B.com/p">2</a>'
+            '<a href="http://b.com:80/p">3</a><a href="http://b.com/P">4</a>'))
+        self.assertEqual(out, ["http://b.com/p", "http://b.com/P"])

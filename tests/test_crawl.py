@@ -54,8 +54,16 @@ class TestCrawl(unittest.TestCase):
         robots.delay = lambda url: (delays or {}).get(urls.domain_key(url))
         robots.known_delay = robots.delay  # 캐시 조회도 같은 계약을 흉내낸다
         clock = {"t": 1000.0}
+
+        real_store = crawl.Store  # 패치 전에 잡는다 — 안 잡으면 자기를 부른다
+
+        def spy_store(path):  # 저장 열쇠를 밖에서 볼 유일한 손잡이 — :memory: 는 안 남는다
+            self.store = real_store(path)
+            return self.store
+
         with mock.patch("websearch.crawl.fetcher") as mf, \
-             mock.patch("websearch.crawl.time.sleep") as ms:
+             mock.patch("websearch.crawl.time.sleep") as ms, \
+             mock.patch("websearch.crawl.Store", spy_store):
             mf.fetch = sending(fake_fetch)
             mf.RETRIES = fetcher.RETRIES
             # 가짜 시계: sleep 이 시간을 흘려보낸다 — 실제 대기 없이 결정적
@@ -221,18 +229,31 @@ class TestCrawlDelayWiring(unittest.TestCase):
         self.assertEqual(fetched, ["http://b.com/"])
 
     def test_one_server_paces_itself_across_spellings(self):
-        """대소문자만 다른 링크가 선언한 간격을 나눠 갖는가 — **계획 017 의 RED.**
+        """한 서버는 표기가 갈려도 한 칸이다 — **017 의 RED 를 018 이후의 자로 다시 잰다.**
 
         `_gaps` 가 이미 `domain_key` 로 묶으므로 이 테스트가 재는 것은 열쇠가 아니라
         **크롤 루프**다: 제출 직전(`crawl.py`)·큐(`frontier.add`)·robots 캐시가
         전부 같은 자를 써야 두 요청이 5초 떨어진다. 고치기 전 실측은 0.000초.
+
+        **018 이 원래 축(대소문자·기본 포트)을 없앴다.** 그 표기들은 이제
+        `urls.normalize` 가 URL 이 태어나는 자리에서 접어버려 크롤 루프까지 오지
+        않는다 — 여기서 못 재는 것이 **정상이고**, 이 테스트의 옛 판본은 "대문자
+        표기가 아예 안 나갔다" 로 정확히 그렇게 실패했다(조용히 통과하지 않았다).
+        접히는지는 `TestUrlNormalization` 이, `domain_key` 의 접기 자체는
+        `TestDomainKey` 가 단위로 잰다 — 그것은 없어진 게 아니라 **두 번째 방어선**이다.
+
+        남은 살아 있는 축은 **스킴**이다: `http://a.com/` 과 `https://a.com/` 은
+        서로 다른 URL 이고(정규화가 접지 않는다 — 접으면 다른 문서를 합치는 것이다)
+        같은 서버다.
         """
-        self._run(["http://a.com/", "http://A.com/"], max_pages=10,
-                  delays={"a.com": 5.0})
+        with mock.patch.dict(PAGES, {"http://a.com/": "x", "https://a.com/": "y"},
+                             clear=True):
+            self._run(["http://a.com/", "https://a.com/"], max_pages=10,
+                      delays={"a.com": 5.0})
         gaps = self._gaps("a.com")
         self.assertTrue(gaps, "a.com 을 두 번 이상 요청해야 잴 수 있다")
-        spellings = {url for url, _ in self.fetch_times if "A.com" in url}
-        self.assertTrue(spellings, "대문자 표기가 아예 안 나갔다 — 재려던 상황이 없다")
+        schemes = {url.partition(":")[0] for url, _ in self.fetch_times}
+        self.assertEqual(schemes, {"http", "https"}, "두 스킴이 다 나가야 잴 수 있다")
         for gap in gaps:
             self.assertGreaterEqual(gap, 5.0, "%s" % (self.fetch_times,))
 
@@ -912,3 +933,63 @@ class TestNoSendMeansNoClock(unittest.TestCase):
                 "http://a.test/", FakeRobots(), now=lambda: 1000.0,
                 floor=DOMAIN_INTERVAL)
         self.assertEqual(sent_at, 1000.0)
+
+
+class TestUrlNormalization(TestCrawl):
+    """표기가 여럿이어도 **문서는 하나다** — 계획 018.
+
+    017(`domain_key`)이 모은 것은 **어느 서버인가**였다. 그 뒤에도 URL 자체는
+    표기마다 살아 있어서 `Frontier._seen` 도 `pages.url` 도 색인도 표기 수만큼
+    행을 가졌다 — 같은 문서를 세 번 받고 세 번 저장한다. 여기서 그것을 잰다.
+    """
+
+    def test_three_notations_of_one_document_are_fetched_once(self):
+        with mock.patch.dict(PAGES, {"http://a.com/p": "leaf"}, clear=True):
+            n, fetched, _ = self._run(
+                ["http://a.com/p", "http://A.com/p", "http://a.com:80/p"],
+                max_pages=10)
+        self.assertEqual(fetched, ["http://a.com/p"])
+        self.assertEqual(n, 1)
+        self.assertEqual(self.store.count(), 1)
+
+    def test_a_non_default_port_is_still_another_document(self):
+        # 대조군 — 정규화가 과하면 여기서 죽는다. 서버가 다르니 문서도 다르다
+        pages = {"http://a.com/p": "leaf", "http://a.com:8080/p": "other"}
+        with mock.patch.dict(PAGES, pages, clear=True):
+            n, fetched, _ = self._run(["http://a.com/p", "http://a.com:8080/p"],
+                                      max_pages=10)
+        self.assertEqual(sorted(fetched), ["http://a.com/p", "http://a.com:8080/p"])
+        self.assertEqual(n, 2)
+
+    def test_empty_path_and_slash_are_one_document(self):
+        with mock.patch.dict(PAGES, {"http://a.com/": "leaf"}, clear=True):
+            n, fetched, _ = self._run(["http://a.com", "http://a.com/"], max_pages=10)
+        self.assertEqual(fetched, ["http://a.com/"])
+        self.assertEqual(n, 1)
+
+    def test_percent_case_is_one_document(self):
+        with mock.patch.dict(PAGES, {"http://a.com/%EA%B0%80": "leaf"}, clear=True):
+            n, fetched, _ = self._run(["http://a.com/%ea%b0%80", "http://a.com/%EA%B0%80"],
+                                      max_pages=10)
+        self.assertEqual(fetched, ["http://a.com/%EA%B0%80"])
+        self.assertEqual(n, 1)
+
+    def test_links_in_a_page_collapse_to_one_url(self):
+        # 링크 경로 — 시드 경로와 다른 자리다(`links.extract`). 둘 다 안 막으면 샌다
+        page = ('<a href="http://a.com/p">1</a><a href="http://A.com/p">2</a>'
+                '<a href="http://a.com:80/p">3</a>')
+        with mock.patch.dict(PAGES, {"http://a.com/": page, "http://a.com/p": "leaf"},
+                             clear=True):
+            n, fetched, _ = self._run(["http://a.com/"], max_pages=10)
+        self.assertEqual(fetched, ["http://a.com/", "http://a.com/p"])
+        self.assertEqual(n, 2)
+
+    def test_a_redirect_target_is_stored_under_the_normalized_url(self):
+        # 세 번째 자리 — 리다이렉트 최종 URL(`crawl.py` `_store_result`).
+        # 여기만 안 걸면 `links.extract` 가 링크를 고쳐 주는 바람에 조용히 통과한다
+        with mock.patch.dict(REDIRECTS, {"http://a.com/moved": "http://A.com:80/"}), \
+             mock.patch.dict(PAGES, {"http://A.com:80/": "leaf"}, clear=True):
+            n, _, _ = self._run(["http://a.com/moved"], max_pages=10)
+        self.assertEqual(n, 1)
+        self.assertTrue(self.store.has("http://a.com/"))
+        self.assertFalse(self.store.has("http://A.com:80/"))
