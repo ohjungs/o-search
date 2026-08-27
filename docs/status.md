@@ -2,24 +2,54 @@
 signal: GREEN
 mode: night
 plan: cooldown-burn
-phase: 설계
+phase: 개발
 step: 0/2
 attempt: 0
-iteration: 82
-night_iterations: 6
+iteration: 83
+night_iterations: 7
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
-updated: 2026-08-27 (반복 82)
-ctx: 44% / 200k
-rules: rules/design.md
+updated: 2026-08-27 (반복 83)
+ctx: 36% / 200k
+rules: rules/dev.md
 ---
 
 # 현재 상태
 
-**`cooldown-burn` 계획 작성 완료. 다음은 설계 phase.**
+**`cooldown-burn` 설계 완료. 다음은 개발 phase 스텝 1.**
 브랜치 `loop/cooldown-burn` (기점 `9bd3771`, `loop/tokenizer`).
-계획 `docs/plan_cooldown-burn.md`. 출처는 digest `## 판단 필요` `[high]`.
+계획 `docs/plan_cooldown-burn.md` · 설계 `docs/design_cooldown-burn.md`.
+출처는 digest `## 판단 필요` `[high]`.
+
+## 설계가 정한 것 (반복 83) — 개발은 이 계약을 지킨다
+
+**대안 A(최소) 채택** — `Frontier.next()` 는 `_last_fetch` 를 **읽기만** 하고,
+시계는 `mark_sent()` 만 건다. 예외 경로는 `mark_sent(domain, now())` 로 **보수적으로**
+건다(요청이 나갔는지 모른다). `frontier.py`+`crawl.py` **한 커밋**.
+버린 것: B 리스 구조(호출처 1곳뿐 — 추측성 확장) · C 취소 방식(틀린 전제를 남겨
+스킵 경로가 늘면 재발) · 제출 시점(실측 0 회수) · add 시점 robots 필터(계약 4 위반).
+
+**사용자 승인 불필요** — `design.md` 4절 넷 중 어디에도 안 걸린다(재확인).
+
+## 설계 phase 에서 실측한 것 — 실제 코드 사본으로 (흉내 아님)
+
+| 코드 | 차단 사이트 처리량 | 예외 주입 시 최소 발신 간격 |
+|---|---|---|
+| 현재 | 4.47/s | 1.010s (팝 쓰기가 덮어준다) |
+| **설계 A** | **10.28/s** | **1.010s** |
+| 순진(팝 쓰기만 삭제) | 10.31/s | **0.310s — 계약 위반** |
+
+1. **008 리뷰의 경고가 옳았다.** 순진한 수정은 실제로 1초를 깬다.
+2. **`exclude=busy` 가 팝→발신 창을 덮는다**(가정 1, 참). 한 도메인 6URL·워커 8 로
+   굶겨도 1.010s. `crawl.py:71` 이 제출 **전에** `busy.add` 한다.
+3. **차단 시나리오만으로는 순진한 수정과 올바른 수정이 구별되지 않는다** —
+   둘 다 10.3/s·간격 통과. 구멍은 **예외를 주입해야** 보인다.
+   → 스텝 1 완료 기준 ③과 스텝 2 e2e 시나리오 4를 빼면 이 설계가 검증되지 않는다.
+
+**탐침에서 한 번 속았다** — `e2e/perf_crawl.py` 는 import 시점에 저장소 `src` 를
+`sys.path[0]` 으로 민다. 사본을 재려면 **`websearch` 를 먼저 import** 해야 한다.
+안 그러면 두 트리가 같은 숫자를 내고 그게 "회수 0" 으로 읽힌다(실제로 그렇게 읽었다).
 
 **직전 계획 `tokenizer`(010) 는 DONE 이고 아카이브까지 끝났다** —
 `plan_history_010.md` · `design_history_010.md` · `docs/e2e/tokenizer/result.md`.
