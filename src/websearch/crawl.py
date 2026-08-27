@@ -17,7 +17,7 @@ from websearch.store import Store
 WORKERS = 8  # 동시에 띄우는 요청 수. **보정 손잡이지 상수가 아니다** — CLI 의 --workers
 
 
-def _fetch_one(url, robots, now):
+def _fetch_one(url, robots, now, floor):
     """워커 스레드가 하는 일 전부. **`Store`·`Frontier`·카운터를 만지지 않는다** (설계 계약 4).
 
     `robots` 는 예외로 워커들이 **공유하는** `RobotsCache` 다. `_parser()` 가
@@ -31,11 +31,17 @@ def _fetch_one(url, robots, now):
     **재시도도 요청이다.** `fetcher` 는 간격을 모르므로 여기서 넘기는 훅이 재운다
     (docs/design_crawl-politeness.md 2절). 그래서 `sent_at` 은 **마지막** 발신 시각이다 —
     첫 발신으로 시계를 걸면 마지막 재시도 직후 0초 만에 다음 요청이 나간다.
+
+    `floor` 는 **프런티어가 그 netloc 에 대해 아는 간격**이다. `robots.delay()` 만
+    보면 스킴별 robots.txt 만 보는 셈이라, `http` 가 5초를 선언한 서버의 `https`
+    재시도가 1초로 나간다(실측). 프런티어는 netloc 단위로 모으므로 그쪽이 더 크다.
+    **메인 스레드가 제출 시점에 읽어 넘긴다** — 워커는 `Frontier` 를 안 만진다(계약 4).
+    올리기만 한다: `floor` 는 이미 `DOMAIN_INTERVAL` 이상이다.
     """
     if not robots.allowed(url):
         return False, None, None, None
     requested = robots.delay(url)
-    interval = max(DOMAIN_INTERVAL, requested or 0)
+    interval = max(floor, requested or 0)
     sends = []  # 이 URL 로 실제로 나간 시도들의 시각
 
     def before_send():
@@ -98,7 +104,8 @@ def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None,
                     continue
                 domain = urllib.parse.urlsplit(url).netloc
                 busy.add(domain)
-                inflight[pool.submit(_fetch_one, url, robots, now)] = (url, domain)
+                inflight[pool.submit(_fetch_one, url, robots, now,
+                                     frontier.interval(domain))] = (url, domain)
             if not inflight:
                 if frontier.empty():
                     break

@@ -2,14 +2,14 @@
 signal: GREEN
 mode: night
 plan: retry-interval
-phase: 개발
-step: 2/5
+phase: 테스트
+step: 3/5
 attempt: 0
-iteration: 102
-night_iterations: 13
+iteration: 103
+night_iterations: 14
 night_red: 0
 night_retries: 0
-updated: 2026-08-27 (반복 102 · 계획 016 착수)
+updated: 2026-08-27 (반복 103 · 스텝 2 완료)
 ctx: 68% / 200k
 rules: 1411a37
 ---
@@ -41,8 +41,27 @@ robots.txt** 것이다. 프런티어는 netloc 단위로 들고 단조 증가시
 
 ## 이미 한 것
 
-**스텝 1(계획) 완료.** 다음 반복은 **스텝 2(개발)** — RED 를 먼저 본다(기대 1이
-지금 코드에서 **1.0초**로 실패하는 것).
+**스텝 2(개발) 완료.** RED 를 먼저 봤다 — `1.0 not greater than or equal to 5.0`,
+digest `[5]` 가 적어 둔 실측과 **같은 숫자**다. `Frontier._interval` 의 밑줄을 떼고,
+제출 시점에 메인 스레드가 읽어 `_fetch_one(url, robots, now, floor)` 로 넘긴다.
+**311 → 315건 전부 통과** · 회귀 `perf_crawl` [차단] **10.25/s**(기준선 9.0) ·
+`crawl_politeness` 0 · `crawl_delay` 0.
+
+**가짜가 문제를 표현조차 못하고 있었다.** `FakeRobots._host` 가 **netloc** 으로 열쇠를
+잡아 `http://b.test` 와 `https://b.test` 가 한 칸을 나눠 썼다 — 진짜 `RobotsCache` 는
+`robots._base`, 즉 `스킴://netloc` 으로 캐시한다. **있을 수 없는 협력자**라 그 위에서는
+이번 버그를 재현할 수조차 없었다(digest `[6]` 과 같은 부류). 진짜와 같은 열쇠로 고쳤고,
+기존 호출 3곳의 키를 `"http://b.test"` 로 바꿨다 — 311건은 그대로 통과한다.
+
+- 워커는 여전히 `Frontier` 를 안 만진다(계약 4). `crawl.py:101` 은 이미 `domain` 을
+  손에 들고 있어 새로 계산할 것이 없다. **테스트로 못박았다** —
+  `test_worker_never_touches_the_frontier` 가 스레드 이름을 모아 `{MainThread}` 인지 본다
+- **올리기만 한다.** `floor` 는 이미 `DOMAIN_INTERVAL` 이상이고 `set_delay` 는 단조
+  증가로만 쓴다. 대조군(`test_undeclared_domain_keeps_the_plain_floor`)이 선언 없는
+  도메인은 **1.0 ≤ g < 2.0** 임을 잰다 — 없으면 "전부 5초로 재우기" 로도 통과한다
+- `robots.delay` 를 스킴 무관으로 바꾸지 않았다. `robots.txt` 는 스킴별로 다른 문서다
+
+다음 반복은 **스텝 3(테스트 phase)**.
 
 ## 직전 계획 (015 `pagination-ui`) — DONE
 

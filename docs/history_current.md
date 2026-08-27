@@ -341,3 +341,17 @@ append 전용. 수정·삭제 금지.
   (JSON API, 이번 계획이 안 건드린 쪽)로 먼저 묻는다. M-a 가 2가 아닌 **1**로 죽는 것 확인
 - 변이 3종 전부 잡힘: `_pager` 무력화 / `+1` 삭제 / `has_next` 무시 — 셋 다 종료 1
 - 마감: `plan_history_013.md` · `index.md` 15번 · `docs/e2e/pagination-ui/result.md`
+
+## 반복 102–103 — 계획·개발 (`retry-interval` 016) · **GREEN**
+
+- digest `[5]` 를 계획으로 열었다. 설계 phase 는 안 연다 — `Frontier` 는 내부 계약이고
+  `_interval` 은 **이미 있는 메서드라 밑줄만 뗀다**. 간격을 올리는 방향뿐이다
+- RED 를 먼저 봤다: `1.0 not greater than or equal to 5.0` — digest 가 적어 둔 실측과
+  **같은 숫자**다
+- 고침: `Frontier.interval(domain)` 공개 + `_fetch_one(url, robots, now, floor)` 가
+  `max(floor, requested or 0)`. 바닥값은 **제출 시점에 메인 스레드가** 읽어 넘긴다
+- **가짜가 문제를 표현조차 못하고 있었다.** `FakeRobots._host` 가 netloc 으로 열쇠를
+  잡아 `http://b.test` 와 `https://b.test` 가 한 칸을 나눠 썼다 — 진짜는
+  `스킴://netloc`(`robots._base`)이다. **있을 수 없는 협력자** 위에서는 이번 버그를
+  재현할 수조차 없다(digest `[6]` 과 같은 부류). 진짜와 같은 열쇠로 고쳤다
+- 311 → **315건** · `perf_crawl` [차단] 10.25/s · `crawl_politeness` 0 · `crawl_delay` 0

@@ -7,7 +7,7 @@ import urllib.parse
 from unittest import mock
 
 from websearch import crawl, fetcher
-from websearch.frontier import MAX_DELAY
+from websearch.frontier import DOMAIN_INTERVAL, MAX_DELAY
 from websearch.fetcher import FetchResult
 
 
@@ -440,13 +440,20 @@ class FakeRobots:
     """
 
     def __init__(self, delays=None, blocked=()):
-        self._delays = delays or {}       # netloc -> 초
+        self._delays = delays or {}       # "스킴://netloc" -> 초
         self._blocked = blocked
-        self.loaded = set()               # robots.txt 를 실제로 받은 netloc
+        self.loaded = set()               # robots.txt 를 실제로 받은 origin
 
     @staticmethod
     def _host(url):
-        return urllib.parse.urlsplit(url).netloc
+        """**진짜와 같은 열쇠를 쓴다** — `robots._base`, 즉 `스킴://netloc`.
+
+        netloc 만으로 열쇠를 잡으면 `http://b.test` 와 `https://b.test` 가 한 칸을
+        나눠 써 **있을 수 없는 협력자**가 된다: 진짜 `robots.txt` 는 스킴별로 다른
+        문서라 한쪽 선언이 다른 쪽에 보일 수 없다. 그 위에서 잰 값은 거짓이다
+        (digest `[6]` 과 같은 부류).
+        """
+        return "{0.scheme}://{0.netloc}".format(urllib.parse.urlsplit(url))
 
     def allowed(self, url):
         self.loaded.add(self._host(url))
@@ -485,7 +492,7 @@ class TestDelaySurvivesWorkerException(unittest.TestCase):
                 raise RuntimeError("워커가 죽었다")
             return FetchResult(200, self.PAGES.get(url), url)
 
-        robots = FakeRobots({"b.test": delay})
+        robots = FakeRobots({"http://b.test": delay})
         with mock.patch("websearch.crawl.fetcher") as mf, \
              mock.patch("websearch.crawl.time.sleep") as ms, \
              mock.patch("sys.stderr", io.StringIO()):
@@ -541,7 +548,7 @@ class TestRetriesKeepTheInterval(unittest.TestCase):
                     return FetchResult(200, self.PAGES.get(url), url)
             return FetchResult(0, None, None)
 
-        robots = FakeRobots({"b.test": delay} if delay is not None else {})
+        robots = FakeRobots({"http://b.test": delay} if delay is not None else {})
         with mock.patch("websearch.crawl.fetcher") as mf, \
              mock.patch("websearch.crawl.time.sleep") as ms, \
              mock.patch("sys.stderr", io.StringIO()):
@@ -608,6 +615,104 @@ class TestRetriesKeepTheInterval(unittest.TestCase):
                                            failing={"http://b.test/1"})), 1)
 
 
+class TestRetryUsesWhatTheFrontierKnows(unittest.TestCase):
+    """스킴이 다른 같은 서버 — **재시도가 프런티어보다 빨리 치면 안 된다.**
+
+    `robots.delay(url)` 이 돌려주는 것은 **그 스킴의 robots.txt** 값이다(진짜
+    `RobotsCache` 는 `스킴://netloc` 으로 캐시한다). 반면 `Frontier` 는 **netloc**
+    단위로 간격을 들고 단조 증가시키므로, `http` 가 선언한 5초가 `https` 에도 걸린다.
+
+    실측(반복 95 리뷰 탐침): URL 사이는 5.000초인데 `https` 재시도는 **1.000초**.
+    절대 조건 위반은 아니지만(https 쪽 선언이 없다) **재시도 경로만 URL 사이 경로보다
+    덜 조심한다** — 재시도가 나가는 상황은 서버가 이미 아플 때다.
+    """
+
+    HUB = "http://hub.test/"
+
+    def _sends(self, delays, failing):
+        """`b.test` 로 나간 **모든 시도**의 시각. 스킴이 달라도 같은 서버다."""
+        pages = {self.HUB: '<a href="http://b.test/1">1</a>'
+                           '<a href="https://b.test/2">2</a>',
+                 "http://b.test/1": "leaf", "https://b.test/2": "leaf"}
+        sent = []
+        clock = {"t": 1000.0}
+
+        def flaky_fetch(url, before_send=None, retries=fetcher.RETRIES):
+            for _ in range(1 + retries):
+                if before_send is not None:
+                    before_send()
+                if urllib.parse.urlsplit(url).netloc == "b.test":
+                    sent.append((url, clock["t"]))
+                if url not in failing:
+                    return FetchResult(200, pages.get(url), url)
+            return FetchResult(0, None, None)
+
+        robots = FakeRobots(delays)
+        with mock.patch("websearch.crawl.fetcher") as mf, \
+             mock.patch("websearch.crawl.time.sleep") as ms, \
+             mock.patch("sys.stderr", io.StringIO()):
+            mf.fetch = flaky_fetch
+            mf.RETRIES = fetcher.RETRIES
+            ms.side_effect = lambda s: clock.__setitem__("t", clock["t"] + s)
+            crawl.crawl([self.HUB], 10, db_path=":memory:",
+                        robots_cache=robots, now=lambda: clock["t"], workers=8)
+        return sent
+
+    def _retry_gaps(self, sent, url):
+        times = [t for u, t in sent if u == url]
+        self.assertGreaterEqual(len(times), 2, "재시도 표본이 없다: %s" % sent)
+        return [b - a for a, b in zip(times, times[1:])]
+
+    def test_other_scheme_declaration_paces_the_retries(self):
+        # http 만 5초를 선언했다. https 쪽 robots 에는 아무 말이 없지만 **서버는 하나다**
+        gaps = self._retry_gaps(
+            self._sends({"http://b.test": 5.0}, {"https://b.test/2"}),
+            "https://b.test/2")
+        for gap in gaps:
+            self.assertGreaterEqual(
+                gap, 5.0, "재시도가 프런티어가 아는 간격보다 빨랐다: %s" % gaps)
+
+    def test_undeclared_domain_keeps_the_plain_floor(self):
+        # 대조군. 아무 데도 선언이 없으면 하한 1초 그대로다 — **올리지 않는다**.
+        # 이 짝이 없으면 "전부 5초로 재우기" 로도 위 테스트가 통과한다
+        gaps = self._retry_gaps(
+            self._sends({}, {"https://b.test/2"}), "https://b.test/2")
+        for gap in gaps:
+            self.assertGreaterEqual(gap, 1.0, "하한이 풀렸다: %s" % gaps)
+            self.assertLess(gap, 2.0, "선언이 없는데 간격이 늘었다: %s" % gaps)
+
+    def test_own_declaration_wins_when_it_is_larger(self):
+        # 둘 다 선언했으면 **큰 쪽**이다. 바닥을 올리는 것이지 덮어쓰는 것이 아니다
+        gaps = self._retry_gaps(
+            self._sends({"http://b.test": 5.0, "https://b.test": 7.0},
+                        {"https://b.test/2"}),
+            "https://b.test/2")
+        for gap in gaps:
+            self.assertGreaterEqual(gap, 7.0, "자기 선언 7초가 5초로 깎였다: %s" % gaps)
+
+    def test_worker_never_touches_the_frontier(self):
+        """설계 계약 4 — 바닥값은 **제출 시점에 메인 스레드가** 읽어 넘긴다.
+
+        워커가 `Frontier` 를 만지기 시작하면 계약 3(도메인당 in-flight 1개)에 기대
+        생략해 둔 락이 전부 필요해진다. 여기서 막지 않으면 나중에 조용히 깨진다.
+        """
+        touched = []
+        real_next = crawl.Frontier.next
+
+        def watched_next(self, exclude=()):
+            touched.append(threading.current_thread().name)
+            return real_next(self, exclude)
+
+        with mock.patch.object(crawl.Frontier, "next", watched_next), \
+             mock.patch.object(crawl.Frontier, "interval",
+                               lambda self, d: touched.append(
+                                   threading.current_thread().name) or 5.0):
+            self._sends({"http://b.test": 5.0}, {"https://b.test/2"})
+        self.assertTrue(touched, "프런티어를 아무도 안 만졌다 — 잴 대상이 사라졌다")
+        self.assertEqual(set(touched), {"MainThread"},
+                         "워커가 프런티어를 만졌다: %s" % sorted(set(touched)))
+
+
 class TestUnkeepableDelayFoundOnFailure(unittest.TestCase):
     """예외로 끝난 요청에서 알아낸 간격이 상한을 넘으면 그 도메인을 버리는가.
 
@@ -628,7 +733,7 @@ class TestUnkeepableDelayFoundOnFailure(unittest.TestCase):
                 raise RuntimeError("워커가 죽었다")
             return FetchResult(200, self.PAGES.get(url), url)
 
-        robots = FakeRobots({"b.test": delay})
+        robots = FakeRobots({"http://b.test": delay})
         with mock.patch("websearch.crawl.fetcher") as mf, \
              mock.patch("websearch.crawl.time.sleep") as ms, \
              mock.patch("sys.stderr", err):
@@ -662,7 +767,8 @@ class TestNoSendMeansNoClock(unittest.TestCase):
 
     def test_unsendable_url_reports_no_send_time(self):
         allowed, _, sent_at, result = crawl._fetch_one(
-            "example.com", FakeRobots(), now=lambda: 1000.0)  # 스킴이 없다
+            "example.com", FakeRobots(), now=lambda: 1000.0,
+            floor=DOMAIN_INTERVAL)  # 스킴이 없다
         self.assertTrue(allowed)
         self.assertEqual(result, FetchResult(0, None, None))
         self.assertIsNone(sent_at, "나가지도 않은 요청에 발신 시각이 붙었다")
@@ -673,5 +779,6 @@ class TestNoSendMeansNoClock(unittest.TestCase):
             mf.RETRIES = fetcher.RETRIES
             mf.fetch = sending(lambda url: FetchResult(200, "hi", url))
             _, _, sent_at, _ = crawl._fetch_one(
-                "http://a.test/", FakeRobots(), now=lambda: 1000.0)
+                "http://a.test/", FakeRobots(), now=lambda: 1000.0,
+                floor=DOMAIN_INTERVAL)
         self.assertEqual(sent_at, 1000.0)

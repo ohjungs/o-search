@@ -31,10 +31,18 @@ class Frontier:
             self._delays.pop(domain, None)  # 안 쓰일 값을 남겨두면 읽는 사람이 헷갈린다
             self._queues.pop(domain, None)
             return False
-        self._delays[domain] = max(self._interval(domain), seconds or 0)
+        self._delays[domain] = max(self.interval(domain), seconds or 0)
         return True
 
-    def _interval(self, domain):
+    def interval(self, domain):
+        """이 도메인에 대해 **아는** 간격. 모르면 하한.
+
+        `set_delay` 가 단조 증가로만 쓰므로 이 값은 내려가지 않는다 —
+        읽는 쪽은 "여기까지는 확실히 기다려야 한다" 로 믿어도 된다.
+        `robots.delay()` 와 다른 점: 저쪽은 **스킴별** robots.txt 의 값이고
+        이쪽은 **netloc 단위**로 모은 값이다. 같은 서버에 스킴이 둘이면
+        여기가 더 크다.
+        """
         return self._delays.get(domain, DOMAIN_INTERVAL)
 
     def add(self, urls):
@@ -65,7 +73,7 @@ class Frontier:
             if domain in exclude:
                 continue
             last = self._last_fetch.get(domain)
-            if last is not None and self._now() - last < self._interval(domain):
+            if last is not None and self._now() - last < self.interval(domain):
                 continue
             queue = self._queues[domain]
             url = queue.popleft()
@@ -103,5 +111,5 @@ class Frontier:
                 continue
             last = self._last_fetch.get(domain)
             waits.append(0.0 if last is None
-                         else max(0.0, self._interval(domain) - (self._now() - last)))
+                         else max(0.0, self.interval(domain) - (self._now() - last)))
         return min(waits) if waits else 0.0
