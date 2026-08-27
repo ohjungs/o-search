@@ -3,21 +3,31 @@ signal: GREEN
 mode: night
 plan: cooldown-burn
 phase: 개발
-step: 0/2
+step: 1/2
 attempt: 0
-iteration: 83
-night_iterations: 7
+iteration: 84
+night_iterations: 8
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
-updated: 2026-08-27 (반복 83)
+updated: 2026-08-27 (반복 84)
 ctx: 36% / 200k
 rules: rules/dev.md
 ---
 
 # 현재 상태
 
-**`cooldown-burn` 설계 완료. 다음은 개발 phase 스텝 1.**
+**`cooldown-burn` 스텝 1 완료(`a159e30`). 다음은 스텝 2.**
+회수 **4.47 → 10.29/s** · 페이지 최소 간격 1.004s · 265건 통과 · `crawl_delay_e2e` 종료 0.
+
+## 스텝 2가 할 일 (계획서 107-117줄)
+
+`e2e/perf_crawl.py` 에 **robots 가 일부를 막는 시나리오**를 더한다. 이 버그가 8일 동안
+안 보인 이유가 "아무것도 막지 않는 사이트만 쟀다" 이기 때문이다. 고쳐 놓고 같은 눈으로
+재면 다음에 또 못 본다. 합격선(`TARGET_RATE=5.0`)과 기준선 상수는 **다른 질문**이다.
+**설계가 남긴 경고 — 차단 시나리오만으로는 부족하다.** 순진한 수정(팝 쓰기만 삭제)도
+차단 시나리오를 10.31/s·1.001s 로 통과한다. **예외를 주입하는 시나리오 4**가 있어야
+구멍이 보인다. 건드릴 파일: `e2e/perf_crawl.py` · `docs/project.md`(품질 기준 숫자).
 브랜치 `loop/cooldown-burn` (기점 `9bd3771`, `loop/tokenizer`).
 계획 `docs/plan_cooldown-burn.md` · 설계 `docs/design_cooldown-burn.md`.
 출처는 digest `## 판단 필요` `[high]`.

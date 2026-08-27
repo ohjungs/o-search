@@ -443,3 +443,22 @@ append 전용. 수정·삭제 금지.
   숫자가 **똑같이** 나오면 측정이 아니라 배선을 먼저 의심한다
 - 작업 트리의 `src/` 는 손대지 않았다. 사본은 전부 scratchpad, 네트워크 안 침
 - 다음: 개발 phase 스텝 1 (TDD — 실패하는 테스트 먼저, `frontier.py`+`crawl.py` 한 커밋)
+
+## 반복 84 — cooldown-burn 스텝 1 (phase: 개발 · GREEN · `a159e30`)
+
+- TDD 로 갔다. 새 테스트 5건이 **먼저 실패하는 것을 눈으로 봤다** — 쿨다운 태우기는
+  간격 2.0s 로, 새 계약(`test_next_does_not_start_the_clock`)은 `None` 으로
+- 구현은 src 20줄 추가·5줄 삭제(대부분 주석). `next()` 의 `_last_fetch` 쓰기 한 줄을
+  지우고, 예외 경로에 `frontier.mark_sent(domain, now())` 한 줄을 넣었다.
+  `frontier.py`+`crawl.py` **한 커밋**(설계 계약 5)
+- **회수 4.47 → 10.29/s.** 목표 9.0 초과이고 컨셉 성능 2(5.0/s)를 다시 넘겼다.
+  페이지 최소 간격 1.004s · 차단 경로 요청 0건 · `perf_crawl.py` 10.24/s 무회귀
+- 긍정 짝을 같이 넣었다 — `test_real_request_does_burn_cooldown`. 없으면
+  "아무것도 안 태운다" 는 구현으로도 초록불이 켜진다
+- **9건 목록에 없던 테스트를 하나 더 고쳤다.** `test_no_directive_keeps_default_interval`
+  은 팝 쓰기 시절에도 통과했는데 **아무것도 안 재고 있었다** — 시계를 안 걸면
+  "기본 간격을 지킨다" 를 물을 수가 없다. 깨지지 않았다고 멀쩡한 테스트는 아니다
+- `test_other_domain_served_while_first_cooling` 도 같은 부류였다. "a 쿨다운 중엔 b"
+  라고 적혀 있지만 실제로는 **라운드로빈이 b 를 내주고 있었다.** 단언을 하나 더 붙여
+  간격이 막는 것을 재게 했다
+- 다음: 스텝 2 (`perf_crawl.py` 에 차단 시나리오 + 예외 시나리오. 기준선 상수 고정)
