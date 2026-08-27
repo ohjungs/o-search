@@ -107,4 +107,18 @@ plan_history_<NNN>.md 를 다 열어볼 필요가 없게 하는 것이 목적이
     스킴 무관으로 바꾸지 않았다 — 없는 선언을 있는 것처럼 읽는 쪽이 사양 위반이다.
     개발 중 **가짜 robots 가 netloc 으로 캐시해 이 버그를 표현조차 못하고 있었다**)
 
+17. `domain-key` — 완료 (plan_history_015 · 설계 없음 · e2e docs/e2e/domain-key/)
+    같은 서버는 한 칸이다 — 예의 계약이 세는 단위를 `urls.domain_key` 로 모았다. 의존: 16
+    (사양 분할에 없던 계획. `digest.md ## 판단 필요` 의 `[high]` 에서 왔다. 열쇠가 날
+    `netloc` 이라 `http://a.test`·`http://A.test`·`http://a.test:80` 이 큐도 `_last_fetch`
+    도 `_delays` 도 따로 가졌다 — 2초를 선언한 서버가 **2밀리초 안에** 요청 넷을 받았고
+    `robots.txt` 도 표기마다 받았다. 답은 **호스트 소문자화 + 스킴별 기본 포트 제거**를
+    한 함수에 모으고 세 호출부(`frontier.add`·`crawl` 제출부·`robots._base`)가 그것만
+    쓰는 것. **`.port` 를 안 쓴다** — `:abc`·`:99999` 에 ValueError 를 던져 열쇠를 만들다
+    크롤을 죽인다. 백지 리뷰가 **진짜 크래시 1건**을 잡았다: 가드가 `domain_key` 에만
+    들어가고 `robots._base` 는 날 `urlsplit` 을 부르고 있었는데, 최악의 자리는 예외가 나는
+    곳이 아니라 **잡는 곳**이었다 — `_store_result` 의 `except` 가 복구하려 부른
+    `known_delay` 가 두 번째로 던지면 아무도 안 잡는다. 파싱을 던지지 않는 `urls._split`
+    한 곳으로 모아 닫았다. **URL 정규화는 안 했다** — 세 표기는 여전히 각각 수집·저장된다)
+
 색인 규모 단계(10만→100만)는 별도 계획이 아니라 7번(quality-eval) 이후 운영 측정으로 판정.
