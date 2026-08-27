@@ -1044,13 +1044,20 @@ class TestDeadline(unittest.TestCase):
         예산을 지키려고 간격을 깎는 코드는 RED 다
         (`project.md ## 한도` · `concept.md` 갈림길 1순위).
         """
-        n, _, _ = self._run(["http://a.com/"], max_pages=10,
-                            delays={"a.com": 5.0}, deadline=8)
+        # 한 도메인에 4쪽을 두고 5초 간격 · 예산 8초 — 예산 안에 2쪽밖에 못 산다.
+        # `max_pages` 로 끊으면 "덜 보냈다" 를 예산이 한 것인지 알 수 없어 넉넉히 준다
+        pages = {"http://a.com/": '<a href="/x">x</a><a href="/y">y</a><a href="/z">z</a>',
+                 "http://a.com/x": "x", "http://a.com/y": "y", "http://a.com/z": "z"}
+        with mock.patch.dict(PAGES, pages, clear=True):
+            n, fetched, ms = self._run(["http://a.com/"], max_pages=10,
+                                       delays={"a.com": 5.0}, deadline=8)
         gaps = self._gaps("a.com")
         self.assertTrue(gaps, "a.com 을 두 번 이상 요청해야 잴 수 있다")
         for gap in gaps:
             self.assertGreaterEqual(gap, 5.0, "%s" % (self.fetch_times,))
-        self.assertLess(n, 10, "예산이 크롤을 끊지 않았다면 간격을 잰 것이 아니다")
+        # 간격을 깎아 예산 안에 더 밀어넣으면 여기가 먼저 죽는다 (8초 / 5초 = 2쪽)
+        self.assertEqual(n, 2, "%s" % (fetched,))
+        self.assertEqual(self._elapsed(ms), 8.0)
 
     def test_deadline_flag_errors_return_usage_not_traceback(self):
         for bad in (["--deadline"], ["--deadline", "abc"], ["--deadline", "0"],
