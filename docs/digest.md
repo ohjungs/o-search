@@ -63,7 +63,6 @@ history_current.md 가 상한을 넘어 밀려날 때, 밀려나는 내용을 1~
 - ~~[5]~~ **대부분 닫혔다 — `cooldown-burn`(011).** `TestCooldownBurn.test_store_skipped_url_does_not_burn_cooldown` 이 스킵 경로를 탄다. 다만 재는 것은 **쿨다운을 안 태운다**까지고, 스킵된 URL 이 다시 저장되지 않는지는 여전히 무단언이다
 - [4] crawl.main CLI 인자 파싱 무테스트
 - [6] indexer.main 이 pages 테이블 없는 DB 를 받으면 sqlite3.OperationalError 트레이스백. FileNotFoundError 만 잡고 있다 (crawl.main CLI 방어와 같은 부류)
-- [높음·설계 범위 밖 메모] robots crawl-delay 존중 — 윤리 축이라 우선순위 높음
 
 - [5] `<meta http-equiv="X-Robots-Tag" content="noindex">` 변형은 무시한다 (2026-08-25 noindex-respect 테스트 phase 탐침으로 확인). 표준은 HTTP 헤더이고 http-equiv 변형은 주요 검색엔진도 지원하지 않는다. X-Robots-Tag 헤더 계획(스키마 expand)을 열 때 함께 판단
 - [4] `is_noindex` 의 `'robots'` 사전 필터와 제거 경로의 `LIKE '%robots%'` 는 **name 을 HTML 엔티티로 인코딩한 meta**(`&#114;obots`)를 놓친다 (2026-08-25 리뷰 지적, 실측 확인). 파서 자체는 엔티티를 풀어 지시를 본다 — 필터만 빼면 잡힌다. 실물에서 보이면 그때 뺀다
