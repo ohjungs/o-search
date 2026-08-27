@@ -366,6 +366,39 @@ class TestCooldownBurn(unittest.TestCase):
                  "http://a.test/x": "leaf", "http://a.test/2": "leaf"}
         self.assertEqual(self._gaps(["http://a.test/"], pages), [1.0, 1.0])
 
+    def test_first_ever_request_to_a_domain_may_fail_and_still_holds(self):
+        # **빈 상태 경계다.** 그 도메인의 첫 요청이 예외로 끝나면 `_last_fetch` 에 항목이
+        # 없다 — `next()` 는 `last is None` 을 "간격 제한 없음" 으로 읽으므로, 시계를
+        # 안 걸면 다음 URL 이 **즉시** 나간다. 위 테스트는 홈이 먼저 성공해서 이 경계를
+        # 안 지난다 (테스트 phase 갭 탐색, 반복 86)
+        pages = {"http://hub.test/": '<a href="http://b.test/1">1</a>'
+                                     '<a href="http://b.test/2">2</a>',
+                 "http://b.test/2": "leaf"}
+        sent = []
+        clock = {"t": 1000.0}
+
+        def fake_fetch(url):
+            if urllib.parse.urlsplit(url).netloc == "b.test":
+                sent.append(clock["t"])
+            if url == "http://b.test/1":
+                raise RuntimeError("첫 요청이 죽었다")
+            return FetchResult(200, pages.get(url), url)
+
+        robots = mock.Mock()
+        robots.allowed = lambda url: True
+        robots.delay = lambda url: None
+        with mock.patch("websearch.crawl.fetcher") as mf, \
+             mock.patch("websearch.crawl.time.sleep") as ms, \
+             mock.patch("sys.stderr", io.StringIO()):
+            mf.fetch = fake_fetch
+            ms.side_effect = lambda s: clock.__setitem__("t", clock["t"] + s)
+            crawl.crawl(["http://hub.test/"], 10, db_path=":memory:",
+                        robots_cache=robots, now=lambda: clock["t"], workers=8)
+
+        self.assertEqual(len(sent), 2, "b.test 를 두 번 요청해야 간격을 잰다")
+        self.assertGreaterEqual(sent[1] - sent[0], 1.0,
+                                "첫 요청이 예외로 끝나자 다음 요청이 즉시 나갔다")
+
     def test_worker_exception_still_holds_the_interval(self):
         # **요청은 나갔고 결과만 터졌다.** 여기서 시계를 안 걸면 다음 요청이 즉시 나간다
         # — 008 리뷰가 경고했고 설계 탐침이 0.310s 로 실증한 구멍이다
