@@ -1,57 +1,55 @@
 ---
-signal: DONE
-plan: null
+signal: GREEN
+plan: normalize-gaps
 mode: night
-phase: null
-step: null
+phase: 개발
+step: 1/4
 attempt: 0
-iteration: 117
-night_iterations: 28
+iteration: 118
+night_iterations: 1
 night_red: 0
 night_retries: 0
-updated: 2026-08-27 (반복 117 · 018 DONE)
-ctx: 72% / 200k
+updated: 2026-08-27 (반복 118 · 019 계획)
+ctx: 67% / 200k
 rules: 1411a37
 ---
 
 # 현재 상태
 
-**계획 018 `url-normalize` DONE.** 브랜치 `loop/url-normalize` (기점 `e08bc8f`).
-계획서는 `docs/plan_history_016.md`, e2e 결과는 `docs/e2e/url-normalize/result.md`.
+**계획 019 `normalize-gaps` 계획 완료 — 다음은 스텝 1/4 개발.**
+브랜치 `loop/normalize-gaps` (기점 `33e531d` = 018 끝). 계획서 `docs/plan_normalize-gaps.md`.
 
-같은 문서를 가리키는 표기가 여럿이어도 **서버는 한 번만 받고** `pages` 에 한 행이
-남는다. `urls.normalize` 가 RFC 3986 6.2.2 의 다섯(스킴·호스트 소문자 · 스킴별
-기본 포트 제거 · 빈 경로 `/` · 퍼센트 3연 hex 대문자) + 프래그먼트 제거를 **URL 이
-태어나는 세 경계**(`links.extract`·시드·리다이렉트 최종 URL)에 건다.
-`to_ascii` 는 안 건드렸다 — 그 계약("ASCII 는 한 글자도 안 바꾼다")이 멱등성과
-이중 인코딩 방지를 한 규칙으로 사고, 회귀 위험이 전부 거기 있다.
+018 백지 리뷰가 실측으로 남긴 정규화 구멍 둘을 닫는다(`digest.md ## 판단 필요` `[4]`·`[2]`).
+같은 병이고 고치는 파일이 하나라 묶었다:
 
-**실측.** 단위 **379건 OK**. e2e **7종 전부 rc=0** — 새 `url_normalize_e2e.py` 는
-표기 7개가 문서 4개로 접히고(`/p` 수신 3회 → 1회), 변이 3종이 각각 **다른
-시나리오는 통과시키면서** 자기 단언에서만 죽는다. `domain_key_e2e.py` 는 018 이
-그 축을 접어 크게 실패해 **userinfo 축**으로 옮겼고, 되돌리기 변이로 여전히 017
-회귀 탐지기임을 확인했다(간격 0.001초).
+1. **점 세그먼트를 안 접는다** — `normalize('http://b.com/a/../p')` 가 그대로다(실측).
+   절대 href 는 `urljoin` 이 안 접는다
+2. **`:080` 을 안 접는다** — `domain_key` 가 `'080' != '80'` 문자열 비교라
+   `b.com:080` 이 남는다(실측). 예의를 세는 칸이라 **간격 계약이 샌다**
 
-## 판단 필요 — 사람에게 묻는다
+**설계는 안 쓴다** — `design.md` 1절 트리거 0건(새 모듈 없음·시그니처 불변·저장 형태
+불변·파일 2개). 접는 방법 셋은 *갈림길이 아니다*: `posixpath.normpath` 는 `/a//b`·`/a/b/`
+까지 접어 **RFC 가 동치로 안 보는 것을 합치고**, `urljoin` 왕복은 빈 질의 `?` 를 삼킨다.
+셋을 같은 입력에 돌린 실측 표가 계획서 2절에 있다.
 
-1. **이 변경은 새 DB 에서만 목적을 달성한다.** 기존 `data/crawl.db` 에는 018 이전에
-   정규화 안 된 열쇠로 저장된 행이 남고, `store.has(정규화된 URL)` 이 그것을 못 찾아
-   같은 문서를 다시 받고 다시 저장한다(재현: `upsert('http://A.com:80/p')` →
-   `has('http://a.com/p')` **False** → `pages` 2행 · `docs` 2행 · 검색 결과 2건).
-   일회성 통합은 **마이그레이션이라 야간이 안 한다.** recrawl 계획과 같은 수술이다
-2. **URL 에 실린 자격증명이 `pages.url` PK 이자 검색 결과 링크가 된다.** `normalize`
-   가 userinfo 를 되붙이는 것 자체는 옳지만(떼면 요청 내용이 바뀐다) 그 URL 이 그대로
-   DB 열쇠가 되고 `serve.py` 가 렌더한다. **보안 경계라 줄 수 무관 야간 금지**
-3. `loop/url-normalize` 브랜치 **머지 판단** (야간은 `main` 에 직접 안 쓴다)
+## 다음 스텝 — 1/4 개발
 
-## 다음에 할 일 — 계획 없음
+`tests/test_urls.py` 에 기대 결과 6건을 **먼저 빨갛게** 넣고(`dev.md` 0절),
+`src/websearch/urls.py` 에 `_fold_dots` 신설 + `normalize` 경로에만 배선 +
+`domain_key` 에 `if port.isdigit(): port = port.lstrip("0")`.
+`normalize` 독스트링의 "점 세그먼트는 안 접는다" 문장도 같이 고친다.
 
-`docs/digest.md ## 다음 계획 후보` 와 `## 판단 필요` 에서 고른다. 지금 위에 있는 것:
-recrawl(`store.has` 상태 불문 스킵 + indexer 증분 + **옛 열쇠 행 통합** — 셋이 같은
-수술이다) · `--deadline`(Ctrl-C 최악 대기와 총 크롤 시간 예산이 같은 답이다) ·
-`X-Robots-Tag` 헤더.
+## 판단 필요 — 사람에게 묻는다 (018 에서 이월, 019 가 안 건드린다)
+
+1. **기존 `data/crawl.db` 의 옛 열쇠 행 통합** — 마이그레이션이라 야간 금지.
+   019 도 **새 DB 에서만 목적을 달성한다**
+2. **URL 자격증명이 `pages.url` PK 이자 검색 결과 링크** — 보안 경계, 줄 수 무관 야간 금지
+3. `loop/*` 브랜치 **머지 판단** (16개가 한 줄로 쌓여 있다)
+4. **`project.md` 의 기본 브랜치 `main` 이 저장소에 없다.** 실제 이력은 `loop/*` 팁이
+   줄줄이 달린 한 줄이다. 019 는 관례를 따르고 문서를 안 고쳤다 — 사람이 정한다
 
 ## 열지 않는 것
 
 recrawl(`store.has` 상태 불문 스킵 · indexer 증분) · `X-Robots-Tag` · `loop/*` 병합 ·
-옛 표기로 저장된 기존 행의 마이그레이션(데이터 변경).
+옛 표기로 저장된 기존 행의 마이그레이션 · 끝 슬래시 일반화 · 퍼센트 디코딩 ·
+`to_ascii` 수정 · userinfo 처리
