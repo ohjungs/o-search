@@ -511,3 +511,32 @@ append 전용. 수정·삭제 금지.
   옮길 축이 있으면 B, 없으면 A 로 가고 그때는 탐침 2 를 digest 에 안 닫고 남긴다.
 - 결과: `docs/plan_deadline.md` · 브랜치 `loop/deadline`(기점 `aeb2eeb`).
 - 다음: 설계 phase — `docs/design_deadline.md`
+
+## 2026-08-28 | deadline | 설계 | 시도0
+- 한 일: `docs/design_deadline.md`. 대안을 **출발점 셋으로 갈라** 냈다(`design.md` 3-1절).
+- **① 최소 — `timeout(1)` 로 감싸기를 진짜로 재 봤다.** SIGINT 탐침을 SIGTERM 으로만
+  바꾸니 **대기 0.00초**(SIGINT 는 5.56초). **상한 정확도는 이쪽이 이긴다** — 그런데도
+  버린 이유가 셋: 함수에는 상한이 안 걸린다(`crawl()` 직접 호출이 e2e 14종 전부) ·
+  stock macOS 에 없다(`command -v` → `/opt/homebrew/bin/timeout`) · rc 0 과
+  `수집 N 페이지` 가 안 나와 "예산대로 끝났다" 와 "죽었다" 가 구별 안 된다.
+  **더 나은 축이 있는 안을 버릴 때는 그 축에서 졌다고 적는다.**
+- **② 정공법 — `threading.Event` 를 워커까지.** 예산 초과분 ≈0 에 SIGINT 5.56초까지
+  한 기계로 닫는다. **미뤘다**: `tests/test_crawl.py` 가 9곳에서
+  `mock.patch("websearch.crawl.time.sleep")` + `side_effect` 로 가짜 시계를
+  흘려보내는데 `Event.wait` 가 그 이음매를 없앤다. 이 저장소가 간격을 초 단위로
+  단언할 수 있는 근거가 전부 거기다.
+- **두 갈래 도피를 명시적으로 거부했다.** "`stop` 이 None 이면 `time.sleep`, 아니면
+  `Event.wait`" 는 9곳을 초록으로 만들지만 **테스트가 도는 경로와 제품이 도는 경로가
+  갈린다** — digest `[6]`(`**kw` 가짜는 있을 수 없는 협력자를 흉내낸다)이 그 실패다.
+  초록을 사는 값으로 검증을 파는 형태라 설계 문서에 거부 사유로 박아 뒀다.
+- **고른 것 ③ 되돌리기 우선** — `crawl(..., deadline=None)`, 주입된 `now()` 로 재고
+  메인 스레드가 새 요청을 안 던지는 것으로 끝낸다. 보는 자리 셋(`while` 상단 ·
+  제출 루프 · `seconds_until_ready()` 잠을 남은 예산으로 자르기). CLI 는 있는
+  `_number_flag` 를 그대로. **기본값 None 이 곧 꺼진 플래그**라 별도 플래그를 안 둔다.
+- **안 넣기로 한 것도 적었다**: 제출 시 남은 예산이 `interval × RETRIES` 보다 작으면
+  `retries=0` — 초과분 90초를 타임아웃 한 번으로 줄이지만 **근거가 산수뿐**이라
+  추측성 확장으로 보고 뺐다(`design.md` 3절 "다음이 편한가" 감점).
+- **안 닫는 것 3건을 5절에 그대로 남겼다** — SIGINT 최악 대기 · 예산 초과분 90초 ·
+  `fetcher` 재시도 구조. digest 의 Ctrl-C 항목은 **지우지 않고** 실측값으로 갱신한다.
+- 결과: 코드 변경 0. `git diff aeb2eeb --stat` 은 `docs/` 만 낸다.
+- 다음: 스텝 1/4 개발 — 설계 7절의 실패하는 테스트 5개부터
