@@ -8,6 +8,7 @@ import urllib.parse
 from unittest import mock
 
 from websearch import crawl, fetcher, urls
+from websearch import robots as robots_mod
 from websearch.frontier import DOMAIN_INTERVAL, MAX_DELAY
 from websearch.fetcher import FetchResult
 
@@ -472,17 +473,14 @@ class FakeRobots:
         self._blocked = blocked
         self.loaded = set()               # robots.txt 를 실제로 받은 origin
 
-    @staticmethod
-    def _host(url):
-        """**진짜와 같은 열쇠를 쓴다** — `robots._base`, 즉 `스킴://도메인 열쇠`.
+    _host = staticmethod(robots_mod._base)
+    """**진짜를 베끼지 않고 그대로 부른다.**
 
-        netloc 만으로 열쇠를 잡으면 `http://b.test` 와 `https://b.test` 가 한 칸을
-        나눠 써 **있을 수 없는 협력자**가 된다: 진짜 `robots.txt` 는 스킴별로 다른
-        문서라 한쪽 선언이 다른 쪽에 보일 수 없다. 그 위에서 잰 값은 거짓이다
-        (digest `[6]` 과 같은 부류). 반대쪽도 같다 — 진짜는 호스트 대소문자와
-        기본 포트를 정규화하므로 여기서 안 하면 없는 두 번째 서버가 생긴다.
-        """
-        return "%s://%s" % (urllib.parse.urlsplit(url).scheme, urls.domain_key(url))
+    베낀 열쇠는 진짜가 바뀌면 조용히 갈린다 — 그러면 이 가짜는 **있을 수 없는
+    협력자**가 되고 그 위에서 잰 값은 전부 거짓이다(digest `[6]`: 가짜가 netloc 으로
+    캐시해 `http://b.test` 와 `https://b.test` 가 한 칸을 나눠 썼다).
+    `_base` 는 네트워크를 안 탄다 — 열쇠를 만드는 순수 함수다.
+    """
 
     def allowed(self, url):
         self.loaded.add(self._host(url))
@@ -495,6 +493,41 @@ class FakeRobots:
     def known_delay(self, url):
         host = self._host(url)
         return self._delays.get(host) if host in self.loaded else None
+
+
+class TestABrokenLinkDoesNotEndTheCrawl(unittest.TestCase):
+    """**진짜 `RobotsCache` 로** 크롤 루프를 돌린다 (백지 리뷰 지적 #1·#2).
+
+    가짜 robots 는 URL 을 다시 파싱하지 않으므로 이 사고를 표현조차 못 한다 —
+    진짜는 `_base` 에서도, `can_fetch` 안에서도 파싱한다. 닫히지 않은 IPv6
+    리터럴 하나가 섞이면 예외가 워커에서 나고, 그것을 잡은 복구 경로가 같은 URL 로
+    `known_delay` 를 다시 불러 **두 번째 예외**가 크롤 전체를 끝냈다.
+    """
+
+    BAD = "http://[::1/x"
+
+    def _crawl(self, seeds, pages):
+        cache = robots_mod.RobotsCache()
+        cache._fetch_robots = lambda base: (200, "User-agent: *\nAllow: /")  # 네트워크 차단
+        clock = {"t": 1000.0}
+        with mock.patch("websearch.crawl.fetcher") as mf, \
+             mock.patch("websearch.crawl.time.sleep") as ms:
+            mf.fetch = sending(lambda url: (
+                FetchResult(200, pages[url], url) if url in pages
+                else FetchResult(404, None, url)))
+            mf.RETRIES = fetcher.RETRIES
+            ms.side_effect = lambda s: clock.__setitem__("t", clock["t"] + s)
+            return crawl.crawl(seeds, 10, db_path=":memory:", robots_cache=cache,
+                               now=lambda: clock["t"], workers=4)
+
+    def test_a_broken_seed_does_not_end_the_crawl(self):
+        n = self._crawl([self.BAD, "http://a.com/"], {"http://a.com/": "ok"})
+        self.assertEqual(n, 1, "멀쩡한 씨앗까지 못 받았다")
+
+    def test_a_broken_link_on_a_page_does_not_end_the_crawl(self):
+        pages = {"http://a.com/": '<a href="%s">bad</a><a href="/ok">ok</a>' % self.BAD,
+                 "http://a.com/ok": "ok"}
+        self.assertEqual(self._crawl(["http://a.com/"], pages), 2)
 
 
 class TestDelaySurvivesWorkerException(unittest.TestCase):

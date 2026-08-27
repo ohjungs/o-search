@@ -222,3 +222,27 @@ append 전용. 수정·삭제 금지.
   M5 IPv6 **1(추가 후)** · M6 ValueError 방치 1(에러) · M7 `robots._base` 3 ·
   M8 crawl 제출 45(에러) · M9 `frontier.add` 6. **전부 죽는다**
 - **348건 OK** (`python3 -m unittest discover -s tests -q`, 전체)
+
+## 반복 110 — 리뷰 phase (`domain-key`, 017) · **GREEN**
+
+- 백지 세션(diff + 소스만, `docs/`·`git log` 차단)이 **진짜 크래시 하나**를 잡았다.
+  `domain_key` 는 ValueError 를 막았는데 `robots._base` 는 여전히 날
+  `urlsplit(url).scheme` 을 부르고 있었다 — **가드가 두 자리 중 한 자리에만** 들어갔다.
+  더 나쁜 자리는 예외가 나는 곳이 아니라 **잡는 곳**이다: `_store_result` 의
+  `except` 가 복구하려고 `known_delay(url)` 을 다시 부르면 같은 URL 이 **두 번째로**
+  던지고 그건 아무도 안 잡는다. `http://[::1/x` 링크 하나로 크롤이 끝난다
+- 고치면서 **두 개가 더 나왔다.** 진짜 `RobotsCache` 로 재현 테스트를 쓰자
+  `RobotFileParser.can_fetch` 가 **자기가 URL 을 다시 파싱해** 던졌고,
+  `links.extract` 의 `urljoin` 도 같은 값에 던진다(리뷰 지적 #2, diff 밖이지만
+  같은 링크 하나로 같이 터지는 자리다). 페이지 본문은 신뢰 경계 밖이라 안 미뤘다
+- 답은 파싱을 한 곳으로 모으는 것: `urls._split` — **던지지 않는 `urlsplit`**.
+  `domain_key`·`scheme_of` 가 그것만 쓴다. 폴백 경로도 userinfo 를 떼게 돼
+  리뷰가 적어 준 `u:p@[::1` 열쇠 누출도 같이 닫혔다. `can_fetch` 는 감싸서
+  **못 읽는 URL 은 안 간다**(차단) — 허용 여부를 물을 수 없는 주소를 치는 쪽이 나쁘다
+- 지적 #5: 가짜가 `robots._base` 를 **베끼지 말고 그대로 부른다**(`_host = staticmethod(robots_mod._base)`).
+  베낀 열쇠는 진짜가 바뀌면 조용히 갈린다 — digest `[6]` 이 그렇게 생겼다
+- 지적 #4: `crawl.py` 독스트링의 `netloc` 잔재를 서버 단위로 고쳤다
+- 지적 #6(알려진 한계 `:080`·트레일링 닷)은 계획 4절이 이미 범위 밖으로 적어 둔 것과
+  같은 부류라 그대로 둔다
+- 변이 R1~R4(각 가드 제거) 전부 죽는다: 5·2·2·6건. **354건 OK** ·
+  e2e 넷(`perf_crawl`·`crawl_politeness`·`crawl_delay`·`retry_interval`) 전부 0

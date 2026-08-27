@@ -41,3 +41,11 @@ class TestExtract(unittest.TestCase):
     def test_unconvertible_url_dropped(self):
         # IDNA 가 거부하는 호스트(빈 라벨) — 링크 아님으로 버린다
         self.assertEqual(links.extract("http://a.com/", '<a href="http://.가/x">x</a>'), [])
+
+class TestABrokenHrefIsSkipped(unittest.TestCase):
+    def test_an_unjoinable_href_does_not_raise(self):
+        # `urljoin` 도 닫히지 않은 IPv6 리터럴에 ValueError 를 던진다.
+        # 페이지 하나가 이런 링크를 달았다고 크롤이 끝나면 안 된다 (백지 리뷰 지적 #2)
+        out = links.extract("http://a.com/",
+                            '<a href="http://[::1/x">bad</a><a href="/ok">ok</a>')
+        self.assertEqual(out, ["http://a.com/ok"])

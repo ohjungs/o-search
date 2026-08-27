@@ -5,6 +5,26 @@ _STRIPPED = dict.fromkeys(map(ord, "\t\r\n"))  # urlsplit 이 URL 에서 떼어�
 _DEFAULT_PORT = {"http": "80", "https": "443"}
 
 
+def _split(url):
+    """`urlsplit` 이되 **던지지 않는다**. `(스킴, netloc)` 만 준다.
+
+    `urlsplit` 은 닫히지 않은 IPv6 리터럴(`http://[::1/x`)에 ValueError 를 던진다.
+    그런 URL 하나가 링크에 섞였다고 크롤 전체가 죽는 것이 이 함수가 막는 것이다.
+    못 읽으면 문자열로 가른다 — 그 URL 은 자기 칸에 그대로 남는다.
+    """
+    try:
+        split = urllib.parse.urlsplit(url)
+        return split.scheme, split.netloc
+    except ValueError:
+        scheme, _, rest = url.partition("://")
+        return scheme.lower(), rest.partition("/")[0]
+
+
+def scheme_of(url):
+    """`http`/`https`. 못 읽는 URL 에도 안 던진다 — `_split` 과 같은 자다."""
+    return _split(url)[0]
+
+
 def domain_key(url):
     """**예의 계약이 세는 단위.** 같은 서버는 한 칸이다.
 
@@ -18,18 +38,15 @@ def domain_key(url):
     간격·in-flight·`Crawl-delay` 를 세는 칸 하나뿐이다.
 
     **문자열로만 가른다.** `urlsplit(...).port` 는 `:abc`·`:99999` 에 ValueError 를
-    던지는데 지금 `netloc` 은 절대 안 던진다 — 열쇠를 만들다 크롤 루프를 죽이는 것은
+    던지는데 `netloc` 은 안 던진다 — 열쇠를 만들다 크롤 루프를 죽이는 것은
     이 함수가 막으려는 것보다 나쁘다. 읽을 수 없는 포트는 **자기 칸에 그대로 둔다**.
     """
-    try:
-        split = urllib.parse.urlsplit(url)
-    except ValueError:  # 닫히지 않은 IPv6 리터럴 — urlsplit 조차 못 읽는다
-        return url.partition("://")[2].partition("/")[0].lower()
-    netloc = split.netloc.rpartition("@")[2]  # userinfo 는 서버가 아니다
+    scheme, netloc = _split(url)  # 던지지 않는 파싱은 저기 한 곳에서만 한다
+    netloc = netloc.rpartition("@")[2]  # userinfo 는 서버가 아니다
     host, colon, port = netloc.rpartition(":")
     if not colon or "]" in port:  # 포트가 아니라 IPv6 리터럴의 콜론이다
         host, port = netloc, ""
-    if port == _DEFAULT_PORT.get(split.scheme):
+    if port == _DEFAULT_PORT.get(scheme):
         port = ""
     return host.lower() + (":" + port if port else "")
 

@@ -2,22 +2,30 @@
 signal: GREEN
 plan: domain-key
 mode: night
-phase: 테스트
-step: 3/5
+phase: 리뷰
+step: 4/5
 attempt: 0
-iteration: 109
-night_iterations: 20
+iteration: 110
+night_iterations: 21
 night_red: 0
 night_retries: 0
-updated: 2026-08-27 (반복 109 · 017 테스트 phase 끝)
-ctx: 71% / 200k
+updated: 2026-08-27 (반복 110 · 017 리뷰 phase 끝 · 크래시 1건 잡았다)
+ctx: 79% / 200k
 rules: 1411a37
 ---
 
 # 현재 상태
 
-**계획 017 `domain-key` 스텝 3(테스트) 끝.** 계획 `docs/plan_domain-key.md`.
-브랜치 `loop/domain-key` (기점 `677ed3e`). 다음은 스텝 4(백지 리뷰).
+**계획 017 `domain-key` 스텝 4(리뷰) 끝.** 계획 `docs/plan_domain-key.md`.
+브랜치 `loop/domain-key` (기점 `677ed3e`). 남은 것은 스텝 5(e2e) 하나다.
+
+**백지 리뷰가 진짜 크래시를 잡았다.** `domain_key` 에 ValueError 가드를 넣고
+"안 죽는다" 고 적었는데 `robots._base` 는 날 `urlsplit` 을 부르고 있었고,
+`can_fetch` 는 자기가 URL 을 또 파싱하고, `links.extract` 의 `urljoin` 도 던진다.
+가장 나쁜 자리는 **예외를 잡는 곳**이었다 — `_store_result` 의 `except` 가
+`known_delay(url)` 로 복구하다 **두 번째 예외**를 내고 그건 아무도 안 잡는다.
+`http://[::1/x` 링크 하나로 크롤이 끝났다. 파싱을 `urls._split`(던지지 않는
+`urlsplit`) 한 곳으로 모아 닫았다. 변이 R1~R4 전부 죽는다.
 
 **열쇠를 만드는 자리를 하나로 모았다.** `urls.domain_key(url)` — userinfo 를 떼고
 호스트를 소문자로, 스킴의 **기본** 포트만 지운다. 세 호출부(`frontier.add` ·
@@ -40,10 +48,10 @@ URL 은 **자기 칸에 그대로** 둔다. 열쇠를 만들다 크롤 루프를
 `crawl` 은 대소문자만 다른 씨앗 둘로 **루프 전체**의 간격 5초를 잰다. 양쪽 다
 대조군(다른 스킴·기본이 아닌 포트)을 붙였다 — 안 붙이면 "전부 한 칸" 으로도 통과한다.
 
-**348건 OK** · `perf_crawl` [차단] **10.34/s** · `crawl_politeness`·`crawl_delay`·
+**354건 OK** · `perf_crawl` [차단] **10.34/s** · `crawl_politeness`·`crawl_delay`·
 `retry_interval` 전부 0.
 
-**남은 것:** 스텝 4 백지 리뷰(diff + 소스만, `docs/` 차단) → 스텝 5 e2e.
+**남은 것:** 스텝 5 e2e — `docs/e2e/domain-key/result.md`, 계획 3절의 시나리오 5개.
 
 **하지 않을 것:** URL 정규화(digest `[5]`). `http://A.com/` 과 `http://a.com/` 은 이
 계획 뒤에도 두 번 수집되고 두 행으로 저장된다 — 고치는 것은 **예의 계약이 세는 단위**

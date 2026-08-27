@@ -152,6 +152,34 @@ class TestOneServerOneRobotsDocument(unittest.TestCase):
         self.assertEqual(fetch.call_args[0][0], "http://a.com")
 
 
+class TestABrokenUrlDoesNotKillTheCrawl(unittest.TestCase):
+    """열쇠를 만들다 던지면 크롤이 통째로 죽는다 (백지 리뷰 지적 #1).
+
+    `urlsplit` 은 닫히지 않은 IPv6 리터럴에 ValueError 를 던진다. 그 예외가
+    워커에서 나면 `crawl._store_result` 의 `except` 가 잡지만, **그 복구 경로가
+    다시 `known_delay(url)` 을 부른다** — 같은 예외가 두 번째로 나면 아무도 안
+    잡는다. 링크 하나가 크롤 전체를 끝낸다.
+    """
+
+    BROKEN = ["http://[::1/x", "http://u:p@[::1/x", "http://b.test:abc/1", ""]
+
+    def test_no_call_raises(self):
+        c = _cache_with(lambda base: (200, "User-agent: *\nCrawl-delay: 3"))
+        for url in self.BROKEN:
+            with self.subTest(url=url):
+                c.allowed(url)
+                c.delay(url)
+                c.known_delay(url)
+
+    def test_a_broken_url_gets_its_own_slot(self):
+        # 멀쩡한 서버의 값을 물려받으면 안 된다 — 조용히 남의 지시를 쓰는 꼴이다
+        self.assertNotEqual(robots._base("http://[::1/x"), robots._base("http://b.test/1"))
+
+    def test_credentials_are_not_part_of_the_key_even_when_broken(self):
+        # 폴백 경로도 userinfo 를 뗀다 — 안 떼면 열쇠에 비밀번호가 실려 다닌다
+        self.assertNotIn("p@", robots._base("http://u:p@[::1/x"))
+
+
 class TestRobotsRequestIdentifiesUs(unittest.TestCase):
     def test_robots_txt_request_carries_our_user_agent(self):
         # robots.txt 를 익명으로 가져오면, UA 별로 다른 robots 를 내주는 사이트가

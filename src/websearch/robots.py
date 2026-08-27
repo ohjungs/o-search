@@ -67,11 +67,14 @@ def _applicable_delay(body):
 def _base(url):
     """robots.txt 를 받아 둘 열쇠이자 그것을 받을 주소. **스킴별로 다른 문서다.**
 
+    스킴도 호스트도 `urls` 의 **안 던지는** 파싱을 쓴다 — 여기서 날 `urlsplit` 을
+    부르면 `http://[::1/x` 같은 링크 하나가 워커 예외 처리 경로(`crawl._store_result`
+    의 `known_delay`)에서 **두 번째로** 던져 크롤 전체를 죽인다(백지 리뷰 지적).
     호스트 부분은 `urls.domain_key` 와 같은 자를 쓴다 — 대소문자만 다른 링크가
     같은 서버의 `robots.txt` 를 두 번 받게 하고(실측 2회), 그 두 번이 선언한
     간격을 지키지 않고 나간다.
     """
-    return "%s://%s" % (urllib.parse.urlsplit(url).scheme, urls.domain_key(url))
+    return "%s://%s" % (urls.scheme_of(url), urls.domain_key(url))
 
 
 class RobotsCache:
@@ -83,7 +86,14 @@ class RobotsCache:
         parser = self._parser(url)
         if parser is None:
             return False
-        return parser.can_fetch(USER_AGENT, url)
+        try:
+            return parser.can_fetch(USER_AGENT, url)
+        except ValueError:
+            # `can_fetch` 는 URL 을 **자기가 다시 파싱한다** — 닫히지 않은 IPv6
+            # 리터럴이면 여기서 던진다. 우리가 열쇠를 안전하게 만든 것과 별개다.
+            # 못 읽는 URL 은 **안 간다**: 허용 여부를 물을 수 없는 주소를 치는 것이
+            # 예의 계약에서 더 나쁜 쪽이고, 예외를 올리면 크롤 전체가 죽는다
+            return False
 
     def delay(self, url):
         """robots 가 요청한 도메인 간격(초). 지시가 없으면 None(호출부의 기본값을 쓴다).

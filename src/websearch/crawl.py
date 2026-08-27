@@ -31,9 +31,10 @@ def _fetch_one(url, robots, now, floor):
     (docs/design_crawl-politeness.md 2절). 그래서 `sent_at` 은 **마지막** 발신 시각이다 —
     첫 발신으로 시계를 걸면 마지막 재시도 직후 0초 만에 다음 요청이 나간다.
 
-    `floor` 는 **프런티어가 그 netloc 에 대해 아는 간격**이다. `robots.delay()` 만
+    `floor` 는 **프런티어가 그 서버에 대해 아는 간격**이다. `robots.delay()` 만
     보면 스킴별 robots.txt 만 보는 셈이라, `http` 가 5초를 선언한 서버의 `https`
-    재시도가 1초로 나간다(실측). 프런티어는 netloc 단위로 모으므로 그쪽이 더 크다.
+    재시도가 1초로 나간다(실측). 프런티어는 서버 단위(`urls.domain_key`)로 모으므로
+    그쪽이 더 크다.
     **메인 스레드가 제출 시점에 읽어 넘긴다** — 워커는 `Frontier` 를 안 만진다(계약 4).
     올리기만 한다: `floor` 는 이미 `DOMAIN_INTERVAL` 이상이다.
     """

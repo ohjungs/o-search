@@ -23,7 +23,10 @@ def extract(base_url, html_text):
     out = []
     seen = set()
     for href in parser.hrefs:
-        absolute = urllib.parse.urljoin(base_url, href)
+        try:
+            absolute = urllib.parse.urljoin(base_url, href)
+        except ValueError:
+            continue  # 닫히지 않은 IPv6 리터럴 등. 링크 하나가 크롤을 죽이지 않는다
         absolute, _ = urllib.parse.urldefrag(absolute)
         if not absolute.startswith(("http://", "https://")):
             continue
