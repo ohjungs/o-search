@@ -1,5 +1,8 @@
 # 계획: crawl-politeness — 예의가 새는 구멍 2건을 닫는다
 
+**DONE** (2026-08-27, 반복 96). 6스텝 전부 통과 · 단위 296건 · e2e 4/4 ·
+결과 `docs/e2e/crawl-politeness/result.md`. 실측 A 1.0 → **2.01초**, B 0.0002 → **1.00초**.
+
 - 브랜치: `loop/crawl-politeness` (기점 `cdbd842`, `loop/cooldown-burn` 위)
 - 출처: `docs/digest.md ## 판단 필요` 의 `[high]` 2건 (2026-08-27 반복 86·87 실측)
 - 의존: 012(`cooldown-burn`) — `_store_result` 가 "시계를 거는 유일한 자리" 라는 계약이 전제다
