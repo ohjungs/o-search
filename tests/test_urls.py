@@ -176,7 +176,10 @@ class TestDomainKey(unittest.TestCase):
         """
         for url in ["http://b.test:abc/1", "http://b.test:99999/1",
                     "http://b.test:/1", "http://:80/1", "http://[::1/1",
-                    "", "http://", "not a url"]:
+                    "", "http://", "not a url",
+                    # `isdigit()` 은 이것들에도 참이다 — `int()` 는 `²` 에서 던진다.
+                    # 019 가 그은 새 가지가 그 성질을 안 깨는지 본다
+                    "http://b.test:٠٨٠/1", "http://b.test:²/1"]:
             with self.subTest(url=url):
                 self.assertIsInstance(urls.domain_key(url), str)
 
@@ -299,7 +302,9 @@ class TestNormalize(unittest.TestCase):
 
     def test_it_is_idempotent(self):
         for u in ["http://A.test:80", "http://a.test/%ea", "http://한글도메인.test/가",
-                  "http://u:pw@A.test:80/p/"]:
+                  "http://u:pw@A.test:80/p/",
+                  # 접기는 **두 번 돌면 더 접힐 수 있는** 유일한 규칙이라 여기 넣는다
+                  "http://a.test/a/../p", "http://a.test/a/..", "http://a.test:080/p"]:
             with self.subTest(url=u):
                 once = urls.normalize(u)
                 self.assertEqual(urls.normalize(once), once)

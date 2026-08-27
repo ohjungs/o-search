@@ -2,42 +2,49 @@
 signal: GREEN
 plan: normalize-gaps
 mode: night
-phase: 테스트
-step: 2/4
+phase: 리뷰
+step: 3/4
 attempt: 0
-iteration: 119
-night_iterations: 2
+iteration: 120
+night_iterations: 3
 night_red: 0
 night_retries: 0
-updated: 2026-08-27 (반복 119 · 019 개발 1/4)
+updated: 2026-08-28 (반복 120 · 019 테스트 2/4)
 ctx: 67% / 200k
 rules: 1411a37
 ---
 
 # 현재 상태
 
-**계획 019 `normalize-gaps` 스텝 1/4 개발 완료 — 다음은 스텝 2/4 테스트.**
+**계획 019 `normalize-gaps` 스텝 2/4 테스트 완료 — 다음은 스텝 3/4 리뷰.**
 브랜치 `loop/normalize-gaps` (기점 `33e531d` = 018 끝). 계획서 `docs/plan_normalize-gaps.md`.
 
-018 이 못 접은 두 표기를 닫았다. `src/websearch/urls.py` 한 파일:
-`_fold_dots(path)` 신설(RFC 3986 5.2.4) + `normalize` 가 **경로에만** 건다
-(질의의 `..` 는 세그먼트가 아니다) + `domain_key` 에 `if port.isdigit(): port.lstrip("0")`.
+**변이 5종이 전부 죽고 죽는 집합이 갈린다.** 무변이 기준선 386건 OK 를 먼저 잡았다.
 
-**실측.** 단위 **386건 OK**(379 + 새 7건). `normalize('http://b.com/a/../p')` ·
-`normalize('http://b.com:080/p')` 가 둘 다 `http://b.com/p`. 대조군은 안 움직인다 —
-`/a//b` · `/a/b/` 그대로, `domain_key(':8080')` → `b.test:8080`, `:0abc` → `b.test:0abc`.
-e2e 3종(`url_normalize` · `domain_key` · `non_ascii`) rc=0.
+| 변이 (이 줄을 안 썼다면) | 죽는 테스트 | 이 변이만의 보험 |
+|---|---|---|
+| M1 `_fold_dots` 호출 없음 | `dot_segments_fold` · `dots_do_not_climb` · `trailing_dot` | 앞 2건 |
+| M2 끝 세그먼트 보정(`out.append("")`) 없음 | `trailing_dot` | 그 1건이 유일 보험 |
+| M3 `lstrip("0")` 없음 | `leading_zero_does_not_make_a_new_server` | 유일. **점 변이들과 교집합 0** |
+| M4 `posixpath.normpath` 로 대체 | `only_dot_segments_fold_nothing_else`(대조군) · **`non_empty_path_keeps_its_trailing_slash_as_is`(018 것)** · `trailing_dot` | 대조군 2건 |
+| M5 `len(out) > 1` → `if out` | `dots_do_not_climb_above_the_root` | 그 1건이 유일 보험 |
 
-**TDD 가 내 기대를 고쳤다** — `/a/./p` 를 `/p` 로 기대하고 빨간 것을 봤는데
-RFC 5.2.4 는 `.` 만 지운다(`/a/p`). **구현이 아니라 테스트가 틀렸다.**
-앞 세그먼트를 데려가는 것은 `..` 뿐이다.
+**M4 가 018 의 기존 테스트를 죽인다** — `posixpath` 를 골랐으면 018 이 명시적으로
+거부한 끝 슬래시 일반화를 되살렸을 것이고, 그것을 계획서의 주장이 아니라 **남의
+테스트가 독립적으로** 잡았다.
 
-## 다음 스텝 — 2/4 테스트
+**M5 는 `http://a.testp` 를 만든다** — `/../p` 에서 루트 위로 올라가면 경로가 `p` 가
+돼 호스트에 들러붙는다. **018 리뷰가 잡은 탭 밀림과 같은 실패 유형**(조용히 다른
+호스트가 된다)이고, 잡는 테스트는 하나뿐이다.
 
-갭 탐색 + 변이 4종(계획서 3절): M1 `_fold_dots` 호출 제거 · M2 끝 세그먼트 보정
-(`out.append("")`) 제거 · M3 `lstrip("0")` 제거 · M4 `_fold_dots` → `posixpath.normpath`.
-**무변이 기준선(386건 OK)을 먼저 잡았다.** 죽는 집합이 서로 갈리는지 실측한다 —
-M4 가 아무것도 안 죽이면 대조군이 없는 것이다(측정 불능이지 통과가 아니다).
+**갭 2건을 메웠다.** ① 멱등성 목록에 점 세그먼트·`:080` 을 넣었다 — 접기는 두 번
+돌면 더 접힐 수 있는 유일한 규칙이다 ② `isdigit()` 은 `٠٨٠`·`²` 에도 참인데 `int()`
+는 `²` 에서 던진다. 019 가 그은 새 가지가 "열쇠를 만들다 안 죽는다" 는 017 계약을
+안 깨는지 `test_an_unreadable_port_does_not_raise` 에 넣었다(둘 다 자기 칸에 남는다).
+
+## 다음 스텝 — 3/4 리뷰
+
+백지 세션(diff·소스만, `docs/`·`git log` 차단). `rules/review.md`.
 
 ## 판단 필요` `[4]`·`[2]`).
 같은 병이고 고치는 파일이 하나라 묶었다:
