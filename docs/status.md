@@ -3,14 +3,14 @@ signal: GREEN
 plan: url-normalize
 mode: night
 phase: 개발
-step: 1
+step: 2
 attempt: 0
-iteration: 112
-night_iterations: 23
+iteration: 113
+night_iterations: 24
 night_red: 0
 night_retries: 0
-updated: 2026-08-27 (반복 112 · 계획 018 착수)
-ctx: 68% / 200k
+updated: 2026-08-27 (반복 113 · 018 스텝 1/5)
+ctx: 71% / 200k
 rules: 1411a37
 ---
 
@@ -41,17 +41,20 @@ rules: 1411a37
 문서를 만들면 6절 복사가 된다. 새 모듈 없음 · 데이터 구조 변경 없음 · 공개 계약
 변경 없음(`to_ascii` 는 그대로). 014~017 도 같은 판단으로 설계를 안 만들었다.
 
-## 다음에 할 일 — 스텝 1
+## 다음에 할 일 — 스텝 2
 
-`urls.normalize(url)` 신설 (`src/websearch/urls.py`). **RED 먼저** — 계획서 3절
-스텝 1 의 단언 8개를 `tests/test_urls.py` 의 새 클래스 `TestNormalize` 에 쓰고
-실패를 확인한 뒤 구현한다. 기존 `TestAsciiUrlUntouched` 4건이 **안 바뀐 채로**
-통과해야 한다(= `to_ascii` 를 안 건드렸다는 증거).
+호출부 셋을 `urls.normalize` 로 배선한다 (계획서 3절 스텝 2):
+`src/websearch/links.py:33` · `src/websearch/crawl.py:91`(시드) ·
+`src/websearch/crawl.py:175`(리다이렉트 최종 URL). **RED 먼저.**
 
-- 이미 한 것: 계획서 작성까지. 코드는 한 줄도 안 건드렸다
-- 완료 기준: `PYTHONPATH=src python3 -m unittest tests.test_urls -v` 전건 통과
-- 8번 단언(`http://[::1/x` 에 예외를 안 던진다)을 빼지 않는다 — digest `[7]`
-  마지막 항목이 "열쇠를 안전하게 만들어도 협력자가 URL 을 다시 판다" 다
+- 이미 한 것: **스텝 1 완료** — `urls.normalize` 신설(`src/websearch/urls.py`),
+  `tests/test_urls.py` 에 `TestNormalize` 14건. **368건 OK**(전 354). 커밋함.
+  호출부는 아직 `to_ascii` 를 부른다 — 배선은 스텝 2 다
+- 완료 기준: `PYTHONPATH=src python3 -m unittest discover tests` 전건 통과 +
+  세 표기 시드가 fetcher 를 **1회**만 부르고 `store.count() == 1`,
+  대조군 `http://a.test:8080/p` 는 별도로 1회
+- `normalize` 가 하는 것: `to_ascii` + 스킴/호스트 소문자 + 스킴별 기본 포트 제거 +
+  빈 경로 `/` + 퍼센트 3연 hex 대문자. 파싱은 `_split` 한 곳뿐이라 안 던진다
 
 ## 열지 않는 것
 

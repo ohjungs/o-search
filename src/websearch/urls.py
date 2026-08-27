@@ -1,8 +1,14 @@
-"""URL 을 ASCII 표기 하나로 정규화한다. 못 바꾸면 None — 예외는 밖으로 내보내지 않는다."""
+"""URL 을 표기 하나로 모은다. 못 바꾸면 None — 예외는 밖으로 내보내지 않는다.
+
+자가 셋이다. `to_ascii` 는 **표기를 ASCII 로**, `domain_key` 는 **어느 서버인가**를,
+`normalize` 는 **어느 문서인가**를 정한다. 뒤의 둘은 앞의 것 위에 얹힌다.
+"""
+import re
 import urllib.parse
 
 _STRIPPED = dict.fromkeys(map(ord, "\t\r\n"))  # urlsplit 이 URL 에서 떼어내는 문자
 _DEFAULT_PORT = {"http": "80", "https": "443"}
+_TRIPLET = re.compile(r"%[0-9a-fA-F]{2}")  # 퍼센트 3연. `%` 하나나 `%zz` 는 안 걸린다
 
 
 def _split(url):
@@ -86,3 +92,36 @@ def to_ascii(url):
     except (UnicodeError, ValueError):
         # 서로게이트·IDNA 거부(빈 라벨·63자 초과). 크롤 루프를 죽이지 않는다
         return None
+
+
+def normalize(url):
+    """**같은 문서는 한 URL 이다.** 못 바꾸면 None.
+
+    `domain_key` 가 도메인 열쇠에 한 일을 URL 전체에 한다 — 수집·저장·색인의
+    열쇠가 이것이라 표기가 셋이면 같은 문서를 세 번 받고 세 번 저장하고 세 번
+    색인한다. `to_ascii` 위에 얹는다: 저쪽 계약("ASCII 는 한 글자도 안 바꾼다")은
+    멱등성과 이중 인코딩 방지를 한 규칙으로 사는 것이라 건드리지 않는다.
+
+    거는 것은 **RFC 3986 6.2.2 가 의미를 안 바꾼다고 인정하는 것뿐**이다:
+    스킴 소문자 · 호스트 소문자 · 스킴별 기본 포트 제거 · 빈 경로 `/` ·
+    퍼센트 3연 hex 대문자. 앞의 셋은 `domain_key` 가 이미 하므로 그것을 부른다
+    (다만 `domain_key` 가 떼는 `userinfo@` 는 도로 붙인다 — URL 에서 떼면
+    요청 내용이 바뀐다). **끝 슬래시 일반화(`/p/` ↔ `/p`)는 안 한다** — 동치가
+    아니라 휴리스틱이고, 서버가 다른 문서를 낼 수 있다. 경로·질의의 대소문자도
+    그대로 둔다.
+
+    파싱은 `_split` 한 곳에서만 한다 — 못 읽는 URL 에도 안 던진다 (digest [7]).
+    """
+    url = to_ascii(url)
+    if url is None:
+        return None
+    mark = url.find("://")
+    if mark < 0:  # 스킴 없는 상대 URL. 호출부가 절대 URL 만 넘기므로 도달하지 않는다
+        return url
+    scheme, netloc = _split(url)
+    tail = url[mark + 3 + len(netloc):]
+    userinfo, at, _ = netloc.rpartition("@")
+    if not tail.startswith("/"):  # 빈 경로는 `/` 와 동치 (6.2.3). `?`·`#` 앞에도 붙는다
+        tail = "/" + tail
+    return "%s://%s%s%s" % (scheme, userinfo + at, domain_key(url),
+                            _TRIPLET.sub(lambda m: m.group().upper(), tail))

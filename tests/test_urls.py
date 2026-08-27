@@ -168,5 +168,83 @@ class TestDomainKey(unittest.TestCase):
         self.assertEqual(urls.domain_key("http://" + key + "/2"), key)
 
 
+class TestNormalize(unittest.TestCase):
+    """`normalize` 는 **같은 문서를 가리키는 표기를 한 문자열로** 모은다.
+
+    `domain_key` 가 도메인 열쇠에 한 것을 URL 전체에 한다. 거는 것은 RFC 3986
+    6.2.2 가 syntax-based normalization 으로 인정하는 것뿐이다 — "보통 같은
+    문서더라"(끝 슬래시·`index.html`·`www.`)는 동치가 아니라 휴리스틱이다.
+    """
+
+    def test_host_case_folds(self):
+        self.assertEqual(urls.normalize("http://A.test/p"), "http://a.test/p")
+
+    def test_scheme_case_folds(self):
+        self.assertEqual(urls.normalize("HTTP://a.test/p"), "http://a.test/p")
+
+    def test_default_port_is_dropped(self):
+        self.assertEqual(urls.normalize("http://a.test:80/p"), "http://a.test/p")
+        self.assertEqual(urls.normalize("https://a.test:443/p"), "https://a.test/p")
+
+    def test_non_default_port_is_kept(self):
+        # 긍정 짝 — 포트를 통째로 지우는 과잉 수정이면 여기서 죽는다
+        for u in ["http://a.test:443/p", "https://a.test:80/p", "http://a.test:8080/p"]:
+            with self.subTest(url=u):
+                self.assertEqual(urls.normalize(u), u)
+
+    def test_empty_path_becomes_slash(self):
+        self.assertEqual(urls.normalize("http://a.test"), "http://a.test/")
+        self.assertEqual(urls.normalize("http://a.test?q=1"), "http://a.test/?q=1")
+
+    def test_non_empty_path_keeps_its_trailing_slash_as_is(self):
+        # `/p/` 와 `/p` 는 **다른 문서일 수 있다** — 어느 쪽으로도 밀지 않는다
+        self.assertEqual(urls.normalize("http://a.test/p"), "http://a.test/p")
+        self.assertEqual(urls.normalize("http://a.test/p/"), "http://a.test/p/")
+
+    def test_percent_triplets_uppercase(self):
+        self.assertEqual(urls.normalize("http://a.test/%ea%b0%80"),
+                         "http://a.test/%EA%B0%80")
+        self.assertEqual(urls.normalize("http://a.test/x?q=%2f"),
+                         "http://a.test/x?q=%2F")
+
+    def test_percent_that_is_not_a_triplet_is_left_alone(self):
+        # 긍정 짝 — 무턱대고 upper() 하면 뒤 두 글자가 hex 가 아닐 때 경로가 바뀐다
+        self.assertEqual(urls.normalize("http://a.test/100%off"),
+                         "http://a.test/100%off")
+        self.assertEqual(urls.normalize("http://a.test/a%"), "http://a.test/a%")
+
+    def test_userinfo_survives(self):
+        # `domain_key` 는 userinfo 를 뗀다 — 그것을 그대로 쓰면 요청 내용이 바뀐다
+        self.assertEqual(urls.normalize("http://u:pw@A.test:80/p"),
+                         "http://u:pw@a.test/p")
+
+    def test_path_case_and_query_are_untouched(self):
+        # 대조군 — 경로·질의는 대소문자를 가린다. 여기까지 접으면 다른 문서를 합친다
+        u = "http://a.test/Path?Q=V&d=E#f"
+        self.assertEqual(urls.normalize(u), u)
+
+    def test_non_ascii_still_goes_through_to_ascii(self):
+        self.assertEqual(urls.normalize("http://한글도메인.test/가"),
+                         urls.to_ascii("http://한글도메인.test/가"))
+
+    def test_unusable_url_is_none(self):
+        self.assertIsNone(urls.normalize("http://가..나/"))
+
+    def test_it_is_idempotent(self):
+        for u in ["http://A.test:80", "http://a.test/%ea", "http://한글도메인.test/가",
+                  "http://u:pw@A.test:80/p/"]:
+            with self.subTest(url=u):
+                once = urls.normalize(u)
+                self.assertEqual(urls.normalize(once), once)
+
+    def test_unparsable_url_does_not_raise(self):
+        # digest [7]: 열쇠를 안전하게 만들어도 협력자가 URL 을 다시 판다.
+        # 링크 하나가 크롤 전체를 죽이지 않는다 — 못 읽으면 그대로 두거나 None 이다
+        for u in ["http://[::1/x", "http://a.test:abc/p", "http://a.test:99999/p"]:
+            with self.subTest(url=u):
+                got = urls.normalize(u)
+                self.assertTrue(got is None or isinstance(got, str))
+
+
 if __name__ == "__main__":
     unittest.main()
