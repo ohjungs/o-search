@@ -2,6 +2,7 @@
 import io
 import json
 import os
+import re
 import socket
 import sqlite3
 from concurrent import futures
@@ -12,6 +13,8 @@ import unittest
 import urllib.error
 import urllib.parse
 import urllib.request
+
+from html import unescape as html_unescape
 
 from websearch import indexer, serve
 
@@ -591,3 +594,93 @@ class TestHtmlPathFailsSafely(ServeTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestPagerUi(ServeTestCase):
+    """결과 화면의 이전/다음. **주소창을 편집할 줄 아는 사람만 11번째 결과를 보면 안 된다.**
+
+    20건 색인 = 정확히 2페이지. `TestPagination` 이 JSON 쪽에서 못박은 경계와 같은 자리를
+    HTML 쪽에서 잰다 — 판정 규칙이 두 벌이면 한쪽만 고쳐진다.
+    """
+
+    pages = MANY_PAGES
+    Q = "/?q=%EA%B9%80%EC%B9%98"  # q=김치
+
+    def pager(self, path):
+        """결과 화면의 이동 링크를 `{rel: href}` 로. 없으면 빈 dict.
+
+        속성 **순서에 기대지 않는다** — 태그를 먼저 뽑고 그 안에서 rel·href 를 각각 찾는다.
+        순서에 기대면 프로덕션에서 속성을 바꿔 쓴 날 테스트가 이유 없이 깨진다.
+        """
+        status, body, _ = self.raw(path)
+        self.assertEqual(status, 200, body[:200])
+        assert_page_basics(self, body)  # 이동을 붙이며 JS·viewport·h1 을 깨지 않았는가
+        block = re.search(r"<nav[^>]*class=\"pager\"[^>]*>(.*?)</nav>", body, re.S)
+        if not block:
+            return {}
+        found = {}
+        for tag in re.findall(r"<a\b[^>]*>", block.group(1)):
+            rel = re.search(r'rel="([^"]*)"', tag)
+            href = re.search(r'href="([^"]*)"', tag)
+            self.assertTrue(rel and href, "이동 링크에 rel 또는 href 가 없다: %s" % tag)
+            found[rel.group(1)] = href.group(1)
+        return found
+
+    def page_of(self, href):
+        """href 가 가리키는 page 번호. 질의도 함께 실려 있어야 한다."""
+        parts = urllib.parse.urlsplit(html_unescape(href))
+        params = urllib.parse.parse_qs(parts.query)
+        self.assertEqual(params.get("q"), ["김치"], "이동 링크가 질의를 잃었다: %s" % href)
+        return int(params["page"][0])
+
+    def test_first_page_offers_the_next_one(self):
+        self.assertEqual(self.page_of(self.pager(self.Q)["next"]), 2)
+
+    def test_first_page_has_no_previous(self):
+        # 긍정 짝은 아래 test_second_page_offers_previous — 둘이 같이 있어야 뜻이 있다
+        self.assertNotIn("prev", self.pager(self.Q))
+
+    def test_second_page_offers_previous(self):
+        self.assertEqual(self.page_of(self.pager(self.Q + "&page=2")["prev"]), 1)
+
+    def test_last_page_has_no_next(self):
+        # 20건이 딱 2페이지 — limit+1 로 판정하는 방식이 여기서 틀리기 쉽다
+        self.assertNotIn("next", self.pager(self.Q + "&page=2"))
+
+    def test_page_cap_hides_the_next_link(self):
+        """상한도 서버가 정한 것이니 마지막이라는 사실도 화면이 말해야 한다.
+
+        JSON 쪽 `test_has_next_is_false_at_the_page_cap` 과 같은 계약이다 — 다음을
+        내주면 따라간 사용자가 400 화면을 맞는다.
+        """
+        with mock.patch.object(serve, "MAX_PAGE", 1):
+            self.assertNotIn("next", self.pager(self.Q))
+
+    def test_empty_later_page_still_offers_a_way_back(self):
+        # 3페이지는 0건이다. 여기서 이동을 통째로 감추면 **막다른 길**이 된다
+        self.assertEqual(self.page_of(self.pager(self.Q + "&page=3")["prev"]), 2)
+
+    def test_count_does_not_leak_the_probe_row(self):
+        """`limit=PAGE_SIZE + 1` 로 받은 11번째가 "N건" 으로 새면 안 된다."""
+        _, body, _ = self.raw(self.Q)
+        self.assertIn("10건", body)
+        self.assertNotIn("11건", body)
+
+    def test_results_shown_are_still_ten(self):
+        # 위 단언의 짝 — 세는 수가 아니라 **그리는 수**도 11이 되면 안 된다
+        _, body, _ = self.raw(self.Q)
+        self.assertEqual(body.count('<li class="hit">'), 10)
+
+    def test_pager_href_escapes_the_parameter_separator(self):
+        """속성값 안의 날 `&` 는 HTML 유효성 위반이다 — `urlencode` 뒤에 하나 남는다.
+
+        XSS 를 막는 것은 `urlencode` 쪽이다(`"`·`<` 를 퍼센트 인코딩한다). 이 단언이
+        지키는 것은 **그 뒤에 남는 구분자 하나**뿐이고, 그래서 그렇게만 적는다.
+        """
+        _, body, _ = self.raw(self.Q)
+        self.assertIn('href="/?q=%EA%B9%80%EC%B9%98&amp;page=2"', body)
+
+    def test_pager_link_escapes_the_query(self):
+        """질의는 사용자가 쓴 문자열이다 — 이동 링크도 이스케이프를 지나야 한다."""
+        _, body, _ = self.raw("/?q=" + urllib.parse.quote('"><script>x</script>'))
+        self.assertNotIn("<script>", body)

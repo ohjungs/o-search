@@ -2,15 +2,15 @@
 signal: GREEN
 mode: night
 plan: pagination-ui
-phase: 개발
-step: 2/5
+phase: 테스트
+step: 3/5
 attempt: 0
-iteration: 97
-night_iterations: 8
+iteration: 98
+night_iterations: 9
 night_red: 0
 night_retries: 0
-updated: 2026-08-27 (반복 97 · 계획 015 착수)
-ctx: 52% / 200k
+updated: 2026-08-27 (반복 98 · 스텝 2 완료)
+ctx: 58% / 200k
 rules: 1411a37
 ---
 
@@ -38,7 +38,26 @@ rules: 1411a37
 모르므로 **페이지 번호 목록도 안 만든다.** 이전/다음만이 지금 아는 정보로 정직하게
 그릴 수 있는 것이다. `_parse()`·`PAGE_SIZE`·`MAX_PAGE`·JSON 응답도 안 건드린다.
 
-다음 반복은 **스텝 2(개발)** — RED 를 먼저 본다.
+## 이미 한 것
+
+**스텝 2(개발) 완료.** RED 를 먼저 봤다 — `KeyError: 'next'`/`'prev'` 3건.
+`_has_next(hits, page)` 를 빼내 **두 경로가 나눠 쓰게** 하고, HTML 경로도
+`limit=PAGE_SIZE + 1` 로 받게 했다. `_pager()` 가 이전/다음을 그린다.
+**297 → 306건 전부 통과** · `design_check` 종료 0(JS 0B·대비·360px) · `perf_search` p95 9.27ms.
+
+- 탐침 행은 그리지도 세지도 않는다 — `hits[:PAGE_SIZE]`. "N건" 이 11 로 새는 함정
+- 0건인 뒷페이지에도 이전 링크를 낸다 — 감추면 **막다른 길**이 된다
+- CSS 는 **기존 토큰만** 썼다(`--line`·상속 링크색). 새 `--fg-*` 를 만들면
+  `design_check.PAIRS` 규약에 걸린다. 고정폭 0 · `flex-wrap`
+- **변이 7종 전부 잡힌다**(무변이 기준선 `OK` 를 먼저 잡고 셌다)
+
+**변이 하나가 내 주석의 거짓말을 잡았다.** `href` 의 `html.escape` 를 지워도 아무 테스트도
+안 깨졌다 — `urlencode` 가 이미 `"`·`<` 를 퍼센트 인코딩하므로 **이스케이프는 XSS 방어가
+아니었다.** 그런데 주석에는 "`"` 로 속성을 깨는 것을 막는다" 고 적혀 있었다. 실제로 그
+줄이 하는 일은 **뒤에 하나 남는 `&` 를 `&amp;` 로 바꾸는 것**(HTML 유효성)뿐이다.
+주석을 참인 범위로 줄이고, 그 범위를 정확히 재는 단언을 붙였다 (digest `[6]`).
+
+다음 반복은 **스텝 3(테스트 phase)**.
 
 ## 직전 계획 (014 `crawl-politeness`) — DONE
 

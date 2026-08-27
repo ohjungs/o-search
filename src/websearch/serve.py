@@ -92,6 +92,10 @@ main{max-width:44rem;padding:1.5rem 1rem}
 .hit .url{color:var(--fg-url);font-size:.8rem;overflow-wrap:anywhere}
 .hit h2{margin:.1rem 0 .2rem;font-size:1.15rem;font-weight:500;overflow-wrap:anywhere}
 .hit p{margin:0;color:var(--fg-snippet);font-size:.9rem;overflow-wrap:anywhere}
+/* 고정폭을 두지 않는다 — 360px 을 밀어내면 design_check.check_mobile 이 잡는다 */
+.pager{display:flex;gap:1.5rem;flex-wrap:wrap;margin-top:2rem;padding-top:1rem;
+border-top:1px solid var(--line)}
+.pager a{font-size:.9rem;padding:.4rem 0}
 """
 
 PAGE = """<!doctype html>
@@ -133,16 +137,58 @@ def _home():
                    % (BRAND, SEARCHBOX % ("", " autofocus")))
 
 
-def _results(query, hits):
+def _has_next(hits, page):
+    """다음 페이지가 있는가. **JSON 화면 두 경로가 나눠 쓰는 한 벌이다.**
+
+    `limit=PAGE_SIZE + 1` 로 받아 **11번째의 유무**로 판정한다 — 개수 질의는 두 번째
+    전수 질의라 p95 에 그대로 얹힌다(docs/design_search-api.md 계약).
+    상한도 서버가 정한 것이니 마지막이라는 사실도 서버가 알려야 한다 — 아니면
+    다음을 따라간 사용자가 400 을 맞는다.
+    """
+    return len(hits) > PAGE_SIZE and page < MAX_PAGE
+
+
+def _pager(query, page, has_next):
+    """이전/다음. 갈 곳이 없으면 빈 문자열.
+
+    **번호 목록(1 2 3 …)을 안 그린다** — 총 건수를 모르기 때문이다. 알려면 COUNT 를
+    한 번 더 돌려야 하는데 그것이 `_has_next` 가 피한 바로 그 질의다. 지금 아는
+    정보로 정직하게 그릴 수 있는 것은 **양옆 한 칸씩**이다.
+
+    `query` 는 사용자가 쓴 문자열이다. **속성을 깨는 것을 막는 쪽은 `urlencode` 다** —
+    `"`·`<`·`&` 를 전부 퍼센트 인코딩하므로 이스케이프 없이도 XSS 는 안 난다.
+    `html.escape` 가 하는 일은 그 뒤에 **하나 남는 `&`**(파라미터 구분자)를 `&amp;` 로
+    바꾸는 것뿐이다 — 속성값 안의 날 `&` 는 HTML 유효성 위반이다.
+    (넓게 적으면 아무도 안 본다: digest `[6]` 주장은 참인 범위까지만)
+    """
+    steps = ([("prev", page - 1, "이전")] if page > 1 else []) + \
+            ([("next", page + 1, "다음")] if has_next else [])
+    if not steps:
+        return ""
+    links = "".join(
+        '<a rel="%s" href="/?%s">%s</a>'
+        % (rel, html.escape(urllib.parse.urlencode({"q": query, "page": n}), quote=True), label)
+        for rel, n, label in steps)
+    return '<nav class="pager" aria-label="검색 결과 페이지">%s</nav>' % links
+
+
+def _results(query, hits, page=1):
     """결과 페이지. **여기 들어가는 네 값이 전부 남이 쓴 문자열이다** —
-    질의어(사용자)·제목·URL·스니펫(크롤한 문서). 넷 다 html.escape() 를 지난다."""
+    질의어(사용자)·제목·URL·스니펫(크롤한 문서). 넷 다 html.escape() 를 지난다.
+
+    `hits` 는 `PAGE_SIZE + 1` 건까지 온다 — 마지막 하나는 **다음 장이 있는지 보려고
+    받은 탐침**이라 그리지도 세지도 않는다.
+    """
+    has_next = _has_next(hits, page)
+    hits = hits[:PAGE_SIZE]
     box = SEARCHBOX % (html.escape(query, quote=True), "")
     head = '<header><a class="brand" href="/">%s</a>%s</header>' % (BRAND, box)
     # h1 이 결과 목록의 주제를 말한다 — 없으면 스크린리더에 h2 만 늘어선다.
     if not hits:
+        # 이동은 여기서도 낸다 — 3페이지가 비었다고 감추면 **막다른 길**이 된다
         return _render("%s — %s" % (query, BRAND),
-                       head + '<main><h1 class="meta">‘%s’ 검색 결과가 없습니다.</h1></main>'
-                       % html.escape(query))
+                       head + '<main><h1 class="meta">‘%s’ 검색 결과가 없습니다.</h1>%s</main>'
+                       % (html.escape(query), _pager(query, page, has_next)))
     items = []
     for url, title, snippet in hits:
         safe_url = html.escape(url, quote=True)
@@ -156,8 +202,9 @@ def _results(query, hits):
     # "N건"은 전체 건수가 아니라 이 페이지에 실린 수다 — 그렇게 읽히게 적는다.
     return _render("%s — %s" % (query, BRAND),
                    head + '<main><h1 class="meta">‘%s’ 검색 결과 %d건</h1>'
-                          '<ol class="hits">%s</ol></main>'
-                   % (html.escape(query), len(items), "".join(items)))
+                          '<ol class="hits">%s</ol>%s</main>'
+                   % (html.escape(query), len(items), "".join(items),
+                      _pager(query, page, has_next)))
 
 
 def _error_page(reason, query=""):
@@ -201,7 +248,7 @@ def make_server(db_path, port=8000):
                     "page": page,
                     # 상한도 서버가 정한 것이니 마지막이라는 사실도 서버가 알려야 한다.
                     # 아니면 has_next 를 따라가는 클라이언트가 반드시 400 을 맞는다.
-                    "has_next": len(hits) > PAGE_SIZE and page < MAX_PAGE,
+                    "has_next": _has_next(hits, page),
                     "results": [{"url": url, "title": title, "snippet": snippet}
                                 for url, title, snippet in hits[:PAGE_SIZE]],
                 })
@@ -215,7 +262,9 @@ def make_server(db_path, port=8000):
                 return
             try:
                 query, page = _parse(params)
-                hits = indexer.search(db_path, query, limit=PAGE_SIZE,
+                # JSON 경로와 **같은 수법**으로 받는다 — 11번째의 유무가 곧 has_next 다.
+                # 개수 질의를 더하지 않으므로 p95 에 얹히는 것이 없다
+                hits = indexer.search(db_path, query, limit=PAGE_SIZE + 1,
                                       offset=(page - 1) * PAGE_SIZE)
             except ValueError as exc:
                 self._send_html(400, _error_page(str(exc), typed))
@@ -223,7 +272,7 @@ def make_server(db_path, port=8000):
                 self.log_error("검색 화면 실패: %r", exc)
                 self._send_html(500, _error_page("검색 중 오류가 났다", typed))
             else:
-                self._send_html(200, _results(query, hits))
+                self._send_html(200, _results(query, hits, page))
 
         def _send_html(self, status, body):
             self.send_response(status)
