@@ -2,15 +2,15 @@
 signal: GREEN
 mode: night
 plan: pagination-ui
-phase: 테스트
-step: 3/5
+phase: 리뷰
+step: 4/5
 attempt: 0
-iteration: 98
-night_iterations: 9
+iteration: 99
+night_iterations: 10
 night_red: 0
 night_retries: 0
-updated: 2026-08-27 (반복 98 · 스텝 2 완료)
-ctx: 58% / 200k
+updated: 2026-08-27 (반복 99 · 테스트 phase 완료)
+ctx: 55% / 200k
 rules: 1411a37
 ---
 
@@ -57,7 +57,22 @@ rules: 1411a37
 줄이 하는 일은 **뒤에 하나 남는 `&` 를 `&amp;` 로 바꾸는 것**(HTML 유효성)뿐이다.
 주석을 참인 범위로 줄이고, 그 범위를 정확히 재는 단언을 붙였다 (digest `[6]`).
 
-다음 반복은 **스텝 3(테스트 phase)**.
+**스텝 3(테스트 phase) 완료.** 6개 카테고리로 훑어 갭 2건을 찾아 메웠다
+(306 → **311건**, 전부 통과). ③격리·④flaky·⑦동시는 해당 없음(전역 없음·순서 의존
+없음·로컬 서버·이동은 상태가 없다). ⑤보안은 이스케이프 단언 2건이 이미 덮는다.
+
+- 갭 ② (8점) **마지막 페이지가 꽉 차지 않은 경우** — 20건 fixture 는 마지막이 정확히
+  10건인 **특수 케이스**만 덮고 있었다. 질의 대부분은 10의 배수가 아니다. 11건 fixture 로
+  2페이지에 1건만 남는 자리를 고정했다(긍정 짝 2개 포함)
+- 갭 ① (8점) **`if not steps: return ""` 조기 반환에 테스트 0** — 빈 `<nav>` 는 눈에도
+  보인다(`.pager` 의 `border-top` 이 의미 없는 줄을 긋는다). `TestPagerAbsent`
+- `_results(query, hits, page=1)` 의 **기본값을 없앴다**(5점 갭). 호출부는 1곳이고 언제나
+  `page` 를 준다 — 기본값은 "안 준 호출" 을 조용히 통과시키는 자리다. 적어 두는 것보다
+  지우는 것이 짧다
+- 변이 2종 추가 확인: 가드 삭제→1건 · `>`→`>=`→2건. **누적 9종 전부 잡힌다**
+- 회귀: `design_check` 0 · `search_api_e2e` 0 · `perf_search` 0
+
+다음 반복은 **스텝 4(리뷰)** — `rules/review.md` 대로 **별도 백지 세션**에 넘긴다.
 
 ## 직전 계획 (014 `crawl-politeness`) — DONE
 

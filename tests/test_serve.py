@@ -671,6 +671,11 @@ class TestPagerUi(ServeTestCase):
         _, body, _ = self.raw(self.Q)
         self.assertEqual(body.count('<li class="hit">'), 10)
 
+    def test_pager_nav_exists_when_there_is_somewhere_to_go(self):
+        """`TestPagerAbsent` 의 긍정 짝 — 없다는 단언만 있으면 통째로 지워도 통과한다."""
+        _, body, _ = self.raw(self.Q)
+        self.assertIn("<nav", body)
+
     def test_pager_href_escapes_the_parameter_separator(self):
         """속성값 안의 날 `&` 는 HTML 유효성 위반이다 — `urlencode` 뒤에 하나 남는다.
 
@@ -684,3 +689,49 @@ class TestPagerUi(ServeTestCase):
         """질의는 사용자가 쓴 문자열이다 — 이동 링크도 이스케이프를 지나야 한다."""
         _, body, _ = self.raw("/?q=" + urllib.parse.quote('"><script>x</script>'))
         self.assertNotIn("<script>", body)
+
+
+class TestPagerBoundaries(ServeTestCase):
+    """마지막 페이지가 **꽉 차지 않은** 경우 — 실제 검색에서 가장 흔한 모양이다.
+
+    `MANY_PAGES`(20건)는 마지막 페이지가 정확히 10건인 **특수 케이스**만 덮는다.
+    질의 대부분은 10의 배수가 아니다. 11건이면 2페이지에 1건만 남는다 —
+    `len(hits) > PAGE_SIZE` 의 부등호가 여기서 틀리면 사용자는 다음을 눌러 **빈 화면**을 본다.
+    """
+
+    pages = dict(sorted(MANY_PAGES.items())[:11])
+    Q = "/?q=%EA%B9%80%EC%B9%98"
+
+    def body_of(self, path):
+        status, body, _ = self.raw(path)
+        self.assertEqual(status, 200, body[:200])
+        return body
+
+    def test_partial_last_page_offers_no_next(self):
+        self.assertNotIn('rel="next"', self.body_of(self.Q + "&page=2"))
+
+    def test_partial_last_page_still_shows_its_one_result(self):
+        # 긍정 짝 — "다음이 없다" 는 결과가 0건이어도 참이다. 1건이 실제로 보여야 한다
+        body = self.body_of(self.Q + "&page=2")
+        self.assertEqual(body.count('<li class="hit">'), 1)
+        self.assertIn("1건", body)
+
+    def test_first_page_of_eleven_offers_next(self):
+        # 긍정 짝 — 11번째 하나가 다음 장을 만든다
+        self.assertIn('rel="next"', self.body_of(self.Q))
+
+
+class TestPagerAbsent(ServeTestCase):
+    """갈 곳이 아예 없으면 `<nav>` 를 **그리지 않는다**.
+
+    `_pager` 의 `if not steps: return ""` 는 조기 반환이라 아무 단언도 안 밟는
+    자리였다. 빈 `<nav>` 는 눈에도 보인다 — `.pager` 에 `border-top` 이 있어
+    결과 아래 **의미 없는 줄 하나**가 그어진다.
+    """
+
+    pages = PAGES  # 김치 2건 = 1페이지로 끝, 앞뒤 어느 쪽으로도 갈 곳이 없다
+
+    def test_single_page_has_no_pager_at_all(self):
+        _, body, _ = self.raw("/?q=%EA%B9%80%EC%B9%98")
+        self.assertNotIn("<nav", body, "갈 곳이 없는데 이동 블록을 그렸다")
+        self.assertIn('<li class="hit">', body, "결과 자체는 나와야 한다")

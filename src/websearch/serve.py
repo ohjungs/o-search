@@ -172,7 +172,7 @@ def _pager(query, page, has_next):
     return '<nav class="pager" aria-label="검색 결과 페이지">%s</nav>' % links
 
 
-def _results(query, hits, page=1):
+def _results(query, hits, page):
     """결과 페이지. **여기 들어가는 네 값이 전부 남이 쓴 문자열이다** —
     질의어(사용자)·제목·URL·스니펫(크롤한 문서). 넷 다 html.escape() 를 지난다.
 
