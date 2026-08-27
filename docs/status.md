@@ -2,49 +2,51 @@
 signal: GREEN
 plan: normalize-gaps
 mode: night
-phase: 리뷰
-step: 3/4
+phase: e2e
+step: 4/4
 attempt: 0
-iteration: 120
-night_iterations: 3
+iteration: 121
+night_iterations: 4
 night_red: 0
 night_retries: 0
-updated: 2026-08-28 (반복 120 · 019 테스트 2/4)
+updated: 2026-08-28 (반복 121 · 019 리뷰 3/4)
 ctx: 67% / 200k
 rules: 1411a37
 ---
 
 # 현재 상태
 
-**계획 019 `normalize-gaps` 스텝 2/4 테스트 완료 — 다음은 스텝 3/4 리뷰.**
+**계획 019 `normalize-gaps` 스텝 3/4 리뷰 완료 — 다음은 스텝 4/4 e2e.**
 브랜치 `loop/normalize-gaps` (기점 `33e531d` = 018 끝). 계획서 `docs/plan_normalize-gaps.md`.
 
-**변이 5종이 전부 죽고 죽는 집합이 갈린다.** 무변이 기준선 386건 OK 를 먼저 잡았다.
+**백지 리뷰가 019 자신이 만든 회귀 1건을 잡았다.** 지적 7건 중 4건 반영, 3건은 기록.
 
-| 변이 (이 줄을 안 썼다면) | 죽는 테스트 | 이 변이만의 보험 |
-|---|---|---|
-| M1 `_fold_dots` 호출 없음 | `dot_segments_fold` · `dots_do_not_climb` · `trailing_dot` | 앞 2건 |
-| M2 끝 세그먼트 보정(`out.append("")`) 없음 | `trailing_dot` | 그 1건이 유일 보험 |
-| M3 `lstrip("0")` 없음 | `leading_zero_does_not_make_a_new_server` | 유일. **점 변이들과 교집합 0** |
-| M4 `posixpath.normpath` 로 대체 | `only_dot_segments_fold_nothing_else`(대조군) · **`non_empty_path_keeps_its_trailing_slash_as_is`(018 것)** · `trailing_dot` | 대조군 2건 |
-| M5 `len(out) > 1` → `if out` | `dots_do_not_climb_above_the_root` | 그 1건이 유일 보험 |
+**반영 [자동수정]**
+1. **`:0` 이 기본 포트로 합쳐졌다** — `lstrip("0")` 이 `"0"` 을 통째로 먹어 빈 포트가
+   되고, 빈 포트는 기본 포트다. 실측 `domain_key('http://b.test:0/p')` 가
+   **착수 전 `b.test:0` → 019 가 `b.test`**. `:0` 은 80 이 아니라 **요청이 다른 포트로
+   나간다** — `normalize` 가 userinfo 를 안 떼는 것과 같은 이유로 틀렸다.
+   `port.lstrip("0") or "0"` 로 닫았다
+2. `isdigit()` 은 `٠٨٠`·`²` 에도 참이라 RFC 3.2.3 의 `DIGIT` 보다 넓다 →
+   `port.isascii() and port.isdigit()`. **동작은 안 바뀐다**(변이 M7 이 아무것도 안
+   죽인다 — 말과 코드를 맞춘 것이지 버그 수정이 아니다)
+3. 테스트 공백 — `..` 가 **빈 세그먼트를 pop** 하는 경우가 두 계약("점만 접는다" /
+   "빈 세그먼트는 그대로")이 부딪히는 유일한 입력인데 못 박혀 있지 않았다
+4. `mark` 를 8줄 간격으로 두 뜻에 쓰던 것 → `sep`
 
-**M4 가 018 의 기존 테스트를 죽인다** — `posixpath` 를 골랐으면 018 이 명시적으로
-거부한 끝 슬래시 일반화를 되살렸을 것이고, 그것을 계획서의 주장이 아니라 **남의
-테스트가 독립적으로** 잡았다.
+**새 변이로 재확인.** M6(`or "0"` 없음) → `test_port_zero_is_not_the_default_port` 만
+죽는다. M8(빈 세그먼트를 pop 대상에서 뺌) → `test_dots_pop_an_empty_segment_like_any_other`
+만 죽는다. **388건 OK.**
 
-**M5 는 `http://a.testp` 를 만든다** — `/../p` 에서 루트 위로 올라가면 경로가 `p` 가
-돼 호스트에 들러붙는다. **018 리뷰가 잡은 탭 밀림과 같은 실패 유형**(조용히 다른
-호스트가 된다)이고, 잡는 테스트는 하나뿐이다.
+**리뷰어의 독립 검증**: `_fold_dots` 를 RFC 5.2.4 레퍼런스와 세그먼트 전수 공간
+3905개로 대조 — **불일치 0**, 멱등성 퍼징 실패 0, 정크 6만 건에 예외 0.
 
-**갭 2건을 메웠다.** ① 멱등성 목록에 점 세그먼트·`:080` 을 넣었다 — 접기는 두 번
-돌면 더 접힐 수 있는 유일한 규칙이다 ② `isdigit()` 은 `٠٨٠`·`²` 에도 참인데 `int()`
-는 `²` 에서 던진다. 019 가 그은 새 가지가 "열쇠를 만들다 안 죽는다" 는 017 계약을
-안 깨는지 `test_an_unreadable_port_does_not_raise` 에 넣었다(둘 다 자기 칸에 남는다).
+**기록만 (안 고침)**: `links.extract` 의 `urljoin` 이 RFC 보다 넓게 접어 231개 모양이
+갈린다 → `digest.md ## 판단 필요` 새 `[4]`. 기존 DB 재키잉은 이미 아래 판단 필요 1번.
 
-## 다음 스텝 — 3/4 리뷰
+## 다음 스텝 — 4/4 e2e
 
-백지 세션(diff·소스만, `docs/`·`git log` 차단). `rules/review.md`.
+`e2e/url_normalize_e2e.py` 에 축 추가(계획서 4절 시나리오 4개). 새 파일 안 만든다.
 
 ## 판단 필요` `[4]`·`[2]`).
 같은 병이고 고치는 파일이 하나라 묶었다:

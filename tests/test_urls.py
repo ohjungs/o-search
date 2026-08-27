@@ -124,6 +124,15 @@ class TestDomainKey(unittest.TestCase):
         self.assertNotEqual(urls.domain_key("http://b.test:08080/1"),
                             urls.domain_key("http://b.test/1"))
 
+    def test_port_zero_is_not_the_default_port(self):
+        # 대조군 — `lstrip("0")` 이 전부 먹으면 `:0` 이 빈 포트가 되고, 빈 포트는
+        # **기본 포트**라 80 번 칸으로 합쳐진다. `:0` 은 80 이 아니다 — 합치면
+        # 요청이 다른 포트로 나간다(`userinfo` 를 안 떼는 것과 같은 이유)
+        self.assertEqual(urls.domain_key("http://b.test:0/1"), "b.test:0")
+        self.assertEqual(urls.domain_key("http://b.test:00/1"), "b.test:0")
+        self.assertNotEqual(urls.domain_key("http://b.test:0/1"),
+                            urls.domain_key("http://b.test/1"))
+
     def test_an_unreadable_port_keeps_its_own_lane(self):
         # 대조군 — 숫자가 아니면 앞자리 0 도 안 뗀다. 017 의 계약("읽을 수 없는 포트는
         # 자기 칸에 그대로")이 살아 있는지 본다
@@ -249,6 +258,13 @@ class TestNormalize(unittest.TestCase):
                   "http://a.test/a/%2E%2E/p", "http://a.test/..a/p"):
             with self.subTest(url=u):
                 self.assertEqual(urls.normalize(u), u)
+
+    def test_dots_pop_an_empty_segment_like_any_other(self):
+        # "`.`·`..` 만 접는다" 와 "빈 세그먼트는 그대로" 가 **부딪히는 유일한 입력**이다.
+        # RFC 5.2.4 는 빈 세그먼트도 여느 세그먼트처럼 pop 한다 — 못 박아 두지 않으면
+        # `_fold_dots` 를 다시 쓸 때 빨간 테스트 없이 뒤집힌다
+        self.assertEqual(urls.normalize("http://a.test/a//../b"), "http://a.test/a/b")
+        self.assertEqual(urls.normalize("http://a.test/..//a"), "http://a.test//a")
 
     def test_dots_in_the_query_are_not_a_path(self):
         # 대조군 — 질의 문자열의 `..` 는 세그먼트가 아니다. 여기까지 접으면 서버가

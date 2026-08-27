@@ -54,8 +54,12 @@ def domain_key(url):
     host, colon, port = netloc.rpartition(":")
     if not colon or "]" in port:  # 포트가 아니라 IPv6 리터럴의 콜론이다
         host, port = netloc, ""
-    if port.isdigit():  # `port = *DIGIT` (3.2.3) 이라 `:080` 은 `:80` 이다
-        port = port.lstrip("0")  # 숫자가 아니면 안 건드린다 — 위 계약대로 자기 칸에 둔다
+    if port.isascii() and port.isdigit():  # `port = *DIGIT` (3.2.3) 이라 `:080` 은 `:80` 이다
+        # `isdigit()` 만으로는 `٠٨٠`·`²` 도 참이라 3.2.3 보다 넓다. 안 건드리는 쪽이
+        # 맞으므로 ASCII 로 좁힌다 — 숫자가 아닌 포트는 위 계약대로 자기 칸에 둔다.
+        # `or "0"` 이 없으면 `:0` 이 빈 포트가 돼 **기본 포트와 합쳐진다** — `:0` 은
+        # 80 이 아니고, 합치면 요청이 다른 포트로 나간다
+        port = port.lstrip("0") or "0"
     if port == _DEFAULT_PORT.get(scheme):
         port = ""
     return host.lower() + (":" + port if port else "")
@@ -161,7 +165,7 @@ def normalize(url):
     userinfo, at, _ = netloc.rpartition("@")
     if not tail.startswith("/"):  # 빈 경로는 `/` 와 동치 (6.2.3). `?`·`#` 앞에도 붙는다
         tail = "/" + tail
-    path, mark, query = tail.partition("?")  # 질의의 `..` 는 세그먼트가 아니다
-    tail = _fold_dots(path) + mark + query
+    path, sep, query = tail.partition("?")  # 질의의 `..` 는 세그먼트가 아니다
+    tail = _fold_dots(path) + sep + query
     return "%s://%s%s%s" % (scheme, userinfo + at, domain_key(url),
                             _TRIPLET.sub(lambda m: m.group().upper(), tail))
