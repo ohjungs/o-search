@@ -935,13 +935,14 @@ class TestNoSendMeansNoClock(unittest.TestCase):
         self.assertEqual(sent_at, 1000.0)
 
 
-class TestUrlNormalization(TestCrawl):
+class TestUrlNormalization(unittest.TestCase):
     """표기가 여럿이어도 **문서는 하나다** — 계획 018.
 
     017(`domain_key`)이 모은 것은 **어느 서버인가**였다. 그 뒤에도 URL 자체는
     표기마다 살아 있어서 `Frontier._seen` 도 `pages.url` 도 색인도 표기 수만큼
     행을 가졌다 — 같은 문서를 세 번 받고 세 번 저장한다. 여기서 그것을 잰다.
     """
+    _run = TestCrawl._run  # 저장소 관례. 상속하면 TestCrawl 의 6건이 여기서 또 돈다
 
     def test_three_notations_of_one_document_are_fetched_once(self):
         with mock.patch.dict(PAGES, {"http://a.com/p": "leaf"}, clear=True):
@@ -993,3 +994,13 @@ class TestUrlNormalization(TestCrawl):
         self.assertEqual(n, 1)
         self.assertTrue(self.store.has("http://a.com/"))
         self.assertFalse(self.store.has("http://A.com:80/"))
+
+    def test_a_fragment_in_a_seed_is_not_a_second_document(self):
+        # `links.extract` 만 `urldefrag` 를 갖고 있었다 — 시드는 그 자리를 안 지난다
+        # (백지 리뷰 5번). 정규화로 올렸으니 세 경계가 다 같은 답을 낸다
+        with mock.patch.dict(PAGES, {"http://a.com/p": "leaf"}, clear=True):
+            n, fetched, _ = self._run(["http://a.com/p#top", "http://a.com/p"],
+                                      max_pages=10)
+        self.assertEqual(fetched, ["http://a.com/p"])
+        self.assertEqual(n, 1)
+        self.assertTrue(self.store.has("http://a.com/p"))

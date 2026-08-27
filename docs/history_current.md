@@ -349,3 +349,22 @@ append 전용. 수정·삭제 금지.
 - `e2e/domain_key_e2e.py` 는 여전히 빨갛다 — 018 이 잴 대상을 없앤 것이고
   스텝 5 에서 스킴 축으로 고친다 (계획서 3절 스텝 5)
 - 다음: 스텝 4 리뷰 (백지 세션 — diff 와 소스만)
+
+## 2026-08-27 23:05 | url-normalize | 리뷰 4 | 시도0
+- 한 일: 백지 세션 리뷰(diff·소스만, `docs/`·`git log` 차단). 지적 8건 중 4건 반영 —
+  (1) `src/websearch/urls.py` `normalize` 가 원본 문자열을 `len(netloc)` 으로 자르는데
+  `urlsplit` 은 탭·CR·LF 를 떼고 netloc 을 줘 한 글자씩 밀린다(`http://a\tcom/p` →
+  `http://acom/m/p`, **다른 호스트**). `to_ascii` 가 쓰던 `translate(_STRIPPED)` 를
+  자르기 앞으로 물려받았다. (2) 프래그먼트 제거를 `links.extract` 에서 `normalize` 로
+  올리고 `links.py` 의 `urldefrag` 를 지웠다 — 시드·리다이렉트 경로에는 그 보정이
+  없어 `http://a.test/p#top` 이 별도 행이 됐다. (3) `tests/test_urls.py` 의
+  `assertTrue(got is None or isinstance(got, str))` 는 항상 참이라 결과값을 못 박았다.
+  (4) `TestUrlNormalization(TestCrawl)` 상속을 `_run = TestCrawl._run` 관례로 바꿨다.
+  반영 안 한 4건은 `docs/digest.md ## 판단 필요` 로: 기존 DB 마이그레이션(야간 금지),
+  URL 자격증명이 PK·검색 결과 렌더(보안 경계·줄 수 무관 보류), 점 세그먼트, `:080`.
+  `docs/plan_url-normalize.md` 2·4절에 "새 DB 에서만 목적을 달성한다" 를 명시했다.
+- 결과: **379건 OK**(384에서 상속 중복 6건 제거 + 회귀 1건 추가). 변이 2종이 서로를
+  대신하지 않는다 — `translate(_STRIPPED)` 제거는 탭 1건만, `partition("#")` 제거는
+  프래그먼트 4건만 죽인다.
+- 다음: 스텝 5 e2e (`e2e/url_normalize_e2e.py` 신설 + `e2e/domain_key_e2e.py` 를
+  스킴 축으로 수정 — 018 이 대소문자·기본 포트 축을 접어 재려던 상황이 안 만들어진다)

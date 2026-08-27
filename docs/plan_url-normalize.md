@@ -37,6 +37,15 @@ RFC 3986 6.2.2 가 **syntax-based normalization** 으로 인정하는 것만 건
 | 빈 경로 → `/` | 빈 경로와 `/` 는 동치 (6.2.3) | `http://a.test` → `http://a.test/` |
 | 퍼센트 3연 hex 대문자 | 인코딩 표기만 다르다 | `/%ea%b0%80` → `/%EA%B0%80` |
 
+**스텝 4(백지 리뷰)가 하나를 더 붙였다 — 프래그먼트 제거.** `#` 뒤는 요청에 안 실려
+서버가 주는 문서가 같다. 이 판단은 이미 저장소에 있었는데(`links.extract` 의
+`urldefrag`) **호출처 셋 중 하나에만** 있었다 — 시드와 리다이렉트 최종 URL 은 그
+자리를 안 지나 `http://a.test/p#top` 이 별도 행이 됐다. 열쇠를 정하는 자리는 하나라는
+6절의 논리 그대로 `normalize` 로 올리고 `links` 쪽 `urldefrag` 는 지웠다.
+
+**점 세그먼트(6.2.2.3)는 안 접는다** — 상대 링크는 `urljoin` 이 이미 접고, 절대
+href 의 `/a/../p` 는 실물에서 중복원으로 잰 적이 없다(digest `[4]`).
+
 앞의 셋은 `urls.domain_key` 가 **이미 하는 일**이다 — 새로 쓰지 않고 그것을 부른다.
 다만 `domain_key` 는 `userinfo@` 를 떼므로(열쇠에는 필요 없다) URL 재조립에서는
 `userinfo@` 를 도로 붙인다. **뗀 채로 재조립하면 요청 내용이 바뀐다.**
@@ -86,9 +95,23 @@ RFC 3986 6.2.2 가 **syntax-based normalization** 으로 인정하는 것만 건
 
 갭 탐색 + 전체 스위트 + 변이 검사. 변이는 §5 의 셋을 쓴다.
 
-### 스텝 4 — 리뷰 (`rules/review.md`)
+### 스텝 4 — 리뷰 (`rules/review.md`) — 완료
 
-**백지 세션.** `docs/`·`git log` 없이 diff 와 소스만 준다.
+**백지 세션.** `docs/`·`git log` 없이 diff 와 소스만 줬다. 지적 8건, 반영 4건:
+
+1. **`normalize` 가 원본 문자열을 `len(netloc)` 으로 자르는 것이 밀린다** — `urlsplit` 은
+   탭·CR·LF 를 떼고 netloc 을 주는데 `to_ascii` 는 **비ASCII 가지에서만** 그것을 뗀다.
+   실측 `http://a\tcom/p` → `http://acom/m/p`, **다른 호스트**다. `to_ascii` 가 이미
+   쓰던 `translate(_STRIPPED)` 를 자르기 앞으로 물려받아 닫았다
+2. **프래그먼트** — 위 2절
+3. **`assertTrue(got is None or isinstance(got, str))` 는 함수가 무엇을 하든 참이다** —
+   못 읽는 URL 세 개의 결과값을 못 박는 단언으로 바꿨다(전부 `자기 값 그대로`)
+4. **`TestUrlNormalization(TestCrawl)` 상속** — 저장소 관례는 `_run = TestCrawl._run`
+   이다. 상속하면 `TestCrawl` 의 6건이 여기서 또 돈다(384 → 379)
+
+반영 안 한 것 4건은 전부 `docs/digest.md ## 판단 필요` 로 올렸다: 기존 DB
+마이그레이션(위 4절·야간 금지), URL 자격증명이 PK 이자 검색 결과에 렌더(보안 경계·
+줄 수 무관 보류), 점 세그먼트(2절), `:080` 같은 앞자리 0 포트(017 소관·실물 희귀).
 
 ### 스텝 5 — e2e (`e2e/url_normalize_e2e.py`)
 
@@ -107,7 +130,13 @@ RFC 3986 6.2.2 가 **syntax-based normalization** 으로 인정하는 것만 건
 - **`%7E` → `~` (unreserved 퍼센트 디코딩)** — 안전하지만 `%2F` 같은 예약 문자를
   골라내야 해서 한 줄이 아니다. 중복원으로 실측된 적이 없다
 - **이미 저장된 옛 표기 행의 마이그레이션** — 데이터 변경이라 무인 모드가 안 한다.
-  새 크롤부터 정규화된다. 옛 행은 recrawl 계획 소관
+  **그래서 이 변경은 새 DB 에서만 목적을 달성한다.** 기존 `data/crawl.db` 에는
+  018 이전에 정규화 안 된 열쇠로 저장된 행이 남고, `store.has(정규화된 URL)` 이
+  그것을 못 찾아 같은 문서를 다시 받고 다시 저장한다(재현: `upsert('http://A.com:80/p')`
+  → `has('http://a.com/p')` **False** → `pages` 2행 · `docs` 2행 · 검색 결과 2건).
+  `indexer.index_pages` 의 증분 조건이 `url NOT IN (SELECT url FROM docs)` 라
+  옛 행은 스스로 사라지지 않는다. 일회성 통합은 **승인이 필요하다** —
+  digest `## 판단 필요` 에 올렸고 recrawl 계획(`[8]`·`[high]`) 소관이다
 - **`store`·`frontier`·`indexer` 안에서의 정규화** — 열쇠를 만드는 자리를 늘리지
   않는다. 017 이 `domain_key` 한 곳으로 모은 것과 같은 이유다 (digest `[7]`)
 - **`urls.to_ascii` 의 비ASCII·IDNA 로직** — 회귀 위험이 전부 거기 있다. 안 건드린다

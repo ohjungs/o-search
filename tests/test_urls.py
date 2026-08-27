@@ -224,8 +224,23 @@ class TestNormalize(unittest.TestCase):
 
     def test_path_case_and_query_are_untouched(self):
         # 대조군 — 경로·질의는 대소문자를 가린다. 여기까지 접으면 다른 문서를 합친다
-        u = "http://a.test/Path?Q=V&d=E#f"
+        u = "http://a.test/Path?Q=V&d=E"
         self.assertEqual(urls.normalize(u), u)
+
+    def test_a_fragment_is_not_part_of_the_document(self):
+        # `#` 뒤는 요청에 안 실린다 — 서버가 주는 문서가 같다. `links` 가 자기 앞에서
+        # 떼던 것을 여기로 모았다: 시드와 리다이렉트 최종 URL 은 그쪽을 안 지난다
+        self.assertEqual(urls.normalize("http://a.test/p#sec"), "http://a.test/p")
+        self.assertEqual(urls.normalize("http://a.test/p#"), "http://a.test/p")
+        # 대조군 — 질의는 요청에 실린다. 같이 떼면 다른 문서를 합치는 것이다
+        self.assertEqual(urls.normalize("http://a.test/p?q=1"), "http://a.test/p?q=1")
+
+    def test_a_tab_does_not_shift_the_slicing(self):
+        # `urlsplit` 은 탭·CR·LF 를 떼고 netloc 을 준다. 원본 위에서 그 길이로 자르면
+        # 한 글자씩 밀려 **다른 호스트**가 나온다 (백지 리뷰 실측: `http://acom/m/p`)
+        self.assertEqual(urls.normalize("http://a\tcom/p"), "http://acom/p")
+        self.assertEqual(urls.normalize("http://a.com\t/p"), "http://a.com/p")
+        self.assertEqual(urls.normalize("http://a.com/p\r\n"), "http://a.com/p")
 
     def test_non_ascii_still_goes_through_to_ascii(self):
         self.assertEqual(urls.normalize("http://한글도메인.test/가"),
@@ -249,10 +264,10 @@ class TestNormalize(unittest.TestCase):
     def test_unparsable_url_does_not_raise(self):
         # digest [7]: 열쇠를 안전하게 만들어도 협력자가 URL 을 다시 판다.
         # 링크 하나가 크롤 전체를 죽이지 않는다 — 못 읽으면 그대로 두거나 None 이다
+        # 값을 못 박는다 — `None 이거나 str` 은 함수가 무엇을 하든 참이라 안 잰다
         for u in ["http://[::1/x", "http://a.test:abc/p", "http://a.test:99999/p"]:
             with self.subTest(url=u):
-                got = urls.normalize(u)
-                self.assertTrue(got is None or isinstance(got, str))
+                self.assertEqual(urls.normalize(u), u)  # 자기 칸에 그대로 남는다
 
 
 if __name__ == "__main__":
