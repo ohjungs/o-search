@@ -1,3 +1,4 @@
+import contextlib
 import io
 import itertools
 import threading
@@ -625,14 +626,20 @@ class TestRetryUsesWhatTheFrontierKnows(unittest.TestCase):
     실측(반복 95 리뷰 탐침): URL 사이는 5.000초인데 `https` 재시도는 **1.000초**.
     절대 조건 위반은 아니지만(https 쪽 선언이 없다) **재시도 경로만 URL 사이 경로보다
     덜 조심한다** — 재시도가 나가는 상황은 서버가 이미 아플 때다.
+
+    **보장의 범위를 정확히 적는다: 선언한 스킴을 이미 돌아본 뒤에만 걸린다.**
+    프런티어는 아직 안 받아 온 robots.txt 를 알 방법이 없으므로, `https` 가 먼저
+    돌면 그때의 바닥값은 하한 그대로다(`test_unseen_scheme_first_still_holds_
+    the_floor` 가 그 순서를 고정한다). 닫으려면 투기적 robots.txt 왕복을 하나 더
+    내야 하는데, 안 갈 수도 있는 곳에 미리 요청을 보내는 것이야말로 덜 예의 바르다.
     """
 
     HUB = "http://hub.test/"
 
-    def _sends(self, delays, failing):
+    def _sends(self, delays, failing, https_first=False):
         """`b.test` 로 나간 **모든 시도**의 시각. 스킴이 달라도 같은 서버다."""
-        pages = {self.HUB: '<a href="http://b.test/1">1</a>'
-                           '<a href="https://b.test/2">2</a>',
+        links = ['<a href="http://b.test/1">1</a>', '<a href="https://b.test/2">2</a>']
+        pages = {self.HUB: "".join(reversed(links) if https_first else links),
                  "http://b.test/1": "leaf", "https://b.test/2": "leaf"}
         sent = []
         clock = {"t": 1000.0}
@@ -690,6 +697,21 @@ class TestRetryUsesWhatTheFrontierKnows(unittest.TestCase):
         for gap in gaps:
             self.assertGreaterEqual(gap, 7.0, "자기 선언 7초가 5초로 깎였다: %s" % gaps)
 
+    def test_unseen_scheme_first_still_holds_the_floor(self):
+        """**보장의 경계를 적어 둔다.** 안 받아 온 robots.txt 는 프런티어도 모른다.
+
+        `https` 가 먼저 돌면 그때 프런티어가 아는 것은 하한뿐이라 재시도는 1초다.
+        고칠 수 있는 종류가 아니다 — 닫으려면 안 갈 수도 있는 곳에 robots.txt 를
+        미리 던져야 하고 그쪽이 덜 예의 바르다. **다만 하한은 어떤 순서에서도
+        지켜진다** — 여기서 재는 것이 그것이다.
+        """
+        gaps = self._retry_gaps(
+            self._sends({"http://b.test": 5.0}, {"https://b.test/2"}, https_first=True),
+            "https://b.test/2")
+        for gap in gaps:
+            self.assertGreaterEqual(gap, DOMAIN_INTERVAL,
+                                    "순서가 바뀌자 하한까지 풀렸다: %s" % gaps)
+
     def test_a_smaller_floor_cannot_undercut_the_absolute_minimum(self):
         """**하한은 절대 조건이다** — 바닥값을 낮게 넘겨도 1초 아래로 안 내려간다.
 
@@ -727,22 +749,37 @@ class TestRetryUsesWhatTheFrontierKnows(unittest.TestCase):
 
         워커가 `Frontier` 를 만지기 시작하면 계약 3(도메인당 in-flight 1개)에 기대
         생략해 둔 락이 전부 필요해진다. 여기서 막지 않으면 나중에 조용히 깨진다.
+
+        **읽기만 보면 안 된다.** 락이 정말 필요해지는 것은 상태를 바꾸는 쪽이다 —
+        `mark_sent`(`_last_fetch`) · `set_delay`(`_delays`·`_queues`) · `add`(`_seen`).
+        읽기 둘만 감시하면 누가 워커에서 `mark_sent` 를 부르기 시작해도 그대로 통과한다.
+        **진짜 메서드를 감싸서** 센다 — 가짜 반환값으로 바꾸면 밑에서 도는 시나리오가
+        달라져 무엇을 쟀는지 알 수 없게 된다.
         """
+        watched = ("next", "interval", "mark_sent", "set_delay", "add")
         touched = []
-        real_next = crawl.Frontier.next
 
-        def watched_next(self, exclude=()):
-            touched.append(threading.current_thread().name)
-            return real_next(self, exclude)
+        def watcher(name):
+            real = getattr(crawl.Frontier, name)
 
-        with mock.patch.object(crawl.Frontier, "next", watched_next), \
-             mock.patch.object(crawl.Frontier, "interval",
-                               lambda self, d: touched.append(
-                                   threading.current_thread().name) or 5.0):
+            def call(self, *args, **kw):
+                touched.append((name, threading.current_thread().name))
+                return real(self, *args, **kw)
+            return mock.patch.object(crawl.Frontier, name, call)
+
+        with contextlib.ExitStack() as stack:
+            for name in watched:
+                stack.enter_context(watcher(name))
             self._sends({"http://b.test": 5.0}, {"https://b.test/2"})
-        self.assertTrue(touched, "프런티어를 아무도 안 만졌다 — 잴 대상이 사라졌다")
-        self.assertEqual(set(touched), {"MainThread"},
-                         "워커가 프런티어를 만졌다: %s" % sorted(set(touched)))
+
+        seen = {name for name, _ in touched}
+        self.assertEqual(seen, set(watched),
+                         "감시한 메서드 중 안 불린 것이 있다 — 잴 대상이 사라졌다: %s"
+                         % sorted(set(watched) - seen))
+        threads = {thread for _, thread in touched}
+        self.assertEqual(threads, {"MainThread"},
+                         "워커가 프런티어를 만졌다: %s"
+                         % sorted({t for n, t in touched if t != "MainThread"}))
 
 
 class TestUnkeepableDelayFoundOnFailure(unittest.TestCase):
