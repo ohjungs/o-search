@@ -3,33 +3,30 @@ signal: DONE
 mode: night
 plan: null
 phase: 완료
-step: 2/2
+step: 1/1
 attempt: 0
-iteration: 88
-night_iterations: 12
+iteration: 89
+night_iterations: 13
 night_red: 0
 night_retries: 0
-night_self_amendments: 0
-updated: 2026-08-27 (반복 88)
-ctx: 48% / 200k
-rules: rules/e2e.md
+updated: 2026-08-27 (반복 89 · 야간 종료)
+ctx: 42% / 200k
+rules: rules/docs.md
 ---
 
 # 현재 상태
 
-**`cooldown-burn`(011) DONE — e2e 5시나리오 전부 통과, 아카이브 완료.**
-브랜치 `loop/cooldown-burn` (기점 `9bd3771`, `loop/tokenizer`). **병합은 사람 몫이다.**
-계획 `docs/plan_history_011.md` · 설계 `docs/design_history_011.md` ·
-e2e `docs/e2e/cooldown-burn/result.md`.
+**야간 실행 종료 — 계획 없음(`plan: null`). 정지 사유는 한도가 아니라 "할 일을 마쳤다" 다**
+(ctx 42% · 5h 3% · 7d 68%, 셋 다 85 아래). 새로 시작하면 `rules/discover.md` 로 탐색한다.
 
 | 반복 | 커밋 | 무엇 |
 |---|---|---|
-| 83 | `5a66070` | 설계 — 대안 A(최소) 채택 |
-| 84 | `a159e30` | 스텝 1 — 간격 시계를 팝에서 떼어 실제 발신에 건다 |
-| 85 | `46b69cf` | 스텝 2 — `perf_crawl` 에 [차단]·[예외] 시나리오 |
-| 86 | `f00cfca` | 테스트 — 첫 요청이 예외로 끝나는 빈 상태 경계 |
-| 87 | `4c0364e` | 리뷰 — 패스 A 지적 4건 반영, 갭 1건 digest 로 |
-| 88 | `46b9854` | e2e — 5시나리오 통과, 변이 2종 재확인 |
+| 83~88 | `5a66070`…`46b9854` | `cooldown-burn`(011) 설계→e2e **DONE** · 아카이브 완료 |
+| 89 | `8860600` | **짧은 경로** — 크롤러가 UA 를 실제로 보내는지 단언 3건 |
+
+브랜치 `loop/cooldown-burn` (기점 `9bd3771`). **병합은 사람 몫이다.**
+계획 `docs/plan_history_011.md` · 설계 `docs/design_history_011.md` ·
+e2e `docs/e2e/cooldown-burn/result.md` · 야간 보고서 `docs/reports/night_2026-08-27.md`.
 
 ## 최종 값
 
@@ -39,42 +36,20 @@ e2e `docs/e2e/cooldown-burn/result.md`.
 | 요청 없이 태운 쿨다운 | 120회 팝 중 **72회** | **0회** |
 | 페이지 최소 간격 | 1.003s | **1.004s** — 안 깎였다 |
 
-**266건 통과** · `crawl_delay_e2e.py` 종료 0 · `design_check.py` 종료 0 ·
-검색 p95 9.26ms · 되돌리기 경로 sha1 `541d455a` (workers=8 과 동일).
-
-## 채택한 계약 (설계 A)
-
-`Frontier.next()` 는 `_last_fetch` 를 **읽기만** 한다. 시계를 거는 자리는
-`mark_sent()` 하나다. 워커 예외 경로는 **요청이 나갔는지 알 수 없으므로**
-`mark_sent(domain, now())` 로 보수적으로 건다.
-버린 것: B 리스 구조(호출처 1곳뿐) · C 취소 방식(틀린 전제를 남겨 재발) ·
-제출 시점(실측 0 회수) · add 시점 robots 필터(동시화 계약 4 위반).
-
-## 변이로 확인한 것 — 검사가 진짜 잡는다
-
-| 변이 | 잡은 곳 | 그때 통과해 버리는 곳 |
-|---|---|---|
-| 팝 쓰기 복원(원래 버그) | **[차단] 4.48/s** · 단위 3건 | **[열림] 10.2/s 통과** |
-| 예외 경로 마킹 제거(순진한 수정) | **[예외] 0.414s** · 단위 1건 | **[차단] 10.3/s 통과** |
-
-오른쪽 열이 이 계획의 교훈이다. **검사 하나가 초록이라고 구멍이 없는 것이 아니다.**
-반복 88 에서 **현재 코드로 다시 확인했다** — 리뷰와 e2e 가 하네스를 건드렸으니
-여전히 잡는지는 다시 재야 아는 것이다.
+**269건 통과** · `crawl_delay_e2e.py` 종료 0 · `design_check.py` 종료 0 · 검색 p95 9.26ms.
+간격 시계는 팝이 아니라 **`mark_sent()` 하나**에 걸린다(설계 A). 변이 2종으로
+e2e 가 실제로 잡는 것을 반복 88 에서 재확인했다 — **검사 하나가 초록이라고 구멍이 없는 것이 아니다.**
 
 ## 다음 세션이 볼 것
 
-**계획 없음 (`plan: null`).** 새로 시작하면 `rules/discover.md` 로 탐색한다.
-`digest.md` 의 `## 판단 필요` 에 **설계 결정 2건**이 쌓여 있다 — 둘 다 크롤 윤리
-축이고 **야간 자동 적용 대상이 아니다**:
+`digest.md ## 판단 필요` 에 **설계 결정 2건**. 둘 다 크롤 윤리 축이고
+**야간 자동 적용 대상이 아니다.** `cooldown-burn` 이 연 것이 아니라 원래 있던 구멍이고,
+착수 전 커밋과 대조 실측으로 확인했다. 같은 파일(`fetcher.py`·`robots.py`)이라 **함께 열면 싸다**:
 
-1. `Crawl-delay` 도메인의 첫 요청이 예외면 그 뒤가 1.0초로 나간다 (robots 위반)
+1. `Crawl-delay` 도메인의 첫 요청이 예외면 그 뒤가 1.0초로 나간다 (선언값 5.0초 위반)
 2. `fetcher` 재시도가 연결 실패 시 **3회를 0.4ms 안에** 보낸다 (반복 87 실측)
-
-둘 다 `cooldown-burn` 이 연 것이 아니라 **원래 있던 구멍**이고, 대조 실측으로 확인했다.
-같은 파일(`fetcher.py`·`robots.py`)을 건드리는 데다 뿌리가 겹쳐 **함께 열면 싸다.**
 
 ## 열지 않는 것 (승인 대기 — 야간 금지)
 
 `recrawl`(`fetched_at` 스키마) · `X-Robots-Tag`(스키마) · `loop/*` 브랜치 병합.
-`store.has` 상태 불문 스킵은 **recrawl 계획 소관**(같은 DB 재실행은 시드부터 스킵돼
-0으로 끝난다 — 반복 82 탐침).
+`store.has` 상태 불문 스킵은 **recrawl 계획 소관**(반복 82 탐침).

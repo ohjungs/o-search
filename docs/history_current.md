@@ -547,3 +547,18 @@ append 전용. 수정·삭제 금지.
   린트·타입체크는 `없음` 이라 **검증되지 않았다고 적었다**(통과라고 쓰지 않는다)
 - 아카이브: `plan_history_011.md` · `design_history_011.md` · `index.md` 12번 ·
   `digest.md` 완료 항목 + 교훈 6건. `status.md` 는 `DONE` · `plan: null`
+
+## 반복 89 — 짧은 경로 (`ua-assertions`) · 커밋 `8860600` · **DONE**
+
+- **근거는 digest `[6]` 의 테스트 갭** — 크롤러가 `User-Agent` 를 실제로 보내는지
+  단언하는 테스트가 **0건**이었다. `USER_AGENT` 는 `fetcher.py:22`·`robots.py:112`
+  두 곳에서 나가는데, `tests/` 전체에 UA 를 검사하는 줄이 없었다(grep 으로 확인)
+- **짧은 경로 5조건 전부 참**: 스텝 1개 · 테스트 3건(20줄 이하) · 파일 2개
+  (`tests/test_fetcher.py`·`tests/test_robots.py`) · 설계 트리거 없음 · 보안·데이터·
+  의존성·스키마 무관. 계획서·설계·e2e 문서를 만들지 않고 `status.md` 세 줄로 갔다
+- **266 → 269건 전부 통과.** 페이지 요청 UA · robots.txt 요청 UA · 이름이 우리 것인지
+- **변이 3종으로 잡는 것을 증명했다** — 먼저 무변이 기준선(`failures=0, errors=3`,
+  errors 는 품질 코퍼스 픽스처 부재로 **변이와 무관하게 상수**)을 잡고 나서 셌다:
+  fetcher UA 제거 → +1 실패 · robots UA 제거 → +1 실패 · `me = "otherbot"` → +2 실패
+- 기록: `digest.md` 에서 `[6]` 삭제(번호 재정렬 `[5]`) · `index.md` 13번(짧은 경로) ·
+  `metrics.md` 반복 89. **밤의 마지막 반복** — 이 뒤는 종료 절차뿐이다

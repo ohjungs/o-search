@@ -59,8 +59,8 @@ history_current.md 가 상한을 넘어 밀려날 때, 밀려나는 내용을 1~
 - [6] **백지 패스는 배경을 안 주는 만큼 값을 낸다** (2026-08-27 cooldown-burn 리뷰). diff 만 준 별도 세션이 낸 6~7건 중 4건이 통과선을 넘었고, **그중 둘은 배경을 아는 작성자에게 안 보이던 것**이다(과한 주장·단언의 netloc 누락). 같은 사람이 쓰고 리뷰하는 구조의 해독제다. 다만 **지적을 그대로 믿지 않는다** — 이번에도 1번 지적은 `grep` 해 보니 문자 그대로는 맞았고 틀린 것은 범위였다
 
 ## 다음 계획 후보 (테스트 phase 갭, 8점 미만)
-- [6] fetcher 가 UA 헤더를 실제로 보내는지 단언 없음
-- [5] crawl: 이미 store 에 있는 URL 스킵 경로 무테스트
+- ~~[6]~~ **닫혔다 — 2026-08-27 반복 89 (짧은 경로).** UA 단언 3건 추가(페이지 요청·robots.txt 요청·**대는 이름과 robots 매칭 이름의 일치**). 변이 3종으로 잡는 것 확인. 269건
+- ~~[5]~~ **대부분 닫혔다 — `cooldown-burn`(011).** `TestCooldownBurn.test_store_skipped_url_does_not_burn_cooldown` 이 스킵 경로를 탄다. 다만 재는 것은 **쿨다운을 안 태운다**까지고, 스킵된 URL 이 다시 저장되지 않는지는 여전히 무단언이다
 - [4] crawl.main CLI 인자 파싱 무테스트
 - [6] indexer.main 이 pages 테이블 없는 DB 를 받으면 sqlite3.OperationalError 트레이스백. FileNotFoundError 만 잡고 있다 (crawl.main CLI 방어와 같은 부류)
 - [높음·설계 범위 밖 메모] robots crawl-delay 존중 — 윤리 축이라 우선순위 높음
