@@ -213,4 +213,15 @@ plan_history_<NNN>.md 를 다 열어볼 필요가 없게 하는 것이 목적이
     단위 399 → **403건 OK** · e2e **17종 전부 rc=0**. 후보 `[4] crawl.main CLI 인자
     파싱 무테스트` 를 닫았다.
 
+24. `serve-port-guard` — 완료 (**짧은 경로**, 계획서 없음 · 브랜치 `loop/deadline-patches`)
+    `serve.main` 의 `--port` 검증. 근거는 `digest.md ## 다음 계획 후보 (테스트 phase 갭)`
+    `[5]`("`serve.main` 인자 처리에 단위 테스트 0"). **탐침하니 갭 아래에 실버그 셋이
+    있었다**: `--port 99999` → `OverflowError` · `--port ²` → `ValueError`(`serve.py:323`)
+    · `--port 80` → `PermissionError` — 전부 트레이스백이고, `--port ٨٠٨٠`(아랍-인도
+    숫자)은 **조용히 8080 이 됐다**. `str.isdigit()` 이 `²`·`٨` 에도 참인 것은
+    `urls.domain_key` 가 019 에서 이미 밟은 자리다 — **같은 함정이 다른 파일에서 반복됐다.**
+    `isascii() and isdigit()` + 범위 0~65535 로 좁히고 bind 실패(`OSError`)는 rc 1 로 받는다.
+    **없는 DB 로 띄우는 축은 안 건드렸다** — `TestMissingDb` 가 그 500 을 계약으로 못 박아
+    뒀다. 단위 403 → **412건 OK** · e2e **17종 전부 rc=0**. 변이 4종 전부 잡힘.
+
 색인 규모 단계(10만→100만)는 별도 계획이 아니라 7번(quality-eval) 이후 운영 측정으로 판정.

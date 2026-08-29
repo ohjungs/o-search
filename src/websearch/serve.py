@@ -317,15 +317,25 @@ def main(argv):
     port = 8000
     if "--port" in args:
         i = args.index("--port")
-        if i + 1 >= len(args) or not args[i + 1].isdigit():
-            print("--port 는 포트 번호 하나를 받는다", file=sys.stderr)
+        # isascii() 를 같이 본다 — `str.isdigit()` 은 `²`(int() 가 ValueError)와
+        # `٨٠٨٠`(조용히 8080 이 된다)에도 참이다. urls.domain_key 가 이미 밟은 자리다.
+        value = args[i + 1] if i + 1 < len(args) else ""
+        if not (value.isascii() and value.isdigit()) or int(value) > 65535:
+            print("--port 는 0~65535 의 포트 번호 하나를 받는다", file=sys.stderr)
             return 2
-        port = int(args[i + 1])
+        port = int(value)
         del args[i:i + 2]
     if len(args) != 1:
         print("usage: python3 -m websearch.serve <db> [--port N]", file=sys.stderr)
         return 2
-    server = make_server(args[0], port)
+    try:
+        server = make_server(args[0], port)
+    except OSError as exc:
+        # 이미 쓰이는 포트(EADDRINUSE)·특권 포트(EACCES). 사용자 입력이 아니라
+        # 환경이라 usage(2)가 아니고, 안 잡았을 때도 rc 는 1 이었다 — 종료 코드는
+        # 그대로고 바뀌는 것은 트레이스백뿐이다.
+        print("포트 %d 를 열 수 없다: %s" % (port, exc), file=sys.stderr)
+        return 1
     # 실제 포트를 찍는다 — --port 0 으로 띄우는 e2e·측정 스크립트가 이것을 읽는다
     print("http://127.0.0.1:%d/search?q=" % server.server_address[1], flush=True)
     try:

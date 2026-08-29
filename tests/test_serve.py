@@ -744,5 +744,113 @@ class TestPagerAbsent(ServeTestCase):
         self.assertIn('<li class="hit">', body, "결과 자체는 나와야 한다")
 
 
+class TestCliArgs(unittest.TestCase):
+    """`serve.main` 인자 처리 — 여기까지 단위 테스트가 0 이었다.
+
+    `e2e/search_api_e2e.py` 등 넷이 `--port 0` 정상 경로만 밟는다. `crawl.main` 쪽
+    같은 갭 아래에 `--max=3` 이 조용히 무시되는 실버그가 있었다(`deadline-patches`).
+
+    **가드는 `main()` 에 있고 `make_server()` 에는 없다** — 여기 테스트가 부는
+    호루라기는 CLI 계약이지 라이브러리 계약이 아니다.
+    """
+
+    def call(self, *argv, bind=None):
+        """`main(["websearch.serve", ...])` 을 부르고 (rc, stderr, make_server 목) 를 준다.
+
+        **`make_server` 는 항상 가짜다.** 통과한 인자는 `serve_forever()` 로 들어가
+        영영 안 돌아오기 때문이다 — 실제로 `--port ٨٠٨٠` 이 8080 에 진짜 서버를
+        띄우고 매달렸다. 가드가 회귀했을 때 **테스트가 죽지 않고 매달리면** 신호가
+        아니라 사고다(digest 의 M2 자리와 같은 부류).
+
+        그래서 거절을 "rc 2" 만이 아니라 **"서버를 아예 안 띄웠다"** 로도 잰다.
+        `bind` 를 주면 그 예외를 던진다 — 진짜 `bind()` 가 던지는 것과 같은 자리다.
+        """
+        fake = mock.Mock()
+        fake.server_address = ("127.0.0.1", 8000)
+        with mock.patch.object(serve, "make_server", side_effect=bind,
+                               return_value=fake) as made, \
+                mock.patch("sys.stdout", new_callable=io.StringIO), \
+                mock.patch("sys.stderr", new_callable=io.StringIO) as err:
+            rc = serve.main(["websearch.serve"] + [str(a) for a in argv])
+        return rc, err.getvalue(), made
+
+    def test_db_argument_is_required(self):
+        rc, err, made = self.call()
+        self.assertEqual(rc, 2)
+        self.assertIn("usage", err)
+        self.assertFalse(made.called)
+
+    def test_second_db_argument_is_refused(self):
+        # 조용히 첫째만 쓰면 둘째 DB 를 보고 있다고 믿는 운영자가 생긴다
+        rc, _, made = self.call("a.db", "b.db")
+        self.assertEqual(rc, 2)
+        self.assertFalse(made.called)
+
+    def test_port_without_a_value(self):
+        rc, err, _ = self.call("a.db", "--port")
+        self.assertEqual(rc, 2)
+        self.assertIn("--port", err)
+
+    def test_non_numeric_port(self):
+        rc, _, made = self.call("a.db", "--port", "abc")
+        self.assertEqual(rc, 2)
+        self.assertFalse(made.called)
+
+    def test_port_above_the_maximum_is_refused_not_a_traceback(self):
+        """`bind()` 는 65535 를 넘으면 `OverflowError` 를 던진다 — 실측했다.
+
+        범위를 안 보면 그 예외가 그대로 사용자에게 간다. 트레이스백은 무엇을
+        고쳐야 하는지 안 알려 준다(`indexer-cli-guard` 와 같은 관용구).
+        """
+        for bad in ("65536", "99999"):
+            with self.subTest(port=bad):
+                rc, err, made = self.call("a.db", "--port", bad)
+                self.assertEqual(rc, 2)
+                self.assertIn("--port", err)
+                self.assertFalse(made.called, "bind 가 던질 값을 그대로 넘겼다")
+
+    def test_the_highest_real_port_still_serves(self):
+        """65535 는 진짜 포트다 — 상한을 한 칸 잘못 잡으면 여기가 죽는다.
+
+        위 테스트만으로는 `> 65536` 변이가 살아남는다(실측). 경계는 양쪽에서 잰다.
+        """
+        rc, _, made = self.call("a.db", "--port", "65535")
+        self.assertEqual(rc, 0)
+        self.assertEqual(made.call_args[0][1], 65535)
+
+    def test_non_ascii_digits_are_not_a_port(self):
+        """`str.isdigit()` 은 `²`·`٨` 에도 참이다 — `domain_key` 가 이미 밟은 자리다.
+
+        `²` 는 `int()` 에서 `ValueError` 로 터지고(트레이스백), `٨٠٨٠` 은 **조용히
+        8080 이 된다** — 뒤가 더 나쁘다. 운영자가 친 적 없는 포트로 서버가 뜬다.
+        """
+        for bad in ("²", "٨٠٨٠"):
+            with self.subTest(port=bad):
+                rc, _, made = self.call("a.db", "--port", bad)
+                self.assertEqual(rc, 2)
+                self.assertFalse(made.called, "운영자가 친 적 없는 포트로 서버를 띄웠다")
+
+    def test_a_taken_port_really_refuses_to_bind(self):
+        """아래 테스트의 전제를 진짜 소켓으로 고정한다 — 가짜가 흉내내는 것이 실재한다."""
+        taken = socket.socket()
+        self.addCleanup(taken.close)
+        taken.bind(("127.0.0.1", 0))
+        taken.listen(1)
+        with self.assertRaises(OSError):
+            serve.make_server("a.db", port=taken.getsockname()[1])
+
+    def test_bind_failure_is_reported_instead_of_crashing(self):
+        """포트가 이미 쓰이거나(EADDRINUSE) 특권 포트면(`--port 80`) `bind` 가 던진다.
+
+        둘 다 사용자 입력이 아니라 **환경**이라 rc 는 2 가 아니라 1 이다 — 잡히지 않던
+        예외도 어차피 rc 1 이었으니 종료 코드는 그대로고, 바뀌는 것은 트레이스백뿐이다.
+        """
+        rc, err, _ = self.call("a.db", "--port", "8000",
+                               bind=OSError(48, "Address already in use"))
+        self.assertEqual(rc, 1)
+        self.assertNotIn("Traceback", err)
+        self.assertIn("8000", err)
+
+
 if __name__ == "__main__":
     unittest.main()
