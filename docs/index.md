@@ -178,4 +178,17 @@ plan_history_<NNN>.md 를 다 열어볼 필요가 없게 하는 것이 목적이
     `--deadline=5` 형태가 조용히 무시되는 것도 보류(`deadline-eq-form.patch`) —
     근본 원인 `_number_flag` 가 `--max`·`--workers` 까지 걸려 설계 결정이다.
 
+21. `indexer-cli-guard` — 완료 (**짧은 경로**, 계획서 없음 · 브랜치 `loop/indexer-cli-guard`)
+    `pages` 테이블이 없는 DB(크롤한 적 없거나 남의 DB)를 `python3 -m websearch.indexer`
+    에 주면 `sqlite3.OperationalError` 가 그대로 새어 **트레이스백 + rc=1** 이었다.
+    `index_pages()` 가 읽기 직전 `sqlite_master` 를 한 번 보고 `NoCrawlDataError` 를
+    내고, `main()` 이 `StaleIndexError` 와 같은 관용구로 받아 복구법을 찍고 **rc=2**.
+    근거: `digest.md ## 반복 실패` 의 "CLI 가 예상 못 한 입력에 트레이스백을 낸다"(2회).
+    **`0` 으로 합치지 않았다** — "크롤 데이터가 없다" 와 "크롤했는데 0건" 은 다른
+    상태고, 합치면 DB 경로 오타가 조용한 성공이 된다(대조군 테스트가 고정).
+    **digest 의 처방은 과했다**: "CLI 진입점마다 방어를 따로 쓴다" 를 근거로 공통
+    방어층을 만들 뻔했는데, 탐침하니 `serve.main`·`crawl.main` 은 이미 막고 있었다 —
+    남은 구멍은 한 곳이라 한 곳만 고쳤다(digest `[7]` 관용구의 또 다른 사례).
+    단위 393 → **396건 OK** · e2e 15종 rc=0.
+
 색인 규모 단계(10만→100만)는 별도 계획이 아니라 7번(quality-eval) 이후 운영 측정으로 판정.

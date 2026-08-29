@@ -1,15 +1,15 @@
 ---
-signal: DONE
-plan: null
+signal: GREEN
+plan: null (짧은 경로 indexer-cli-guard 완료)
 phase: 계획
 step: -
 attempt: 0
-iteration: 128
-night_iterations: 11
+iteration: 129
+night_iterations: 12
 night_red: 0
 night_retries: 0
-updated: 2026-08-29 13:55 (반복 128 · 020 e2e 4/4 · DONE)
-ctx: 45% / 200k
+updated: 2026-08-29 14:20 (반복 129 · indexer-cli-guard 짧은 경로 완료)
+ctx: 40% / 200k
 stopped: null
 rules: 1411a37
 mode: night
@@ -48,10 +48,27 @@ e2e 만 잡는다 — `tests/test_crawl.py` 가 `crawl` 을 목으로 갈아끼�
 - **`docs/patches/deadline-eq-form.patch`** — `--deadline=5` 가 조용히 무시되고 rc 0.
   근본 원인 `_number_flag` 가 `--max`·`--workers` 까지 걸려 설계 결정이다.
 
+## 그 뒤 — 짧은 경로 1건 (반복 129)
+
+**`indexer-cli-guard` 완료.** 브랜치 `loop/indexer-cli-guard`(기점 `9a47341`).
+`pages` 없는 DB 를 `indexer` 에 주면 `sqlite3.OperationalError` 가 새어
+트레이스백 + rc=1 이던 것을 `NoCrawlDataError` → rc=2 로 닫았다.
+근거는 `digest.md ## 반복 실패`(2회 재발). 단위 **396건 OK** · e2e 15종 rc=0.
+`index.md` 21번에 기록했다.
+
+**digest 의 처방을 그대로 안 썼다** — "CLI 진입점마다 방어를 따로 쓴다" 를
+근거로 공통 방어층을 만들 뻔했는데, 착수 전 셋을 탐침하니 `serve.main`·
+`crawl.main` 은 이미 막고 있었다. 남은 구멍 한 곳만 고쳤다.
+
 ## 다음
 
-**새 계획 탐색** — `rules/discover.md`, 5절 중복 방지(`index.md` 20개 항목 ·
-`digest.md` · `plan_history_*`)를 먼저 돌린다.
+**새 계획 탐색.** 1~4순위(실패 테스트·TODO·`candidates.md`)는 지금 전부 비어 있다 —
+다음 탐색도 `digest.md` 후보 절에서 시작하게 된다. 5절 중복 방지는 `index.md`
+**21개** 항목으로 돌린다.
+
+무인 모드에서 열 수 있는 후보가 얇아지고 있다. `digest.md` 에 남은 큰 것들은
+대부분 **승인 대기**(recrawl·마이그레이션·userinfo·`X-Robots-Tag`)라 야간 금지다.
+다음 밤이 빈손으로 끝나면 그건 탐색 실패가 아니라 **사용자 판단이 밀린 것**이다.
 
 ## 밀린 집안일
 

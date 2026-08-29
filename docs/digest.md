@@ -46,7 +46,7 @@ history_current.md 가 상한을 넘어 밀려날 때, 밀려나는 내용을 1~
 ## 반복 실패
 
 <!-- 같은 원인으로 2회 이상 막힌 것. 근본 원인이 안 고쳐졌다는 뜻이다. -->
-- **CLI 가 예상 못 한 입력에 트레이스백을 낸다** — 2회. crawler-core 리뷰(bc98bc8)에서 crawl.main 을 고쳤는데 indexer.main 에서 같은 부류가 다시 나왔다(pages 없는 DB). 근본 원인은 "CLI 진입점마다 방어를 따로 쓴다" — 다음에 CLI 를 또 만들면 세 번째다
+- ~~**CLI 가 예상 못 한 입력에 트레이스백을 낸다**~~ — **닫혔다 — `indexer-cli-guard`(짧은 경로), 2026-08-29.** 2회였다: crawler-core 리뷰(bc98bc8)에서 crawl.main 을 고쳤는데 indexer.main 에서 같은 부류가 다시 나왔다(pages 없는 DB). `index_pages()` 가 읽기 직전 `sqlite_master` 를 보고 `NoCrawlDataError` → `main()` 이 복구법을 찍고 rc=2. **적어 둔 근본 원인("CLI 진입점마다 방어를 따로 쓴다")은 과했다** — 착수 때 셋을 다 탐침하니 `serve.main`(`--port` 비숫자·값 없음)과 `crawl.main` 은 이미 막고 있었고 실제로 남은 구멍은 **한 곳**이었다. 공통 방어층을 만들었다면 한 개짜리 문제에 추상을 세운 것이 된다. digest `[7]`(**보류 항목의 진단은 옳아도 처방은 그때의 추정이다 — 착수 때 다시 잰다**)의 또 다른 사례다. 다음에 CLI 를 또 만들 때 세 번째가 나오면 그때가 공통화할 때다
 
 ## 다음 계획 후보
 
@@ -74,7 +74,7 @@ history_current.md 가 상한을 넘어 밀려날 때, 밀려나는 내용을 1~
 - ~~[6]~~ **닫혔다 — 2026-08-27 반복 89 (짧은 경로).** UA 단언 3건 추가(페이지 요청·robots.txt 요청·**대는 이름과 robots 매칭 이름의 일치**). 변이 3종으로 잡는 것 확인. 269건
 - ~~[5]~~ **대부분 닫혔다 — `cooldown-burn`(011).** `TestCooldownBurn.test_store_skipped_url_does_not_burn_cooldown` 이 스킵 경로를 탄다. 다만 재는 것은 **쿨다운을 안 태운다**까지고, 스킵된 URL 이 다시 저장되지 않는지는 여전히 무단언이다
 - [4] crawl.main CLI 인자 파싱 무테스트
-- [6] indexer.main 이 pages 테이블 없는 DB 를 받으면 sqlite3.OperationalError 트레이스백. FileNotFoundError 만 잡고 있다 (crawl.main CLI 방어와 같은 부류)
+- ~~[6]~~ **닫혔다 — `indexer-cli-guard`(짧은 경로), 2026-08-29.** indexer.main 이 pages 테이블 없는 DB 를 받으면 sqlite3.OperationalError 트레이스백이었다. 위 `## 반복 실패` 항목 참조
 
 - [5] `<meta http-equiv="X-Robots-Tag" content="noindex">` 변형은 무시한다 (2026-08-25 noindex-respect 테스트 phase 탐침으로 확인). 표준은 HTTP 헤더이고 http-equiv 변형은 주요 검색엔진도 지원하지 않는다. X-Robots-Tag 헤더 계획(스키마 expand)을 열 때 함께 판단
 - [4] `is_noindex` 의 `'robots'` 사전 필터와 제거 경로의 `LIKE '%robots%'` 는 **name 을 HTML 엔티티로 인코딩한 meta**(`&#114;obots`)를 놓친다 (2026-08-25 리뷰 지적, 실측 확인). 파서 자체는 엔티티를 풀어 지시를 본다 — 필터만 빼면 잡힌다. 실물에서 보이면 그때 뺀다

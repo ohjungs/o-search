@@ -687,3 +687,36 @@ append 전용. 수정·삭제 금지.
 - 증거: `docs/e2e/deadline/result.md` · 명령은 `docs/project.md` 에 등록.
 - **계획 020 DONE.** 아카이브: `plan_history_018` · `design_history_018` ·
   `index.md` 20번 항목.
+
+## 2026-08-29 14:20 | indexer-cli-guard | 짧은 경로 | 시도0
+
+- **탐색 결과 이것을 골랐다.** 1~4순위(실패 테스트·TODO/FIXME·`candidates.md`)가 전부
+  비었다 — 단위 393건 OK, e2e 15종 rc=0, 코드에 `TODO`/`FIXME`/`HACK` 0건.
+  `digest.md ## 반복 실패` 의 "CLI 가 예상 못 한 입력에 트레이스백을 낸다"(2회)를 집었다.
+  중복 방지(`discover.md` 5절) 통과: `index.md` 21개 항목·`digest.md` 처리분·
+  `docs/patches/` 2건(둘 다 `deadline-*`) 어디에도 없다.
+- **착수 전 셋을 다 탐침했다** — digest `[7]`("처방은 그때의 추정이다") 관용구:
+
+  | 진입점 | 준 입력 | 결과 |
+  |---|---|---|
+  | `serve.main` | `--port abc` · `--port`(값 없음) | 이미 막는다 |
+  | `crawl.main` | 020 이 `--deadline` 까지 덮었다 | 이미 막는다 |
+  | `indexer.main` | `pages` 없는 DB | **트레이스백 + rc=1** |
+
+- **그래서 처방을 줄였다.** digest 가 적은 근본 원인은 "CLI 진입점마다 방어를 따로
+  쓴다" 였고 그대로 읽으면 공통 방어층을 만드는 계획이 된다. 실제로 남은 구멍은
+  **한 곳**이라 한 곳만 고쳤다 — 한 개짜리 문제에 추상을 세우지 않는다.
+- 고친 자리: `index_pages()` 가 읽기 직전 `sqlite_master` 를 한 번 보고
+  `NoCrawlDataError`. `main()` 은 `StaleIndexError` 와 **같은 관용구**로 받아
+  복구법(`먼저 크롤한다: …`)을 찍고 rc=2. 새 관용구를 만들지 않았다.
+- **0 으로 합치지 않았다.** "크롤 데이터가 없다" 와 "크롤했는데 색인할 게 0건" 은
+  다른 상태다 — 합치면 DB 경로 오타가 조용한 성공으로 보인다. 이 저장소가 반복해서
+  세우는 구분(`결과 없음` 출력·측정 불능 종료 2)과 같은 값이다.
+- TDD: 먼저 2건을 빨갛게 만들고(`Ran 396 / FAILED (errors=2)`) 구현했다.
+- 변이 2종에서 죽는 것 확인(사본, `PYTHONDONTWRITEBYTECODE=1`):
+  - 가드 제거(원래 버그로 되돌리기) → **2건 ERROR**
+  - `'pages'` 를 `'docs'` 로 오타 → **5건 ERROR**. 여기에 대조군
+    `test_empty_pages_table_is_zero_not_an_error` 가 들어 있다 — 대조군이 제 값을 한다
+- 검증: 단위 **393 → 396건 OK** · e2e **15종 전부 rc=0**.
+- 브랜치 `loop/indexer-cli-guard` (기점 `9a47341`). 계획서·e2e 문서 없음(짧은 경로).
+  `index.md` 21번에 한 줄 남겼다 — 안 적으면 중복 방지가 이 작업을 못 본다.
