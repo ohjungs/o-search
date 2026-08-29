@@ -1,7 +1,7 @@
 # 계획 34 — `graceful-interrupt` (중단 신호)
 
 - 슬러그: `graceful-interrupt` · 브랜치: `loop/graceful-interrupt`
-- 상태: 계획 작성 완료 → **설계 phase** (아래 "설계가 필요한 이유")
+- 상태: 설계 완료 → **개발 phase 스텝 1** (설계서 `design_graceful-interrupt.md` 의 계약 절이 명세)
 - 선행: 계획 33 `clock-injection` DONE (`crawl()`·`_fetch_one()` 이 `sleep=` 을 받는다)
 
 ## 1. 문제 · 목표 · 기대 결과
