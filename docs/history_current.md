@@ -276,3 +276,18 @@ append 전용. 수정·삭제 금지.
   없는 DB 축) 전부 안 건드렸다. 기본값(`--max 100`·`WORKERS 8`·`--port 8000`) 그대로.
 - 검증: **Ran 415 · OK**. 변이 M5 재확인(반영 전 통과 → 반영 후 죽음).
 - 다음: e2e phase.
+
+## 반복 142 — 계획 25 e2e + DONE
+
+- **기존 e2e 17종 전부 rc=0**(회귀 잣대). 새 e2e 파일은 **안 만들었다** —
+  `deadline_e2e.py:156` 이 이미 진짜 argv 로 붙임/띄움 형태를 섞어 준다.
+- **실제 셸에서 CLI 12가지**: `crawl --max ٨٠`·`--max=٨٠`·`--max 8_0`·`--max -5`·
+  `--workers ٨`·`--deadline ٦٠` 여섯 다 **rc 2** + 한 줄 메시지. `serve --port ٨٠٨٠`·
+  `--port=99999`·`--port=abc` rc 2. **`serve --port=8123` 은 진짜 뜨고**
+  `curl /search?q=김치` 가 결과를 냈다(전에는 rc 2). 거절 뒤 **8080 에 아무도 없다** —
+  `٨٠٨٠` 이 조용히 8080 에 서버를 띄우던 자리를 포트로 직접 확인했다.
+- 품질 기준 넷(`design_check`·`perf_search`·`perf_crawl`·`quality_eval`) 전부 rc 0.
+- 아카이브: `plan_history_019.md`·`design_history_019.md`. `docs/e2e/number-flag/result.md`.
+  `index.md` 25번 · `digest.md ## 완료` 한 줄.
+- **재시도 0 · RED 0.** 단위 412 → **415건**.
+- 다음: 지시받은 스텝이 끝났다 — 정지. 새 계획은 `digest.md` 후보 큐에서.

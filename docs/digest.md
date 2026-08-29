@@ -53,6 +53,7 @@ history_current.md 가 상한을 넘어 밀려날 때, 밀려나는 내용을 1~
   갈아끼운다). `e2e/deadline_e2e.py` 가 그 자리 하나 때문에 존재한다. 리뷰 4건 중
   critical 1 + 1 을 보류 패치로 돌렸고 아래 23번(`deadline-patches`)이 소진했다.
   단위 388 → **393건 OK** · e2e 15종 rc=0. 재시도 0·RED 0
+- 2026-08-29 | plan_number-flag (25) | **파서가 두 벌이면 함정도 두 벌이다.** `str.isdigit()`/`int()` 가 비ASCII 숫자를 받는 것을 019(`urls.py`)와 24(`serve.py`)가 각자 자기 파일에서만 막았고 `crawl._number_flag` 가 세 번째 자리였다 — `--max ٨٠` → 80페이지, `--max -5` → rc 0(실측). `src/websearch/flags.py` 하나로 모아 `[0-9]+` 만 받는다. **모았다는 증거는 변이 M1** — `isascii()` 를 떼면 `test_crawl` 과 `test_serve` 가 **함께** 죽는다(한쪽만 죽으면 아직 두 벌이다). 덤으로 `serve --port=8080` 붙임 형태를 얻었다. **이름을 `cli.py` 로 했다가 백지 리뷰가 잡았다**: README 가 안내하는 `python -m websearch.cli` 가 rc 1 에서 **rc 0(조용한 무동작)** 이 됐다 — 실패를 성공으로 위장하는 개명은 되돌렸다. 단위 403 → **415건 OK** · e2e 17종 rc=0. 재시도 0·RED 0
 
 ## 보류 (승인 대기)
 

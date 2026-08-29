@@ -224,4 +224,19 @@ plan_history_<NNN>.md 를 다 열어볼 필요가 없게 하는 것이 목적이
     **없는 DB 로 띄우는 축은 안 건드렸다** — `TestMissingDb` 가 그 500 을 계약으로 못 박아
     뒀다. 단위 403 → **412건 OK** · e2e **17종 전부 rc=0**. 변이 4종 전부 잡힘.
 
+25. `number-flag` — 완료 (계획 `plan_history_019.md` · 설계 `design_history_019.md` ·
+    e2e `docs/e2e/number-flag/result.md` · 브랜치 `loop/number-flag`)
+    **숫자 인자 파서가 두 벌이라 함정이 세 번 나타났다.** `str.isdigit()`/`int()` 가
+    비ASCII 숫자를 받는 것을 019 가 `urls.py` 에서, 24 가 `serve.py` 에서 **각자 자기
+    자리에서만** 막았고 `crawl.py:215 _number_flag` 는 그대로였다 — 실측 `--max ٨٠` →
+    **80페이지**, `8_0`·`' 80 '`·`+80` 도 전부 통과, `--max -5` 는 **rc 0** 이었다.
+    `src/websearch/flags.py` 하나로 모으고 `[0-9]+` 만 받는다. `serve` 는 덤으로
+    `--port=8080`(붙임 형태)을 받게 됐다 — `crawl` 은 `--max=3` 을 받는데 `serve` 는
+    안 받던 CLI 계약 불일치다. **변이 M1(파서에서 `isascii()` 제거)이 `test_crawl` 과
+    `test_serve` 를 동시에 죽인다** — 한 자리로 모였다는 증거다.
+    **백지 리뷰가 실재 파손을 잡았다**: 모듈 이름을 `cli.py` 로 하니 README 가 안내하는
+    `python -m websearch.cli ...` 가 rc 1(없는 모듈)에서 **rc 0(조용한 무동작)** 이 됐다.
+    `flags.py` 로 개명해 되돌렸다. `--deadline` 의 형태 지식이 호출부에 두 벌 남아 있던
+    것도 센티널로 없앴다. 단위 412 → **415건 OK** · e2e **17종 rc=0** + 실제 CLI 12가지.
+
 색인 규모 단계(10만→100만)는 별도 계획이 아니라 7번(quality-eval) 이후 운영 측정으로 판정.
