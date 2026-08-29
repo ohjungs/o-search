@@ -63,12 +63,11 @@ class TestCrawl(unittest.TestCase):
             return self.store
 
         with mock.patch("websearch.crawl.fetcher") as mf, \
-             mock.patch("websearch.crawl.time.sleep") as ms, \
              mock.patch("websearch.crawl.Store", spy_store):
             mf.fetch = sending(fake_fetch)
             mf.RETRIES = fetcher.RETRIES
             # 가짜 시계: sleep 이 시간을 흘려보낸다 — 실제 대기 없이 결정적
-            ms.side_effect = lambda s: clock.__setitem__("t", clock["t"] + s)
+            ms = mock.Mock(side_effect=lambda s: clock.__setitem__("t", clock["t"] + s))
             n = crawl.crawl(seeds, max_pages, db_path=":memory:",
                             robots_cache=robots, now=lambda: clock["t"],
                             workers=workers, deadline=deadline, sleep=ms)
@@ -620,11 +619,10 @@ class TestCooldownBurn(unittest.TestCase):
 
         with mock.patch("websearch.crawl.fetcher") as mf, \
              mock.patch("websearch.crawl.Store", skipping_store), \
-             mock.patch("websearch.crawl.time.sleep") as ms, \
              mock.patch("sys.stderr", io.StringIO()):
             mf.fetch = sending(fake_fetch)
             mf.RETRIES = fetcher.RETRIES
-            ms.side_effect = lambda s: clock.__setitem__("t", clock["t"] + s)
+            ms = mock.Mock(side_effect=lambda s: clock.__setitem__("t", clock["t"] + s))
             crawl.crawl(seeds, 10, db_path=":memory:", robots_cache=robots,
                         now=lambda: clock["t"], workers=8, sleep=ms)
         return [b - a for a, b in zip(sent, sent[1:])]
@@ -670,11 +668,10 @@ class TestCooldownBurn(unittest.TestCase):
         robots.delay = lambda url: None
         robots.known_delay = robots.delay  # 캐시 조회도 같은 계약을 흉내낸다
         with mock.patch("websearch.crawl.fetcher") as mf, \
-             mock.patch("websearch.crawl.time.sleep") as ms, \
              mock.patch("sys.stderr", io.StringIO()):
             mf.fetch = sending(fake_fetch)
             mf.RETRIES = fetcher.RETRIES
-            ms.side_effect = lambda s: clock.__setitem__("t", clock["t"] + s)
+            ms = mock.Mock(side_effect=lambda s: clock.__setitem__("t", clock["t"] + s))
             crawl.crawl(["http://hub.test/"], 10, db_path=":memory:",
                         robots_cache=robots, now=lambda: clock["t"], workers=8,
                         sleep=ms)
@@ -740,13 +737,12 @@ class TestABrokenLinkDoesNotEndTheCrawl(unittest.TestCase):
         cache = robots_mod.RobotsCache()
         cache._fetch_robots = lambda base: (200, "User-agent: *\nAllow: /")  # 네트워크 차단
         clock = {"t": 1000.0}
-        with mock.patch("websearch.crawl.fetcher") as mf, \
-             mock.patch("websearch.crawl.time.sleep") as ms:
+        with mock.patch("websearch.crawl.fetcher") as mf:
             mf.fetch = sending(lambda url: (
                 FetchResult(200, pages[url], url) if url in pages
                 else FetchResult(404, None, url)))
             mf.RETRIES = fetcher.RETRIES
-            ms.side_effect = lambda s: clock.__setitem__("t", clock["t"] + s)
+            ms = mock.Mock(side_effect=lambda s: clock.__setitem__("t", clock["t"] + s))
             return crawl.crawl(seeds, 10, db_path=":memory:", robots_cache=cache,
                                now=lambda: clock["t"], workers=4, sleep=ms)
 
@@ -786,11 +782,10 @@ class TestDelaySurvivesWorkerException(unittest.TestCase):
 
         robots = FakeRobots({"http://b.test": delay})
         with mock.patch("websearch.crawl.fetcher") as mf, \
-             mock.patch("websearch.crawl.time.sleep") as ms, \
              mock.patch("sys.stderr", io.StringIO()):
             mf.fetch = sending(fake_fetch)
             mf.RETRIES = fetcher.RETRIES
-            ms.side_effect = lambda s: clock.__setitem__("t", clock["t"] + s)
+            ms = mock.Mock(side_effect=lambda s: clock.__setitem__("t", clock["t"] + s))
             crawl.crawl(["http://hub.test/"], 10, db_path=":memory:",
                         robots_cache=robots, now=lambda: clock["t"], workers=8,
                         sleep=ms)
@@ -843,11 +838,10 @@ class TestRetriesKeepTheInterval(unittest.TestCase):
 
         robots = FakeRobots({"http://b.test": delay} if delay is not None else {})
         with mock.patch("websearch.crawl.fetcher") as mf, \
-             mock.patch("websearch.crawl.time.sleep") as ms, \
              mock.patch("sys.stderr", io.StringIO()):
             mf.fetch = flaky_fetch
             mf.RETRIES = fetcher.RETRIES
-            ms.side_effect = lambda s: clock.__setitem__("t", clock["t"] + s)
+            ms = mock.Mock(side_effect=lambda s: clock.__setitem__("t", clock["t"] + s))
             crawl.crawl(["http://hub.test/"], 10, db_path=":memory:",
                         robots_cache=robots, now=lambda: clock["t"], workers=8,
                         sleep=ms)
@@ -949,11 +943,10 @@ class TestRetryUsesWhatTheFrontierKnows(unittest.TestCase):
 
         robots = FakeRobots(delays)
         with mock.patch("websearch.crawl.fetcher") as mf, \
-             mock.patch("websearch.crawl.time.sleep") as ms, \
              mock.patch("sys.stderr", io.StringIO()):
             mf.fetch = flaky_fetch
             mf.RETRIES = fetcher.RETRIES
-            ms.side_effect = lambda s: clock.__setitem__("t", clock["t"] + s)
+            ms = mock.Mock(side_effect=lambda s: clock.__setitem__("t", clock["t"] + s))
             crawl.crawl([self.HUB], 10, db_path=":memory:",
                         robots_cache=robots, now=lambda: clock["t"], workers=8,
                         sleep=ms)
@@ -1024,11 +1017,10 @@ class TestRetryUsesWhatTheFrontierKnows(unittest.TestCase):
                 sent.append(clock["t"])
             return FetchResult(0, None, None)
 
-        with mock.patch("websearch.crawl.fetcher") as mf, \
-             mock.patch("websearch.crawl.time.sleep") as ms:
+        with mock.patch("websearch.crawl.fetcher") as mf:
             mf.fetch = flaky_fetch
             mf.RETRIES = fetcher.RETRIES
-            ms.side_effect = lambda s: clock.__setitem__("t", clock["t"] + s)
+            ms = mock.Mock(side_effect=lambda s: clock.__setitem__("t", clock["t"] + s))
             crawl._fetch_one("http://b.test/1", FakeRobots(),
                              now=lambda: clock["t"], floor=0.0, sleep=ms)
 
@@ -1098,11 +1090,10 @@ class TestUnkeepableDelayFoundOnFailure(unittest.TestCase):
 
         robots = FakeRobots({"http://b.test": delay})
         with mock.patch("websearch.crawl.fetcher") as mf, \
-             mock.patch("websearch.crawl.time.sleep") as ms, \
              mock.patch("sys.stderr", err):
             mf.fetch = sending(fake_fetch)
             mf.RETRIES = fetcher.RETRIES
-            ms.side_effect = lambda s: clock.__setitem__("t", clock["t"] + s)
+            ms = mock.Mock(side_effect=lambda s: clock.__setitem__("t", clock["t"] + s))
             crawl.crawl(["http://hub.test/"], 10, db_path=":memory:",
                         robots_cache=robots, now=lambda: clock["t"], workers=8,
                         sleep=ms)
@@ -1328,12 +1319,11 @@ class TestDeadline(unittest.TestCase):
             return store
 
         with mock.patch("websearch.crawl.fetcher") as mf, \
-             mock.patch("websearch.crawl.time.sleep") as ms, \
              mock.patch("websearch.crawl.Store", spy_store), \
              mock.patch("sys.stderr", new_callable=io.StringIO):
             mf.fetch = fake_fetch
             mf.RETRIES = fetcher.RETRIES
-            ms.side_effect = lambda s: clock.__setitem__("t", clock["t"] + s)
+            ms = mock.Mock(side_effect=lambda s: clock.__setitem__("t", clock["t"] + s))
             n = crawl.crawl(["http://a.com/", "http://b.com/"], 5, db_path=":memory:",
                             robots_cache=robots, now=lambda: clock["t"],
                             workers=8, deadline=10, sleep=ms)
@@ -1357,10 +1347,10 @@ class TestDeadline(unittest.TestCase):
 class TestSleepIsInjected(unittest.TestCase):
     """잠드는 자리도 `now` 와 같은 주입 지점인가 — 계획 33 (`design_clock-injection.md`).
 
-    이 파일의 간격 단언 10곳은 오늘 `mock.patch("websearch.crawl.time.sleep")` 에
-    기대는데, 그 패치는 `websearch.crawl` 만이 아니라 **stdlib `time` 모듈을
-    프로세스 전역·전 스레드로** 갈아끼운다(설계가 실측). 아래 두 건이 그 사정거리를
-    인자 하나로 좁히는 계약이다.
+    이 파일의 간격 단언 10곳은 한때 전역 `time.sleep` 을 몽키패치했는데, 그 패치는
+    `websearch.crawl` 만이 아니라 **stdlib `time` 모듈을 프로세스 전역·전 스레드로**
+    갈아끼운다(설계가 실측). 지금은 전부 `sleep=` 으로 넘긴다. 아래 두 건이 그
+    사정거리를 인자 하나로 좁히는 계약이다 — 이게 깨지면 몽키패치가 돌아온다.
     """
 
     def test_injected_sleep_is_the_only_one_used(self):
