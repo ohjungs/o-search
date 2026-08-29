@@ -19,7 +19,7 @@ plan_history_<NNN>.md 를 다 열어볼 필요가 없게 하는 것이 목적이
 | plan_crawl-throughput | 완료 | loop/crawl-throughput | 3/3 | 통과(4/4) | 설계 있음(008). **0.5/s → 10.25/s**(기준 5.0). 잠긴 DB 크래시도 닫음. 리뷰 패스 A 5건 중 3건 반영·1건 보류(쿨다운 태우기) |
 | plan_tokenizer | 완료 | loop/tokenizer | 3/3 | 통과(6/6) | 설계 있음(010). **미검출 5 → 1**(ko 20/20 · en 19/20). 한글 2-gram 을 제목·본문 **열로 나눠** 넣고 질의는 **어절마다** 분기. 오탐 13.8→14.0 으로 안 늘었다. 리뷰 보류였던 `porter` 는 **양쪽을 다시 재서 유지로 닫음**(굴절 96.3% vs 1.0%, 접두 손실 11.2%가 그 값) |
 | plan_search-ui | 완료 | loop/search-ui | 2/2 | 통과(5/5) | 설계 있음(009). **브라우저로 쓸 수 있는 제품이 처음 생겼다.** 디자인 4축 측정 명령(`e2e/design_check.py`)을 만들어 열었다 — JS 0 B · 최저 대비 4.87:1. 리뷰가 **검사기의 눈먼 자리 4곳**을 찾아 닫음(초록불이 근거 없이 켜져 있었다) |
-| plan_clock-injection | 진행 | loop/clock-injection | 0/5 | 미실행 | **33.** 반복 152 의 `탐색 막힘` 을 정식 경로로 연 것. 근거 `digest.md:156` `[6]`. 잠드는 자리(`crawl.py:74`·`179`)를 `now` 와 같은 주입 지점으로 만들어 `tests/test_crawl.py` 의 몽키패치 **10곳**(digest 의 "9곳" 은 오기)을 걷는다. 설계 필요(공개 인터페이스 변경 · 대안 3갈래). 기점 `de28dfb` |
+| plan_clock-injection | 진행 | loop/clock-injection | 0/5 | 미실행 | **33.** 반복 152 의 `탐색 막힘` 을 정식 경로로 연 것. 근거 `digest.md:156` `[6]`. 잠드는 자리(`crawl.py:74`·`179`)를 `now` 와 같은 주입 지점으로 만들어 `tests/test_crawl.py` 의 몽키패치 **10곳**(digest 의 "9곳" 은 오기)을 걷는다. **설계 있음** — `sleep` 을 `now` 옆 인자로(B). 설계가 잰 것: 지금의 몽키패치는 stdlib `time` 을 **프로세스 전역·전 스레드로** 갈아끼운다. 기점 `de28dfb` |
 
 ## 사양 분할 (docs/specs/concept.md → 계획 순서)
 
