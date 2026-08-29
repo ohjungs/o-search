@@ -15,6 +15,20 @@ from websearch.store import Store
 
 WORKERS = 8  # 동시에 띄우는 요청 수. **보정 손잡이지 상수가 아니다** — CLI 의 --workers
 
+# 시드가 가질 수 있는 스킴. `links.py` 가 발견된 링크에 거는 조건과 **같은 것**이고,
+# 여기 있는 이유는 시드가 거기를 안 지나가기 때문이다. 한쪽을 늘리면 다른 쪽도 본다.
+FETCHABLE_SCHEMES = ("http", "https")
+
+
+class NoUsableSeedsError(ValueError):
+    """시드가 하나도 프런티어에 못 들어갔다 — 크롤이 시작될 수조차 없다.
+
+    "0페이지 수집" 과 다르다. 저쪽은 크롤이 돌았고 결과가 없는 것이라 rc 0 이고
+    (robots 가 정당하게 막은 사이트가 그 자리다), 이쪽은 요청이 한 건도 나갈 수
+    없는 것이라 사용자 입력 오류(rc 2)다. 이 구분을 없애면 예의를 지킨 크롤이
+    오작동으로 보고된다.
+    """
+
 
 def _fetch_one(url, robots, now, floor):
     """워커 스레드가 하는 일 전부. **`Store`·`Frontier`·카운터를 만지지 않는다** (설계 계약 4).
@@ -102,8 +116,28 @@ def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None,
         normalized = urls.normalize(seed)
         if normalized is None:
             print("%s: URL 로 읽을 수 없는 시드 — 건너뛴다" % seed, file=sys.stderr)
+        elif urls.scheme_of(normalized) not in FETCHABLE_SCHEMES:
+            # **새 계약이 아니라 이미 있는 계약의 구멍이다.** `links.py` 는 발견된
+            # 링크를 `http(s)` 로 이미 거른다 — 시드만 그 가드를 안 지나갔다.
+            # 그래서 `example.com` 이 fetcher 까지 내려가 robots 를 받으려다
+            # `unknown url type: ':///robots.txt'` 로 죽었다(실측).
+            print("%s: http(s) 가 아니라 가져올 수 없는 시드 — 건너뛴다" % seed,
+                  file=sys.stderr)
         else:
             ascii_seeds.append(normalized)
+    if not ascii_seeds:
+        # 한 건도 못 넣었으면 크롤은 **시작될 수조차 없다.** `수집 0 페이지` rc 0 은
+        # 크롤이 돌고도 아무것도 못 찾은 것과 구별되지 않는다 — 26(`--max 0`)·21 과
+        # 같은 값이다. 반대쪽 경계는 건드리지 않는다: 시드가 하나라도 살아남았으면
+        # 0페이지는 그대로 rc 0 이다(robots 가 정당하게 막은 사이트가 그 자리다).
+        #
+        # **시드가 애초에 0건인 경우도 여기다.** `crawl --max 1` 은 플래그만 있고
+        # 시드가 없는데 `len(argv) < 2` 를 통과해(플래그가 인자를 채운다) 조용히
+        # `수집 0 페이지` rc 0 으로 끝났다(실측). "다 거절당해서 0건" 과 "처음부터
+        # 0건" 은 크롤이 못 도는 이유로는 같은 것이라 한 자리에서 막는다.
+        raise NoUsableSeedsError(
+            "가져올 수 있는 시드가 하나도 없다 — http:// 나 https:// 로 시작하는 "
+            "주소를 준다")
     frontier.add(ascii_seeds)
     saved = 0
     started = now()
@@ -247,7 +281,13 @@ def main(argv):
         print("모르는 인자: %s — 시드 URL 로 읽지 않는다" % " ".join(unknown),
               file=sys.stderr)
         return 2
-    n = crawl(args, max_pages, workers=workers, deadline=deadline)
+    try:
+        n = crawl(args, max_pages, workers=workers, deadline=deadline)
+    except NoUsableSeedsError as exc:
+        # 판정은 `crawl()` 이 한다 — 여기서 스킴을 다시 보면 `-` 를 거절하는 위 가드와
+        # 한 덩어리가 되어 27 의 변이 M4 가 경고한 다른 계약으로 넓어진다
+        print(exc, file=sys.stderr)
+        return 2
     print("수집 %d 페이지" % n)
     return 0
 

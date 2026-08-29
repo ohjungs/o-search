@@ -82,6 +82,66 @@ class TestCrawl(unittest.TestCase):
         _, fetched, _ = self._run(["http://a.com/"], max_pages=10)
         self.assertNotIn("http://a.com/blocked", fetched)
 
+    def test_seed_without_scheme_never_reaches_the_network(self):
+        """스킴 없는 시드는 **가져올 수 없는 주소**다 — 크롤이 시작될 수조차 없다.
+
+        오늘은 `example.com` 이 fetcher 까지 내려가 `unknown url type:
+        ':///robots.txt'` 를 stderr 에 남기고 `수집 0 페이지` **rc 0** 으로 끝난다(실측).
+        0건 수집이 성공으로 보고되면 크롤 실패와 구별되지 않는다 — 26(`--max 0`)·
+        21 과 같은 값이다.
+
+        **새 계약이 아니라 이미 있는 계약의 구멍이다.** `links.py:30` 이
+        발견된 링크에 대해 `http(s)` 만 프런티어에 넣는다고 이미 정해 뒀다.
+        시드만 그 가드를 안 지나가는 형제 호출부였다.
+        """
+        with self.assertRaises(crawl.NoUsableSeedsError):
+            self._run(["example.com"], max_pages=3)
+
+    def test_one_good_seed_is_enough(self):
+        """**대조군 1 — 경계의 안쪽.** 못 쓰는 시드가 섞였다고 크롤을 죽이지 않는다.
+
+        실측(E): `example.com http://a.com/` 은 오늘도 2페이지를 모은다. 가드가
+        "하나라도 이상하면 rc 2" 로 넓어지면 이 단언이 깨진다 — 그것은
+        **시드 하나하나를 거절하는** 또 다른 계약이고 여기서 주장한 적 없다.
+        """
+        n, fetched, _ = self._run(["example.com", "http://a.com/"], max_pages=10)
+        self.assertEqual(n, 3)
+        self.assertIn("http://a.com/", fetched)
+
+    def test_unfetchable_schemes_are_rejected_fetchable_ones_are_not(self):
+        """**대조군 2 — 경계를 양쪽에서 잰다.** 거절 기준은 `links.py` 와 같은 화이트리스트다.
+
+        아래쪽 단언이 핵심이다: `https://nope.com/` 은 **404 로 0페이지**지만
+        예외는 아니다. "시드가 거절됐다" 와 "시드를 받아 갔는데 못 가져왔다" 는
+        다른 일이고, rc 도 달라야 한다(전자 2, 후자 0). 이 구분이 없으면
+        가드는 그냥 "0페이지면 실패" 가 되어 robots 가 정당하게 막은 사이트까지
+        오류로 만든다 — 크롤 윤리를 오작동으로 보고하는 쪽이다.
+        """
+        for bad in ["example.com", "ftp://a.com/", "javascript:alert(1)",
+                    "file:///etc/passwd", "mailto:x@a.com"]:
+            with self.assertRaises(crawl.NoUsableSeedsError, msg=bad):
+                self._run([bad], max_pages=3)
+        # 가져올 수 있는 스킴은 못 가져와도 거절이 아니다 — 0페이지 rc 0
+        for ok in ["http://nope.com/", "https://nope.com/"]:
+            n, _, _ = self._run([ok], max_pages=3)
+            self.assertEqual(n, 0, ok)
+
+    def test_no_seed_at_all_is_the_same_hole(self):
+        """시드가 0건인 것도 "크롤이 돌 수 없다" 는 같은 이유다.
+
+        `main` 의 `len(argv) < 2` 는 **플래그가 채운 자리를 시드로 착각한다** —
+        `crawl --max 1` 은 그 검사를 통과하고 `crawl([], 1)` 을 불러 `수집 0 페이지`
+        rc 0 으로 끝났다(실측). 변이(`if seeds and not ascii_seeds`)가 살아남아
+        드러난 형제 구멍이라 같은 자리에서 막는다.
+        """
+        with self.assertRaises(crawl.NoUsableSeedsError):
+            self._run([], max_pages=3)
+
+    def test_flags_without_a_seed_are_not_a_successful_crawl(self):
+        with mock.patch("websearch.crawl.crawl",
+                        side_effect=crawl.NoUsableSeedsError("x")):
+            self.assertEqual(crawl.main(["prog", "--max", "1"]), 2)
+
     def test_max_pages_respected(self):
         n, fetched, _ = self._run(["http://a.com/"], max_pages=1)
         self.assertEqual(n, 1)
@@ -166,6 +226,19 @@ class TestCrawl(unittest.TestCase):
         with mock.patch("websearch.crawl.crawl", return_value=0) as crawled:
             self.assertEqual(crawl.main(["prog", "example.com", "--max", "3"]), 0)
         self.assertEqual(crawled.call_args[0][0], ["example.com"])
+
+    def test_main_returns_2_when_crawl_says_no_seed_was_usable(self):
+        """`main` 의 몫은 **잡아서 rc 2 로 바꾸는 것**뿐이다 — 판정은 `crawl()` 이 한다.
+
+        위 대조군(`...not_odd_looking_seeds`)이 고정한 계약은 그대로다: `main` 은
+        `example.com` 을 여전히 **그대로 넘긴다**. 스킴을 보는 자리는 `main` 의
+        미지 인자 가드가 아니라 시드 루프다 — 두 자리를 합치면 `-` 를 거절하는
+        가드와 스킴을 거절하는 가드가 한 덩어리가 되고, 27 의 변이 M4 가
+        경고한 **다른 계약**으로 조용히 넓어진다.
+        """
+        with mock.patch("websearch.crawl.crawl",
+                        side_effect=crawl.NoUsableSeedsError("x")):
+            self.assertEqual(crawl.main(["prog", "example.com", "--max", "3"]), 2)
 
     def test_flags_accept_the_equals_form(self):
         """`--name=값` 이 조용히 무시되면 안 된다 — 셋 다 같은 파서를 쓴다.
