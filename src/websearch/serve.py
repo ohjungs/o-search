@@ -17,7 +17,7 @@ import json
 import sys
 import urllib.parse
 
-from . import indexer
+from . import cli, indexer
 
 PAGE_SIZE = 10
 MAX_QUERY = 200
@@ -314,17 +314,12 @@ def make_server(db_path, port=8000):
 
 def main(argv):
     args = list(argv[1:])
-    port = 8000
-    if "--port" in args:
-        i = args.index("--port")
-        # isascii() 를 같이 본다 — `str.isdigit()` 은 `²`(int() 가 ValueError)와
-        # `٨٠٨٠`(조용히 8080 이 된다)에도 참이다. urls.domain_key 가 이미 밟은 자리다.
-        value = args[i + 1] if i + 1 < len(args) else ""
-        if not (value.isascii() and value.isdigit()) or int(value) > 65535:
-            print("--port 는 0~65535 의 포트 번호 하나를 받는다", file=sys.stderr)
-            return 2
-        port = int(value)
-        del args[i:i + 2]
+    # 값 검사는 cli.number_flag 가 한다 — `--port ٨٠٨٠` 이 조용히 8080 이 되던 함정을
+    # crawl 과 **같은 자리에서** 막는다. 여기 남는 것은 이 명령만의 상한이다.
+    port = cli.number_flag(args, "--port", 8000)
+    if port is None or port > 65535:
+        print("--port 는 0~65535 의 포트 번호 하나를 받는다", file=sys.stderr)
+        return 2
     if len(args) != 1:
         print("usage: python3 -m websearch.serve <db> [--port N]", file=sys.stderr)
         return 2

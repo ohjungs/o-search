@@ -1,15 +1,15 @@
 ---
 signal: GREEN
 plan: number-flag
-phase: 개발
-step: 2
+phase: 테스트
+step: 2 (완료)
 attempt: 0
-iteration: 138
-night_iterations: 21
+iteration: 139
+night_iterations: 22
 night_red: 0
 night_retries: 0
-updated: 2026-08-29 18:40 (반복 138 · 스텝 1 완료 — cli.py 신설, crawl 이관)
-ctx: 67% / 200k
+updated: 2026-08-29 18:55 (반복 139 · 스텝 2 완료 — serve 도 같은 파서)
+ctx: 70% / 200k
 stopped: -
 rules: 1411a37
 mode: night (지시 실행 — 준 것만 하고 정지)
@@ -17,10 +17,11 @@ mode: night (지시 실행 — 준 것만 하고 정지)
 
 # 현재 상태
 
-**계획 25 `number-flag` — 스텝 1 완료, 다음은 스텝 2**(`serve.main` 의 `--port` 를
-`cli.number_flag` 로 갈아끼우고 범위 검사 `0~65535` 만 남긴다 · `serve.py:318-327`).
-`src/websearch/cli.py` 가 생겼고 `crawl` 셋(`--max`·`--workers`·`--deadline`)이 그것을
-쓴다. 단위 412 → **413건 OK**. 설계는 `docs/design_number-flag.md` 4절에 함수 계약.
+**계획 25 `number-flag` — 스텝 2개 전부 완료, 다음은 테스트 phase**(빠진 것 찾기).
+`src/websearch/cli.py` 하나가 `crawl` 넷(`--max`·`--workers`·`--deadline`)과
+`serve`(`--port`)를 다 읽는다. 단위 412 → **414건 OK** · e2e 아직 안 돌림.
+**변이 M1(파서에서 `isascii()` 제거)이 `test_crawl` 과 `test_serve` 를 동시에 죽인다**
+— 파서가 한 자리라는 증거다(설계 스텝 2 완료 기준).
 보류 패치 0건. 단위 **412건 OK** · e2e **17종 전부 rc=0**.
 
 ## 이번 세션 (반복 136) — `loop/number-flag`
@@ -45,6 +46,10 @@ mode: night (지시 실행 — 준 것만 하고 정지)
 `--max=٨٠`·`8_0`·`' 80 '`·`+80`·`²` 여덟이 rc 2 이고 `crawl()` 이 안 불리는 테스트를
 먼저 쓰고 **RED 를 눈으로 봤다**(`--max ٨٠` → rc 0, 80페이지로 돌았다). 그다음
 `src/websearch/cli.py` 를 만들고 `crawl._number_flag` 를 지웠다. 413건 OK.
+
+**139 · 스텝 2 개발.** `serve --port=8080` 이 rc 2 로 죽는 것을 RED 로 보고(`crawl` 은
+`--max=3` 을 받는다) `serve.py` 의 인라인 블록 10줄을 `cli.number_flag` 한 줄 + 상한
+검사로 줄였다. 414건 OK. 변이 3종 확인 — **M1 이 두 파일의 테스트를 함께 죽인다.**
 
 ## 이번 세션 (반복 134~135) — `loop/deadline-patches` (기점 `1eaf879`)
 

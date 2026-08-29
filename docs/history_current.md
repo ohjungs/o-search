@@ -222,3 +222,18 @@ append 전용. 수정·삭제 금지.
   `maximum=` 같은 인자를 파서에 넣으면 추측성 확장이다(설계 2절).
 - 검증: `PYTHONPATH=src python3 -m unittest discover tests` → **Ran 413 · OK**(412 + 새것 1).
 - 다음: 스텝 2 — `serve.py:318-327` 의 인라인 블록을 `cli.number_flag` 로.
+
+## 반복 139 — 계획 25 스텝 2 (개발): `serve` 도 같은 파서
+
+- **RED**: `serve.main(["prog","a.db","--port=8080"])` → rc 2. `crawl --max=3` 은 되는데
+  `serve --port=8080` 은 안 되던 CLI 계약 불일치다.
+- `serve.py` 의 인라인 검증 10줄 → `cli.number_flag(args, "--port", 8000)` + 상한
+  `port is None or port > 65535` 셋째 줄. **상한만 이 명령의 것으로 남았다.**
+- **변이 3종**(`PYTHONDONTWRITEBYTECODE=1`):
+  - **M1 파서에서 `isascii()` 제거 → `test_crawl` 1건 + `test_serve` 2건이 함께 죽는다.**
+    한 자리로 모였다는 증거다 — 한쪽만 죽으면 아직 두 벌이었을 것이다.
+  - M2 붙임 형태에서 `del` 폭 1→2 → `test_flags_accept_the_equals_form` 죽음(시드가 샌다).
+  - M3 상한 65535→65536 → `test_port_above_the_maximum...`(65536) 죽음. 24 가 세운
+    양쪽 경계가 그대로 산다.
+- 검증: **Ran 414 · OK**(412 → 413 → 414). 변이 되돌린 뒤에도 OK.
+- 다음: 테스트 phase — 빠뜨린 것 찾기(`indexer.main` 은 계획 밖, e2e 17종은 e2e phase).

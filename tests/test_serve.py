@@ -830,6 +830,22 @@ class TestCliArgs(unittest.TestCase):
                 self.assertEqual(rc, 2)
                 self.assertFalse(made.called, "운영자가 친 적 없는 포트로 서버를 띄웠다")
 
+    def test_the_equals_form_works_and_is_guarded_the_same(self):
+        """`crawl --max=3` 은 되는데 `serve --port=8080` 은 rc 2 였다 — 명령마다 계약이 달랐다.
+
+        같은 파서(`cli.number_flag`)를 쓰면 두 형태가 **한 자리에서** 붙고,
+        가드도 형태를 안 가린다. 받는 쪽만 보면 `--port=٨٠٨٠` 이 새로 뚫린다.
+        """
+        rc, _, made = self.call("a.db", "--port=8080")
+        self.assertEqual(rc, 0)
+        self.assertEqual(made.call_args[0][1], 8080)
+        for bad in ("--port=٨٠٨٠", "--port=99999", "--port=abc", "--port="):
+            with self.subTest(arg=bad):
+                rc, err, made = self.call("a.db", bad)
+                self.assertEqual(rc, 2)
+                self.assertIn("--port", err)
+                self.assertFalse(made.called)
+
     def test_a_taken_port_really_refuses_to_bind(self):
         """아래 테스트의 전제를 진짜 소켓으로 고정한다 — 가짜가 흉내내는 것이 실재한다."""
         taken = socket.socket()
