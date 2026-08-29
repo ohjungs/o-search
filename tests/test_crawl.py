@@ -71,7 +71,7 @@ class TestCrawl(unittest.TestCase):
             ms.side_effect = lambda s: clock.__setitem__("t", clock["t"] + s)
             n = crawl.crawl(seeds, max_pages, db_path=":memory:",
                             robots_cache=robots, now=lambda: clock["t"],
-                            workers=workers, deadline=deadline)
+                            workers=workers, deadline=deadline, sleep=ms)
         return n, fetched, ms
 
     def test_crawls_seed_and_follows_links(self):
@@ -626,7 +626,7 @@ class TestCooldownBurn(unittest.TestCase):
             mf.RETRIES = fetcher.RETRIES
             ms.side_effect = lambda s: clock.__setitem__("t", clock["t"] + s)
             crawl.crawl(seeds, 10, db_path=":memory:", robots_cache=robots,
-                        now=lambda: clock["t"], workers=8)
+                        now=lambda: clock["t"], workers=8, sleep=ms)
         return [b - a for a, b in zip(sent, sent[1:])]
 
     # 링크 순서가 곧 팝 순서다 — 안 보내는 URL 을 먼저 팝하게 해야 태우는지 보인다
@@ -676,7 +676,8 @@ class TestCooldownBurn(unittest.TestCase):
             mf.RETRIES = fetcher.RETRIES
             ms.side_effect = lambda s: clock.__setitem__("t", clock["t"] + s)
             crawl.crawl(["http://hub.test/"], 10, db_path=":memory:",
-                        robots_cache=robots, now=lambda: clock["t"], workers=8)
+                        robots_cache=robots, now=lambda: clock["t"], workers=8,
+                        sleep=ms)
 
         self.assertEqual(len(sent), 2, "b.test 를 두 번 요청해야 간격을 잰다")
         self.assertGreaterEqual(sent[1] - sent[0], 1.0,
@@ -747,7 +748,7 @@ class TestABrokenLinkDoesNotEndTheCrawl(unittest.TestCase):
             mf.RETRIES = fetcher.RETRIES
             ms.side_effect = lambda s: clock.__setitem__("t", clock["t"] + s)
             return crawl.crawl(seeds, 10, db_path=":memory:", robots_cache=cache,
-                               now=lambda: clock["t"], workers=4)
+                               now=lambda: clock["t"], workers=4, sleep=ms)
 
     def test_a_broken_seed_does_not_end_the_crawl(self):
         n = self._crawl([self.BAD, "http://a.com/"], {"http://a.com/": "ok"})
@@ -791,7 +792,8 @@ class TestDelaySurvivesWorkerException(unittest.TestCase):
             mf.RETRIES = fetcher.RETRIES
             ms.side_effect = lambda s: clock.__setitem__("t", clock["t"] + s)
             crawl.crawl(["http://hub.test/"], 10, db_path=":memory:",
-                        robots_cache=robots, now=lambda: clock["t"], workers=8)
+                        robots_cache=robots, now=lambda: clock["t"], workers=8,
+                        sleep=ms)
         self.assertEqual(len(sent), 2, "b.test 를 두 번 요청해야 간격을 잰다: %s" % sent)
         return [b - a for a, b in zip(sent, sent[1:])]
 
@@ -1102,7 +1104,8 @@ class TestUnkeepableDelayFoundOnFailure(unittest.TestCase):
             mf.RETRIES = fetcher.RETRIES
             ms.side_effect = lambda s: clock.__setitem__("t", clock["t"] + s)
             crawl.crawl(["http://hub.test/"], 10, db_path=":memory:",
-                        robots_cache=robots, now=lambda: clock["t"], workers=8)
+                        robots_cache=robots, now=lambda: clock["t"], workers=8,
+                        sleep=ms)
         return sent, err.getvalue()
 
     def test_over_the_cap_domain_is_dropped_and_reported(self):
@@ -1333,7 +1336,7 @@ class TestDeadline(unittest.TestCase):
             ms.side_effect = lambda s: clock.__setitem__("t", clock["t"] + s)
             n = crawl.crawl(["http://a.com/", "http://b.com/"], 5, db_path=":memory:",
                             robots_cache=robots, now=lambda: clock["t"],
-                            workers=8, deadline=10)
+                            workers=8, deadline=10, sleep=ms)
         self.assertTrue(holder["store"].has("http://b.com/"),
                         "떠 있던 요청의 결과를 버렸다 — 응답을 받아 놓고 버리면 "
                         "다음 실행이 같은 URL 을 또 때린다")

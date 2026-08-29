@@ -176,7 +176,7 @@ def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None,
                 # 아니라 자르는 것이다** — 깨어나서 위의 소진 검사로 끝낼 뿐,
                 # 짧아진 간격으로 요청이 나가지는 않는다
                 wait = frontier.seconds_until_ready()
-                time.sleep(wait if left is None else min(wait, left))
+                sleep(wait if left is None else min(wait, left))
                 continue
             # 던질 것이 없으면 결과를 기다린다 — 0초는 "떠 있는 도메인뿐" 이라는 뜻이라
             # 타임아웃 대신 완료를 기다린다 (계약 8)

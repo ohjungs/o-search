@@ -1,35 +1,67 @@
 ---
 signal: GREEN
 phase: 개발
-step: 3
+step: 4
 attempt: 0
-iteration: 156
+iteration: 157
 updated: 2026-08-29
 ctx: 33
-night_iterations: 38
+night_iterations: 39
 night_red: 0
 night_retries: 0
 ---
 
 # 현재 상태
 
-**계획 33 `clock-injection` 개발 스텝 2 완료 — 워커 쪽 대기가 주입 지점이 됐다.**
-단위 **433건 전부 OK** (3.1초). 열린 계획 **1** · 보류 패치 0 · RED 0. 작업 트리 깨끗.
-스텝 1의 TDD 빨강 2건(`TestSleepIsInjected`)이 초록이 됐다.
+**계획 33 `clock-injection` 개발 스텝 3 완료 — 설계 계약 2 가 완성됐다.**
+단위 **433건 전부 OK** (3.27초) · **e2e 17종 전수 rc=0**. 열린 계획 **1** ·
+보류 패치 0 · RED 0. 작업 트리 깨끗.
+
+이제 `src/websearch/crawl.py` 에 `time.sleep` **호출은 0곳**이고, 시그니처 기본값
+2곳만 남는다. 두 대기 자리가 **같은 하나**를 쓴다:
 
 ```python
 def _fetch_one(url, robots, now, floor, sleep=time.sleep):   # crawl.py:33
-    ...  sleep(remaining)                                     # crawl.py:74 (전역 → 주입)
-def crawl(..., deadline=None, sleep=time.sleep):              # crawl.py:87
-    pool.submit(_fetch_one, url, robots, now, frontier.interval(domain), sleep)  # :170
+    ...  sleep(remaining)                                     # crawl.py:74  워커
+def crawl(..., deadline=None, sleep=time.sleep):              # crawl.py:88
+    pool.submit(_fetch_one, ..., frontier.interval(domain), sleep)           # :170
+    ...  sleep(wait if left is None else min(wait, left))     # crawl.py:179 메인 ← 이번
 ```
 
-diff **10줄**(`src` 6 · `tests` 4). 계약 6개 전부 지켰다: 인자는 맨 뒤 · 두 대기 자리가
+스텝 3 의 `src` diff 는 **1줄**. 계약 6개 전부 지켰다: 인자는 맨 뒤 · 두 대기 자리가
 같은 하나 · 규약은 `time.sleep` 과 동일 · `DOMAIN_INTERVAL` 하한 무변경 ·
 **간격 기대값(`[1.0]`·`[5.0]`·`[1.0, 1.0]`) 한 글자도 안 고쳤다.**
 
+**스텝 2 가 미룬 e2e 를 여기서 갚았다.** 겉보기 동작이 안 바뀌는 계획이라 e2e 가
+유일한 실제 증거인데 스텝 2 는 안 돌리고 넘어갔다. 17종 전부 rc=0 —
+직접 표적인 `crawl_delay_e2e`·`perf_crawl`·`deadline_e2e` 포함.
+
 브랜치 `loop/clock-injection`, 기점 **`de28dfb`**(`loop/readme-perf-audit`).
 `main` 은 `f888518` 그대로 — 건드리지 않았다.
+
+## 같은 함정을 스텝 3 에서 다시 밟았다 — 이번엔 빨강이 아니라 **행**
+
+아래 스텝 2 의 실측(기본 인자는 `def` 시점에 박혀 `mock.patch` 가 못 닿는다)이
+`crawl.py:179` 에도 똑같이 적용된다. 다른 점은 **증상**이다. 워커 쪽은 간격이
+`[0.0, 0.0]` 으로 찍혀 **빨개졌지만**, 메인 루프는 가짜 시계가 안 흐르면
+`frontier.seconds_until_ready()` 가 영원히 1.0 이라 **무한 루프**가 된다 —
+첫 테스트에서 120초 타임아웃으로 끊었다. **타임아웃이 없으면 야간 루프가
+여기서 멈춰 섰을 자리다.**
+
+닫는 법은 스텝 2 와 같다: 남은 `crawl.crawl()` 호출 **7곳에 `sleep=ms`** 를 넘긴다.
+`tests` diff 는 전부 그 한 인자 추가고, 기대값·시나리오는 안 건드렸다.
+`mock.patch` 줄 10곳은 스텝 4 의 일이라 그대로 뒀다.
+
+**변이 검사를 예비로 재 봤다** (스텝 5 의 정식 판정은 스텝 4 뒤다):
+
+| 변이 | 결과 |
+|---|---|
+| M1 — 메인 쪽 대기를 통째로 삭제 | **죽는다** (타임아웃 rc=124) |
+| M2 — `:179` 를 전역 `time.sleep` 으로 되돌리기 | **안 죽는다** (rc=0) |
+
+M2 가 사는 이유는 몽키패치 10곳이 아직 그 전역을 잡아 주기 때문이다. 계획서가
+"여기서 안 죽으면 테스트가 여전히 전역에 붙어 있는 것" 이라고 적어 둔 바로 그 상태고,
+**스텝 4 를 건너뛰면 이 계획은 아무것도 안 고친 것이 된다.**
 
 ## 계획의 가정 하나가 거짓이었다 (스텝 2에서 실측)
 
@@ -59,15 +91,17 @@ _fetch_one.__defaults__ : (<built-in function sleep>,)
 (`sleep=None` 센티널) 우회는 **스텝 1 이 이미 고정한 `test_default_sleep_is_the_real_one`
 을 깬다.** 스텝 4 의 남은 일은 그만큼 줄었다.
 
-## 다음에 할 일 — 개발 스텝 3 (메인 쪽 대기)
+## 다음에 할 일 — 개발 스텝 4 (몽키패치 걷어내기)
 
-`crawl.py:179` 의 `time.sleep(wait if left is None else min(wait, left))` 를
-`sleep(...)` 으로 바꾼다. `crawl()` 은 이미 `sleep` 을 인자로 들고 있으니 **그 한 줄뿐**이다.
-설계 계약 2("두 대기 자리가 같은 하나를 쓴다")가 그때 완성된다.
+`tests/test_crawl.py` 의 `mock.patch("websearch.crawl.time.sleep") as ms` **10줄을
+지운다.** `ms` 는 이제 전부 `sleep=ms` 로 명시적으로 넘어가므로, 그 자리에
+`ms = mock.Mock()` 을(또는 `side_effect` 를 단 평범한 함수를) 두면 그만이다.
+**제품 코드는 안 건드린다** — 스텝 3 으로 이음매는 이미 다 만들어졌다.
 
-**완료 판정**: `grep -n 'time\.sleep' src/websearch/crawl.py` 가 **기본값 2곳만** 남고
-(`:33`·`:87` 시그니처), 호출은 0곳. 단위 433건 OK.
-스텝 3 뒤에는 스텝 4 에서 `mock.patch("websearch.crawl.time.sleep")` 10곳을 걷어낸다.
+**완료 판정**: `grep -c 'crawl\.time\.sleep' tests/test_crawl.py` 가 **0**
+(오늘 11 — 코드 10 + `TestSleepIsInjected` 독스트링 1). 단위 433건 OK 이고
+**간격 기대값을 하나도 안 고친다**. 고쳐야 통과하면 이음매가 틀린 것이니 멈춘다.
+그다음이 스텝 5 — 거기서 **M2 를 다시 잰다. 이번엔 죽어야 한다.**
 
 ## 계획 33 요약 (상세는 `docs/plan_clock-injection.md`)
 
