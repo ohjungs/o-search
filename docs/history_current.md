@@ -210,3 +210,15 @@ append 전용. 수정·삭제 금지.
   커밋 없이 되돌렸다(`git status --short` 비었음 확인).
 - `argparse` 재기각: `type=int` 가 `int("٨٠٨٠")` 를 그대로 받아 **같은 버그다.**
 - 다음: 스텝 1 개발 — 실패하는 테스트부터(`--max ٨٠` 이 rc 2 이고 `crawl()` 안 불림).
+
+## 반복 138 — 계획 25 스텝 1 (개발): `cli.py` 신설, `crawl` 이관
+
+- **RED 를 먼저 봤다**: `crawl.main(["prog","http://a.com/","--max","٨٠"])` → **rc 0**.
+  80페이지로 진짜 돌았다는 뜻이다(`crawled.assert_not_called()` 도 같이 죽었다).
+- `src/websearch/cli.py` 신설 — `number_flag(args, name, default)` 하나.
+  `crawl.py` 의 `_number_flag` 는 지웠고(`grep` 으로 잔존 참조 0 확인) 호출 셋이
+  `cli.number_flag` 를 쓴다. 값 검사는 `value.isascii() and value.isdigit()`.
+- **파서가 안 보는 것**: 범위. `--max ≥ 1`·`--workers ≥ 1` 검사는 호출부에 그대로 뒀다.
+  `maximum=` 같은 인자를 파서에 넣으면 추측성 확장이다(설계 2절).
+- 검증: `PYTHONPATH=src python3 -m unittest discover tests` → **Ran 413 · OK**(412 + 새것 1).
+- 다음: 스텝 2 — `serve.py:318-327` 의 인라인 블록을 `cli.number_flag` 로.

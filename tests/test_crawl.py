@@ -127,6 +127,25 @@ class TestCrawl(unittest.TestCase):
         self.assertEqual((args[0], args[1]), (["http://a.com/"], 3))
         self.assertEqual((kwargs["workers"], kwargs["deadline"]), (2, 5))
 
+    def test_non_ascii_digits_and_python_int_forms_are_not_numbers(self):
+        """`int("٨٠")` 은 **80 이다** — 운영자가 친 적 없는 값으로 조용히 돈다.
+
+        `int()` 가 받아 주는 것이 사람이 생각하는 숫자보다 넓다: 아랍-인도 숫자,
+        언더스코어 구분자(`8_0`), 앞뒤 공백, 부호. 셋 다 조용히 통과했다(실측).
+        `urls.domain_key`(019)·`serve --port ٨٠٨٠`(24)가 **각자 자기 파일에서만**
+        막은 그 함정의 세 번째 자리다.
+
+        **파서가 한 자리로 모였다는 증거이기도 하다** — `cli.number_flag` 에서
+        `isascii()` 를 떼면 여기와 `test_serve.py` 의 같은 테스트가 **함께** 죽는다.
+        한쪽만 죽으면 아직 두 벌이다.
+        """
+        with mock.patch("websearch.crawl.crawl", return_value=0) as crawled:
+            for bad in (["--max", "٨٠"], ["--workers", "٨"], ["--deadline", "٦٠"],
+                        ["--max=٨٠"], ["--max", "8_0"], ["--max", " 80 "],
+                        ["--max", "+80"], ["--workers", "²"]):
+                self.assertEqual(crawl.main(["prog", "http://a.com/"] + bad), 2, bad)
+        crawled.assert_not_called()
+
     def test_equals_form_errors_return_usage_not_a_default_run(self):
         # 값이 틀렸으면 기본값으로 조용히 도는 것이 아니라 사용법을 낸다
         with mock.patch("websearch.crawl.crawl", return_value=0) as crawled:

@@ -2,14 +2,14 @@
 signal: GREEN
 plan: number-flag
 phase: 개발
-step: 1
+step: 2
 attempt: 0
-iteration: 137
-night_iterations: 20
+iteration: 138
+night_iterations: 21
 night_red: 0
 night_retries: 0
-updated: 2026-08-29 18:25 (반복 137 · 설계 완료 — cli.py 로 정함)
-ctx: 64% / 200k
+updated: 2026-08-29 18:40 (반복 138 · 스텝 1 완료 — cli.py 신설, crawl 이관)
+ctx: 67% / 200k
 stopped: -
 rules: 1411a37
 mode: night (지시 실행 — 준 것만 하고 정지)
@@ -17,10 +17,10 @@ mode: night (지시 실행 — 준 것만 하고 정지)
 
 # 현재 상태
 
-**계획 25 `number-flag` — 설계 완료(`docs/design_number-flag.md`), 다음은 스텝 1 개발.**
-공유 파서의 자리는 **새 모듈 `src/websearch/cli.py`** 로 정했다(축 하나 = 파일 하나
-관용구 + `serve`/`indexer` 가 `crawl` 을 임포트하지 않게). 함수 본문과 계약은
-설계 4절에 그대로 적혀 있다 — 개발은 그것을 옮기고 호출부 둘을 갈아끼우면 된다.
+**계획 25 `number-flag` — 스텝 1 완료, 다음은 스텝 2**(`serve.main` 의 `--port` 를
+`cli.number_flag` 로 갈아끼우고 범위 검사 `0~65535` 만 남긴다 · `serve.py:318-327`).
+`src/websearch/cli.py` 가 생겼고 `crawl` 셋(`--max`·`--workers`·`--deadline`)이 그것을
+쓴다. 단위 412 → **413건 OK**. 설계는 `docs/design_number-flag.md` 4절에 함수 계약.
 보류 패치 0건. 단위 **412건 OK** · e2e **17종 전부 rc=0**.
 
 ## 이번 세션 (반복 136) — `loop/number-flag`
@@ -40,6 +40,11 @@ mode: night (지시 실행 — 준 것만 하고 정지)
 **가장 위험한 가정을 탐침으로 깼다**: 파서를 좁히면 `--max -5`·`--deadline -1` 의
 경로가 `int()` 수용 → 호출부 `< 1` 에서 **파서 거절**로 바뀌는데, 임시로 좁혀 돌리니
 **412건 전부 OK**(rc 2 유지, 바뀌는 것은 stderr 문구뿐). 탐침은 되돌렸다.
+
+**138 · 스텝 1 개발.** TDD 로 갔다 — `--max ٨٠`·`--workers ٨`·`--deadline ٦٠`·
+`--max=٨٠`·`8_0`·`' 80 '`·`+80`·`²` 여덟이 rc 2 이고 `crawl()` 이 안 불리는 테스트를
+먼저 쓰고 **RED 를 눈으로 봤다**(`--max ٨٠` → rc 0, 80페이지로 돌았다). 그다음
+`src/websearch/cli.py` 를 만들고 `crawl._number_flag` 를 지웠다. 413건 OK.
 
 ## 이번 세션 (반복 134~135) — `loop/deadline-patches` (기점 `1eaf879`)
 
