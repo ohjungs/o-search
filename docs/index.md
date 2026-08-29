@@ -333,4 +333,15 @@ plan_history_<NNN>.md 를 다 열어볼 필요가 없게 하는 것이 목적이
     테스트를 더하자 `단위 429건` 이 즉시 FAILED 를 냈다.
     단위 429 → **430건 OK** · e2e 넷 rc=0(`src` 무변경이라 나머지는 30 의 17종 그대로).
 
+32. `serve-500-log-cause` 완료 (**짧은 경로**, 계획서 없음 · 브랜치 `loop/readme-perf-audit`)
+    `digest`/`status` 의 `[6]`("`serve.do_GET` 의 넓은 `try`", 확신 낮음)을 **고치기 전에
+    쟀고 측정이 결론이었다.** `_page_hits` 에 `AttributeError`·`TypeError`·`MemoryError`
+    를 주입하니 JSON·HTML 둘 다 **500 + 고정 문구 + `Traceback` 유출 0** 이고,
+    `Exception` 이라 `KeyboardInterrupt` 는 안 삼키며, `try` 는 `_parse`+`_page_hits`
+    만 덮고 **200 렌더링은 `else` 에 있다**. 넓다던 `try` 는 이미 좁았다 — **`src` 0줄**.
+    구멍은 테스트 쪽이었다: 화면 경로 500 의 **로그 단언이 0건**이었고, JSON 쪽은
+    접두어만 봐서 `%r` 을 고정 문구로 바꿔도 초록이었다(= 원인이 아무 데도 없는 500).
+    기존 두 클래스에 테스트 1 + 단언 1. 변이 3종이 **각각 새 단언 하나씩만** 죽였다.
+    단위 430 → **431건 OK** · e2e 는 `src` 무변경이라 serve 쓰는 둘만(rc=0).
+
 색인 규모 단계(10만→100만)는 별도 계획이 아니라 7번(quality-eval) 이후 운영 측정으로 판정.

@@ -337,6 +337,11 @@ class TestMissingDb(ServeTestCase):
             logged = err.getvalue()
         self.assertEqual(status, 500)
         self.assertIn("search 실패", logged, "500 이 stderr 에 한 줄도 안 남았다")
+        # 한 줄이 남은 것으로는 부족하다. `except Exception` 은 프로그래밍 오류
+        # (AttributeError·TypeError)까지 같은 500 으로 접는데, 응답 본문은 고정
+        # 문구라 원인이 로그에만 있다. `%r` 을 고정 문자열로 바꿔도 위 단언은
+        # 초록이고 그 순간 이 500 은 못 고치는 500 이 된다.
+        self.assertIn("FileNotFoundError", logged, "500 의 원인이 로그에 안 남았다")
 
     def test_normal_request_stays_out_of_the_log(self):
         # 접근 로그는 계속 꺼져 있어야 한다 — 위 수정이 stdlib 기본 로그를 되살리면 안 된다
@@ -584,6 +589,19 @@ class TestHtmlPathFailsSafely(ServeTestCase):
         _, body, _ = self.raw("/?q=%EA%B9%80%EC%B9%98")
         self.assertIn('value="김치"', body, "오류 페이지가 입력한 질의어를 버렸다")
         self.assertNotIn("autofocus", body, "오류 문구를 지나쳐 입력창으로 끌려간다")
+
+    def test_500_page_logs_its_cause(self):
+        """화면 경로에도 같은 넓은 `try` 가 있는데 로그 단언은 JSON 쪽에만 있었다.
+
+        사람에게 보여줄 수 없어서 뺀 원인이 로그에도 없으면 아무 데도 없다.
+        `_do_html` 의 log_error 를 통째로 지워도 여기 오기 전까지는 다 초록이었다.
+        """
+        with mock.patch("sys.stderr", new_callable=io.StringIO) as err:
+            status, _, _ = self.raw("/?q=%EA%B9%80%EC%B9%98")
+            logged = err.getvalue()
+        self.assertEqual(status, 500)
+        self.assertIn("검색 화면 실패", logged, "화면 500 이 stderr 에 한 줄도 안 남았다")
+        self.assertIn("FileNotFoundError", logged, "500 의 원인이 로그에 안 남았다")
 
     def test_home_still_renders_without_a_db(self):
         """홈은 색인을 읽지 않는다 — DB 가 죽어도 첫 화면은 떠야 한다."""
