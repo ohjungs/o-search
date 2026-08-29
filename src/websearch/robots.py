@@ -9,6 +9,10 @@ from websearch import urls
 
 USER_AGENT = "websearchbot/0.1"
 
+# RFC 9309 2.5 는 **최소 500 KiB 까지만** 파싱하면 된다고 못 박는다. 그 위는 남이 정하는
+# 크기라 `fetcher.MAX_BYTES` 와 같은 이유로 상한이 필요하다 — 여기만 안 막혀 있었다.
+MAX_ROBOTS_BYTES = 512_000
+
 # stdlib 은 정수 Crawl-delay 만 받는다(RobotFileParser 가 isdigit 으로 거른다).
 # "Crawl-delay: 3.5" 를 조용히 버리면 기본 1초로 떨어져 **요청보다 빠르게** 때린다 —
 # 컨셉 1순위인 크롤 윤리 위반이라, 그때만 아래 폴백이 본문을 직접 읽는다.
@@ -143,7 +147,12 @@ class RobotsCache:
         req = urllib.request.Request(base + "/robots.txt", headers={"User-Agent": USER_AGENT})
         try:
             with urllib.request.urlopen(req, timeout=10) as resp:
-                return resp.status, resp.read().decode("utf-8", errors="replace")
+                raw = resp.read(MAX_ROBOTS_BYTES + 1)  # +1 이 있어야 잘렸는지 안다
+                if len(raw) > MAX_ROBOTS_BYTES:
+                    # 잘린 마지막 줄은 **버린다**: 반쪽 `Disallow: /sec` 는 원문(`/secret`)
+                    # 보다 덜 막는다 — 자르다가 사이트 뜻보다 후해지는 쪽이 나쁜 쪽이다
+                    raw = raw[:MAX_ROBOTS_BYTES].rpartition(b"\n")[0]
+                return resp.status, raw.decode("utf-8", errors="replace")
         except urllib.error.HTTPError as e:
             return e.code, ""
         except (urllib.error.URLError, OSError):

@@ -226,3 +226,55 @@ class TestKnownDelay(unittest.TestCase):
         c = _cache_with(lambda base: (200, "User-agent: *\nCrawl-delay: 5"))
         c.allowed("http://slow.com/page")
         self.assertIsNone(c.known_delay("http://other.com/page"))
+
+
+class _Resp:
+    """`read(n)` 을 실제로 지키는 가짜 응답. mock 은 인자를 무시해 상한을 못 잰다."""
+
+    def __init__(self, body, status=200):
+        self.body, self.status, self.asked = body, status, None
+
+    def read(self, n=-1):
+        self.asked = n
+        return self.body if n < 0 else self.body[:n]
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+
+def _fetch(body):
+    resp = _Resp(body)
+    with mock.patch("urllib.request.urlopen", return_value=resp):
+        return robots.RobotsCache()._fetch_robots("http://a.com")[1], resp
+
+
+def _fetch_body(body):
+    return _fetch(body)[0]
+
+
+class TestRobotsBodyIsBounded(unittest.TestCase):
+    """robots.txt 는 **우리가 크기를 정하지 않은 남의 바이트**다 — `fetcher` 는 이미
+    `MAX_BYTES` 로 막는데 여기만 안 막혀 있었다(digest 후보 `[5]`)."""
+
+    def test_a_huge_robots_txt_does_not_come_into_memory_whole(self):
+        body, resp = _fetch(b"User-agent: *\nDisallow: /x\n" + b"# pad\n" * 200_000)
+        # **읽고 나서 자르면 늦다** — 이미 메모리에 들어와 있다. `read` 에 준 수를 본다
+        self.assertGreater(resp.asked, 0)
+        self.assertLessEqual(resp.asked, robots.MAX_ROBOTS_BYTES + 1)
+        self.assertLessEqual(len(body), robots.MAX_ROBOTS_BYTES)
+
+    def test_the_cut_line_is_dropped_not_half_parsed(self):
+        # 반쪽 `Disallow: /sec` 는 원문(`/secret`)보다 **덜** 막는다 — 잘린 줄은 버린다
+        head = b"User-agent: *\nDisallow: /a\n"
+        pad = b"#" + b"p" * 98 + b"\n"
+        body = _fetch_body(head + pad * (robots.MAX_ROBOTS_BYTES // 100) + b"Disallow: /secret")
+        self.assertEqual(body.rsplit("\n", 1)[-1], "#" + "p" * 98)  # 마지막 줄이 온전하다
+        self.assertNotIn("Disallow: /sec", body.split("Disallow: /a")[1])
+
+    def test_a_normal_robots_txt_keeps_its_last_line(self):
+        # 상한을 안 넘으면 아무것도 안 자른다. 끝 개행이 없는 파일이 흔하다
+        body = _fetch_body(b"User-agent: *\nCrawl-delay: 5")
+        self.assertEqual(body, "User-agent: *\nCrawl-delay: 5")
