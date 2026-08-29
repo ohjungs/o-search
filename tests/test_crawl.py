@@ -1060,9 +1060,13 @@ class TestDeadline(unittest.TestCase):
         self.assertEqual(self._elapsed(ms), 8.0)
 
     def test_deadline_flag_errors_return_usage_not_traceback(self):
-        for bad in (["--deadline"], ["--deadline", "abc"], ["--deadline", "0"],
-                    ["--deadline", "-1"]):
-            self.assertEqual(crawl.main(["prog", "http://a.com/"] + bad), 2, bad)
+        # 가드가 회귀하면 `main` 이 진짜 `crawl()` 을 불러 a.com 으로 요청이 나간다.
+        # RED 일 때 실네트워크로 나가지 않도록 막는다 — 가드가 살아 있으면 안 불린다
+        with mock.patch("websearch.crawl.crawl", return_value=0) as crawled:
+            for bad in (["--deadline"], ["--deadline", "abc"], ["--deadline", "0"],
+                        ["--deadline", "-1"]):
+                self.assertEqual(crawl.main(["prog", "http://a.com/"] + bad), 2, bad)
+        crawled.assert_not_called()
 
     def test_exhausted_budget_is_reported(self):
         # 조용히 적게 수집한 것과 "예산대로 끝났다" 가 구별되지 않으면 안 된다

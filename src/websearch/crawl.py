@@ -216,7 +216,7 @@ def _number_flag(args, name, default):
 def main(argv):
     if len(argv) < 2:
         print("usage: python3 -m websearch.crawl <seed-url> [seed-url ...] "
-              "[--max N] [--workers N] [--deadline SECONDS]", file=sys.stderr)
+              "[--max N] [--workers N] [--deadline N]", file=sys.stderr)
         return 2
     args = list(argv[1:])
     max_pages = _number_flag(args, "--max", 100)

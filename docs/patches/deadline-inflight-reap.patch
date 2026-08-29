@@ -1,0 +1,23 @@
+# 보류(critical): 예산 만료 break 가 떠 있는 요청의 결과를 통째로 버린다 (계획 020 리뷰 3/4)
+# executor 는 with 를 나갈 때 그 요청들을 어차피 기다린다 — 시간은 치르고 결과만 버린다.
+# 다음 실행에서 같은 URL 을 다시 때리므로 크롤 윤리로도 손해다.
+# 단위 테스트 없음: 가짜 시계는 sleep 에서만 흐르고 sleep 은 inflight 가 빌 때만 하므로
+#   'inflight 를 둔 채 예산 만료' 상태에 도달할 수 없다. 실시계(e2e)에서만 재현된다.
+diff --git a/src/websearch/crawl.py b/src/websearch/crawl.py
+index af92d2d..287bb51 100644
+--- a/src/websearch/crawl.py
++++ b/src/websearch/crawl.py
+@@ -108,6 +108,13 @@ def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None,
+             # 남은 예산. None 이면 예산이 없다는 뜻이라 아래 두 자리가 오늘 그대로 흐른다
+             left = None if deadline is None else deadline - (now() - started)
+             if left is not None and left <= 0:
++                # 떠 있는 요청은 **결과만 줍고** 끝낸다. `with` 를 나갈 때 executor 가
++                # 어차피 이것들을 기다리므로 추가 대기는 0이다 — 안 주우면 이미 보낸
++                # 요청의 응답을 버리고 다음 실행에서 같은 URL 을 또 때리게 된다
++                for future in list(inflight):
++                    url, domain = inflight.pop(future)
++                    saved += _store_result(future, url, domain, store, frontier,
++                                           now, robots)
+                 # 조용히 적게 수집한 것과 "예산대로 끝났다" 는 구별돼야 한다
+                 print("예산 %g초 소진 — %d페이지에서 멈춘다" % (deadline, saved),
+                       file=sys.stderr)
