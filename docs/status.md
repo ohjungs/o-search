@@ -1,16 +1,16 @@
 ---
 signal: GREEN
-plan: null (짧은 경로 indexer-cli-guard 완료)
+plan: null (집안일 — history 회전)
 phase: 계획
 step: -
 attempt: 0
-iteration: 129
-night_iterations: 12
+iteration: 130
+night_iterations: 13
 night_red: 0
 night_retries: 0
-updated: 2026-08-29 14:55 (반복 129 · 밤 마무리 — 보고서·지표 기록)
-ctx: 45% / 200k
-stopped: 계획 소진 (탐색 1~4순위 전부 빔 · digest 잔여는 승인 대기라 야간 금지)
+updated: 2026-08-29 15:03 (반복 130 · history_current 722 → 259줄 회전)
+ctx: 40% / 200k
+stopped: -
 rules: 1411a37
 mode: night
 ---
@@ -70,11 +70,14 @@ e2e 만 잡는다 — `tests/test_crawl.py` 가 `crawl` 을 목으로 갈아끼�
 대부분 **승인 대기**(recrawl·마이그레이션·userinfo·`X-Robots-Tag`)라 야간 금지다.
 다음 밤이 빈손으로 끝나면 그건 탐색 실패가 아니라 **사용자 판단이 밀린 것**이다.
 
-## 밀린 집안일
+## 집안일 — 회전 완료 (반복 130)
 
-`docs/history_current.md` 가 **722줄**이다(상한 300 / 20회). 줄 수로 회전이
-밀렸다 — 오래된 것부터 `history_006.md` 로 밀어내고 `digest.md` 에 1~2줄로
-압축한다. **스텝이 아니라 밤 마무리 때 한다**(직교 편집).
+`docs/history_current.md` **722 → 259줄**. 반복 97~122(계획 015~019)를
+`history_006.md` 로 밀어냈고 `digest.md ## 완료` 에 아카이브 한 줄을 더했다.
+015·016·017 은 digest 완료 절에 항목이 없어 그 줄에 `index.md` 15~17번과
+`## 판단 필요` 항목을 가리키는 포인터를 적었다 — 안 적으면 탐색이 못 찾는다.
+잘린 자리의 "바로 위 두 항목" 참조는 `history_current.md` 헤더에 한 줄로 복구했다.
+무손실 확인: 원본 722줄이 헤더 24 + 아카이브 466 + 잔류 232 로 `diff` 0.
 
 ## 열지 않는 것
 
