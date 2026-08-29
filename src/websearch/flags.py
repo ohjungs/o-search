@@ -21,8 +21,9 @@ def number_flag(args, name, default):
     나머지는 조용히 무시된다(실제로 그랬다: `deadline-patches`). 모르는 형태를
     args 에 남기면 그것이 **시드로 새어** 크롤이 기본값으로 돈다.
 
-    범위는 안 본다 — 상한·하한이 호출부마다 다르다(`--workers ≥ 1`·`--port ≤ 65535`,
-    `--max` 는 0 도 받는다). 음수는 파서가 거절한다 — `-` 는 숫자가 아니다.
+    범위는 안 본다 — 상한·하한이 호출부마다 다르다(`--max`·`--workers`·`--deadline`
+    은 ≥ 1 인데 `--port` 는 0 이 "임의 포트" 라는 뜻이고 상한이 65535 다).
+    음수는 파서가 거절한다 — `-` 는 숫자가 아니다.
     """
     equals = name + "="
     for i, arg in enumerate(args):

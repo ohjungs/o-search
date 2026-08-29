@@ -101,6 +101,28 @@ class TestCrawl(unittest.TestCase):
         self.assertEqual(crawl.main(["prog", "http://a.com/", "--max"]), 2)
         self.assertEqual(crawl.main(["prog", "http://a.com/", "--max", "abc"]), 2)
 
+    def test_max_zero_is_rejected_like_workers_and_deadline(self):
+        """`--max 0` 은 **요청 0건 · `수집 0 페이지` · rc 0** 이었다(실측).
+
+        같은 파서·같은 관용구를 쓰는 셋 중 `--max` 만 하한이 없었다 —
+        `--workers 0`·`--deadline 0` 은 진작 rc 2 다. 0 은 아무도 일부러 치지 않는
+        값이고, 낸 결과는 **크롤이 아무것도 못 찾은 것과 구별되지 않는 성공**이다.
+        이 저장소가 두 번 닫은 실패 유형이다(`indexer-cli-guard` 의 "없는 DB 를 0건
+        성공으로 합치지 않는다" · 25 의 "없는 명령이 rc 0 으로 위장된다").
+
+        **0 을 일괄 금지하는 것이 아니다** — `serve --port 0` 은 "임의 포트" 라는
+        뜻이 있어 계속 받는다. 하한은 파서가 아니라 플래그의 뜻이 정한다.
+        """
+        with mock.patch("websearch.crawl.crawl", return_value=0) as crawled:
+            for bad in (["--max", "0"], ["--max=0"]):
+                self.assertEqual(crawl.main(["prog", "http://a.com/"] + bad), 2, bad)
+        crawled.assert_not_called()
+        # **대조군은 하한 그 자체다** — `< 1` 을 `< 2` 로 잘못 조이면 위의 단언은
+        # 전부 초록인 채 1페이지 크롤만 조용히 죽는다(`--max=3` 은 그것을 못 본다)
+        with mock.patch("websearch.crawl.crawl", return_value=0) as crawled:
+            self.assertEqual(crawl.main(["prog", "http://a.com/", "--max", "1"]), 0)
+        self.assertEqual(crawled.call_args[0][1], 1)
+
     def test_flags_accept_the_equals_form(self):
         """`--name=값` 이 조용히 무시되면 안 된다 — 셋 다 같은 파서를 쓴다.
 

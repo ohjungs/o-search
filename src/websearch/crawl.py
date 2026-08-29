@@ -219,8 +219,10 @@ def main(argv):
         return 2
     args = list(argv[1:])
     max_pages = flags.number_flag(args, "--max", 100)
-    if max_pages is None:
-        print("--max 는 숫자 하나를 받는다", file=sys.stderr)
+    # 0 은 요청을 한 건도 안 보내고 `수집 0 페이지` rc 0 을 냈다 — 크롤이 아무것도
+    # 못 찾은 것과 구별되지 않는 성공이다. `--workers`·`--deadline` 과 같은 하한을 쓴다
+    if max_pages is None or max_pages < 1:
+        print("--max 는 1 이상의 숫자 하나를 받는다", file=sys.stderr)
         return 2
     workers = flags.number_flag(args, "--workers", WORKERS)
     if workers is None or workers < 1:
