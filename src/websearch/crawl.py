@@ -81,6 +81,11 @@ def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None,
     예산이 하는 일은 **"덜 보낸다"** 뿐이고 "빨리 보낸다" 는 아니다: 간격은 안 깎는다.
     **메인 스레드만 예산을 본다** — 이미 떠 있는 요청은 그대로 끝까지 간다.
     그래서 실제 종료는 예산 + 최악 90초다(설계 5절 2번).
+    그 요청들의 **결과는 줍는다** — 설계 4절이 줍는지 버리는지를 비워 뒀고
+    2026-08-29 에 줍는 쪽으로 정했다. executor 가 `with` 를 나갈 때 어차피 그것들을
+    기다리므로 **추가 대기는 0**이고, 버리면 이미 받은 응답을 버린 채 다음 실행이
+    같은 URL 을 또 때린다 — 크롤 윤리로도 손해다. 줍는 것은 결과뿐이라
+    **새 요청은 나가지 않는다**(`_store_result` 는 네트워크를 하지 않는다).
 
     **Ctrl-C 가 즉시 안 먹는다.** `ThreadPoolExecutor` 는 나갈 때 떠 있는 요청을 기다려서,
     최악 `fetcher` 타임아웃 10초 × 재시도 **+ 재시도 사이의 간격 대기**(도메인 간격 ×
@@ -108,6 +113,13 @@ def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None,
             # 남은 예산. None 이면 예산이 없다는 뜻이라 아래 두 자리가 오늘 그대로 흐른다
             left = None if deadline is None else deadline - (now() - started)
             if left is not None and left <= 0:
+                # 떠 있는 요청은 **결과만 줍고** 끝낸다. `with` 를 나갈 때 executor 가
+                # 어차피 이것들을 기다리므로 추가 대기는 0이다 — 안 주우면 이미 보낸
+                # 요청의 응답을 버리고 다음 실행에서 같은 URL 을 또 때리게 된다
+                for future in list(inflight):
+                    url, domain = inflight.pop(future)
+                    saved += _store_result(future, url, domain, store, frontier,
+                                           now, robots)
                 # 조용히 적게 수집한 것과 "예산대로 끝났다" 는 구별돼야 한다
                 print("예산 %g초 소진 — %d페이지에서 멈춘다" % (deadline, saved),
                       file=sys.stderr)

@@ -1068,6 +1068,67 @@ class TestDeadline(unittest.TestCase):
                 self.assertEqual(crawl.main(["prog", "http://a.com/"] + bad), 2, bad)
         crawled.assert_not_called()
 
+    def test_inflight_results_are_reaped_when_budget_expires(self):
+        """예산 만료로 끊을 때 **떠 있는 요청의 결과를 줍는다** (설계 4절 공백을 메운 결정).
+
+        `ThreadPoolExecutor` 는 `with` 를 나갈 때 그 요청들을 어차피 기다린다 —
+        안 주우면 **시간은 치르고 결과만 버리는** 것이고, 다음 실행이 같은 URL 을
+        또 때린다. 크롤 윤리로도 손해다.
+
+        시계가 `sleep` 에서만 흐르면 이 상태를 만들 수 없다 — `sleep` 은 inflight 가
+        빌 때만 하기 때문이다. 그래서 **a.com 저장이 끝난 순간**(메인 스레드,
+        예산 재검사 직전)에 시계를 예산 밖으로 보내고 b.com 을 풀어 준다.
+        b 는 그때까지 응답할 수 없으므로 첫 `wait` 의 `done` 에 들어갈 수 없고,
+        따라서 **`inflight` 에 남은 채로** 예산 검사를 맞는다.
+        """
+        released = threading.Event()
+        pages = {"http://a.com/": "a", "http://b.com/": "b"}
+        clock = {"t": 1000.0}
+
+        def fake_fetch(url, before_send=None, **kw):
+            if before_send is not None:
+                before_send()
+            if url.startswith("http://b.com/"):  # 메인이 예산을 다시 볼 때까지 떠 있는다
+                self.assertTrue(released.wait(10), "b.com 을 풀어 주지 못했다")
+            return FetchResult(200, pages[url], url)
+
+        robots = mock.Mock()
+        robots.allowed = lambda url: True
+        robots.delay = lambda url: None
+        robots.known_delay = robots.delay
+
+        real_store = crawl.Store
+        holder = {}
+
+        def spy_store(path):
+            store = real_store(path)
+            upsert = store.upsert
+
+            def hooked(url, html, status):  # 첫 저장 = a.com — 그 순간 예산을 넘긴다
+                upsert(url, html, status)
+                if not released.is_set():
+                    clock["t"] += 100
+                    released.set()
+
+            store.upsert = hooked
+            holder["store"] = store
+            return store
+
+        with mock.patch("websearch.crawl.fetcher") as mf, \
+             mock.patch("websearch.crawl.time.sleep") as ms, \
+             mock.patch("websearch.crawl.Store", spy_store), \
+             mock.patch("sys.stderr", new_callable=io.StringIO):
+            mf.fetch = fake_fetch
+            mf.RETRIES = fetcher.RETRIES
+            ms.side_effect = lambda s: clock.__setitem__("t", clock["t"] + s)
+            n = crawl.crawl(["http://a.com/", "http://b.com/"], 5, db_path=":memory:",
+                            robots_cache=robots, now=lambda: clock["t"],
+                            workers=8, deadline=10)
+        self.assertTrue(holder["store"].has("http://b.com/"),
+                        "떠 있던 요청의 결과를 버렸다 — 응답을 받아 놓고 버리면 "
+                        "다음 실행이 같은 URL 을 또 때린다")
+        self.assertEqual(n, 2, "주운 페이지가 수집 수에 안 들어갔다")
+
     def test_exhausted_budget_is_reported(self):
         # 조용히 적게 수집한 것과 "예산대로 끝났다" 가 구별되지 않으면 안 된다
         with mock.patch("sys.stderr", new_callable=io.StringIO) as err:
