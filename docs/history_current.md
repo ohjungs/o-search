@@ -211,3 +211,31 @@ append 전용. 수정·삭제 금지.
 - 다음: 개발 스텝 2 — `_fetch_one` 에 `sleep=time.sleep` 을 **뒤에** 붙이고
   `crawl.py:74` 를 `sleep(remaining)` 으로, `crawl()` 이 `crawl.py:170` 에서 넘긴다.
   스텝 1 의 2건이 초록이 되고 나머지 431건은 그대로 초록이어야 한다.
+
+## 2026-08-29 | clock-injection (33) | 개발 스텝2 | 시도0
+
+- **워커 쪽 대기를 주입 지점으로 옮겼다.** `_fetch_one(url, robots, now, floor,
+  sleep=time.sleep)` · `crawl.py:74` 가 `sleep(remaining)` · `crawl()` 이
+  `deadline` 뒤에 `sleep=time.sleep` 을 받아 `crawl.py:170` 에서 그대로 넘긴다.
+  diff 10줄(`src` 6 · `tests` 4). 스텝 1 의 TDD 빨강 2건이 초록이 됐다.
+- **계획의 가정 하나가 거짓이었다.** 스텝 2 는 "몽키패치 10곳은 그대로지만 전역 패치가
+  기본값도 잡으므로 초록" 이라고 적어 뒀는데, **기본 인자는 `def` 실행 시점에 한 번
+  평가돼 `_fetch_one.__defaults__` 에 진짜 `time.sleep` 객체가 박힌다.** `mock.patch` 는
+  `time` 모듈의 **속성**만 갈아끼우므로 이미 박힌 기본값에는 닿지 않는다. 실측으로 확인:
+  `_fetch_one.__defaults__ == (<built-in function sleep>,)` 이고 패치 중에도 그대로다.
+- **그래서 첫 실행에서 8건이 빨개졌다** (`TestRetriesKeepTheInterval` 3 ·
+  `TestRetryUsesWhatTheFrontierKnows` 5). 가짜 시계가 안 흘러 간격이 `[0.0, 0.0]` 으로
+  찍혔고 진짜로 자느라 전체가 129초 걸렸다. **이 빨강 자체가 주입이 실제로 동작한다는
+  반증이다** — 안 옮겨졌다면 전역 패치가 계속 먹혀 아무 일도 안 일어났을 것이다.
+- **최소 수정으로 닫았다**: 호출 지점 3곳(`:849`·`:954` 의 `crawl.crawl`, `:1030` 의
+  `_fetch_one` 직접 호출)에 `sleep=ms` 를 넘긴다 — 이미 만들어 둔 그 가짜 시계 목이다.
+  기대값도 시나리오도 안 건드렸다(계약 6). `mock.patch` 는 **남겨 뒀다**: 메인 쪽
+  (`crawl.py:179`)이 아직 전역을 쓰므로 스텝 3 전에는 그게 필요하다.
+- **스코프 이탈을 기록한다.** `tests/test_crawl.py` 는 스텝 2 의 "건드릴 파일"(`src` 만)
+  **밖**이다. 대안이 없었다 — 기본값을 늦게 묶는 `sleep=None` 센티널 우회는
+  **스텝 1 이 이미 고정한 `test_default_sleep_is_the_real_one` 을 깨고**, 스텝 4 가
+  어차피 지울 임시 발판이다. 스텝 4(몽키패치 치환)의 일이 3줄 줄었다.
+- 검증: 단위 **433건 전부 OK** (3.1초, `PYTHONDONTWRITEBYTECODE=1`). `_fetch_one` 을
+  부르는 곳이 `crawl.py:170` 하나뿐임을 `src`·`e2e`·`tests` 전역 grep 으로 확인했다.
+- 다음: 개발 스텝 3 — `crawl.py:179` 를 `sleep(...)` 으로. `crawl()` 이 이미 인자를
+  들고 있어 **한 줄**이다. 그때 설계 계약 2("두 대기 자리가 같은 하나")가 완성된다.

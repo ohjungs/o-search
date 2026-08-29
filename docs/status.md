@@ -1,76 +1,73 @@
 ---
 signal: GREEN
 phase: 개발
-step: 2
+step: 3
 attempt: 0
-iteration: 155
+iteration: 156
 updated: 2026-08-29
-ctx: 30
-night_iterations: 37
+ctx: 33
+night_iterations: 38
 night_red: 0
 night_retries: 0
 ---
 
 # 현재 상태
 
-**계획 33 `clock-injection` 개발 스텝 1 완료 — 빨간불을 눈으로 봤다.**
-`src` **0줄** · 열린 계획 **1** · 보류 패치 0 · RED 0.
-단위 **433건 중 2건 실패 — 이것이 의도된 TDD 빨강이다**(스텝 1의 산출물이 곧 실패
-테스트다). **RED 신호가 아니다**; 스텝 2가 이 둘을 초록으로 만든다. 작업 트리 깨끗.
-
-```
-TypeError: crawl() got an unexpected keyword argument 'sleep'
-KeyError: 'sleep'
-```
-
-**약한 빨강이라 탐침으로 보강했다.** 둘 다 단언에 닿기 전에 시그니처에서 터지므로
-"실패를 봤다" 만으로는 단언이 옳다는 근거가 안 된다. 같은 시나리오를 `sleep=` 없이
-재니 **오늘 전역 `time.sleep` 이 `[1.0, 1.0]` 2회** 불린다 — ①의 "전역 0회" 는
-오늘 거짓이고 스텝 2 뒤에 참이 되는, 살아 있는 단언이다.
-
-브랜치 `loop/clock-injection`, 기점 **`de28dfb`**(`loop/readme-perf-audit`).
-`main` 은 `f888518` 그대로 — 건드리지 않았다.
-
-브랜치 `loop/clock-injection`, 기점 **`de28dfb`**(`loop/readme-perf-audit`).
-`main` 은 `f888518` 그대로 — 건드리지 않았다.
-
-## 설계 완료 — `docs/design_clock-injection.md`
-
-**대안 B(정공법)를 골랐다: `sleep` 을 `now` 옆에 기본값 있는 인자로 추가한다.**
+**계획 33 `clock-injection` 개발 스텝 2 완료 — 워커 쪽 대기가 주입 지점이 됐다.**
+단위 **433건 전부 OK** (3.1초). 열린 계획 **1** · 보류 패치 0 · RED 0. 작업 트리 깨끗.
+스텝 1의 TDD 빨강 2건(`TestSleepIsInjected`)이 초록이 됐다.
 
 ```python
-def _fetch_one(url, robots, now, floor, sleep=time.sleep): ...
-def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None,
-          now=time.monotonic, workers=WORKERS, deadline=None, sleep=time.sleep): ...
+def _fetch_one(url, robots, now, floor, sleep=time.sleep):   # crawl.py:33
+    ...  sleep(remaining)                                     # crawl.py:74 (전역 → 주입)
+def crawl(..., deadline=None, sleep=time.sleep):              # crawl.py:87
+    pool.submit(_fetch_one, url, robots, now, frontier.interval(domain), sleep)  # :170
 ```
 
-`now` 가 이미 그 모양이라 **새 구조가 아니라 빠져 있던 짝을 채우는 것**이다
-(사다리 2번). 아무것도 안 넘기면 오늘 동작 그대로 — 기본값이 곧 꺼진 플래그다.
-버린 둘: **A(테스트 전용 가짜 시계)** 는 중복만 줄이고 막힌 것을 그대로 두며,
-**C(시계 객체)** 는 `now=` 쓰는 19곳을 전부 고치게 만드는 추측성 추상화다.
+diff **10줄**(`src` 6 · `tests` 4). 계약 6개 전부 지켰다: 인자는 맨 뒤 · 두 대기 자리가
+같은 하나 · 규약은 `time.sleep` 과 동일 · `DOMAIN_INTERVAL` 하한 무변경 ·
+**간격 기대값(`[1.0]`·`[5.0]`·`[1.0, 1.0]`) 한 글자도 안 고쳤다.**
 
-**설계 중 잰 것이 선택을 갈랐다 — 지금의 몽키패치는 사정거리가 프로세스 전역이다.**
-`mock.patch("websearch.crawl.time.sleep")` 의 `time` 은 공유된 stdlib 모듈 객체라,
-그 10개 테스트가 도는 동안 **모든 모듈·모든 스레드의 `time.sleep` 이 가짜**다(실측 확인).
-`crawl` 은 워커를 띄우므로 그 안의 누구든 `time.sleep` 을 쓰기 시작하면 가짜 시계가
-조용히 흘러 **간격 단언이 거짓이 된다.** 컨셉 갈림길 1순위가 크롤 윤리이고
-도메인 1초 간격은 "어기면 RED" 인 전제 조건인데, 그것을 재는 장치가 그 상태였다.
+브랜치 `loop/clock-injection`, 기점 **`de28dfb`**(`loop/readme-perf-audit`).
+`main` 은 `f888518` 그대로 — 건드리지 않았다.
 
-## 다음에 할 일 — 개발 스텝 2 (워커 쪽 대기)
+## 계획의 가정 하나가 거짓이었다 (스텝 2에서 실측)
 
-`docs/design_clock-injection.md` 의 **「계약」 6개를 먼저 읽는다.** 특히:
-① 인자는 **뒤에** 붙인다(위치 인자 순서를 바꾸면 `_fetch_one` 을 직접 부르는 테스트
-7곳이 조용히 어긋난다) · ② 두 대기 자리가 **같은 하나**를 쓴다 · ③ 규약은
-`time.sleep` 과 동일(초 하나, 반환값 안 봄) · ⑥ **간격 기대값을 고치면 안 된다.**
+계획서 스텝 2 는 "몽키패치 10곳은 그대로지만 **전역 패치가 기본값도 잡으므로** 초록"
+이라고 적어 뒀다. **거짓이다.** 기본 인자는 `def` 실행 시점에 한 번 평가돼
+`_fetch_one.__defaults__` 에 **진짜 `time.sleep` 객체가 박힌다**. `mock.patch` 는
+`time` 모듈의 **속성**을 갈아끼울 뿐이라 이미 박힌 기본값에는 닿지 않는다. 실측:
 
-`_fetch_one(url, robots, now, floor, sleep=time.sleep)` 로 바꾸고 `crawl.py:74` 의
-`time.sleep(remaining)` 을 `sleep(remaining)` 으로. `crawl()` 도 `sleep=time.sleep` 을
-받아 `crawl.py:170` 에서 그대로 넘긴다.
+```
+_fetch_one.__defaults__ : (<built-in function sleep>,)
+패치 중 time.sleep      : <MagicMock ...>
+기본값은 여전히 진짜인가 : True
+```
 
-**완료 판정**: 스텝 1 의 2건이 초록 + 나머지 431건도 초록(= 433건 OK).
-스텝 1 테스트는 **워커 쪽만 지나도록 좁혀 놨으므로** 메인 쪽(`crawl.py:179`, 스텝 3)을
-안 고쳐도 초록이 돼야 한다. 안 되면 기본값을 안 쓰고 있는 것이다.
-기존 몽키패치 10곳은 아직 그대로지만 전역 패치가 기본값도 잡으므로 초록이어야 한다.
+그래서 첫 실행에서 **8건이 빨개졌다**(`TestRetriesKeepTheInterval` 3 ·
+`TestRetryUsesWhatTheFrontierKnows` 5). 가짜 시계가 안 흘러 간격이 `[0.0, 0.0]` 으로
+찍혔고, 진짜로 자느라 전체가 129초 걸렸다 — **주입이 실제로 동작한다는 반증**이기도 하다.
+
+**최소 수정으로 닫았다**: 그 3개 호출 지점에 `sleep=ms` 를 넘긴다(이미 만들어 둔 가짜
+시계 목 그대로). 기대값도 시나리오도 안 건드렸다. `mock.patch` 는 아직 남겨 뒀다 —
+메인 쪽(`crawl.py:179`)이 아직 전역을 쓰므로 스텝 3 전에는 필요하다.
+
+**기록해 둘 것**: `tests/test_crawl.py` 는 스텝 2 의 "건드릴 파일"(= `src` 만) **밖**이다.
+다만 **계획 밖 파일은 아니다** — 스텝 4 의 건드릴 파일이 바로 그 파일이라 정지 조건
+"계획에 없는 파일 수정" 에는 걸리지 않는다.
+스텝 4(몽키패치 치환)의 일부를 3줄 선취한 셈이고, 대안이 없었다 — 기본값을 늦게 묶는
+(`sleep=None` 센티널) 우회는 **스텝 1 이 이미 고정한 `test_default_sleep_is_the_real_one`
+을 깬다.** 스텝 4 의 남은 일은 그만큼 줄었다.
+
+## 다음에 할 일 — 개발 스텝 3 (메인 쪽 대기)
+
+`crawl.py:179` 의 `time.sleep(wait if left is None else min(wait, left))` 를
+`sleep(...)` 으로 바꾼다. `crawl()` 은 이미 `sleep` 을 인자로 들고 있으니 **그 한 줄뿐**이다.
+설계 계약 2("두 대기 자리가 같은 하나를 쓴다")가 그때 완성된다.
+
+**완료 판정**: `grep -n 'time\.sleep' src/websearch/crawl.py` 가 **기본값 2곳만** 남고
+(`:33`·`:87` 시그니처), 호출은 0곳. 단위 433건 OK.
+스텝 3 뒤에는 스텝 4 에서 `mock.patch("websearch.crawl.time.sleep")` 10곳을 걷어낸다.
 
 ## 계획 33 요약 (상세는 `docs/plan_clock-injection.md`)
 
@@ -78,18 +75,15 @@ def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None,
   그 비대칭 때문에 `tests/test_crawl.py` 가 `websearch.crawl.time.sleep` 을
   **10곳**에서 몽키패치한다. 이 저장소가 크롤 간격을 초 단위로 단언하는 근거가 전부 거기다.
 - **막고 있는 것**: 워커까지 Ctrl-C 를 넣으려면 `crawl.py:74` 가 `Event.wait` 가 돼야
-  하는데 그러면 10곳이 한꺼번에 눈이 먼다. `digest.md:156` 이 우회로("`stop` 이 `None`
-  이면 `time.sleep`")를 이미 검토하고 버렸다 — 테스트 경로와 제품 경로가 갈린다.
+  하는데 그러면 10곳이 한꺼번에 눈이 먼다.
 - **실측 정정**: digest 는 **9곳**이라고 적어 뒀지만 실제로 **10곳**이다
   (65·622·672·742·787·843·948·1023·1096·1325, 전부 `tests/test_crawl.py`. `e2e/` 는 0곳).
   계획 종료 시 `digest.md:156` 을 고친다.
 - **스텝 5개**, 전부 일렬 의존. 완료 기준의 핵심 두 개:
   `grep -c 'crawl\.time\.sleep' tests/test_crawl.py` = **0** ·
-  **기존 간격 기대값(`[1.0]`·`[5.0]`·`[1.0, 1.0]`)을 하나도 안 고친다.**
-  기대값을 고쳐야 통과한다면 이음매가 틀린 것이니 설계로 되돌아간다.
-- **e2e 는 "달라진 게 없다" 를 증명하는 자리다** — 가짜 시계가 초록인데 진짜 대기가
-  사라지는 것이 유일한 실제 위험이고, 그것은 서버 시각을 재는 `crawl_delay_e2e.py` ·
-  `perf_crawl.py` · `deadline_e2e.py` 만 볼 수 있다.
+  **기존 간격 기대값을 하나도 안 고친다.**
+- **e2e 는 "달라진 게 없다" 를 증명하는 자리다** — `crawl_delay_e2e.py` ·
+  `perf_crawl.py` · `deadline_e2e.py` 만 진짜 대기가 사라졌는지 볼 수 있다.
 
 ## 아직 남은 후보 (반복 152 의 분류 — (c) 첫 항목만 빠졌다)
 
@@ -104,7 +98,7 @@ def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None,
 `ja` 질의가 생길 수 없다). 셋 다 **지금 짜면 죽은 코드**다.
 
 **(c) 정식 계획 크기 — 설계 트리거에 걸린다**
-~~`[6]` 가짜 시계 이음매~~ → **계획 33 으로 열렸다.** 남은 둘:
+~~`[6]` 가짜 시계 이음매~~ → **계획 33 으로 열었다.** 남은 둘:
 `[4]` 간격 시계가 발신이 아니라 pop 시각에서 시작 · `[7]` 요청 사이 색인 변경 시
 OFFSET 페이지네이션 드리프트. 둘 다 40줄을 넘고 대안이 갈려 **야간 자동 적용 밖**이다.
 

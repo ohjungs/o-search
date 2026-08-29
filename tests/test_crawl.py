@@ -847,7 +847,8 @@ class TestRetriesKeepTheInterval(unittest.TestCase):
             mf.RETRIES = fetcher.RETRIES
             ms.side_effect = lambda s: clock.__setitem__("t", clock["t"] + s)
             crawl.crawl(["http://hub.test/"], 10, db_path=":memory:",
-                        robots_cache=robots, now=lambda: clock["t"], workers=8)
+                        robots_cache=robots, now=lambda: clock["t"], workers=8,
+                        sleep=ms)
         return sent
 
     def test_retries_are_spaced_by_the_domain_interval(self):
@@ -952,7 +953,8 @@ class TestRetryUsesWhatTheFrontierKnows(unittest.TestCase):
             mf.RETRIES = fetcher.RETRIES
             ms.side_effect = lambda s: clock.__setitem__("t", clock["t"] + s)
             crawl.crawl([self.HUB], 10, db_path=":memory:",
-                        robots_cache=robots, now=lambda: clock["t"], workers=8)
+                        robots_cache=robots, now=lambda: clock["t"], workers=8,
+                        sleep=ms)
         return sent
 
     def _retry_gaps(self, sent, url):
@@ -1026,7 +1028,7 @@ class TestRetryUsesWhatTheFrontierKnows(unittest.TestCase):
             mf.RETRIES = fetcher.RETRIES
             ms.side_effect = lambda s: clock.__setitem__("t", clock["t"] + s)
             crawl._fetch_one("http://b.test/1", FakeRobots(),
-                             now=lambda: clock["t"], floor=0.0)
+                             now=lambda: clock["t"], floor=0.0, sleep=ms)
 
         gaps = [b - a for a, b in zip(sent, sent[1:])]
         self.assertTrue(gaps, "재시도 표본이 없다 — 잴 대상이 사라졌다")

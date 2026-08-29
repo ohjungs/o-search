@@ -30,7 +30,7 @@ class NoUsableSeedsError(ValueError):
     """
 
 
-def _fetch_one(url, robots, now, floor):
+def _fetch_one(url, robots, now, floor, sleep=time.sleep):
     """워커 스레드가 하는 일 전부. **`Store`·`Frontier`·카운터를 만지지 않는다** (설계 계약 4).
 
     `robots` 는 예외로 워커들이 **공유하는** `RobotsCache` 다. `_parser()` 가
@@ -71,7 +71,7 @@ def _fetch_one(url, robots, now, floor):
         if sends:
             remaining = interval - (now() - sends[-1])
             if remaining > 0:
-                time.sleep(remaining)
+                sleep(remaining)
         sends.append(now())  # 간격 시계는 팝이 아니라 **발신**에서 시작한다 (계약 9)
 
     # 간격을 지킬 수 없는 도메인(상한 초과)에는 다시 보내지 않는다 — 깎아서 때리는 것보다
@@ -85,8 +85,8 @@ def _fetch_one(url, robots, now, floor):
 
 
 def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None,
-          now=time.monotonic, workers=WORKERS, deadline=None):
-    """수집에 성공(2xx + HTML)한 페이지 수를 돌려준다. robots_cache·now 는 테스트 주입 지점.
+          now=time.monotonic, workers=WORKERS, deadline=None, sleep=time.sleep):
+    """수집에 성공(2xx + HTML)한 페이지 수를 돌려준다. robots_cache·now·sleep 은 테스트 주입 지점.
 
     `workers=1` 이면 요청이 하나씩 떠서 순차 루프와 같은 순서로 돈다 — 되돌리기 수단이다.
 
@@ -168,7 +168,7 @@ def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None,
                 domain = urls.domain_key(url)
                 busy.add(domain)
                 inflight[pool.submit(_fetch_one, url, robots, now,
-                                     frontier.interval(domain))] = (url, domain)
+                                     frontier.interval(domain), sleep)] = (url, domain)
             if not inflight:
                 if frontier.empty():
                     break
