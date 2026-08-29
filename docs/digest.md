@@ -42,6 +42,17 @@ history_current.md 가 상한을 넘어 밀려날 때, 밀려나는 내용을 1~
   `domain-key`(017) · `url-normalize`(018) · `normalize-gaps`(019) 다섯 계획 전체(계획~DONE).
   015·016·017 은 위 완료 절에 항목이 없다 — 결과는 `index.md` 15~17번, 교훈은 아래
   `## 판단 필요` 의 `~~[5]~~`(016) · `~~[high]~~`(017) 항목이 담고 있다
+- 2026-08-29 | 반복 123~128 → `history_007.md` | plan_deadline (020) 전체(계획~DONE).
+  **총 크롤 시간 예산 `crawl(..., deadline=)` · CLI `--deadline`.** 대안 셋 중 ③ 되돌리기
+  우선(주입된 `now()` 로 재고 메인 스레드가 새 요청을 안 던진다)을 골랐다 — ②
+  `threading.Event` 를 워커까지가 정확도는 이기지만 `test_crawl.py` 9곳의
+  `mock.patch(...time.sleep)` 이음매를 없앤다. **"`stop` 이 None 이면 `sleep`, 아니면
+  `Event.wait`" 두 갈래는 명시적으로 거부했다** — 테스트가 도는 경로와 제품이 도는
+  경로가 갈린다(`[6]` 관용구). **변이 M6(CLI 가 값을 `crawl()` 로 안 넘긴다)이 단위
+  393건을 전부 통과했다** — CLI 배선은 단위가 구조적으로 못 본다(`crawl` 을 목으로
+  갈아끼운다). `e2e/deadline_e2e.py` 가 그 자리 하나 때문에 존재한다. 리뷰 4건 중
+  critical 1 + 1 을 보류 패치로 돌렸고 아래 23번(`deadline-patches`)이 소진했다.
+  단위 388 → **393건 OK** · e2e 15종 rc=0. 재시도 0·RED 0
 
 ## 보류 (승인 대기)
 
