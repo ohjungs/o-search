@@ -101,6 +101,39 @@ class TestCrawl(unittest.TestCase):
         self.assertEqual(crawl.main(["prog", "http://a.com/", "--max"]), 2)
         self.assertEqual(crawl.main(["prog", "http://a.com/", "--max", "abc"]), 2)
 
+    def test_flags_accept_the_equals_form(self):
+        """`--name=값` 이 조용히 무시되면 안 된다 — 셋 다 같은 파서를 쓴다.
+
+        무시되면 사용자가 준 값이 시드로 새고 크롤은 **기본값으로 돈다** —
+        `--deadline=5` 는 예산 없이, `--max=3` 은 100페이지로 도는 식이다.
+        """
+        with mock.patch("websearch.crawl.crawl", return_value=0) as crawled:
+            rc = crawl.main(["prog", "http://a.com/", "--deadline=5", "--max=3",
+                             "--workers=2"])
+        self.assertEqual(rc, 0)
+        args, kwargs = crawled.call_args
+        self.assertEqual(args[0], ["http://a.com/"], "플래그가 시드로 샜다")
+        self.assertEqual(args[1], 3)
+        self.assertEqual(kwargs["workers"], 2)
+        self.assertEqual(kwargs["deadline"], 5)
+
+    def test_space_form_still_works(self):
+        """**대조군.** `=` 를 받는다고 띄어쓰기 형태가 죽으면 안 된다."""
+        with mock.patch("websearch.crawl.crawl", return_value=0) as crawled:
+            rc = crawl.main(["prog", "http://a.com/", "--deadline", "5", "--max", "3",
+                             "--workers", "2"])
+        self.assertEqual(rc, 0)
+        args, kwargs = crawled.call_args
+        self.assertEqual((args[0], args[1]), (["http://a.com/"], 3))
+        self.assertEqual((kwargs["workers"], kwargs["deadline"]), (2, 5))
+
+    def test_equals_form_errors_return_usage_not_a_default_run(self):
+        # 값이 틀렸으면 기본값으로 조용히 도는 것이 아니라 사용법을 낸다
+        with mock.patch("websearch.crawl.crawl", return_value=0) as crawled:
+            for bad in ("--deadline=abc", "--deadline=0", "--max=abc", "--workers=0"):
+                self.assertEqual(crawl.main(["prog", "http://a.com/", bad]), 2, bad)
+        crawled.assert_not_called()
+
     def test_failed_fetch_counted_not_as_page(self):
         n, _, _ = self._run(["http://nowhere.test/"], max_pages=5)
         self.assertEqual(n, 0)

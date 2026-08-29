@@ -141,6 +141,10 @@ def scenario_1_cli_wiring(seeds):
 
     배선이 끊기면 셋 다 깨진다: 예산 소진 메시지가 안 나오고, MAX_PAGES 를 다 채우고,
     4도메인 × 1초 간격이라 5초 넘게 돈다.
+
+    **인자 형태를 섞어 준다** — `--deadline=N`(붙임) 과 `--max N`(띄움) 을 한 번에.
+    `=` 형태가 조용히 무시되면 예산 없이 돌아 ① 이 죽는다. 단위는 `main()` 을
+    직접 부르므로 **진짜 argv 로 오는 형태를 보는 자리는 여기뿐이다.**
     """
     with tempfile.TemporaryDirectory() as tmp:
         os.mkdir(os.path.join(tmp, "data"))  # CLI 는 db 경로를 안 받는다 — cwd 로 가둔다
@@ -149,7 +153,7 @@ def scenario_1_cli_wiring(seeds):
         started = time.monotonic()
         proc = subprocess.run(
             [sys.executable, "-m", "websearch.crawl"] + seeds
-            + ["--max", str(MAX_PAGES), "--deadline", str(int(BUDGET)), "--workers", "8"],
+            + ["--max", str(MAX_PAGES), "--deadline=%d" % int(BUDGET), "--workers=8"],
             cwd=tmp, env=env, capture_output=True, text=True, timeout=60)
         elapsed = time.monotonic() - started
         saved = Store(os.path.join(tmp, "data", "crawl.db")).count()
@@ -170,9 +174,12 @@ def scenario_1_cli_wiring(seeds):
 def scenario_2_realtime_inflight(seeds, ports):
     """실시계에서 예산이 만료될 때 떠 있던 요청은 어떻게 되는가.
 
-    **여기서 재는 수치가 리뷰 3/4 의 보류 패치(`deadline-inflight-reap`) 근거다.**
-    단언으로 못 박지 않는다 — 결과를 줍는지 버리는지는 아직 승인 대기인 설계 결정이라,
-    지금 방향을 단언에 박으면 패치를 적용하는 쪽이 깨진다. 수치만 남기고 판단은 사람이 한다.
+    **줍는다** — 설계 4절이 비워 뒀던 자리를 2026-08-29 에 정했고(`crawl()` 문서열),
+    수치만 남기던 이 자리도 그때 단언이 됐다.
+
+    **눈먼 단언이 아니다**: 줍기를 빼고 3회 돌리면 매번 `버려진 응답 1건` 이 나온다
+    (2026-08-29 실측). 0 은 "그 라운드에 떠 있던 요청이 없었다" 로도 나올 수 있으므로,
+    시나리오가 그 상태를 실제로 만드는지 확인한 뒤에만 이 단언이 뜻을 가진다.
     """
     with tempfile.TemporaryDirectory() as tmp:
         started = time.monotonic()
@@ -185,6 +192,9 @@ def scenario_2_realtime_inflight(seeds, ports):
     # **이미 보낸 요청인데 결과를 버린 것**이다 (다음 실행에서 같은 URL 을 또 때린다)
     served = len(REQUEST_LOG)
     discarded = served - saved
+    assert discarded == 0, (
+        "이미 받은 응답 %d건을 버렸다 — 다음 실행이 같은 URL 을 또 때린다 "
+        "(저장 %d / 서버 응답 %d)" % (discarded, saved, served))
     check_intervals(ports, "시나리오 2")
     return saved, elapsed, served, discarded
 
@@ -218,15 +228,14 @@ def main():
     print("e2e 통과 — 도메인 %d개 · 예산 %.0f초" % (len(ports), BUDGET))
     print("  [0] 대조군(예산 없음): %d페이지 전부, %.1fs — 아래 둘의 잣대"
           % (s0_saved, s0_elapsed))
-    print("  [1] CLI 배선: %d페이지 / max %d, %.1fs, 예산 소진 보고 있음 (M6 죽음)"
-          % (s1_saved, MAX_PAGES, s1_elapsed))
+    print("  [1] CLI 배선: %d페이지 / max %d, %.1fs, 예산 소진 보고 있음 "
+          "(M6 죽음 · 인자는 --deadline=N 붙임 형태)" % (s1_saved, MAX_PAGES, s1_elapsed))
     print("      stderr: %s" % s1_err.splitlines()[-1] if s1_err else "")
     print("      간격 최소 %.2fs (하한 1초)" % min(gaps_1) if gaps_1 else "")
     print("  [2] 실시계: 저장 %d / 서버가 응답한 페이지 %d, %.1fs"
           % (s2_saved, served, s2_elapsed))
-    print("      **버려진 응답 %d건** — 보류 패치 deadline-inflight-reap 의 근거."
+    print("      **버려진 응답 %d건** — 0이어야 한다(단언). 줍기를 빼면 1건이 나온다"
           % discarded)
-    print("      (0이면 그 라운드에 떠 있던 요청이 없었다는 뜻이지 버그가 없다는 뜻이 아니다)")
 
 
 if __name__ == "__main__":

@@ -213,16 +213,30 @@ def _store_result(future, url, domain, store, frontier, now, robots):
 
 
 def _number_flag(args, name, default):
-    """`--name N` 을 뽑아 args 에서 지운다. 없으면 default, 숫자 하나가 아니면 None."""
-    if name not in args:
-        return default
-    i = args.index(name)
-    try:
-        value = int(args[i + 1])
-    except (IndexError, ValueError):
-        return None
-    del args[i:i + 2]
-    return value
+    """`--name N` 과 `--name=N` 을 뽑아 args 에서 지운다.
+
+    없으면 default, 숫자 하나가 아니면 None.
+    **두 형태를 여기 한 자리에서 안다** — 호출부(`--max`·`--workers`·`--deadline`)가
+    각자 알면 하나만 고쳐지고 나머지는 조용히 무시된다(실제로 그랬다).
+    모르는 형태를 args 에 남기면 그것이 **시드로 새어** 크롤이 기본값으로 돈다.
+    """
+    equals = name + "="
+    for i, arg in enumerate(args):
+        if arg == name:
+            try:
+                value = int(args[i + 1])
+            except (IndexError, ValueError):
+                return None
+            del args[i:i + 2]
+            return value
+        if arg.startswith(equals):
+            try:
+                value = int(arg[len(equals):])
+            except ValueError:
+                return None
+            del args[i]
+            return value
+    return default
 
 
 def main(argv):
@@ -241,7 +255,7 @@ def main(argv):
         return 2
     # `--deadline` 은 없는 것이 정상값(`None`)이라 `_number_flag` 의 오류값과 겹친다.
     # 그래서 있었는지를 따로 본다 — `--workers` 처럼 default 로는 못 가른다
-    given = "--deadline" in args
+    given = any(a == "--deadline" or a.startswith("--deadline=") for a in args)
     deadline = _number_flag(args, "--deadline", None)
     if given and (deadline is None or deadline < 1):
         print("--deadline 은 1 이상의 숫자 하나를 받는다", file=sys.stderr)
