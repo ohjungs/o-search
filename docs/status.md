@@ -1,12 +1,12 @@
 ---
 signal: GREEN
-phase: 설계
-step:
+phase: 개발
+step: 1
 attempt: 0
-iteration: 153
+iteration: 154
 updated: 2026-08-29
-ctx: 25
-night_iterations: 36
+ctx: 30
+night_iterations: 37
 night_red: 0
 night_retries: 0
 ---
@@ -21,22 +21,38 @@ night_retries: 0
 브랜치 `loop/clock-injection`, 기점 **`de28dfb`**(`loop/readme-perf-audit`).
 `main` 은 `f888518` 그대로 — 건드리지 않았다.
 
-## 다음에 할 일 — 설계
+## 설계 완료 — `docs/design_clock-injection.md`
 
-`docs/plan_clock-injection.md` 를 읽고 **`docs/design_clock-injection.md` 를 쓴다.**
-계획서가 설계 트리거 2개에 걸린다고 판정했다: **공개 인터페이스 변경**(`crawl()` ·
-`_fetch_one()` 시그니처) · **대안 3갈래**. 계획서는 일부러 모양을 안 정하고
-"이음매" 라고만 써 뒀다 — 저울질은 설계가 한다 (`plan.md` 6-1).
+**대안 B(정공법)를 골랐다: `sleep` 을 `now` 옆에 기본값 있는 인자로 추가한다.**
 
-설계가 비교할 세 출발점(`design.md` 3-1: 최소 / 정공법 / 되돌리기 우선):
+```python
+def _fetch_one(url, robots, now, floor, sleep=time.sleep): ...
+def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None,
+          now=time.monotonic, workers=WORKERS, deadline=None, sleep=time.sleep): ...
+```
 
-1. **최소** — 제품 코드는 그대로 두고 `tests/test_crawl.py` 안에 가짜 시계
-   컨텍스트 매니저 하나만 만든다. 10곳이 3줄씩 줄지만 **문제 1을 못 푼다**
-   (중단 신호가 여전히 막힌다). 버릴 근거를 적고 버릴 것.
-2. **정공법** — `sleep` 을 `now` 옆에 인자로 하나 더 받는다.
-3. **되돌리기 우선** — `now` 와 `sleep` 을 한 객체(시계)로 묶어 넘긴다.
+`now` 가 이미 그 모양이라 **새 구조가 아니라 빠져 있던 짝을 채우는 것**이다
+(사다리 2번). 아무것도 안 넘기면 오늘 동작 그대로 — 기본값이 곧 꺼진 플래그다.
+버린 둘: **A(테스트 전용 가짜 시계)** 는 중복만 줄이고 막힌 것을 그대로 두며,
+**C(시계 객체)** 는 `now=` 쓰는 19곳을 전부 고치게 만드는 추측성 추상화다.
 
-**고를 때 `docs/specs/concept.md` 의 갈림길 우선순위를 먼저 본다.**
+**설계 중 잰 것이 선택을 갈랐다 — 지금의 몽키패치는 사정거리가 프로세스 전역이다.**
+`mock.patch("websearch.crawl.time.sleep")` 의 `time` 은 공유된 stdlib 모듈 객체라,
+그 10개 테스트가 도는 동안 **모든 모듈·모든 스레드의 `time.sleep` 이 가짜**다(실측 확인).
+`crawl` 은 워커를 띄우므로 그 안의 누구든 `time.sleep` 을 쓰기 시작하면 가짜 시계가
+조용히 흘러 **간격 단언이 거짓이 된다.** 컨셉 갈림길 1순위가 크롤 윤리이고
+도메인 1초 간격은 "어기면 RED" 인 전제 조건인데, 그것을 재는 장치가 그 상태였다.
+
+## 다음에 할 일 — 개발 스텝 1 (TDD)
+
+`docs/design_clock-injection.md` 의 **「계약」 6개를 먼저 읽는다.** 특히:
+① 인자는 **뒤에** 붙인다(위치 인자 순서를 바꾸면 `_fetch_one` 을 직접 부르는 테스트
+7곳이 조용히 어긋난다) · ② 두 대기 자리가 **같은 하나**를 쓴다 · ③ 규약은
+`time.sleep` 과 동일(초 하나, 반환값 안 봄) · ⑥ **간격 기대값을 고치면 안 된다.**
+
+스텝 1 = `tests/test_crawl.py` 에 실패 테스트 2건을 쓰고 **빨간불을 눈으로 확인**한다
+(`dev.md` 0절). ① `sleep=fake` 를 넘기면 `fake` 가 불리고 전역 `time.sleep` 은
+안 불린다 ② 안 넘기면 기본값이 `time.sleep` 이다.
 
 ## 계획 33 요약 (상세는 `docs/plan_clock-injection.md`)
 
