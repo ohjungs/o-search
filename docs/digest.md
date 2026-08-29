@@ -77,7 +77,7 @@ history_current.md 가 상한을 넘어 밀려날 때, 밀려나는 내용을 1~
 ## 다음 계획 후보 (테스트 phase 갭, 8점 미만)
 - ~~[6]~~ **닫혔다 — 2026-08-27 반복 89 (짧은 경로).** UA 단언 3건 추가(페이지 요청·robots.txt 요청·**대는 이름과 robots 매칭 이름의 일치**). 변이 3종으로 잡는 것 확인. 269건
 - ~~[5]~~ **대부분 닫혔다 — `cooldown-burn`(011).** `TestCooldownBurn.test_store_skipped_url_does_not_burn_cooldown` 이 스킵 경로를 탄다. 다만 재는 것은 **쿨다운을 안 태운다**까지고, 스킵된 URL 이 다시 저장되지 않는지는 여전히 무단언이다
-- [4] crawl.main CLI 인자 파싱 무테스트
+- ~~[4]~~ **닫혔다 — `deadline-patches`(23), 2026-08-29.** `--max`·`--workers`·`--deadline` 의 두 형태(`--name N` / `--name=N`)와 오류값을 단위 3건이 덮고, `deadline_e2e` 가 붙임 형태로 진짜 argv 를 준다. **파싱 무테스트가 실재 버그를 덮고 있었다** — `--name=값` 이 조용히 무시되고 args 에 남아 시드로 샜다
 - ~~[6]~~ **닫혔다 — `indexer-cli-guard`(짧은 경로), 2026-08-29.** indexer.main 이 pages 테이블 없는 DB 를 받으면 sqlite3.OperationalError 트레이스백이었다. 위 `## 반복 실패` 항목 참조
 
 - [5] `<meta http-equiv="X-Robots-Tag" content="noindex">` 변형은 무시한다 (2026-08-25 noindex-respect 테스트 phase 탐침으로 확인). 표준은 HTTP 헤더이고 http-equiv 변형은 주요 검색엔진도 지원하지 않는다. X-Robots-Tag 헤더 계획(스키마 expand)을 열 때 함께 판단

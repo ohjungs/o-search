@@ -1,88 +1,56 @@
 ---
 signal: GREEN
-plan: null (집안일 + 짧은 경로 robots-read-cap 완료)
+plan: null (사용자 승인 보류 패치 2건 소진 — deadline-patches)
 phase: 계획
 step: -
 attempt: 0
-iteration: 131
-night_iterations: 14
+iteration: 133
+night_iterations: 16
 night_red: 0
 night_retries: 0
-updated: 2026-08-29 15:12 (반복 131 · robots.txt 512KB 상한)
-ctx: 45% / 200k
+updated: 2026-08-29 16:50 (반복 133 · 보류 패치 2건 적용)
+ctx: 51% / 200k
 stopped: -
 rules: 1411a37
-mode: night
+mode: night (지시 실행 — 준 것만 하고 정지)
 ---
 
 # 현재 상태
 
-**열린 계획 없음.** 020 `deadline` DONE(아카이브: `plan_history_018` ·
-`design_history_018` · `index.md` 20번 · e2e `docs/e2e/deadline/`).
-그 뒤 짧은 경로 2건 — `indexer-cli-guard`(21번) · `robots-read-cap`(22번).
-단위 **399건 OK** · e2e **17종 전부 rc=0**.
+**열린 계획 없음. 보류 패치 0건 — `docs/patches/` 는 비었다.**
+단위 **403건 OK** · e2e **17종 전부 rc=0**.
 
-## 승인 대기 (020 이 남긴 보류 2건)
+## 이번 세션 (반복 132~133) — `loop/deadline-patches` (기점 `e57f7bc` = main)
 
-- **`docs/patches/deadline-inflight-reap.patch`** (critical) — 예산 만료 `break` 가
-  **떠 있는 요청의 결과를 버린다**. executor 는 나갈 때 어차피 기다리므로 시간은
-  치르고 결과만 버리는 셈이고 다음 실행에서 같은 URL 을 또 때린다(workers=8 이면
-  최대 7건). 설계 4절이 줍는지 버리는지를 **안 정해** 승인이 필요하다.
-  **단위는 구조적으로 도달 못 한다** — 가짜 시계는 `sleep` 에서만 흐르고 `sleep` 은
-  `inflight` 가 빌 때만 한다. e2e 가 `저장 N / 서버 응답 M` 으로 관측만 한다(0~1건).
-- **`docs/patches/deadline-eq-form.patch`** — `--deadline=5` 가 조용히 무시되고 rc 0.
-  근본 원인 `_number_flag` 가 `--max`·`--workers` 까지 걸려 설계 결정이다.
+사용자가 승인한 보류 패치 2건을 열었다. 둘 다 020 `deadline` 리뷰 3/4 가 남긴 것이다.
 
-## 그 뒤 — 짧은 경로 1건 (반복 129)
+**132 · `deadline-inflight-reap`(critical).** 예산 만료 `break` 가 떠 있는 요청의
+결과를 통째로 버렸다. executor 는 `with` 를 나갈 때 어차피 그것들을 기다리므로
+**시간은 치르고 결과만 버리는** 셈이고, 다음 실행이 같은 URL 을 또 때린다.
+승인이 필요했던 이유는 설계 4절이 **줍는지 버리는지를 안 정했기** 때문이고,
+**줍는 쪽으로 정했다** — 추가 대기 0, 크롤 윤리로도 이득, 새 요청은 안 나간다
+(`_store_result` 는 네트워크를 안 한다). 결정과 근거는 `crawl()` 문서열에 있다.
+`design_history_018.md` 는 아카이브라 안 건드렸다.
 
-**`indexer-cli-guard` 완료.** 브랜치 `loop/indexer-cli-guard`(기점 `9a47341`).
-`pages` 없는 DB 가 트레이스백+rc=1 이던 것을 `NoCrawlDataError` → rc=2 로 닫았다.
-**digest 의 처방("CLI 진입점마다 방어를 따로 쓴다")은 과했다** — 탐침하니
-`serve.main`·`crawl.main` 은 이미 막고 있어 남은 구멍 한 곳만 고쳤다. `index.md` 21번.
+**패치가 "단위 테스트 없음" 이라고 적었지만 쓸 수 있었다.** 시간을 흘리는 손잡이가
+`sleep` 말고 하나 더 있다 — **저장이다**(`store.upsert` 훅). 상세는 `history_current.md`.
 
-## 그 뒤 — 짧은 경로 1건 (반복 131)
-
-**`robots-read-cap` 완료.** `robots._fetch_robots` 의 `resp.read()` 가 무인자였다 —
-`fetcher` 는 `MAX_BYTES` 로 막는데 여기만 크기를 남이 정하는 바이트가 통째로 들어왔다.
-`MAX_ROBOTS_BYTES = 512_000`(RFC 9309 2.5). 근거는 `digest.md` 후보 `[5]`.
-단위 **399건 OK** · e2e **17종 rc=0**. `index.md` 22번 · digest `[5]` 닫음.
-
-**후보가 적어 둔 "한 줄이면 고쳐진다" 는 틀렸다** — 상한이 곧 파서 입력이라
-**자르는 방향**이 계약이다. 반쪽 `Disallow: /sec` 는 원문 `/secret` 보다 덜 막는다.
-그리고 **변이 M1(`read` 인자 삭제)이 처음엔 살아남았다**: 가짜 응답이 무인자 `read()`
-에 전문을 돌려주는데 뒤의 잘라내기가 그것을 덮어, "읽고 나서 자르면 늦다" 는
-이 변경의 존재 이유가 초록불에 가려져 있었다. `read` 에 준 수를 직접 단언해 닫았다.
-
-**사람이 볼 것 — 이것을 보안·자원 건으로 보고 야간에 미뤄야 했나.**
-`severity.md` 3절의 "보안 전반" 은 인증·XSS·주입을 가리키고 이건 자원 상한이다.
-동작은 **좁아지는 쪽으로만** 바뀌고(덜 읽는다), 테스트 3건·변이 4종·e2e 17종이 덮고,
-되돌리기는 `git revert eb6697e` 하나다. 그래서 패치가 아니라 커밋으로 넣었다.
-판단이 다르면 그 커밋만 되돌리면 된다.
+**133 · `deadline-eq-form`.** 패치보다 **넓게** 적용했다. 패치는 `main()` 의 `given`
+한 줄만 고쳐 `--deadline` 만 막았지만 근본 원인은 `_number_flag` 가 `--name=값` 을
+모르는 것이고 `--max`·`--workers` 가 같은 파서다. 세 형태를 파서 한 자리에서 안다.
+e2e 시나리오 1이 `--deadline=2 --workers=8` 붙임 형태로 **진짜 argv** 를 준다 —
+단위는 `main()` 을 직접 부르므로 argv 형태를 보는 자리는 거기뿐이다.
+시나리오 2의 **버려진 응답 수도 단언(0)이 됐다**(줍기를 빼면 3회 모두 1건 — 눈멀지 않았다).
 
 ## 다음
 
-**새 계획 탐색.** 1~4순위(실패 테스트·TODO·`candidates.md`)는 지금 전부 비어 있다 —
-다음 탐색도 `digest.md` 후보 절에서 시작하게 된다. 5절 중복 방지는 `index.md`
-**22개** 항목으로 돌린다.
+**집안일 하나가 밀려 있다** — `history_current.md` 가 **328줄**로 상한 300 을 넘었다
+(`docs.md`). 이번 세션은 지시 실행이라 범위 밖으로 두고 적어만 둔다.
+그 다음은 새 계획 탐색이다(`digest.md ## 다음 계획 후보` · `index.md`).
 
-무인 모드에서 열 수 있는 후보가 얇아지고 있다. `digest.md` 에 남은 큰 것들은
-대부분 **승인 대기**(recrawl·마이그레이션·userinfo·`X-Robots-Tag`)라 야간 금지다.
-이번 밤은 그 판단이 **결론이 아니라 단서**였음을 확인했다 — 후보 절을 다시 읽으니
-승인 제약에 안 걸리는 자원 상한 건이 하나 남아 있었다. 다만 이제 정말 얇다.
-다음 밤이 빈손으로 끝나면 그건 탐색 실패가 아니라 **사용자 판단이 밀린 것**이다.
+## 열지 않는 것 (사용자 판단 대기)
 
-## 집안일 — 회전 완료 (반복 130)
-
-`docs/history_current.md` **722 → 259줄**. 반복 97~122(계획 015~019)를
-`history_006.md` 로 밀어냈고 `digest.md ## 완료` 에 아카이브 한 줄을 더했다.
-015·016·017 은 digest 완료 절에 항목이 없어 그 줄에 `index.md` 15~17번과
-`## 판단 필요` 항목을 가리키는 포인터를 적었다 — 안 적으면 탐색이 못 찾는다.
-잘린 자리의 "바로 위 두 항목" 참조는 `history_current.md` 헤더에 한 줄로 복구했다.
-무손실 확인: 원본 722줄이 헤더 24 + 아카이브 466 + 잔류 232 로 `diff` 0.
-
-## 열지 않는 것
-
-recrawl(`store.has` 상태 불문 스킵 · indexer 증분) · `X-Robots-Tag` ·
-`fetcher` 재시도 구조 변경(digest `[high]` — 옳지만 크다) · `loop/*` 병합 ·
-옛 열쇠 행 통합과 URL userinfo(승인 대기 `[high]` 둘) ·
-기존 `data/crawl.db` 재키잉/마이그레이션.
+`data/crawl.db` 재키잉/옛 열쇠 행 통합(마이그레이션) · URL userinfo 가 `pages.url` PK
+이자 검색 결과에 렌더되는 것(보안 경계) · `recrawl`(`fetched_at` 스키마) ·
+`X-Robots-Tag`(스키마) · `loop/*` 브랜치 병합 · 의존성 추가·업그레이드 ·
+`docs/specs/` 쓰기.
