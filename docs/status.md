@@ -8,9 +8,9 @@ iteration: 129
 night_iterations: 12
 night_red: 0
 night_retries: 0
-updated: 2026-08-29 14:20 (반복 129 · indexer-cli-guard 짧은 경로 완료)
-ctx: 40% / 200k
-stopped: null
+updated: 2026-08-29 14:55 (반복 129 · 밤 마무리 — 보고서·지표 기록)
+ctx: 45% / 200k
+stopped: 계획 소진 (탐색 1~4순위 전부 빔 · digest 잔여는 승인 대기라 야간 금지)
 rules: 1411a37
 mode: night
 ---
@@ -72,7 +72,7 @@ e2e 만 잡는다 — `tests/test_crawl.py` 가 `crawl` 을 목으로 갈아끼�
 
 ## 밀린 집안일
 
-`docs/history_current.md` 가 **689줄**이다(상한 300 / 20회). 줄 수로 회전이
+`docs/history_current.md` 가 **722줄**이다(상한 300 / 20회). 줄 수로 회전이
 밀렸다 — 오래된 것부터 `history_006.md` 로 밀어내고 `digest.md` 에 1~2줄로
 압축한다. **스텝이 아니라 밤 마무리 때 한다**(직교 편집).
 
