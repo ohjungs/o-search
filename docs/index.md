@@ -191,4 +191,12 @@ plan_history_<NNN>.md 를 다 열어볼 필요가 없게 하는 것이 목적이
     남은 구멍은 한 곳이라 한 곳만 고쳤다(digest `[7]` 관용구의 또 다른 사례).
     단위 393 → **396건 OK** · e2e 15종 rc=0.
 
+22. `robots-read-cap` — 완료 (**짧은 경로**, 계획서 없음 · 브랜치 `loop/docs-rotate-006`)
+    `robots.txt` 를 512KB(RFC 9309 2.5)에서 끊는다. `fetcher` 는 `MAX_BYTES` 로 막는데
+    `robots._fetch_robots` 의 `resp.read()` 만 무인자라 크기를 남이 정하는 바이트가
+    통째로 들어왔다. 근거: `digest.md ## 다음 계획 후보` `[5]`(2026-08-25 crawl-delay 리뷰).
+    **자르는 방향이 계약이다** — 잘린 마지막 줄은 버린다. 반쪽 `Disallow: /sec` 는
+    원문 `/secret` 보다 덜 막아, 자르는 행위 자체가 사이트 뜻보다 후해진다.
+    단위 396 → **399건 OK** · e2e **17종 전부 rc=0**.
+
 색인 규모 단계(10만→100만)는 별도 계획이 아니라 7번(quality-eval) 이후 운영 측정으로 판정.
