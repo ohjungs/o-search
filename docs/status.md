@@ -1,15 +1,15 @@
 ---
 signal: GREEN
 plan: number-flag
-phase: 설계
-step: -
+phase: 개발
+step: 1
 attempt: 0
-iteration: 136
-night_iterations: 19
+iteration: 137
+night_iterations: 20
 night_red: 0
 night_retries: 0
-updated: 2026-08-29 18:10 (반복 136 · 계획 25 number-flag 작성)
-ctx: 62% / 200k
+updated: 2026-08-29 18:25 (반복 137 · 설계 완료 — cli.py 로 정함)
+ctx: 64% / 200k
 stopped: -
 rules: 1411a37
 mode: night (지시 실행 — 준 것만 하고 정지)
@@ -17,9 +17,10 @@ mode: night (지시 실행 — 준 것만 하고 정지)
 
 # 현재 상태
 
-**계획 25 `number-flag` 착수 — `docs/plan_number-flag.md`.** 다음은 **설계**다
-(`design.md` 1절 트리거: 새 파일 후보 · 공개 함수 추가 · 3개 이상 파일).
-갈림길은 **공유 파서를 어디 두는가** 하나 — 후보 A/B/C 는 계획서에 적혀 있다.
+**계획 25 `number-flag` — 설계 완료(`docs/design_number-flag.md`), 다음은 스텝 1 개발.**
+공유 파서의 자리는 **새 모듈 `src/websearch/cli.py`** 로 정했다(축 하나 = 파일 하나
+관용구 + `serve`/`indexer` 가 `crawl` 을 임포트하지 않게). 함수 본문과 계약은
+설계 4절에 그대로 적혀 있다 — 개발은 그것을 옮기고 호출부 둘을 갈아끼우면 된다.
 보류 패치 0건. 단위 **412건 OK** · e2e **17종 전부 rc=0**.
 
 ## 이번 세션 (반복 136) — `loop/number-flag`
@@ -31,6 +32,14 @@ mode: night (지시 실행 — 준 것만 하고 정지)
 `' 80 '` → 80, `'+80'` → 80. `--max`·`--workers`·`--deadline` 셋이 같은 파서라 셋 다다.
 반대로 `serve.main(['prog','a.db','--port=8080'])` → **rc 2**(붙임 형태를 모른다) —
 `crawl` 은 `--max=3` 을 받는데 `serve` 는 안 받는 CLI 계약 불일치도 같이 닫는다.
+
+**137 · 설계.** 세 출발점에서 안을 냈다 — ① 모으지 않고 `crawl` 만 좁힌다(3줄) ·
+② 새 모듈 `cli.py` · ③ `crawl.py` 에 두고 `serve` 가 임포트. ①은 **문제를 안 푼다**
+(네 번째 자리를 남긴다). ②③ 중 "더 적게 쓰나" 는 ③ 이 앞서지만 **의존 방향**이
+뒤집었다 — ③ 은 검색 서버가 크롤러를 임포트한다(실측 +6.3ms, 진짜 값은 의미).
+**가장 위험한 가정을 탐침으로 깼다**: 파서를 좁히면 `--max -5`·`--deadline -1` 의
+경로가 `int()` 수용 → 호출부 `< 1` 에서 **파서 거절**로 바뀌는데, 임시로 좁혀 돌리니
+**412건 전부 OK**(rc 2 유지, 바뀌는 것은 stderr 문구뿐). 탐침은 되돌렸다.
 
 ## 이번 세션 (반복 134~135) — `loop/deadline-patches` (기점 `1eaf879`)
 
