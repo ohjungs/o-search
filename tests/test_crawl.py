@@ -1357,8 +1357,12 @@ class TestSleepIsInjected(unittest.TestCase):
         """`sleep=` 을 넘기면 그것만 불리고 전역 `time.sleep` 은 한 번도 안 불린다.
 
         전역은 **가짜로 바꾸지 않고 진짜를 감싸 세기만 한다** — 동작이 그대로여야
-        주입이 샜을 때 "그래도 잤다" 가 보인다. 재시도 사이가 워커 쪽 대기 자리다
-        (`crawl.py:74`), 시드 하나·링크 없음이라 메인 쪽 대기는 지나지 않는다.
+        주입이 샜을 때 "그래도 잤다" 가 보인다. **대기 자리 둘을 다 지난다**:
+        재시도 사이가 워커 쪽(`crawl.py:74`)이고, 한 도메인에 URL 둘·`workers=1`
+        이라 첫 URL 뒤 쿨다운에서 `frontier.next()` 가 None 을 줘 메인 쪽
+        (`crawl.py:179`)도 지난다. 한 자리만 덮으면 다른 자리에 새로 생긴 전역
+        대기를 못 잡는다 — 시계를 안 쓰는 고정 대기(`time.sleep(0.1)`)는 행조차
+        안 나서 조용히 산다.
         """
         slept, clock = [], {"t": 1000.0}
 
@@ -1377,9 +1381,9 @@ class TestSleepIsInjected(unittest.TestCase):
              mock.patch("sys.stderr", io.StringIO()):
             mf.fetch = failing_fetch
             mf.RETRIES = fetcher.RETRIES
-            crawl.crawl(["http://a.test/"], 10, db_path=":memory:",
-                        robots_cache=FakeRobots(), now=lambda: clock["t"],
-                        workers=1, sleep=fake_sleep)
+            crawl.crawl(["http://a.test/1", "http://a.test/2"], 10,
+                        db_path=":memory:", robots_cache=FakeRobots(),
+                        now=lambda: clock["t"], workers=1, sleep=fake_sleep)
         self.assertTrue(slept, "넘긴 sleep 이 한 번도 안 불렸다")
         self.assertEqual(global_sleep.call_count, 0,
                          "전역 time.sleep 이 %d번 불렸다 — 주입이 새고 있다"
