@@ -16,13 +16,17 @@ import pathlib
 import re
 import unittest
 
-README = pathlib.Path(__file__).resolve().parent.parent / "README.md"
+TESTS_DIR = pathlib.Path(__file__).resolve().parent
+README = TESTS_DIR.parent / "README.md"
 
 # `python3 -m websearch.crawl` 의 모듈 이름만 뽑는다. `-m` 뒤 한 토큰이라
 # 뒤에 붙는 인자(`<db>`·`--port N`)는 안 걸린다.
 MODULE = re.compile(r"-m\s+(websearch(?:\.\w+)*)")
 # 인터프리터 이름. 저장소의 usage 문자열은 전부 `python3` 이다.
 INTERPRETER = re.compile(r"^\s*(?:\w+=\S+\s+)*(python3?)\s+-m\s", re.MULTILINE)
+# `## 검증` 이 자랑하는 두 숫자. 손으로 적는 값이라 스위트가 자라면 조용히 낡는다.
+UNIT_COUNT = re.compile(r"단위\s*(\d+)\s*건")
+E2E_COUNT = re.compile(r"e2e\s*시나리오\s*(\d+)\s*종")
 
 
 class ReadmeCommandsTest(unittest.TestCase):
@@ -50,6 +54,19 @@ class ReadmeCommandsTest(unittest.TestCase):
         self.assertEqual(
             [], [i for i in found if i != "python3"],
             "README 가 `python` 을 쓴다 — `python3` 이어야 한다: %s" % found)
+    def test_verification_counts_match_reality(self):
+        # README 가 적어 둔 두 숫자를 README 가 안내한 명령으로 직접 센다.
+        # 419 라고 적힌 채 428 건이던 것이 이 검사가 생긴 이유다.
+        unit = UNIT_COUNT.search(self.text)
+        e2e = E2E_COUNT.search(self.text)
+        self.assertTrue(unit and e2e, "README `## 검증` 에서 숫자를 못 뽑았다")
+
+        actual_unit = unittest.defaultTestLoader.discover(str(TESTS_DIR)).countTestCases()
+        actual_e2e = len(list(README.parent.glob("e2e/*.py")))
+        self.assertEqual(
+            (int(unit.group(1)), int(e2e.group(1))), (actual_unit, actual_e2e),
+            "README 의 (단위, e2e) 숫자가 실제와 다르다 — 실제는 (%d, %d)"
+            % (actual_unit, actual_e2e))
 
 
 if __name__ == "__main__":
