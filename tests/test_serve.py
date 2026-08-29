@@ -818,6 +818,20 @@ class TestCliArgs(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertEqual(made.call_args[0][1], 65535)
 
+    def test_port_zero_means_pick_any_and_is_not_a_rejected_value(self):
+        """0 은 `--port` 에서만 진짜 값이다 — "아무 포트나" 라는 뜻이다.
+
+        `--max`·`--workers`·`--deadline` 은 0 을 거절한다(26). 파서는 범위를 안 보므로
+        **그 비대칭을 지키는 것은 여기 이 줄뿐**인데 단위 커버가 0 이었다:
+        상한을 조이다 `port < 1` 을 같이 넣으면 단위는 전부 초록이고
+        `--port 0` 으로 서버를 띄우는 e2e 넷만 죽는다(digest `[4]`).
+
+        위 65535 테스트와 짝이다 — **경계는 양쪽에서 잰다.**
+        """
+        rc, _, made = self.call("a.db", "--port", "0")
+        self.assertEqual(rc, 0)
+        self.assertEqual(made.call_args[0][1], 0, "0 을 기본값 8000 으로 바꿔치기했다")
+
     def test_non_ascii_digits_are_not_a_port(self):
         """`str.isdigit()` 은 `²`·`٨` 에도 참이다 — `domain_key` 가 이미 밟은 자리다.
 
