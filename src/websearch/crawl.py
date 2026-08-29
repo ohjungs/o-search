@@ -85,7 +85,8 @@ def _fetch_one(url, robots, now, floor, sleep=time.sleep):
 
 
 def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None,
-          now=time.monotonic, workers=WORKERS, deadline=None, sleep=time.sleep):
+          now=time.monotonic, workers=WORKERS, deadline=None, sleep=time.sleep,
+          stop=None):
     """수집에 성공(2xx + HTML)한 페이지 수를 돌려준다. robots_cache·now·sleep 은 테스트 주입 지점.
 
     `workers=1` 이면 요청이 하나씩 떠서 순차 루프와 같은 순서로 돈다 — 되돌리기 수단이다.
@@ -95,6 +96,12 @@ def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None,
     예산이 하는 일은 **"덜 보낸다"** 뿐이고 "빨리 보낸다" 는 아니다: 간격은 안 깎는다.
     **메인 스레드만 예산을 본다** — 이미 떠 있는 요청은 그대로 끝까지 간다.
     그래서 실제 종료는 예산 + 최악 90초다(설계 5절 2번).
+    `stop` 은 **중단 신호**다 — `is_set()`·`wait(t)` 를 가진 것(`threading.Event`).
+    `None` 이면 오늘과 같은 경로만 돈다 — `deadline` 과 같은 형태로 기본값이 곧 꺼진
+    플래그다(docs/design_graceful-interrupt.md). 신호가 서면 **새 요청을 제출하지 않고**
+    예산 소진과 같은 가지로 빠진다 — 떠 있는 결과는 줍는다.
+    잠드는 자리도 `stop.wait` 로 간다: 신호가 잠을 깨워야 하기 때문이다.
+
     그 요청들의 **결과는 줍는다** — 설계 4절이 줍는지 버리는지를 비워 뒀고
     2026-08-29 에 줍는 쪽으로 정했다. executor 가 `with` 를 나갈 때 어차피 그것들을
     기다리므로 **추가 대기는 0**이고, 버리면 이미 받은 응답을 버린 채 다음 실행이
@@ -142,11 +149,18 @@ def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None,
     saved = 0
     started = now()
     inflight = {}  # Future -> (url, domain). **떠 있는 도메인은 다시 팝하지 않는다**(계약 3)
+    # 중단 신호가 있으면 **잠도 그쪽으로 잔다** — 이 자리(아래 `wait_fn(...)`)는 깨워 줄
+    # 워커가 없어 `futures.wait` 처럼 저절로 깨지 않는 유일한 대기다(설계서 축3).
+    # `stop` 이 None 이면 주입된 `sleep` 만 불린다 (설계 계약 2)
+    wait_fn = sleep if stop is None else stop.wait
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
         while saved < max_pages:
             # 남은 예산. None 이면 예산이 없다는 뜻이라 아래 두 자리가 오늘 그대로 흐른다
             left = None if deadline is None else deadline - (now() - started)
-            if left is not None and left <= 0:
+            # 중단은 **예산 소진과 같은 종료다** — 새 요청을 안 내고, 떠 있는 결과는 줍고,
+            # 사유를 남기고 끝난다. 새 종료 경로를 만들지 않는다 (설계 계약 6)
+            interrupted = False  # M1
+            if interrupted or (left is not None and left <= 0):
                 # 떠 있는 요청은 **결과만 줍고** 끝낸다. `with` 를 나갈 때 executor 가
                 # 어차피 이것들을 기다리므로 추가 대기는 0이다 — 안 주우면 이미 보낸
                 # 요청의 응답을 버리고 다음 실행에서 같은 URL 을 또 때리게 된다
@@ -154,8 +168,9 @@ def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None,
                     url, domain = inflight.pop(future)
                     saved += _store_result(future, url, domain, store, frontier,
                                            now, robots)
-                # 조용히 적게 수집한 것과 "예산대로 끝났다" 는 구별돼야 한다
-                print("예산 %g초 소진 — %d페이지에서 멈춘다" % (deadline, saved),
+                # 조용히 적게 수집한 것과 "예산대로/중단으로 끝났다" 는 구별돼야 한다
+                print("중단 — %d페이지에서 멈춘다" % saved if interrupted else
+                      "예산 %g초 소진 — %d페이지에서 멈춘다" % (deadline, saved),
                       file=sys.stderr)
                 break
             busy = {domain for _, domain in inflight.values()}
@@ -176,7 +191,8 @@ def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None,
                 # 아니라 자르는 것이다** — 깨어나서 위의 소진 검사로 끝낼 뿐,
                 # 짧아진 간격으로 요청이 나가지는 않는다
                 wait = frontier.seconds_until_ready()
-                sleep(wait if left is None else min(wait, left))
+                # 중단이면 여기서 깬다 — 반환값은 안 본다. 깨어나서 위 검사로 끝낼 뿐이다
+                wait_fn(wait if left is None else min(wait, left))
                 continue
             # 던질 것이 없으면 결과를 기다린다 — 0초는 "떠 있는 도메인뿐" 이라는 뜻이라
             # 타임아웃 대신 완료를 기다린다 (계약 8)

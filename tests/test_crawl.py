@@ -1407,3 +1407,136 @@ class TestSleepIsInjected(unittest.TestCase):
         for fn in (crawl.crawl, crawl._fetch_one):
             self.assertIs(inspect.signature(fn).parameters["sleep"].default,
                           time.sleep, fn.__name__)
+
+
+class FakeStop:
+    """`threading.Event` 의 계약만 흉내낸다 — `is_set()` 과 `wait(t)` (설계 계약 1).
+
+    `wait` 가 **가짜 시계를 흘리고 `False`(시간이 다 됐다)를 준다.** 진짜 `Event` 를
+    쓰면 메인 루프의 쿨다운 대기가 벽시계로 1초를 진짜로 자고, 그러면 이 파일의
+    가짜 시계가 안 흐르는 채로 실시간만 지나간다.
+    """
+
+    def __init__(self, clock):
+        self._clock = clock
+        self._set = False
+        self.waits = []
+
+    def set(self):
+        self._set = True
+
+    def is_set(self):
+        return self._set
+
+    def wait(self, timeout=None):
+        self.waits.append(timeout)
+        self._clock["t"] += timeout
+        return self._set
+
+
+class TestGracefulInterrupt(unittest.TestCase):
+    """중단 신호가 메인 루프를 접는다 — docs/design_graceful-interrupt.md 계약 2·6.
+
+    **스텝 1 은 메인 루프만 본다.** 워커 쪽(재시도 잠을 깨우기·발신 취소)은 스텝 2 라
+    여기서 재지 않는다.
+    """
+
+    def test_signal_stops_new_submissions_and_reaps_inflight(self):
+        """첫 결과 뒤 신호를 세우면 **새 URL 이 안 나가고**, 떠 있던 결과는 DB 에 들어온다.
+
+        `test_inflight_results_are_reaped_when_budget_expires` 와 같은 형태다 —
+        예산을 넘기는 대신 신호를 세운다. 신호는 **a.com 저장이 끝난 순간**(메인 스레드,
+        루프 꼭대기 재검사 직전)에 선다. b.com 은 그때까지 응답할 수 없으므로 첫
+        `futures.wait` 의 `done` 에 못 들어가고 **`inflight` 에 남은 채로** 검사를 맞는다.
+
+        a.com 은 링크를 하나 갖고 있다 — 중단이 안 걸리면 그 링크가 프런티어에서
+        올라와 **신호 뒤에 새 요청이 나간다**. 그것이 이 테스트가 재는 것이다.
+        """
+        stop = threading.Event()
+        released = threading.Event()
+        pages = {"http://a.com/": '<a href="/1">1</a>', "http://a.com/1": "one",
+                 "http://b.com/": "b"}
+        clock = {"t": 1000.0}
+        fetched = []
+
+        def fake_fetch(url, before_send=None, **kw):
+            fetched.append(url)
+            if before_send is not None:
+                before_send()
+            if url.startswith("http://b.com/"):  # 메인이 꼭대기를 다시 볼 때까지 떠 있는다
+                self.assertTrue(released.wait(10), "b.com 을 풀어 주지 못했다")
+            return FetchResult(200, pages[url], url)
+
+        real_store = crawl.Store
+        holder = {}
+
+        def spy_store(path):
+            store = real_store(path)
+            upsert = store.upsert
+
+            def hooked(url, html, status):  # 첫 저장 = a.com — 그 순간 신호가 선다
+                upsert(url, html, status)
+                if not released.is_set():
+                    stop.set()
+                    released.set()
+
+            store.upsert = hooked
+            holder["store"] = store
+            return store
+
+        started = time.monotonic()
+        with mock.patch("websearch.crawl.fetcher") as mf, \
+             mock.patch("websearch.crawl.Store", spy_store), \
+             mock.patch("sys.stderr", new_callable=io.StringIO) as err:
+            mf.fetch = fake_fetch
+            mf.RETRIES = fetcher.RETRIES
+            ms = mock.Mock(side_effect=lambda s: clock.__setitem__("t", clock["t"] + s))
+            n = crawl.crawl(["http://a.com/", "http://b.com/"], 10, db_path=":memory:",
+                            robots_cache=FakeRobots(), now=lambda: clock["t"],
+                            workers=8, sleep=ms, stop=stop)
+        self.assertEqual(sorted(fetched), ["http://a.com/", "http://b.com/"],
+                         "신호 뒤에 새 요청이 나갔다")
+        self.assertTrue(holder["store"].has("http://b.com/"),
+                        "떠 있던 요청의 결과를 버렸다 — 응답을 받아 놓고 버리면 "
+                        "다음 실행이 같은 URL 을 또 때린다")
+        self.assertEqual(n, 2, "주운 페이지가 수집 수에 안 들어갔다")
+        # 조용히 적게 수집한 것과 "중단으로 끝났다" 는 구별돼야 한다 (계약 6)
+        self.assertIn("중단", err.getvalue())
+        self.assertLess(time.monotonic() - started, 5.0, "중단이 5초 안에 안 돌아왔다")
+
+    def test_no_signal_keeps_today(self):
+        """**대조군.** `stop` 을 안 주면 오늘과 한 글자도 다르면 안 된다."""
+        n, fetched, _ = TestCrawl._run(self, ["http://a.com/"], max_pages=10)
+        self.assertEqual(n, 3)
+        self.assertIn("http://b.com/", fetched)
+
+    def test_main_loop_waits_on_the_signal_not_the_sleep(self):
+        """`stop` 을 주면 메인 루프의 쿨다운 대기가 `stop.wait` 로 간다 (계약 2).
+
+        신호는 **잠자는 메인을 깨워야** 하는데 주입된 `sleep` 에 잠들면 못 깬다 —
+        `crawl.py:179` 는 워커가 없어 `futures.wait` 처럼 저절로 깨지도 않는
+        유일한 자리다(설계서 축3). 한 도메인에 URL 둘·`workers=1` 이라 첫 URL 뒤
+        쿨다운에서 `frontier.next()` 가 None 을 줘 그 자리를 반드시 지난다.
+        """
+        clock = {"t": 1000.0}
+        stop = FakeStop(clock)
+
+        def fake_fetch(url, before_send=None, **kw):
+            if before_send is not None:
+                before_send()
+            return FetchResult(200, "x", url)
+
+        with mock.patch("websearch.crawl.fetcher") as mf, \
+             mock.patch("sys.stderr", io.StringIO()):
+            mf.fetch = fake_fetch
+            mf.RETRIES = fetcher.RETRIES
+            ms = mock.Mock(side_effect=lambda s: clock.__setitem__("t", clock["t"] + s))
+            n = crawl.crawl(["http://a.test/1", "http://a.test/2"], 10,
+                            db_path=":memory:", robots_cache=FakeRobots(),
+                            now=lambda: clock["t"], workers=1, sleep=ms, stop=stop)
+        self.assertEqual(n, 2)
+        self.assertEqual(stop.waits, [DOMAIN_INTERVAL],
+                         "메인 루프가 stop.wait 로 안 기다렸다 — 신호가 못 깨운다")
+        self.assertEqual(ms.call_count, 0,
+                         "stop 을 줬는데도 주입된 sleep 에 잠들었다 (%r)"
+                         % (ms.call_args_list,))
