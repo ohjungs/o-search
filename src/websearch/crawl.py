@@ -7,7 +7,7 @@ import concurrent.futures
 import sys
 import time
 
-from websearch import cli, fetcher, links, urls
+from websearch import fetcher, flags, links, urls
 from websearch.frontier import Frontier, DOMAIN_INTERVAL, MAX_DELAY
 from websearch.robots import RobotsCache
 from websearch.store import Store
@@ -218,19 +218,22 @@ def main(argv):
               "[--max N] [--workers N] [--deadline N]", file=sys.stderr)
         return 2
     args = list(argv[1:])
-    max_pages = cli.number_flag(args, "--max", 100)
+    max_pages = flags.number_flag(args, "--max", 100)
     if max_pages is None:
         print("--max 는 숫자 하나를 받는다", file=sys.stderr)
         return 2
-    workers = cli.number_flag(args, "--workers", WORKERS)
+    workers = flags.number_flag(args, "--workers", WORKERS)
     if workers is None or workers < 1:
         print("--workers 는 1 이상의 숫자 하나를 받는다", file=sys.stderr)
         return 2
-    # `--deadline` 은 없는 것이 정상값(`None`)이라 `cli.number_flag` 의 오류값과 겹친다.
-    # 그래서 있었는지를 따로 본다 — `--workers` 처럼 default 로는 못 가른다
-    given = any(a == "--deadline" or a.startswith("--deadline=") for a in args)
-    deadline = cli.number_flag(args, "--deadline", None)
-    if given and (deadline is None or deadline < 1):
+    # `--deadline` 은 없는 것이 정상값(`None`)이라 `flags.number_flag` 의 오류값과 겹친다.
+    # **형태를 여기서 다시 세지 않는다** — `a.startswith("--deadline=")` 를 여기 두면
+    # 파서와 두 벌이 되고, 형태가 하나 늘 때 이쪽만 조용히 뒤처진다. 센티널로 가른다.
+    missing = object()
+    deadline = flags.number_flag(args, "--deadline", missing)
+    if deadline is missing:
+        deadline = None
+    elif deadline is None or deadline < 1:
         print("--deadline 은 1 이상의 숫자 하나를 받는다", file=sys.stderr)
         return 2
     n = crawl(args, max_pages, workers=workers, deadline=deadline)

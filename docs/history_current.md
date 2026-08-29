@@ -253,3 +253,26 @@ append 전용. 수정·삭제 금지.
   "이미 통합 테스트가 덮고 있는 것" 이다. 직접 테스트는 같은 것을 세 번째로 센다.
 - 검증: `PYTHONPATH=src python3 -m unittest discover tests` → **Ran 414 · OK**.
 - 다음: 리뷰 phase(백지 패스).
+
+## 반복 141 — 계획 25 리뷰 (패스 A 백지 → 패스 B 대조)
+
+- **패스 A 를 배경 없는 별도 세션에 넘겼다.** diff(`src`·`tests`만)와 저장소 경로만 주고
+  `docs/` 는 못 열게 했다. 그쪽이 테스트·변이 2종·e2e 2종을 직접 돌리고 답했다.
+- **[높음·반영] 모듈 이름이 실재 파손이었다.** README 13~15줄이
+  `python -m websearch.cli crawl|index|serve` 를 안내한다 — 그 모듈은 없어서 rc 1 이었는데
+  `cli.py` 를 만들자 **rc 0 에 아무 출력 없음**이 됐다(실측). 실패가 성공으로 위장됐다.
+  → `src/websearch/flags.py` 로 개명. README 원래 상태(크게 실패)로 복귀 확인.
+- **[중간·반영] docstring 이 없는 검사를 있다고 썼다** — "`--max ≥ 1`" 은 호출부에 없다.
+  문구를 실제와 맞췄다(`--max` 는 0 도 받는다).
+- **[중간·반영] `--deadline` 의 형태 지식이 여전히 두 벌이었다** —
+  `any(a.startswith("--deadline=") ...)` 가 파서와 별개로 형태를 다시 셌다.
+  파서가 닫은 함정을 호출부가 다시 열어 둔 꼴이다. **센티널**로 바꿔 그 줄을 없앴다.
+- **센티널이 새 갭을 만들었고 변이가 잡았다**: `deadline = None` 줄을 지우는 M5 가
+  **415건을 전부 통과**했다(센티널 객체가 `crawl()` 로 새면 예산 비교가 죽는다).
+  `test_absent_deadline_is_none_not_the_parser_sentinel` 을 더하니 M5 가 죽는다.
+- **[낮음·digest] README 명령 셋이 통째로 없다**[5] — 이번 계획은 이름 충돌만 피했다.
+  중복 플래그 잔여물은 회귀가 아니라 기존 갭(이미 digest[5]).
+- 패스 B 대조: 계획 `## 하지 않을 것` 넷(argparse · `indexer --query` · `urls.py` ·
+  없는 DB 축) 전부 안 건드렸다. 기본값(`--max 100`·`WORKERS 8`·`--port 8000`) 그대로.
+- 검증: **Ran 415 · OK**. 변이 M5 재확인(반영 전 통과 → 반영 후 죽음).
+- 다음: e2e phase.

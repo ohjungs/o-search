@@ -833,7 +833,7 @@ class TestCliArgs(unittest.TestCase):
     def test_the_equals_form_works_and_is_guarded_the_same(self):
         """`crawl --max=3` 은 되는데 `serve --port=8080` 은 rc 2 였다 — 명령마다 계약이 달랐다.
 
-        같은 파서(`cli.number_flag`)를 쓰면 두 형태가 **한 자리에서** 붙고,
+        같은 파서(`flags.number_flag`)를 쓰면 두 형태가 **한 자리에서** 붙고,
         가드도 형태를 안 가린다. 받는 쪽만 보면 `--port=٨٠٨٠` 이 새로 뚫린다.
         """
         rc, _, made = self.call("a.db", "--port=8080")

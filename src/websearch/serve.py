@@ -17,7 +17,7 @@ import json
 import sys
 import urllib.parse
 
-from . import cli, indexer
+from . import flags, indexer
 
 PAGE_SIZE = 10
 MAX_QUERY = 200
@@ -314,9 +314,9 @@ def make_server(db_path, port=8000):
 
 def main(argv):
     args = list(argv[1:])
-    # 값 검사는 cli.number_flag 가 한다 — `--port ٨٠٨٠` 이 조용히 8080 이 되던 함정을
+    # 값 검사는 flags.number_flag 가 한다 — `--port ٨٠٨٠` 이 조용히 8080 이 되던 함정을
     # crawl 과 **같은 자리에서** 막는다. 여기 남는 것은 이 명령만의 상한이다.
-    port = cli.number_flag(args, "--port", 8000)
+    port = flags.number_flag(args, "--port", 8000)
     if port is None or port > 65535:
         print("--port 는 0~65535 의 포트 번호 하나를 받는다", file=sys.stderr)
         return 2

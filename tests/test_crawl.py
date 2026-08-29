@@ -127,6 +127,18 @@ class TestCrawl(unittest.TestCase):
         self.assertEqual((args[0], args[1]), (["http://a.com/"], 3))
         self.assertEqual((kwargs["workers"], kwargs["deadline"]), (2, 5))
 
+    def test_absent_deadline_is_none_not_the_parser_sentinel(self):
+        """`--deadline` 없음은 `crawl(deadline=None)` 이다 — 센티널이 새면 안 된다.
+
+        `--deadline` 은 **없는 것이 정상값(None)** 이라 파서의 오류값(None)과 겹친다.
+        가르려고 센티널을 쓰는데 그것을 `crawl()` 까지 흘리면 예산 비교가
+        `float > object` 로 죽는다. **이 분기는 여기 말고 아무도 안 밟는다** —
+        `deadline = None` 줄을 지우는 변이가 414건을 전부 통과했다(실측).
+        """
+        with mock.patch("websearch.crawl.crawl", return_value=0) as crawled:
+            self.assertEqual(crawl.main(["prog", "http://a.com/"]), 0)
+        self.assertIsNone(crawled.call_args[1]["deadline"])
+
     def test_non_ascii_digits_and_python_int_forms_are_not_numbers(self):
         """`int("٨٠")` 은 **80 이다** — 운영자가 친 적 없는 값으로 조용히 돈다.
 
@@ -135,7 +147,7 @@ class TestCrawl(unittest.TestCase):
         `urls.domain_key`(019)·`serve --port ٨٠٨٠`(24)가 **각자 자기 파일에서만**
         막은 그 함정의 세 번째 자리다.
 
-        **파서가 한 자리로 모였다는 증거이기도 하다** — `cli.number_flag` 에서
+        **파서가 한 자리로 모였다는 증거이기도 하다** — `flags.number_flag` 에서
         `isascii()` 를 떼면 여기와 `test_serve.py` 의 같은 테스트가 **함께** 죽는다.
         한쪽만 죽으면 아직 두 벌이다.
         """

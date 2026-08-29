@@ -1,15 +1,15 @@
 ---
 signal: GREEN
 plan: number-flag
-phase: 리뷰
+phase: e2e
 step: 2 (완료)
 attempt: 0
-iteration: 140
-night_iterations: 23
+iteration: 141
+night_iterations: 24
 night_red: 0
 night_retries: 0
-updated: 2026-08-29 19:10 (반복 140 · 테스트 phase — 갭 4건, 1건 처리)
-ctx: 72% / 200k
+updated: 2026-08-29 19:35 (반복 141 · 리뷰 — 패스 A 지적 3건 반영)
+ctx: 76% / 200k
 stopped: -
 rules: 1411a37
 mode: night (지시 실행 — 준 것만 하고 정지)
@@ -17,9 +17,9 @@ mode: night (지시 실행 — 준 것만 하고 정지)
 
 # 현재 상태
 
-**계획 25 `number-flag` — 테스트 phase 까지 완료, 다음은 리뷰.**
-`src/websearch/cli.py` 하나가 `crawl` 넷(`--max`·`--workers`·`--deadline`)과
-`serve`(`--port`)를 다 읽는다. 단위 412 → **414건 OK** · e2e 아직 안 돌림(다음다음 phase).
+**계획 25 `number-flag` — 리뷰까지 완료, 남은 것은 e2e 뿐.**
+`src/websearch/flags.py` 하나가 `crawl` 넷(`--max`·`--workers`·`--deadline`)과
+`serve`(`--port`)를 다 읽는다. 단위 412 → **415건 OK** · e2e 아직 안 돌림(다음 phase).
 **변이 M1(파서에서 `isascii()` 제거)이 `test_crawl` 과 `test_serve` 를 동시에 죽인다**
 — 파서가 한 자리라는 증거다(설계 스텝 2 완료 기준).
 보류 패치 0건. 단위 **412건 OK** · e2e **17종 전부 rc=0**.
@@ -56,6 +56,11 @@ mode: night (지시 실행 — 준 것만 하고 정지)
 `--max` 에만 `< 1` 검사가 없어 `crawl(seeds, -5)` 로 갔다. 파서가 부호를 거르게 되면서
 조용히 고쳐졌고 **아무 테스트도 안 밟고 있었다**(⑥ 변경된 동작 무커버). 단언을 더하고
 파서에서 부호를 다시 허용하는 변이로 잡히는 것을 확인했다.
+
+**141 · 리뷰.** 패스 A(백지)를 **배경 없는 별도 세션**에 넘겼다 — diff 만 주고
+`docs/` 는 못 열게 했다. **모듈 이름이 실재 파손이었다**: README 가 안내하는
+`python -m websearch.cli crawl ...` 이 rc 1(없는 모듈)에서 **rc 0(조용한 무동작)** 이
+됐다. `flags.py` 로 이름을 바꿔 되돌렸다. 지적 3건 반영, 1건은 digest 로.
 
 ## 이번 세션 (반복 134~135) — `loop/deadline-patches` (기점 `1eaf879`)
 
