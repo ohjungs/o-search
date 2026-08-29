@@ -179,3 +179,18 @@ append 전용. 수정·삭제 금지.
 - 검증: 단위 **403 → 412건 OK** · e2e **17종 전부 rc=0** · 실제 CLI 8가지 실측
   (트레이스백 0). 브랜치 `loop/deadline-patches`. `index.md` 24번 · `digest.md` 후보 닫음.
 - 다음: 정지(짧은 경로 하나 = 스텝 하나). 다음 반복은 탐색부터.
+
+## 반복 136 — 계획 25 `number-flag` (계획 phase)
+
+- **문제**: 숫자 인자 파서가 두 벌이고 함정이 세 번째로 나타났다. `str.isdigit()`/`int()`
+  가 비ASCII 숫자를 받는 것을 `urls.py:57`(019)·`serve.py:323`(24)이 **각자 자기 자리에서만**
+  막았다. `crawl.py:215 _number_flag` 는 그대로다 — 실측 `--max ٨٠` → **80**,
+  `8_0` → 80, `' 80 '` → 80, `'+80'` → 80. `--max`·`--workers`·`--deadline` 이 같은 파서다.
+- 반대 방향 갭도 실측: `serve.main(['prog','a.db','--port=8080'])` → **rc 2**.
+  `crawl` 은 `--max=3` 을 받는데 `serve` 는 `--port=8080` 을 안 받는다.
+- **짧은 경로가 아니다** — `design.md` 1절 트리거 셋(새 파일 후보 · 공개 함수 추가 ·
+  3개 이상 파일). 갈림길은 **공유 파서의 자리** 하나고 후보 셋(A `cli.py` 새 모듈 ·
+  B `crawl.py` + serve 가 crawl 임포트 · C `__init__.py`)을 계획서에 적어 설계로 넘겼다.
+- 스텝 2개(1 파서 좁히고 crawl 이관 · 2 serve 가 같은 파서 사용, 의존 1). 계획서에
+  **argparse 를 안 쓰는 이유**를 박아 뒀다 — `type=int` 는 `٨٠٨٠` 을 그대로 받는다(같은 버그).
+- 다음: 설계 phase — `docs/design_number-flag.md` 에서 자리 판정.
