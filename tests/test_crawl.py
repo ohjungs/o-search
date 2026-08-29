@@ -123,6 +123,50 @@ class TestCrawl(unittest.TestCase):
             self.assertEqual(crawl.main(["prog", "http://a.com/", "--max", "1"]), 0)
         self.assertEqual(crawled.call_args[0][1], 1)
 
+    def test_unknown_or_repeated_flags_are_not_seeds(self):
+        """**남은 `-` 는 시드가 아니다.** 오타 하나가 크롤 전체를 기본값으로 돌린다.
+
+        실측(고치기 전, 전부 rc **0** · `수집 0 페이지`):
+
+        | 준 인자 | 시드로 샌 것 |
+        |---|---|
+        | `--maxx 3` (오타) | `['http://a.com/', '--maxx', '3']` |
+        | `-max 3` (하이픈 하나) | `['http://a.com/', '-max', '3']` |
+        | `--max 3 --max 5` (중복) | `['http://a.com/', '--max', '5']` |
+
+        `--maxx` 는 `--max` 로 안 읽히므로 크롤은 **기본값 100페이지**로 돌고
+        운영자는 자기 값이 안 먹었다는 것을 알 방법이 없다. 새어 나간 토큰은
+        시드로 요청까지 나갔다 — `unknown url type: ':///robots.txt'`.
+        `indexer.main`·`serve.main` 은 `len(args) != 1` 이 이것을 이미 거른다.
+        **시드 개수가 가변인 `crawl` 만 셀 수가 없어 구멍이었다.**
+        """
+        with mock.patch("websearch.crawl.crawl", return_value=0) as crawled:
+            for bad in (["--maxx", "3"], ["-max", "3"], ["--max", "3", "--max", "5"],
+                        ["--max=3", "--max=5"], ["--workers", "2", "--workers", "0"],
+                        ["--deadline=5", "--deadline=9"]):
+                self.assertEqual(crawl.main(["prog", "http://a.com/"] + bad), 2, bad)
+        crawled.assert_not_called()
+
+    def test_several_seeds_still_pass_through(self):
+        """**대조군.** 시드는 여럿일 수 있다 — 남은 인자를 세어서 막으면 안 된다."""
+        with mock.patch("websearch.crawl.crawl", return_value=0) as crawled:
+            rc = crawl.main(["prog", "http://a.com/", "http://b.com/", "--max", "3"])
+        self.assertEqual(rc, 0)
+        self.assertEqual(crawled.call_args[0][0], ["http://a.com/", "http://b.com/"])
+
+    def test_the_guard_rejects_leftover_flags_not_odd_looking_seeds(self):
+        """**대조군 2 — 가드의 경계 그 자체다.** 거절하는 것은 `-` 지 스킴이 아니다.
+
+        `if not a.startswith("http")` 로 잘못 넓히는 변이가 위의 단언들을 **전부
+        통과한다**(실측). 그 변이는 스킴 없는 시드까지 rc 2 로 만드는데, 그것은
+        이 가드가 주장한 적 없는 **다른 계약**(시드 스킴 화이트리스트)이다.
+        오늘 `crawl.main` 은 `example.com` 을 `crawl()` 로 넘기고, 왜 못 받았는지는
+        `crawl()` 이 시드마다 알린다 — 여기서 가로채면 그 자리가 죽는다.
+        """
+        with mock.patch("websearch.crawl.crawl", return_value=0) as crawled:
+            self.assertEqual(crawl.main(["prog", "example.com", "--max", "3"]), 0)
+        self.assertEqual(crawled.call_args[0][0], ["example.com"])
+
     def test_flags_accept_the_equals_form(self):
         """`--name=값` 이 조용히 무시되면 안 된다 — 셋 다 같은 파서를 쓴다.
 

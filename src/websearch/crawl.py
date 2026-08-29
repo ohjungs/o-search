@@ -238,6 +238,15 @@ def main(argv):
     elif deadline is None or deadline < 1:
         print("--deadline 은 1 이상의 숫자 하나를 받는다", file=sys.stderr)
         return 2
+    # **남은 `-` 는 시드가 아니다.** 파서가 아는 플래그를 뽑고 남은 것은 시드인데,
+    # 오타(`--maxx`)·하이픈 하나(`-max`)·중복(`--max 3 --max 5`)은 시드로 새어
+    # 크롤이 **기본값으로 조용히 돌았다**(rc 0). `indexer`·`serve` 는 `len(args) != 1`
+    # 이 이미 거른다 — 시드 개수가 가변인 여기만 셀 수가 없어 구멍이었다
+    unknown = [a for a in args if a.startswith("-")]
+    if unknown:
+        print("모르는 인자: %s — 시드 URL 로 읽지 않는다" % " ".join(unknown),
+              file=sys.stderr)
+        return 2
     n = crawl(args, max_pages, workers=workers, deadline=deadline)
     print("수집 %d 페이지" % n)
     return 0
