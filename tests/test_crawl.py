@@ -142,7 +142,11 @@ class TestCrawl(unittest.TestCase):
         with mock.patch("websearch.crawl.crawl", return_value=0) as crawled:
             for bad in (["--max", "٨٠"], ["--workers", "٨"], ["--deadline", "٦٠"],
                         ["--max=٨٠"], ["--max", "8_0"], ["--max", " 80 "],
-                        ["--max", "+80"], ["--workers", "²"]):
+                        ["--max", "+80"], ["--workers", "²"],
+                        # `--max -5` 는 **이 계획 전까지 rc 0 이었다** — `int("-5")` 가
+                        # -5 를 주고 `--max` 에는 `< 1` 검사가 없어 `crawl(seeds, -5)`
+                        # 로 갔다. 이제 부호는 파서가 거른다. 여기 없으면 아무도 안 밟는다.
+                        ["--max", "-5"], ["--max=-5"]):
                 self.assertEqual(crawl.main(["prog", "http://a.com/"] + bad), 2, bad)
         crawled.assert_not_called()
 

@@ -89,6 +89,10 @@ history_current.md 가 상한을 넘어 밀려날 때, 밀려나는 내용을 1~
 - ~~[6]~~ **닫혔다 — 2026-08-27 반복 89 (짧은 경로).** UA 단언 3건 추가(페이지 요청·robots.txt 요청·**대는 이름과 robots 매칭 이름의 일치**). 변이 3종으로 잡는 것 확인. 269건
 - ~~[5]~~ **대부분 닫혔다 — `cooldown-burn`(011).** `TestCooldownBurn.test_store_skipped_url_does_not_burn_cooldown` 이 스킵 경로를 탄다. 다만 재는 것은 **쿨다운을 안 태운다**까지고, 스킵된 URL 이 다시 저장되지 않는지는 여전히 무단언이다
 - ~~[4]~~ **닫혔다 — `deadline-patches`(23), 2026-08-29.** `--max`·`--workers`·`--deadline` 의 두 형태(`--name N` / `--name=N`)와 오류값을 단위 3건이 덮고, `deadline_e2e` 가 붙임 형태로 진짜 argv 를 준다. **파싱 무테스트가 실재 버그를 덮고 있었다** — `--name=값` 이 조용히 무시되고 args 에 남아 시드로 샜다
+- [5] **`--max 0` 은 통과하는데 `--workers 0`·`--deadline 0` 은 rc 2** — 가드 비대칭이다. `--max 0` 은 "아무것도 안 한다" 로 자기 일관적이고(수집 0 페이지 · rc 0) 나머지 둘은 뜻이 없는 값이라 이번엔 안 고쳤다. 셋을 같은 규칙으로 맞출지는 CLI 계약을 손보는 계획에서 (2026-08-29 number-flag 테스트 phase)
+- [5] **같은 플래그를 두 번 주면 뒤엣것이 시드로 샌다** — 실측 `crawl http://a.com/ --max 3 --max 5` → rc **0**, 시드 `['http://a.com/', '--max', '5']`. `cli.number_flag` 은 첫 것을 먹고 멈춘다. `deadline-patches`(23)가 닫은 "모르는 형태가 args 에 남는다" 와 **같은 부류의 잔여물**이고, 남은 것이 URL 이 아니라 조용히 버려진다. `serve` 쪽은 `len(args) != 1` 이 걸러 rc 2 다 (2026-08-29 number-flag 테스트 phase)
+- [4] **`--port 0`(임의 포트)은 e2e 넷만 덮는다** — 단위 무커버다. `port > 65535` 를 `port < 1` 로 잘못 조이면 단위는 전부 초록이고 e2e 넷이 죽는다 (2026-08-29 number-flag 테스트 phase)
+- [4] **4300자리가 넘는 숫자 인자는 Python 3.11+ 에서 `int()` 가 `ValueError`** (`int_max_str_digits`). 이제 파서가 한 자리라 `--max`·`--workers`·`--deadline`·`--port` 넷 다 해당된다. 이 저장소의 명령은 stock macOS **3.9.6** 이라 도달 불가고, 길이 상한을 넣으면 `--port 0008000` 같은 정상값을 대신 거절하게 되어 안 넣었다 (2026-08-29 number-flag, 24 의 판단 유지)
 - ~~[6]~~ **닫혔다 — `indexer-cli-guard`(짧은 경로), 2026-08-29.** indexer.main 이 pages 테이블 없는 DB 를 받으면 sqlite3.OperationalError 트레이스백이었다. 위 `## 반복 실패` 항목 참조
 
 - [5] `<meta http-equiv="X-Robots-Tag" content="noindex">` 변형은 무시한다 (2026-08-25 noindex-respect 테스트 phase 탐침으로 확인). 표준은 HTTP 헤더이고 http-equiv 변형은 주요 검색엔진도 지원하지 않는다. X-Robots-Tag 헤더 계획(스키마 expand)을 열 때 함께 판단

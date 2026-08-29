@@ -237,3 +237,19 @@ append 전용. 수정·삭제 금지.
     양쪽 경계가 그대로 산다.
 - 검증: **Ran 414 · OK**(412 → 413 → 414). 변이 되돌린 뒤에도 OK.
 - 다음: 테스트 phase — 빠뜨린 것 찾기(`indexer.main` 은 계획 밖, e2e 17종은 e2e phase).
+
+## 반복 140 — 계획 25 테스트 phase (갭 탐색)
+
+- **처리(1건)**: `--max -5` 는 이 계획 전까지 **rc 0** 이었다. `int("-5")` → -5 이고
+  `--max` 에는 `--workers`·`--deadline` 과 달리 `< 1` 검사가 없어 `crawl(seeds, -5)` 로
+  갔다. 파서가 부호를 거르면서 rc 2 로 **조용히 고쳐졌는데 단언이 하나도 없었다** —
+  `test_non_ascii_digits_and_python_int_forms_are_not_numbers` 에 `-5`·`--max=-5` 를 더했다.
+  변이 확인: 파서 검사를 `value.lstrip('+-')` 로 되돌리면 이 테스트만 죽는다.
+- **안 한 것(8점 미만 → `digest.md ## 다음 계획 후보 (테스트 phase 갭)`)**:
+  `--max 0` 가드 비대칭[5] · 같은 플래그 두 번이면 뒤엣것이 시드로 샘[5] ·
+  `--port 0` 단위 무커버[4] · `int_max_str_digits`[4].
+- **`tests/test_cli.py` 를 안 만들었다.** `cli.number_flag` 는 새 public 함수지만
+  호출부 둘이 각각 8·5가지로 덮고 **M1 변이가 양쪽을 함께 죽인다** — `test.md` 5절
+  "이미 통합 테스트가 덮고 있는 것" 이다. 직접 테스트는 같은 것을 세 번째로 센다.
+- 검증: `PYTHONPATH=src python3 -m unittest discover tests` → **Ran 414 · OK**.
+- 다음: 리뷰 phase(백지 패스).

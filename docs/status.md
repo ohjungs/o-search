@@ -1,15 +1,15 @@
 ---
 signal: GREEN
 plan: number-flag
-phase: 테스트
+phase: 리뷰
 step: 2 (완료)
 attempt: 0
-iteration: 139
-night_iterations: 22
+iteration: 140
+night_iterations: 23
 night_red: 0
 night_retries: 0
-updated: 2026-08-29 18:55 (반복 139 · 스텝 2 완료 — serve 도 같은 파서)
-ctx: 70% / 200k
+updated: 2026-08-29 19:10 (반복 140 · 테스트 phase — 갭 4건, 1건 처리)
+ctx: 72% / 200k
 stopped: -
 rules: 1411a37
 mode: night (지시 실행 — 준 것만 하고 정지)
@@ -17,9 +17,9 @@ mode: night (지시 실행 — 준 것만 하고 정지)
 
 # 현재 상태
 
-**계획 25 `number-flag` — 스텝 2개 전부 완료, 다음은 테스트 phase**(빠진 것 찾기).
+**계획 25 `number-flag` — 테스트 phase 까지 완료, 다음은 리뷰.**
 `src/websearch/cli.py` 하나가 `crawl` 넷(`--max`·`--workers`·`--deadline`)과
-`serve`(`--port`)를 다 읽는다. 단위 412 → **414건 OK** · e2e 아직 안 돌림.
+`serve`(`--port`)를 다 읽는다. 단위 412 → **414건 OK** · e2e 아직 안 돌림(다음다음 phase).
 **변이 M1(파서에서 `isascii()` 제거)이 `test_crawl` 과 `test_serve` 를 동시에 죽인다**
 — 파서가 한 자리라는 증거다(설계 스텝 2 완료 기준).
 보류 패치 0건. 단위 **412건 OK** · e2e **17종 전부 rc=0**.
@@ -50,6 +50,12 @@ mode: night (지시 실행 — 준 것만 하고 정지)
 **139 · 스텝 2 개발.** `serve --port=8080` 이 rc 2 로 죽는 것을 RED 로 보고(`crawl` 은
 `--max=3` 을 받는다) `serve.py` 의 인라인 블록 10줄을 `cli.number_flag` 한 줄 + 상한
 검사로 줄였다. 414건 OK. 변이 3종 확인 — **M1 이 두 파일의 테스트를 함께 죽인다.**
+
+**140 · 테스트 phase.** 갭 4건을 찾아 **1건만 처리**했다(8점 미만은 digest 로).
+처리한 것: **`--max -5` 가 이 계획 전까지 rc 0 이었다** — `int("-5")` 가 -5 를 주고
+`--max` 에만 `< 1` 검사가 없어 `crawl(seeds, -5)` 로 갔다. 파서가 부호를 거르게 되면서
+조용히 고쳐졌고 **아무 테스트도 안 밟고 있었다**(⑥ 변경된 동작 무커버). 단언을 더하고
+파서에서 부호를 다시 허용하는 변이로 잡히는 것을 확인했다.
 
 ## 이번 세션 (반복 134~135) — `loop/deadline-patches` (기점 `1eaf879`)
 
