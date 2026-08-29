@@ -4,12 +4,13 @@ plan: null
 phase: 계획
 step: -
 attempt: 0
-iteration: 149
-night_iterations: 32
+iteration: 150
+night_iterations: 33
 night_red: 0
 night_retries: 0
-updated: 2026-08-29 23:58 (반복 149 · 31 port-zero-cover 짧은 경로 DONE)
-ctx: 52% / 200k
+updated: 2026-08-30 00:05 (반복 150 · 회전 실행 · 정지)
+ctx: 60% / 200k
+stopped_note: 지시받은 두 스텝 완료 + 회전. 새 계획은 찾지 않는다(night 지시 모드)
 stopped: -
 rules: 635d16c
 mode: night (지시받은 것만 실행 · 다 하면 정지)
@@ -82,8 +83,15 @@ README 가 안내한 그 명령으로 직접 센다 — `defaultTestLoader.disco
 `[7]` 살아남은 변이가 등가인지 실측 · `[4]` `int_max_str_digits`
 (3.9.6 이라 도달 불가, 유지 판단) · `[6]` `serve.do_GET` 넓은 `try`(확신 낮음).
 
-**집안일 — 방아쇠가 켜졌다(실측)**: `history_current.md` **339줄**로 `docs.md` 3절의
-300줄을 넘었다. 다음 스텝은 25~31 을 `history_009.md` 로 빼는 회전이다.
+## 반복 150 — 회전 (집안일, 코드 0줄)
+
+**방아쇠가 실제로 켜져서 돌렸다** — `history_current.md` 339줄 > 300(`docs.md` 3절).
+반복 136~147(계획 25~29 + 탐색 1건)을 **원본 그대로** `history_009.md` 로 옮겼다:
+`history_current` **339 → 68줄**, `history_009` 274줄. 남긴 것은 30·31 둘뿐이다.
+`digest.md` 에 아카이브 포인터 1건 + 28·29 묶음 1건 + 30·31 각 1건을 압축해 적었다
+(160 → 164줄, 상한 200 이내).
+
+**지시받은 것을 다 했다. 여기서 정지한다.** night 지시 모드라 새 계획은 안 찾는다.
 
 ## 열지 않는 것 (사용자 판단 대기)
 
