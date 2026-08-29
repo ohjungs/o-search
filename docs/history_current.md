@@ -211,3 +211,74 @@ append 전용. 수정·삭제 금지.
 - **곁가지는 안 고치고 후보로 남겼다**: 스킴 없는 시드 `example.com` 이 rc 0 에
   `unknown url type` 을 낸다 — 시드 검증 계약이라 이 가드의 범위 밖이다(`digest.md`).
 - 브랜치 `loop/crawl-max-guard` 계속. `index.md` 27번에 한 줄.
+
+## 2026-08-29 22:05 | readme-commands | 짧은 경로 | 시도0
+
+- **내가 저지른 오류를 되돌린 스텝이다.** 25 리뷰가 `cli.py` 를 `flags.py` 로
+  개명했는데 README 는 `python -m websearch.cli crawl ...` 세 줄을 그대로 뒀다.
+  실측: `PYTHONPATH=src python3 -m websearch.cli --help` → `No module named websearch.cli`.
+- **`flags.py` docstring 은 이 사실을 이미 알고 있었다** — "README 가
+  `python -m websearch.cli ...` 를 안내하는데 그 모듈은 없다(rc 1)" 고 적어 두고
+  자기 이름을 `cli` 로 안 가져간 근거로 썼다. 알면서 안 고친 것이고, 25 는
+  직교 편집이라 미뤘다. **알고 있다는 기록은 고쳐졌다는 뜻이 아니다.**
+- 실측으로 다시 썼다. 로컬 `http.server` 로 문서 2장을 띄우고 crawl→indexer→serve
+  를 끝까지 돌렸다(외부 네트워크 안 침):
+
+  | 명령 | 결과 |
+  |---|---|
+  | `crawl http://127.0.0.1:8731/index.html --max 5` | `수집 2 페이지` rc 0 |
+  | `indexer data/crawl.db` | `2 문서 색인` rc 0 |
+  | `indexer data/crawl.db --query 검색` | 제목·URL·스니펫 1건 |
+  | `serve data/crawl.db --port 0` | `/` 200 · `/search?q=` JSON 1건 |
+
+- **곁가지 둘이 같이 나왔다**: `python` 은 이 환경에 없고(`command not found: python`),
+  `PYTHONPATH=src` 가 빠져 있었다(설치 단계가 없어 그것 없이는 임포트 실패).
+  README 의 `unittest` 줄도 같은 두 오류를 갖고 있었다 — 그대로 치면 안 돈다.
+- **검사를 하나 남겼다.** 깨진 것이 코드가 아니라 **코드와 문서 사이**라
+  소스만 보는 단위 테스트로는 영원히 안 잡힌다. `tests/test_readme.py` 가 README 를
+  입력으로 읽어 `-m websearch.<모듈>` 을 뽑고 `find_spec` 으로 실재를 본다
+  (임포트 안 함 · 네트워크 없음 · 서브프로세스 없음).
+- **변이 검증에서 검사 명령 자체가 거짓 초록을 냈다.** M2(`python3`→`python`)를
+  `sed -i '' '0,/re/s//.../'` 로 심었더니 `OK` 가 나왔다 — 잡은 게 아니라
+  **BSD sed 가 `0,/re/` 를 조용히 무시해 변이가 안 심어진 것**이었다. Python 으로
+  다시 심어 확인하니 잡힌다. `SKILL.md` 가 경고하는 "검사 명령이 돌아가면서 틀린
+  답을 낸다" 의 재발이다 — **변이가 실제로 심어졌는지를 먼저 단언**해야 한다
+  (이후 `assert n != t` 를 넣었다).
+- 최종 변이 3종 전부 잡힘: 모듈 오타(`websearch.index`) · `python3`→`python` · `cli` 부활.
+- 검증: 단위 419 → **422건 OK**. 브랜치 `loop/readme-commands`(기점 `main` `8224207`).
+
+## 2026-08-29 22:40 | seed-scheme-guard | 짧은 경로 | 시도0
+
+- 근거: `digest.md ## 다음 계획 후보` `[4]` — 27 의 변이 M4 가 드러내고 일부러 안
+  건드린 곁가지. 실측: `crawl example.com --max 1` → stderr `unknown url type:
+  ':///robots.txt'` + `수집 0 페이지` **rc 0**.
+- **실측이 앞 세션 권고와 갈렸고, 실측을 따랐다.** 권고는 "0페이지 수집이면 rc 1":
+
+  | 실측 | 결과 | 이게 말하는 것 |
+  |---|---|---|
+  | `urls.normalize("example.com")` | `'example.com'` (그대로) | `None` 은 IDNA 실패에만 — "시드가 안 살아남는다" 갈래는 **안 밟힌다** |
+  | `normalize("javascript:alert(1)")` | 그대로 | 스킴 검사가 **아무 데도 없다** |
+  | `links.py:30` | `http(s)` 만 통과 | 계약은 **이미 있다**. 시드만 안 지나갔다 |
+  | `crawl http://nonexistent.invalid/` | `수집 0 페이지` rc 0, stderr 없음 | robots 를 못 받아 **차단 처리**(예의상 옳다) |
+
+- **(ㄷ) 이 계약을 갈랐다.** "0페이지면 rc 1" 로 하면 robots 가 정당하게 막은
+  사이트와 도달 불가 호스트가 **오류**가 된다 — 예의를 오작동으로 보고하는 쪽이다.
+  절대 조건(크롤 윤리를 낮추지 않는다)의 반대 방향이라 택하지 않았다.
+- 골라 든 계약: **시드 스킴 화이트리스트 → rc 2.** 새 계약이 아니라 `links.py` 가
+  이미 건 조건의 구멍을 시드 쪽에서 메운 것이다. 경계를 양쪽에서 고정하는 대조군:
+  `https://nope.com/` 은 404 로 0페이지지만 **예외가 아니다**(rc 0) — "거절당했다" 와
+  "받아 갔는데 못 가져왔다" 는 다른 일이다.
+- `urls.scheme_of` 가 이미 있어 **URL 을 다시 파싱하는 자리를 새로 안 만들었다.**
+- **변이가 형제 구멍을 하나 더 냈다.** M2(`if not ascii_seeds` → `if seeds and not
+  ascii_seeds`)가 살아남았다 — 등가 변이가 아니라 **커버 안 된 경로**였다:
+  `crawl --max 1` 은 플래그가 `len(argv) < 2` 를 채워 usage 검사를 통과하고
+  시드 0건으로 `수집 0 페이지` rc 0 이었다. "다 거절당해 0건" 과 "처음부터 0건" 은
+  크롤이 못 도는 이유로는 같아서 `seeds and` 를 빼 한 자리에서 막았다.
+  덤: `file:///etc/passwd`·`javascript:`·`mailto:` 도 시드로 안 들어간다.
+- 판정은 `crawl()`, rc 변환만 `main`. 미지 인자 가드(`-` 로 시작)와 **합치지 않았다** —
+  합치면 27 의 M4 가 경고한 다른 계약으로 조용히 넓어진다. 27 이 세운 대조군
+  (`main` 은 `example.com` 을 그대로 넘긴다)이 그대로 통과하는 것이 그 증거다.
+- 최종 변이 6종 전부 잡힘: 화이트리스트 무력화 · 빈 시드 통과 · 가드 제거 ·
+  하나라도 나쁘면 거절(계약 넓히기) · `ftp` 슬쩍 허용 · rc 2→0.
+- 검증: 단위 422 → **428건 OK** · e2e **17종 전부 rc=0** · 실측 재확인
+  (`example.com` rc 2 · `--max 1` 단독 rc 2 · `nonexistent.invalid` rc 0 유지).

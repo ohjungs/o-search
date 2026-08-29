@@ -271,4 +271,39 @@ plan_history_<NNN>.md 를 다 열어볼 필요가 없게 하는 것이 목적이
     곁가지(스킴 없는 시드가 rc 0)는 안 건드리고 `digest.md` 에 `[4]` 로 남겼다.
     단위 416 → **419건 OK** · e2e **17종 전부 rc=0**.
 
+28. `readme-commands` — 완료 (**짧은 경로**, 계획서 없음 · 브랜치 `loop/readme-commands`)
+    README 첫 명령이 **없는 모듈**을 안내했다 — `python -m websearch.cli crawl ...` 인데
+    `websearch.cli` 는 25 리뷰가 `flags.py` 로 개명해 사라졌고 README 가 안 따라왔다.
+    `flags.py` docstring 이 그 사실을 **알면서 적어 두기까지 했는데** 정작 README 는
+    안 고쳐졌다(25 가 직교 편집이라 미뤘다). 같이 드러난 둘: `python` 은 이 환경에
+    없고(`command not found`), `PYTHONPATH=src` 가 빠져 임포트가 안 됐다.
+    로컬 HTTP 서버로 crawl→indexer→serve 를 끝까지 돌려 세 줄을 다시 썼다
+    (외부 네트워크 안 침). **깨진 것이 코드가 아니라 코드와 문서 사이**라 소스만 보는
+    단위 테스트로는 영원히 안 잡히는 종류였다 — `tests/test_readme.py` 가 문서를
+    입력으로 읽어 `-m websearch.<모듈>` 이 실재하는지 `find_spec` 으로 본다.
+    변이 3종(모듈 오타·`python3`→`python`·`cli` 부활) 전부 잡힘.
+    단위 419 → **422건 OK**.
+
+29. `seed-scheme-guard` — 완료 (**짧은 경로**, 계획서 없음 · 브랜치 `loop/readme-commands`,
+    커밋 제목은 `28` 로 나갔다 — 번호는 이 색인이 기준이다)
+    `crawl example.com --max 1` 이 `unknown url type: ':///robots.txt'` 를 stderr 에
+    남기고 `수집 0 페이지` **rc 0** 으로 끝났다. 근거: `digest.md ## 다음 계획 후보`
+    `[4]`, 27 의 변이 M4 가 드러내고 일부러 안 건드린 곁가지.
+    **실측이 앞 세션 권고를 갈랐다.** 권고는 "0페이지 수집이면 rc 1" 이었는데,
+    (ㄱ) `urls.normalize("example.com")` 은 그대로 돌려준다 — `None` 은 IDNA 실패에만
+    나므로 "시드가 안 살아남는다" 는 기존 갈래는 **한 번도 안 밟힌다**.
+    (ㄴ) `links.py:30` 이 발견된 링크를 이미 `http(s)` 로 거른다 — **새 계약이 아니라
+    있는 계약의 구멍**이고 시드만 그 가드를 안 지나가는 형제 호출부였다.
+    (ㄷ) `http://nonexistent.invalid/` 는 robots 를 못 받아 차단 처리되어 0페이지 rc 0 인데,
+    "0페이지면 rc 1" 로 하면 **robots 가 정당하게 막은 사이트가 오류가 된다** —
+    예의를 오작동으로 보고하는 쪽이라 택하지 않았다.
+    그래서 시드 스킴 화이트리스트(rc 2)를 골랐고 경계를 양쪽에서 고정했다:
+    거절은 "가져올 수 없는 주소"에만, 0페이지는 그대로 rc 0.
+    **변이가 형제 구멍을 하나 더 냈다** — `if seeds and not ascii_seeds` 가 살아남아
+    `crawl --max 1`(플래그가 `len(argv) < 2` 를 채운다)이 시드 0건으로 rc 0 인 것이
+    드러나 같은 자리에서 막았다. `file:///etc/passwd`·`javascript:` 도 덤으로 막혔다.
+    판정은 `crawl()` 이 하고 `main` 은 잡아서 rc 2 로 바꾸기만 한다 — 미지 인자
+    가드와 합치면 M4 가 경고한 다른 계약으로 넓어진다.
+    변이 6종 전부 잡힘. 단위 422 → **428건 OK** · e2e **17종 전부 rc=0**.
+
 색인 규모 단계(10만→100만)는 별도 계획이 아니라 7번(quality-eval) 이후 운영 측정으로 판정.
