@@ -1,9 +1,9 @@
 ---
 signal: GREEN
 phase: 개발
-step: 1
+step: 2
 attempt: 0
-iteration: 154
+iteration: 155
 updated: 2026-08-29
 ctx: 30
 night_iterations: 37
@@ -13,10 +13,23 @@ night_retries: 0
 
 # 현재 상태
 
-**계획 33 `clock-injection` 을 정식 경로로 열었다.** 반복 152 의 `탐색 막힘` 을
-사람이 (c) 중 하나를 골라 해소한 것이다 — 그 반복의 "사람이 정해야 할 것 2번" 이 곧
-이 계획이다. `src` **0줄** · 열린 계획 **1** · 보류 패치 0 · RED 0.
-단위 **431건 OK** (2026-08-29 20:2x 실행 확인). 작업 트리 깨끗.
+**계획 33 `clock-injection` 개발 스텝 1 완료 — 빨간불을 눈으로 봤다.**
+`src` **0줄** · 열린 계획 **1** · 보류 패치 0 · RED 0.
+단위 **433건 중 2건 실패 — 이것이 의도된 TDD 빨강이다**(스텝 1의 산출물이 곧 실패
+테스트다). **RED 신호가 아니다**; 스텝 2가 이 둘을 초록으로 만든다. 작업 트리 깨끗.
+
+```
+TypeError: crawl() got an unexpected keyword argument 'sleep'
+KeyError: 'sleep'
+```
+
+**약한 빨강이라 탐침으로 보강했다.** 둘 다 단언에 닿기 전에 시그니처에서 터지므로
+"실패를 봤다" 만으로는 단언이 옳다는 근거가 안 된다. 같은 시나리오를 `sleep=` 없이
+재니 **오늘 전역 `time.sleep` 이 `[1.0, 1.0]` 2회** 불린다 — ①의 "전역 0회" 는
+오늘 거짓이고 스텝 2 뒤에 참이 되는, 살아 있는 단언이다.
+
+브랜치 `loop/clock-injection`, 기점 **`de28dfb`**(`loop/readme-perf-audit`).
+`main` 은 `f888518` 그대로 — 건드리지 않았다.
 
 브랜치 `loop/clock-injection`, 기점 **`de28dfb`**(`loop/readme-perf-audit`).
 `main` 은 `f888518` 그대로 — 건드리지 않았다.
@@ -43,16 +56,21 @@ def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None,
 조용히 흘러 **간격 단언이 거짓이 된다.** 컨셉 갈림길 1순위가 크롤 윤리이고
 도메인 1초 간격은 "어기면 RED" 인 전제 조건인데, 그것을 재는 장치가 그 상태였다.
 
-## 다음에 할 일 — 개발 스텝 1 (TDD)
+## 다음에 할 일 — 개발 스텝 2 (워커 쪽 대기)
 
 `docs/design_clock-injection.md` 의 **「계약」 6개를 먼저 읽는다.** 특히:
 ① 인자는 **뒤에** 붙인다(위치 인자 순서를 바꾸면 `_fetch_one` 을 직접 부르는 테스트
 7곳이 조용히 어긋난다) · ② 두 대기 자리가 **같은 하나**를 쓴다 · ③ 규약은
 `time.sleep` 과 동일(초 하나, 반환값 안 봄) · ⑥ **간격 기대값을 고치면 안 된다.**
 
-스텝 1 = `tests/test_crawl.py` 에 실패 테스트 2건을 쓰고 **빨간불을 눈으로 확인**한다
-(`dev.md` 0절). ① `sleep=fake` 를 넘기면 `fake` 가 불리고 전역 `time.sleep` 은
-안 불린다 ② 안 넘기면 기본값이 `time.sleep` 이다.
+`_fetch_one(url, robots, now, floor, sleep=time.sleep)` 로 바꾸고 `crawl.py:74` 의
+`time.sleep(remaining)` 을 `sleep(remaining)` 으로. `crawl()` 도 `sleep=time.sleep` 을
+받아 `crawl.py:170` 에서 그대로 넘긴다.
+
+**완료 판정**: 스텝 1 의 2건이 초록 + 나머지 431건도 초록(= 433건 OK).
+스텝 1 테스트는 **워커 쪽만 지나도록 좁혀 놨으므로** 메인 쪽(`crawl.py:179`, 스텝 3)을
+안 고쳐도 초록이 돼야 한다. 안 되면 기본값을 안 쓰고 있는 것이다.
+기존 몽키패치 10곳은 아직 그대로지만 전역 패치가 기본값도 잡으므로 초록이어야 한다.
 
 ## 계획 33 요약 (상세는 `docs/plan_clock-injection.md`)
 

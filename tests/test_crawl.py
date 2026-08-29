@@ -1,4 +1,5 @@
 import contextlib
+import inspect
 import io
 import itertools
 import threading
@@ -1346,3 +1347,52 @@ class TestDeadline(unittest.TestCase):
         with mock.patch("sys.stderr", new_callable=io.StringIO) as quiet:
             self._run(["http://a.com/"], max_pages=3, delays={"a.com": 5.0})
         self.assertNotIn("예산", quiet.getvalue())  # 대조군 — 안 끊겼으면 말이 없다
+
+
+class TestSleepIsInjected(unittest.TestCase):
+    """잠드는 자리도 `now` 와 같은 주입 지점인가 — 계획 33 (`design_clock-injection.md`).
+
+    이 파일의 간격 단언 10곳은 오늘 `mock.patch("websearch.crawl.time.sleep")` 에
+    기대는데, 그 패치는 `websearch.crawl` 만이 아니라 **stdlib `time` 모듈을
+    프로세스 전역·전 스레드로** 갈아끼운다(설계가 실측). 아래 두 건이 그 사정거리를
+    인자 하나로 좁히는 계약이다.
+    """
+
+    def test_injected_sleep_is_the_only_one_used(self):
+        """`sleep=` 을 넘기면 그것만 불리고 전역 `time.sleep` 은 한 번도 안 불린다.
+
+        전역은 **가짜로 바꾸지 않고 진짜를 감싸 세기만 한다** — 동작이 그대로여야
+        주입이 샜을 때 "그래도 잤다" 가 보인다. 재시도 사이가 워커 쪽 대기 자리다
+        (`crawl.py:74`), 시드 하나·링크 없음이라 메인 쪽 대기는 지나지 않는다.
+        """
+        slept, clock = [], {"t": 1000.0}
+
+        def fake_sleep(s):
+            slept.append(s)
+            clock["t"] += s
+
+        def failing_fetch(url, before_send=None, retries=fetcher.RETRIES):
+            for _ in range(1 + retries):
+                if before_send is not None:
+                    before_send()
+            return FetchResult(0, None, None)
+
+        with mock.patch("websearch.crawl.fetcher") as mf, \
+             mock.patch("time.sleep", wraps=time.sleep) as global_sleep, \
+             mock.patch("sys.stderr", io.StringIO()):
+            mf.fetch = failing_fetch
+            mf.RETRIES = fetcher.RETRIES
+            crawl.crawl(["http://a.test/"], 10, db_path=":memory:",
+                        robots_cache=FakeRobots(), now=lambda: clock["t"],
+                        workers=1, sleep=fake_sleep)
+        self.assertTrue(slept, "넘긴 sleep 이 한 번도 안 불렸다")
+        self.assertEqual(global_sleep.call_count, 0,
+                         "전역 time.sleep 이 %d번 불렸다 — 주입이 새고 있다"
+                         % global_sleep.call_count)
+
+    def test_default_sleep_is_the_real_one(self):
+        # 짝. 위 테스트만 있으면 "안 넘기면 아무데서도 안 잔다" 로도 통과한다 —
+        # 기본값이 진짜 `time.sleep` 이라야 아무것도 안 넘긴 오늘 동작이 안 바뀐다
+        for fn in (crawl.crawl, crawl._fetch_one):
+            self.assertIs(inspect.signature(fn).parameters["sleep"].default,
+                          time.sleep, fn.__name__)
