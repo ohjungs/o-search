@@ -9,11 +9,23 @@
 
 ## 써보기
 
+명령은 셋이고 각각 자기 모듈이다 — 묶어주는 `cli` 는 없다.
+설치 단계가 없으므로 `PYTHONPATH=src` 로 소스를 가리킨다.
+
 ```bash
-python -m websearch.cli crawl https://example.com --max 100   # 수집
-python -m websearch.cli index                                  # 색인
-python -m websearch.cli serve                                  # http://localhost:8000
+PYTHONPATH=src python3 -m websearch.crawl https://example.com --max 100  # 수집 → data/crawl.db
+PYTHONPATH=src python3 -m websearch.indexer data/crawl.db                # 색인
+PYTHONPATH=src python3 -m websearch.serve data/crawl.db                  # http://localhost:8000
 ```
+
+DB 경로는 넘겨받는 자리다 — `crawl` 이 `data/crawl.db` 에 쓰고, 나머지 둘은 인자로 받는다.
+서버 없이 결과만 보려면 `indexer` 에 질의를 준다:
+
+```bash
+PYTHONPATH=src python3 -m websearch.indexer data/crawl.db --query 검색어
+```
+
+인자 없이 부르면 각 명령이 자기 usage 를 낸다(rc 2).
 
 ## 크롤 윤리
 
@@ -38,9 +50,11 @@ python -m websearch.cli serve                                  # http://localhos
 ## 검증
 
 ```bash
-python -m unittest discover -s tests   # 단위
-ls e2e/*.py                            # e2e 시나리오
+PYTHONPATH=src python3 -m unittest discover -s tests   # 단위 419건
+ls e2e/*.py                                            # e2e 시나리오 17종
 ```
+
+e2e 는 각각 따로 돌린다 — `PYTHONPATH=src python3 e2e/<이름>.py`.
 
 ## 개발 방식
 
