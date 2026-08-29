@@ -1376,6 +1376,7 @@ class TestSleepIsInjected(unittest.TestCase):
                     before_send()
             return FetchResult(0, None, None)
 
+        started = time.monotonic()
         with mock.patch("websearch.crawl.fetcher") as mf, \
              mock.patch("time.sleep", wraps=time.sleep) as global_sleep, \
              mock.patch("sys.stderr", io.StringIO()):
@@ -1384,10 +1385,21 @@ class TestSleepIsInjected(unittest.TestCase):
             crawl.crawl(["http://a.test/1", "http://a.test/2"], 10,
                         db_path=":memory:", robots_cache=FakeRobots(),
                         now=lambda: clock["t"], workers=1, sleep=fake_sleep)
+        elapsed = time.monotonic() - started
         self.assertTrue(slept, "넘긴 sleep 이 한 번도 안 불렸다")
         self.assertEqual(global_sleep.call_count, 0,
                          "전역 time.sleep 이 %d번 불렸다 — 주입이 새고 있다"
                          % global_sleep.call_count)
+        # **위 두 단언이 못 보는 누수가 하나 있다.** `mock.patch("time.sleep")` 은
+        # `time` 모듈의 **속성**을 갈아끼우는데, 기본값 `sleep=time.sleep` 은 def 시점에
+        # 진짜 함수 객체를 붙들고 있어 그 패치가 안 닿는다. 그래서 `crawl.py:171` 이
+        # `sleep` 을 안 넘겨 `_fetch_one` 이 **기본값으로 새면** `slept` 는 메인 쪽에서
+        # 차고 `call_count` 는 0 그대로라 **둘 다 초록인 채로 진짜로 잔다**(실측: 그
+        # 변이에서 이 클래스가 0.003초 대신 4.02초 걸리며 OK). 벽시계만이 그것을 본다 —
+        # digest `[7]` "기본값이 있는 인자는 특히 위험하다(0 이 아니다)" 가 이 자리다.
+        self.assertLess(elapsed, 0.5,
+                        "%.2f초 걸렸다 — 어딘가에서 진짜로 잤다(주입이 기본값으로 샌다)"
+                        % elapsed)
 
     def test_default_sleep_is_the_real_one(self):
         # 짝. 위 테스트만 있으면 "안 넘기면 아무데서도 안 잔다" 로도 통과한다 —
