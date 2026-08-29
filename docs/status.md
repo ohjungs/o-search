@@ -1,9 +1,9 @@
 ---
 signal: GREEN
 phase: 개발
-step: 4
+step: 5
 attempt: 0
-iteration: 157
+iteration: 158
 updated: 2026-08-29
 ctx: 33
 night_iterations: 39
@@ -13,12 +13,26 @@ night_retries: 0
 
 # 현재 상태
 
-**계획 33 `clock-injection` 개발 스텝 3 완료 — 설계 계약 2 가 완성됐다.**
-단위 **433건 전부 OK** (3.27초) · **e2e 17종 전수 rc=0**. 열린 계획 **1** ·
-보류 패치 0 · RED 0. 작업 트리 깨끗.
+**계획 33 `clock-injection` 개발 스텝 4 완료 — 몽키패치가 사라졌다.**
+단위 **433건 전부 OK** (2.93초). 열린 계획 **1** · 보류 패치 0 · RED 0.
+작업 트리 깨끗.
 
-이제 `src/websearch/crawl.py` 에 `time.sleep` **호출은 0곳**이고, 시그니처 기본값
-2곳만 남는다. 두 대기 자리가 **같은 하나**를 쓴다:
+`grep -c 'crawl\.time\.sleep' tests/test_crawl.py` → **0** (스텝 3 에서 11).
+`mock.patch("websearch.crawl.time.sleep") as ms` 10줄을 지우고, 뒤따르던
+`ms.side_effect = lambda s: ...` 를 `ms = mock.Mock(side_effect=lambda s: ...)` 로
+바꿨다. 10곳이 한 글자도 안 다른 같은 모양이라 스크립트로 한 번에 돌렸다.
+스텝 2·3 이 임시 발판으로 붙여 둔 `sleep=ms` 가 이미 전부 자리에 있어서
+**그 외에는 붙일 것이 없었다.** `src` diff **0줄**, `tests` diff **+16/-26**.
+
+`ms` 를 평범한 함수가 아니라 `mock.Mock` 으로 둔 이유는 `TestDeadline._elapsed` 가
+`ms.call_args_list` 로 흘러간 시간을 재기 때문이다(`test_crawl.py:1237`).
+
+**기대값·시나리오는 한 글자도 안 고쳤다** — diff 에서 치환 4종과 독스트링 한 문단을
+빼면 남는 줄이 없다(grep 으로 확인). 실행 시간이 3초대 그대로라는 것 자체가
+**진짜 `time.sleep` 이 안 불렸다**는 증거다.
+
+`src/websearch/crawl.py` 는 스텝 3 이후 그대로다 — `time.sleep` **호출은 0곳**,
+시그니처 기본값 2곳만 남고 두 대기 자리가 **같은 하나**를 쓴다:
 
 ```python
 def _fetch_one(url, robots, now, floor, sleep=time.sleep):   # crawl.py:33
@@ -52,16 +66,25 @@ def crawl(..., deadline=None, sleep=time.sleep):              # crawl.py:88
 `tests` diff 는 전부 그 한 인자 추가고, 기대값·시나리오는 안 건드렸다.
 `mock.patch` 줄 10곳은 스텝 4 의 일이라 그대로 뒀다.
 
-**변이 검사를 예비로 재 봤다** (스텝 5 의 정식 판정은 스텝 4 뒤다):
+## M2 가 이번엔 죽는다 — 계획이 노린 전환이 실제로 일어났다
 
-| 변이 | 결과 |
-|---|---|
-| M1 — 메인 쪽 대기를 통째로 삭제 | **죽는다** (타임아웃 rc=124) |
-| M2 — `:179` 를 전역 `time.sleep` 으로 되돌리기 | **안 죽는다** (rc=0) |
+| 변이 | 스텝 3 (몽키패치 10곳 남음) | 스텝 4 (걷어낸 뒤) |
+|---|---|---|
+| M1 — 메인 쪽 대기를 통째로 삭제 | **죽는다** (rc=124) | 스텝 5 에서 재측정 |
+| M2 — `:179` 를 전역 `time.sleep` 으로 되돌리기 | **안 죽는다** (rc=0) | **죽는다** (rc=124) |
 
-M2 가 사는 이유는 몽키패치 10곳이 아직 그 전역을 잡아 주기 때문이다. 계획서가
-"여기서 안 죽으면 테스트가 여전히 전역에 붙어 있는 것" 이라고 적어 둔 바로 그 상태고,
-**스텝 4 를 건너뛰면 이 계획은 아무것도 안 고친 것이 된다.**
+전역을 잡아 주던 몽키패치가 사라지자 가짜 시계가 안 흐르고 메인 루프가 무한히 잔다.
+계획서가 "여기서 안 죽으면 테스트가 여전히 전역에 붙어 있는 것" 이라고 적어 둔 그
+판정이 **이제 통과한다.** 정식 3종 판정(M1·M2·M3)은 스텝 5 다.
+
+### 사고 — 변이를 작업 트리에서 재지 마라
+
+M2 를 제자리에서 쟀더니 10분 행이 걸렸고, 그 사이 **자동 스냅샷 훅이 변이된
+`crawl.py` 를 커밋해 origin 에 푸시했다**(`0aac7b0` "자동 스냅샷 21:19").
+`git checkout -- src` 가 그 스냅샷을 복원해 변이가 되살아났다 —
+`git checkout 4e7feb0 -- src/websearch/crawl.py` 로 되돌렸고, 이번 커밋이 그 되돌림을
+포함한다. 재측정은 `src`·`tests` 를 스크래치패드에 복사해 90초 타임아웃을 걸고 했다.
+**스텝 5 는 처음부터 사본에서 돈다.**
 
 ## 계획의 가정 하나가 거짓이었다 (스텝 2에서 실측)
 
@@ -91,17 +114,17 @@ _fetch_one.__defaults__ : (<built-in function sleep>,)
 (`sleep=None` 센티널) 우회는 **스텝 1 이 이미 고정한 `test_default_sleep_is_the_real_one`
 을 깬다.** 스텝 4 의 남은 일은 그만큼 줄었다.
 
-## 다음에 할 일 — 개발 스텝 4 (몽키패치 걷어내기)
+## 다음에 할 일 — 개발 스텝 5 (변이 검사 정식 판정)
 
-`tests/test_crawl.py` 의 `mock.patch("websearch.crawl.time.sleep") as ms` **10줄을
-지운다.** `ms` 는 이제 전부 `sleep=ms` 로 명시적으로 넘어가므로, 그 자리에
-`ms = mock.Mock()` 을(또는 `side_effect` 를 단 평범한 함수를) 두면 그만이다.
-**제품 코드는 안 건드린다** — 스텝 3 으로 이음매는 이미 다 만들어졌다.
+변이 **3종이 각각 테스트를 죽여야** 한다. 안 죽으면 스텝 4 는 간격을 재는 척만 한 것이다.
 
-**완료 판정**: `grep -c 'crawl\.time\.sleep' tests/test_crawl.py` 가 **0**
-(오늘 11 — 코드 10 + `TestSleepIsInjected` 독스트링 1). 단위 433건 OK 이고
-**간격 기대값을 하나도 안 고친다**. 고쳐야 통과하면 이음매가 틀린 것이니 멈춘다.
-그다음이 스텝 5 — 거기서 **M2 를 다시 잰다. 이번엔 죽어야 한다.**
+- **M1** — `crawl.py` 워커 쪽 대기(`:74`)를 통째로 지운다 → 간격 단언들이 죽어야 한다
+- **M2** — `:179` 를 전역 `time.sleep` 으로 되돌린다 → **스텝 4 에서 이미 rc=124 확인**
+- **M3** — `DOMAIN_INTERVAL` 하한(`crawl.py:61`)의 `max` 를 `min` 으로 → 죽어야 한다
+
+**방법이 정해져 있다**: `src`·`tests` 를 스크래치패드에 복사하고 **거기서** 변이시킨다.
+`PYTHONDONTWRITEBYTECODE=1` 을 붙이고 각 실행에 **90초 타임아웃**을 건다.
+작업 트리를 변이시키면 자동 스냅샷 훅이 그것을 커밋한다(위 사고 참조).
 
 ## 계획 33 요약 (상세는 `docs/plan_clock-injection.md`)
 

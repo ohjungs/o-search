@@ -264,3 +264,36 @@ append 전용. 수정·삭제 금지.
   **스텝 5 의 M2 는 스텝 4 뒤에 다시 재야 의미가 있다.**
 - 다음: 개발 스텝 4 — `tests/test_crawl.py` 의 `mock.patch("websearch.crawl.time.sleep")`
   10줄을 지운다. `ms` 는 이제 전부 `sleep=` 으로 넘어가므로 `mock.Mock()` 로 바꾸면 된다.
+
+## 2026-08-29 | clock-injection (33) | 개발 스텝4 | 시도0
+
+- **몽키패치가 사라졌다.** `tests/test_crawl.py` 의
+  `mock.patch("websearch.crawl.time.sleep") as ms` **10줄을 지우고**, 뒤따르던
+  `ms.side_effect = lambda s: ...` 를 `ms = mock.Mock(side_effect=lambda s: ...)` 로
+  바꿨다. 치환은 완전히 기계적이었다 — 10곳이 한 글자도 안 다른 같은 모양이라
+  스크립트로 한 번에 돌렸다. 스텝 2·3 이 임시 발판으로 붙여 둔 `sleep=ms` 가
+  이미 전부 자리에 있어서 **그 외에는 붙일 것이 없었다.**
+- `ms` 를 평범한 함수가 아니라 `mock.Mock` 으로 둔 이유: `TestDeadline._elapsed` 가
+  `ms.call_args_list` 로 흘러간 시간을 잰다(`test_crawl.py:1237`). 호출 기록이
+  필요해서 목을 유지했다.
+- 잔량 `grep -c 'crawl\.time\.sleep' tests/test_crawl.py` → **0**. 코드 10곳에 더해
+  `TestSleepIsInjected` 독스트링 1줄도 과거형으로 고쳤다("한때 몽키패치했는데 …
+  지금은 전부 `sleep=` 으로 넘긴다").
+- **`src` diff 0줄** (스텝 3 커밋 `4e7feb0` 대비). `tests` diff **+16/-26**.
+- 검증: 단위 **433건 전부 OK** (2.93초). **기대값·시나리오는 한 글자도 안 고쳤다**
+  (계약 6) — diff 에서 치환 4종과 독스트링을 빼면 남는 줄이 없음을 grep 으로 확인했다.
+  실행 시간이 그대로라는 것 자체가 **진짜 `time.sleep` 이 안 불렸다**는 증거다.
+- **M2 재측정: 죽는다.** `crawl.py:179` 를 전역 `time.sleep` 으로 되돌리면
+  **rc=124**(90초 타임아웃). 스텝 3 예비 측정은 rc=0 이었다 — 몽키패치 10곳이
+  그 전역을 잡아 주고 있었기 때문이다. 그것이 사라지자 가짜 시계가 안 흐르고
+  메인 루프가 무한히 잔다. **계획 33 이 노린 전환이 실제로 일어났다.**
+- **사고 하나 — 변이를 작업 트리에서 재지 마라.** M2 를 제자리에서 재는 동안
+  10분 행이 걸렸고, 그 사이 **자동 스냅샷 훅이 변이된 `crawl.py` 를 커밋해
+  origin 에 푸시했다**(`0aac7b0` "자동 스냅샷 21:19"). `git checkout -- src` 가
+  그 스냅샷을 복원해 변이가 되살아났다 — `git checkout 4e7feb0 -- src/websearch/crawl.py`
+  로 되돌렸다. 재측정은 `src`·`tests` 를 스크래치패드에 복사하고 90초 타임아웃을
+  걸어서 다시 했다. **스텝 5 는 처음부터 그렇게 돈다.**
+- e2e 는 안 돌렸다: `src` diff 가 0줄이라 e2e 가 만지는 코드가 그대로다.
+  스텝 3 에서 17종 전수 rc=0 을 이미 받아 뒀다.
+- 다음: 개발 스텝 5 — 변이 3종(M1·M2·M3) 정식 판정. 스크래치패드 사본에서,
+  `PYTHONDONTWRITEBYTECODE=1` 과 타임아웃을 붙여서.
