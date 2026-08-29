@@ -65,6 +65,19 @@ class TestIndexPages(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             index_pages(os.path.join(self.dir.name, "없는.db"))
 
+    def test_db_without_pages_raises_instead_of_leaking_sqlite_error(self):
+        # 크롤한 적 없는 DB(또는 남의 DB)를 준 경우. sqlite3.OperationalError 가
+        # 그대로 새면 CLI 가 트레이스백을 낸다 — digest 반복 실패 항목.
+        other = os.path.join(self.dir.name, "남의.db")
+        sqlite3.connect(other).execute("CREATE TABLE junk(x)")
+        with self.assertRaises(indexer.NoCrawlDataError):
+            index_pages(other)
+
+    def test_empty_pages_table_is_zero_not_an_error(self):
+        # 대조군 — "크롤 데이터가 없다" 와 "크롤했는데 0건" 은 다른 상태다.
+        Store(self.db_path)  # pages 를 만들기만 하고 아무것도 안 넣는다
+        self.assertEqual(index_pages(self.db_path), 0)
+
     def test_noindex_page_is_not_indexed(self):
         # 크롤 윤리: 색인 거부를 선언한 문서는 색인에 들어가지 않는다
         self._seed([
@@ -455,6 +468,11 @@ class TestCli(unittest.TestCase):
 
     def test_missing_db_is_error_not_traceback(self):
         self.assertEqual(indexer.main(["prog", os.path.join(self.dir.name, "없는.db")]), 2)
+
+    def test_db_without_pages_is_error_not_traceback(self):
+        other = os.path.join(self.dir.name, "남의.db")
+        sqlite3.connect(other).execute("CREATE TABLE junk(x)")
+        self.assertEqual(indexer.main(["prog", other]), 2)
 
     def test_query_without_value_is_error(self):
         Store(self.db_path).upsert("http://a.test/", "<p>김치</p>", 200)

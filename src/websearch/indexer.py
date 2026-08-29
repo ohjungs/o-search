@@ -54,6 +54,14 @@ class StaleIndexError(RuntimeError):
     """색인이 옛 SCHEMA 로 만들어져 있다. `index_pages()` 를 돌리면 재구축된다."""
 
 
+class NoCrawlDataError(RuntimeError):
+    """`pages` 가 없다 — 크롤한 적 없는 DB 이거나 남의 DB 다.
+
+    "크롤 데이터가 없다" 와 "크롤했는데 색인할 게 0건" 은 다른 상태라 0 으로
+    합치지 않는다. 합치면 DB 경로를 잘못 준 것이 조용한 성공으로 보인다.
+    """
+
+
 def _docs_sql(db):
     """`docs` 의 정의 원문. 아직 색인 전이면 None."""
     row = db.execute("SELECT sql FROM sqlite_master WHERE name = 'docs'").fetchone()
@@ -69,6 +77,12 @@ def index_pages(db_path):
         raise FileNotFoundError(db_path)
     db = sqlite3.connect(db_path)
     try:
+        # pages 가 없으면 아래 SELECT 가 sqlite3.OperationalError 를 흘려 CLI 가
+        # 트레이스백을 낸다. 읽기 직전 한 번만 본다 — 만들지는 않는다(store 몫).
+        if not db.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'pages'"
+        ).fetchone():
+            raise NoCrawlDataError(db_path)
         # SCHEMA 는 IF NOT EXISTS 라 정의를 바꿔도 옛 DB 는 옛 정의로 조용히 남는다.
         # docs 는 pages 에서 파생된 색인이므로 버리고 다시 만들어도 원본이 사라지지 않는다.
         if _docs_sql(db) not in (None, _CURRENT_SQL):
@@ -221,6 +235,12 @@ def main(argv):
                 print("%s\n  %s\n  %s" % (title or "(제목 없음)", url, text))
     except FileNotFoundError:
         print("DB 파일이 없다: %s" % db_path, file=sys.stderr)
+        return 2
+    except NoCrawlDataError:
+        # 트레이스백은 복구법을 안 알려 준다 — StaleIndexError 와 같은 관용구다
+        print("크롤 데이터가 없다(pages 테이블 없음): %s\n"
+              "먼저 크롤한다: python3 -m websearch.crawl <시드 URL>" % db_path,
+              file=sys.stderr)
         return 2
     except StaleIndexError:
         # 트레이스백은 복구법을 안 알려 준다 — docstring 에 적어 둔 것을 화면에 낸다
