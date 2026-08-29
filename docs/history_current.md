@@ -297,3 +297,35 @@ append 전용. 수정·삭제 금지.
   스텝 3 에서 17종 전수 rc=0 을 이미 받아 뒀다.
 - 다음: 개발 스텝 5 — 변이 3종(M1·M2·M3) 정식 판정. 스크래치패드 사본에서,
   `PYTHONDONTWRITEBYTECODE=1` 과 타임아웃을 붙여서.
+
+## 2026-08-30 | clock-injection (33) | 개발 스텝5 | 시도0
+
+- **변이 3종이 전부 죽었다 — 개발 phase 끝.** 스크래치패드 사본(`scratchpad/mut/`,
+  `.git` 없음)에서 쟀고, 같은 사본의 기준선이 **433건 OK** 임을 먼저 확인한 뒤 잰 값이다.
+
+  | 변이 | rc | 실패 |
+  |---|---|---|
+  | M1 — `before_send` 의 대기 블록(`crawl.py:71~74`) 통째 삭제 | **1** | 9건 |
+  | M2 — `crawl.py:179` 를 전역 `time.sleep` 으로 되돌리기 | **124** (90초 타임아웃) | 행 |
+  | M3 — `crawl.py:61` 의 `max` → `min` | **1** | 11건 |
+
+- **M2 가 계획 33 의 판정이다.** 스텝 3 예비 측정에서는 rc=0 으로 살아남았다 —
+  몽키패치 10곳이 그 전역을 잡아 주고 있었기 때문이다. 그것이 사라지자 가짜 시계가
+  안 흐르고 메인 루프가 무한히 잔다. 계획서가 "여기서 안 죽으면 테스트가 여전히
+  전역에 붙어 있는 것" 이라고 적어 둔 판정이 **이제 통과한다.**
+- M1·M3 는 공통으로 `TestRetriesKeepTheInterval`·`TestRetryUsesWhatTheFrontierKnows`·
+  `TestSleepIsInjected` 를 죽인다. M3 는 `TestRetriesKeepTheInterval` 의 상한 관련
+  2건(`test_a_hair_over_the_cap_does_not_retry`·`test_unkeepable_interval_means_no_retry_at_all`)을
+  더 죽여 11건이다.
+- **M1 은 한 줄이 아니라 블록 4줄을 지웠다.** `sleep(remaining)` 만 지우면 빈 `if` 라
+  문법 오류다. `digest.md:154` `[7]` 의 **"이 줄을 안 썼다면 무엇이 되는가"** 기준에
+  맞춘 되돌리기는 `if sends:` 블록 삭제 — `before_send` 가 발신 시각만 적고 안 자는 상태.
+- **스텝 4 의 사고는 재발하지 않았다.** 작업 트리는 내내 깨끗했고(`git status` 로 확인),
+  변이는 전부 `.git` 없는 사본에서 일어났다. 각 실행에 `timeout 90` 과
+  `PYTHONDONTWRITEBYTECODE=1` 을 걸었다 — M2 의 rc=124 가 그 타임아웃이다.
+- **복구 기록**: 이 반복은 앞 세션이 스텝 4 도중 죽은 자리에서 시작했다. 코드는
+  작업 트리에 살아 있었고 커밋만 안 됐다. 단위 433건 OK 를 먼저 받고 **스텝 5 를
+  시작하기 전에 커밋했다**(`1c3fc85`) — 그 커밋이 스냅샷 `0aac7b0` 이 함께 넣어 버린
+  `crawl.py:179` 변이의 되돌림도 포함한다.
+- 다음: 테스트 phase. `test.md` 6절(단언을 낮추지 않았는지)이 이 계획의 핵심 관문이고,
+  진짜 관문은 그 뒤 e2e 3종이다.
