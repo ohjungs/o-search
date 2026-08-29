@@ -24,6 +24,10 @@
 - **e2e**: `PYTHONPATH=src python3 e2e/design_check.py` (2026-08-27 실행 확인, 0.4s —
   컨셉 디자인 4축. 판정 내용과 대리 지표의 천장은 아래 "품질 기준" 절에 적었다.
   변이 7종에서 전부 실패하는 것까지 확인)
+- **e2e**: `PYTHONPATH=src python3 e2e/tokenizer_e2e.py` (2026-08-27 실행 확인, 5.7s —
+  crawl→색인→CLI 서버로 띄운 **화면(HTML)** 에서 복합어 뒷부분·띄어쓰기 양방향·어순·영어
+  굴절·AND 계약·옛 색인 복구를 본다. 변이 4종(2-gram 분기 제거·porter 제거·드리프트 감지
+  끄기·어절별→통째로)에서 각각 제 시나리오가 실패하는 것까지 확인)
 - **e2e**: `PYTHONPATH=src python3 e2e/domain_key_e2e.py` (2026-08-27 실행 확인, 6.5s —
   같은 서버의 세 표기(`a.test`·`A.test`·`a.test:80`)를 **한 실서버**로 보내 서버 수신
   간격 2.01s·robots 1회를 재고, `a.test:443` 을 다른 서버로 두어 대조군 1.00s 를 잰다.
