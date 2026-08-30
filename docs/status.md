@@ -1,62 +1,66 @@
 ---
-signal: DONE
+signal: GREEN
 phase: 개발
-step: 1
+step: 0
 attempt: 0
-iteration: 181
+iteration: 182
 updated: 2026-08-31
-ctx: 55
-night_iterations: 54
+ctx: 76
+night_iterations: 55
 night_red: 0
 night_retries: 0
 ---
 
 # 현재 상태
 
-**계획 36 `signal-budget-cover` DONE**(짧은 경로 — 계획서·설계·e2e 문서 없음).
-브랜치 `loop/signal-budget-cover`(`loop/deadline-stop` `346884a` 에서 팠다) —
-**`main` 병합은 사람이 정한다.** 계획 35 까지 전부 DONE·아카이브 완료. **열린 계획 0.**
+**계획 37 `indexer-interrupt` 착수** — 계획서 `docs/plan_indexer-interrupt.md`,
+브랜치 `loop/indexer-interrupt`(`loop/signal-budget-cover` `a8ad633` 에서 팠다).
+설계 생략(계획서 8절). **다음은 개발 스텝 1.**
+계획 36 까지 전부 DONE. **`main` 병합은 사람이 정한다.**
 
-## 이번 계획이 한 일
+## 이번 계획이 여는 것
 
-**예산 만료와 SIGINT 가 겹치는 자리를 못박았다.** 계획 35 가 rc 를 `signaled` 로 갈라
-예산만 rc 0 · 신호만 rc 130 은 각각 단언이 있었는데 **둘이 겹치는 자리는 0건**이었다.
-`tests/test_crawl.py` `TestCliTurnsSigintIntoTheSignal` 에 겹침 단언 한 건을 더했다
-(`test_a_signal_wins_over_an_expired_budget_in_either_order` · 두 순서를 `subTest` 로).
+**색인 도중 Ctrl-C 가 색인을 지운다.** `index_pages()` 는 스키마가 드리프트하면
+`DROP TABLE docs` → `CREATE` → 전건 `INSERT` → `commit` 으로 재구축하는데,
+**Python 3.9.6 `sqlite3` 은 DDL 을 암묵 트랜잭션에 안 넣는다** — DROP/CREATE 는 그 자리에서
+커밋되고 INSERT 만 롤백된다. 그래서 재구축 중 SIGINT 는 **옛 6000행을 지우고 0행을 남긴다.**
+그때부터 검색은 전부 `결과 없음` 이고, 이는 크롤 데이터가 없는 것과 **구별되지 않는다**
+(21·26·29 가 세 번 닫은 실패 모양).
 
-**`src/` diff 0줄** — 코드는 옳았고 없던 것은 그것이 옳다는 증거뿐이다. 31
-`port-zero-cover` 와 같은 모양이다.
+곁들여 **`indexer.main` 만 중단 계약이 없다** — `crawl` 은 rc 130(34·35·36), `serve` 는
+rc 0, `indexer` 만 트레이스백 + rc -2 다. `digest ## 반복 실패` 의 "CLI 가 트레이스백을
+낸다"(2회)의 **세 번째 자리**이고, 계획 21 이 이 함수에 세운 관용구를 중단 경로만 안 따른다.
 
-## 완료 기준 대조 (2026-08-31)
+## 착수 탐침 실측 (2026-08-31 · 전부 임시 디렉터리)
 
-- ① 단위 451 → **452건 OK**(3.425초, 문서에 적힌 명령 그대로).
-- ② **변이 2종이 새 단언만 죽인다** — `.git` 없는 스크래치패드 사본에서 심었다.
-  - M1 `signaled.set()` 을 `if not stop.is_set():` 로 감싸기 → **`[만료 먼저]` 한 갈래만
-    FAIL**, 나머지 451건 통과. **순서를 하나만 쟀으면 이 변이가 살아남는다.**
-  - M2 만료 갈래에 이른 `return 0` → **두 갈래 다 FAIL**, 나머지 451건 통과.
-  - 둘 다 심기 전에 `count(old) == 1` 로 원문 존재를 먼저 단언했다(`digest [8]`).
-- ③ `src/` diff **0줄**(`git diff --stat` — `tests/test_crawl.py` +31 · `README.md` ±1).
+- **A 정상 색인 중 SIGINT**: rc **-2** · stdout 빈 문자열 · `KeyboardInterrupt` 트레이스백
+  (`extract.py:60` 프레임까지) · DB `pages 6000 / docs 0 / integrity ok`(색인 무변경).
+- **B 재구축 중 SIGINT**: rc **-2** · `docs` **6000행 → 0행** · 새 정의는 커밋된 채로 남는다.
+- **뿌리**: 맨 `sqlite3`(3.9.6)에서 `DROP`+`CREATE` 뒤 commit 없이 close → **안 되돌아간다.**
+- 전건 색인 기준선 **6000문서 4.58초**(성능 회귀 판정용).
 
-## 밖에서 다시 잰 것
+## 오늘의 검증이 이 변화를 재는가 — 못 잰다
 
-제품이 0줄이라 e2e 전수는 안 돌리고 **이 계약을 직접 재는 둘만** 돌렸다:
-`interrupt_e2e` **rc 0**(SIGINT 뒤 10.0초 rc 130 · 두 번째 Ctrl-C rc -2) ·
-`deadline_e2e` **rc 0**(시나리오 3 서버 수신 **1건** · 10.1초 · rc 0 · DB 0행).
-`data/crawl.db` **sha256 무변경**(`85c96744…`) — 탐침·e2e 는 임시 디렉터리에서만 돌았다.
+단위 452건 중 `indexer` 중단 단언 **0건** · e2e 18종에도 없다(중단 e2e 둘은 `crawl` 쪽) ·
+스키마 재구축 단언은 있으나 **중단된 재구축**은 없다.
 
-## 밀린 집안일
+## 다음 스텝 (계획서 5절)
 
-**`digest.md` 가 상한 200 을 넘어 있다**(이번 반복 뒤 222줄). 룰의 처방은 "오래된 완료
-항목부터 지운다" 인데 그 항목들을 `index.md` 와 `plan_history_*.md` 가 참조하고 있어
-**지우기 전에 참조 확인이 먼저**다 — 이 반복은 그 확인을 안 했고, 새 줄은 완료 1줄과
-후보 `[6]` 제자리 수정뿐이다. `history_current.md` 는 이 반복 기록을 더해 **286줄**
-(상한 300 — 다음 회전이 가깝다. 밀려나는 대상은 계획 35 의 여섯 반복 → `history_013.md`).
+1. **재구축을 한 트랜잭션으로** — `indexer.py:88-90` 의 `DROP` 앞에 `db.execute("BEGIN")`.
+   RED 는 `extract.extract_text` 가 `KeyboardInterrupt` 를 던지게 만든다.
+2. **`main` 이 중단을 관용구로** — `indexer.py:236-249` 옆에 `except KeyboardInterrupt`,
+   rc **130** + 안내 한 줄. 스텝 1 뒤라야 "색인은 바뀌지 않았다" 가 참이다.
+
+## 집안일 (미결로 넘긴다)
+
+`digest.md` **223줄**(상한 200) · `history_current.md` 상한 300 근접. 회전 전에
+`index.md`·`plan_history_*.md` 참조 확인이 선행이다(`digest [6]`).
 
 ## 한도 (넘으면 RED)
 
-- 도메인당 요청 간격 1초 이상 · robots.txt `Crawl-delay` 준수. **예산 만료 중에도 그렇다.**
-- `data/crawl.db` 실물·스키마를 안 건드린다. e2e·탐침은 임시 디렉터리에서만 —
-  **서브프로세스는 `cwd` 까지 임시 디렉터리다.**
-- 외부 네트워크 금지 — 로컬 테스트 서버만.
-- 기존 단언을 낮추지 않는다. 시간 상한을 올려 초록을 만드는 것은 실패다.
-- `docs/specs/` 는 사용자 소유(읽기만) · `--no-verify` 금지 · `main` 직접 커밋 금지.
+- `data/crawl.db` 실물·스키마를 안 건드린다. 탐침·e2e 는 임시 디렉터리에서만.
+- 기존 단언을 낮추지 않는다 — 특히 21 의 `NoCrawlDataError`·`StaleIndexError` 갈래.
+- `except KeyboardInterrupt` 가 다른 예외를 같이 삼키면 RED(변이 M5 가 잰다).
+- 색인 성능 10% 이상 회귀면 RED.
+- 도메인당 요청 간격 1초 이상 · robots.txt 준수.
+- 외부 네트워크 금지 · `docs/specs/` 읽기만 · `--no-verify` 금지 · `main` 직접 커밋 금지.
