@@ -1,12 +1,12 @@
 ---
 signal: GREEN
 phase: 개발
-step: 1
+step: 2
 attempt: 0
-iteration: 166
+iteration: 167
 updated: 2026-08-30
 ctx: 42
-night_iterations: 44
+night_iterations: 45
 night_red: 0
 night_retries: 0
 ---
@@ -45,6 +45,21 @@ recall@10 100%/95% · 오탐 평균 14.0 · p95 9.33ms · JS 0 B · 최저 명�
    `merge -s ours` 로 트리를 유지한 채 풀었다(`d31560a`, 강제 푸시 없음).
    스냅샷 훅이 끼어들었으면 **접기 전에 `git log origin/<브랜치>` 를 본다.**
    변이는 `.git` 없는 스크래치패드 사본에서만 심는다.
+
+**변이 판정 4/4 — 전부 죽었다** (반복 167 이 독립 재판정, 436건 기준선 OK·rc=0 위에서).
+M1·M2 는 반복 166 이 이미 잡았고, **M3·M4 는 이 반복이 새로 심은 것**이다:
+
+| 변이 | rc | 죽인 테스트 |
+|---|---|---|
+| M1 꼭대기 `interrupted or` 삭제 | 1 | `test_signal_stops_new_submissions_and_reaps_inflight` |
+| M2 `wait_fn = sleep` 고정 | 1 | `test_main_loop_waits_on_the_signal_not_the_sleep` |
+| M3 종료 사유 구분 삭제(항상 예산 문구) | 1 | 위 + 기존 `test_exhausted_budget_is_reported` |
+| M4 중단이면 in-flight 결과를 버린다 | 1 | `test_signal_stops_new_submissions_and_reaps_inflight` |
+
+M3·M4 가 계약 6 의 **두 절반**(사유를 남긴다 · 떠 있는 결과는 줍는다)을 각각 덮는다 —
+M4 는 설계가 "안 주우면 다음 실행이 같은 URL 을 또 때린다" 고 적은 자리가 실제로
+단언되고 있음을 보인 것이다. **M3 은 새 테스트와 기존 예산 테스트를 함께 죽인다** —
+두 사유가 한 `print` 를 나눠 쓰므로 한쪽만 재면 못 잡는다.
 
 ## 설계가 정한 것 — 네 자리를 **두 자리로** 줄였다
 
