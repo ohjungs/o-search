@@ -4,7 +4,9 @@
 락도 스레드별 SQLite 커넥션도 없다 (docs/design_crawl-throughput.md).
 """
 import concurrent.futures
+import signal
 import sys
+import threading
 import time
 
 from websearch import fetcher, flags, links, urls
@@ -138,9 +140,11 @@ def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None,
     같은 URL 을 또 때린다 — 크롤 윤리로도 손해다. 줍는 것은 결과뿐이라
     **새 요청은 나가지 않는다**(`_store_result` 는 네트워크를 하지 않는다).
 
-    **Ctrl-C 가 즉시 안 먹는다.** `ThreadPoolExecutor` 는 나갈 때 떠 있는 요청을 기다려서,
-    최악 `fetcher` 타임아웃 10초 × 재시도 **+ 재시도 사이의 간격 대기**(도메인 간격 ×
-    재시도, 상한 30초)만큼 늦는다 — 요청 하나당 최악 90초다(동시화 전에는 즉시 끊겼다).
+    **Ctrl-C 는 `stop` 을 줬을 때만 빠르다.** `ThreadPoolExecutor` 는 나갈 때 떠 있는
+    요청을 기다린다 — `stop` 없이는 재시도 잠까지 다 치르느라 **실측 69.57초**가 걸렸다
+    (탐침이 적어 뒀던 "최악 90초" 는 오답이다: 간격 대기가 이미 흘러간 타임아웃을 빼므로
+    발신 간격은 `interval + 10` 이 아니라 `interval` 이다. 분해는 계획서 2절).
+    `stop` 을 주면 재시도가 접혀 **남는 것은 소켓 읽기 1회(`fetcher` 타임아웃 10초)뿐**이다.
     재시도 대기는 예의를 위해 치르기로 한 값이다(docs/design_crawl-politeness.md 2-3절).
     저장은 upsert 마다 커밋이라 **유실은 없다**. `cancel_futures` 로는 안 줄어든다 —
     취소되는 건 대기 중인 작업뿐인데 여기선 제출한 것이 곧 실행 중인 것이다.
@@ -333,15 +337,32 @@ def main(argv):
         print("모르는 인자: %s — 시드 URL 로 읽지 않는다" % " ".join(unknown),
               file=sys.stderr)
         return 2
+    # Ctrl-C 를 크롤이 보는 신호로 바꾼다 (docs/design_graceful-interrupt.md 계약 7)
+    stop = threading.Event()
+
+    def interrupt(signum, frame):
+        # **자기를 먼저 내리고 그다음 세운다** — 두 번째 Ctrl-C 는 기본 동작으로
+        # 즉사해야 한다. 순서가 반대면 사용자가 탈출구를 잃는 창이 생긴다
+        signal.signal(signal.SIGINT, signal.SIG_DFL)
+        stop.set()
+
+    # `signal.signal` 의 반환값이 곧 옛 핸들러다 — 안 되돌리면 한 프로세스에서
+    # 여러 번 도는 호출자(테스트·래퍼)가 오염된다. 중단 갈래는 위에서 SIG_DFL 로
+    # 내려간 채라 특히 그렇다
+    previous = signal.signal(signal.SIGINT, interrupt)
     try:
-        n = crawl(args, max_pages, workers=workers, deadline=deadline)
+        n = crawl(args, max_pages, workers=workers, deadline=deadline, stop=stop)
     except NoUsableSeedsError as exc:
         # 판정은 `crawl()` 이 한다 — 여기서 스킴을 다시 보면 `-` 를 거절하는 위 가드와
         # 한 덩어리가 되어 27 의 변이 M4 가 경고한 다른 계약으로 넓어진다
         print(exc, file=sys.stderr)
         return 2
+    finally:
+        signal.signal(signal.SIGINT, previous)
     print("수집 %d 페이지" % n)
-    return 0
+    # 중단은 **오늘 관측값과 같은 130** 이다 — 0 으로 내면 `crawl && indexer` 가
+    # 중단 뒤에도 다음 단계를 돈다. 주운 페이지 수는 중단이어도 찍는다
+    return 130 if stop.is_set() else 0
 
 
 if __name__ == "__main__":
