@@ -3,6 +3,7 @@ import contextlib
 import inspect
 import io
 import itertools
+import signal
 import threading
 import time
 import unittest
@@ -1694,3 +1695,94 @@ class TestWorkerSeesTheSignal(unittest.TestCase):
                          "크롤이 워커에게 신호를 안 넘겼다 — 재시도가 나갔다: %s" % (sends,))
         self.assertEqual(n, 0)
         self.assertIn("중단", err.getvalue())
+
+
+class TestCliTurnsSigintIntoTheSignal(unittest.TestCase):
+    """CLI 가 SIGINT 를 `stop` 으로 바꾼다 — design_graceful-interrupt.md 계약 7.
+
+    **진짜 `os.kill(os.getpid(), SIGINT)` 는 안 쓴다.** 핸들러가 제 손으로 SIG_DFL 로
+    돌아간 뒤라면 그 신호가 테스트 프로세스를 죽인다. 대신 **설치된 핸들러를 직접
+    부른다** — 재는 것은 "신호가 왔을 때 무엇을 하는가" 지 커널 배달이 아니다.
+    """
+
+    @contextlib.contextmanager
+    def sentinel_handler(self):
+        """테스트 프로세스의 SIGINT 핸들러를 아는 값으로 세워 두고 끝나면 되돌린다."""
+        def sentinel(signum, frame):  # pragma: no cover — 부르지 않는다
+            raise AssertionError("센티널 핸들러가 불렸다")
+
+        previous = signal.signal(signal.SIGINT, sentinel)
+        try:
+            yield sentinel
+        finally:
+            signal.signal(signal.SIGINT, previous)
+
+    def test_main_hands_a_stop_event_to_the_crawl(self):
+        """`main()` 이 `crawl(stop=...)` 로 신호를 넘긴다 — 안 넘기면 Ctrl-C 는 오늘 그대로다."""
+        with self.sentinel_handler(), \
+             mock.patch("websearch.crawl.crawl", return_value=0) as crawled, \
+             mock.patch("sys.stdout", new_callable=io.StringIO):
+            self.assertEqual(crawl.main(["prog", "http://a.com/"]), 0)
+        stop = crawled.call_args.kwargs.get("stop")
+        self.assertIsNotNone(stop, "CLI 가 crawl 에 stop 을 안 넘겼다")
+        self.assertFalse(stop.is_set())
+        self.assertTrue(hasattr(stop, "wait"), "wait(t) 가 없으면 잠을 못 깨운다")
+
+    def test_the_handler_disarms_itself_before_setting_the_signal(self):
+        """핸들러는 **SIG_DFL 먼저, `stop.set()` 그다음** — 두 번째 Ctrl-C 는 즉사다.
+
+        순서가 뒤집히면 첫 신호와 둘째 신호 사이에 창이 생긴다. 여기서는 핸들러가
+        돌아온 **직후의 상태**를 재는 것으로 그 순서를 고정한다: 신호가 서 있는데
+        핸들러가 아직 우리 것이면 탈출구가 없는 구간이 있었다는 뜻이다.
+        """
+        seen = {}
+
+        def fake_crawl(*args, **kwargs):
+            stop = kwargs["stop"]
+            signal.getsignal(signal.SIGINT)(signal.SIGINT, None)  # Ctrl-C
+            seen["armed"] = signal.getsignal(signal.SIGINT)
+            seen["set"] = stop.is_set()
+            return 3
+
+        with self.sentinel_handler(), \
+             mock.patch("websearch.crawl.crawl", fake_crawl), \
+             mock.patch("sys.stdout", new_callable=io.StringIO) as out:
+            rc = crawl.main(["prog", "http://a.com/"])
+        self.assertTrue(seen["set"], "핸들러가 stop 을 안 세웠다 — 크롤이 안 멈춘다")
+        self.assertIs(seen["armed"], signal.SIG_DFL,
+                      "핸들러가 자기를 안 내렸다 — 두 번째 Ctrl-C 가 안 먹는다")
+        self.assertEqual(rc, 130, "중단인데 rc 0 을 냈다 — `crawl && indexer` 가 계속 돈다")
+        self.assertIn("수집 3 페이지", out.getvalue(), "중단이어도 수집 수는 찍는다")
+
+    def test_the_original_handler_comes_back(self):
+        """세 갈래(정상·중단·시드 오류) **모두** 원래 핸들러를 복원한다.
+
+        안 하면 한 프로세스에서 여러 번 도는 테스트·래퍼가 오염된다 — 특히 중단 갈래는
+        핸들러가 SIG_DFL 로 내려가 있어 복원이 없으면 그대로 남는다.
+        """
+        def interrupting(*args, **kwargs):
+            signal.getsignal(signal.SIGINT)(signal.SIGINT, None)
+            return 0
+
+        def raising(*args, **kwargs):
+            raise crawl.NoUsableSeedsError("no seeds")
+
+        for name, fake, expected in (("정상", mock.Mock(return_value=0), 0),
+                                     ("중단", interrupting, 130),
+                                     ("시드 오류", raising, 2)):
+            with self.subTest(name), self.sentinel_handler() as sentinel, \
+                 mock.patch("websearch.crawl.crawl", fake), \
+                 mock.patch("sys.stdout", new_callable=io.StringIO), \
+                 mock.patch("sys.stderr", new_callable=io.StringIO):
+                rc = crawl.main(["prog", "http://a.com/"])
+                self.assertEqual(rc, expected)
+                self.assertIs(signal.getsignal(signal.SIGINT), sentinel,
+                              "원래 핸들러가 안 돌아왔다")
+
+    def test_no_signal_still_returns_zero(self):
+        """**대조군.** 중단이 없으면 오늘 그대로 rc 0 이다."""
+        with self.sentinel_handler(), \
+             mock.patch("websearch.crawl.crawl", return_value=2), \
+             mock.patch("sys.stdout", new_callable=io.StringIO) as out:
+            self.assertEqual(crawl.main(["prog", "http://a.com/"]), 0)
+        self.assertIn("수집 2 페이지", out.getvalue())

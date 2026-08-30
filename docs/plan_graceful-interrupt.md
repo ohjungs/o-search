@@ -1,7 +1,7 @@
 # 계획 34 — `graceful-interrupt` (중단 신호)
 
 - 슬러그: `graceful-interrupt` · 브랜치: `loop/graceful-interrupt`
-- 상태: **개발 phase 스텝 3** (스텝 1 DONE `f316320` · 스텝 2 DONE. 설계서 `design_graceful-interrupt.md` 의 계약 절이 명세)
+- 상태: **개발 phase 스텝 4** (스텝 1 DONE `f316320` · 스텝 2 DONE · 스텝 3 DONE. 설계서 `design_graceful-interrupt.md` 의 계약 절이 명세)
 - 선행: 계획 33 `clock-injection` DONE (`crawl()`·`_fetch_one()` 이 `sleep=` 을 받는다)
 
 ## 1. 문제 · 목표 · 기대 결과
@@ -139,7 +139,16 @@ PEP 475 이후 락 획득은 신호 핸들러가 돌고 나면 **남은 시간�
   (설계가 3절 ③ 을 고르면 `src/websearch/fetcher.py` 추가 — 그때 이 줄을 갱신한다)
 - 의존: 스텝 1 (같은 신호 객체를 쓴다)
 
-### 스텝 3 — CLI 가 SIGINT 를 잡는다
+### 스텝 3 — CLI 가 SIGINT 를 잡는다 — **DONE**
+
+**결과: 단위 445건 OK(+4) · e2e 17종 rc=0 · 변이 4/4 사망.** 제품은 `main()` 25줄.
+실물 탐침(서브프로세스에 진짜 SIGINT): **rc 130 · 신호 뒤 0.01초 · 받은 1페이지 유지**.
+핸들러 복원은 설계서의 `getsignal` 대신 **`signal.signal` 의 반환값**을 썼다 —
+같은 객체인데 등록과 저장이 한 줄이라 순서를 틀릴 자리가 없다.
+**계약 9(독스트링의 "최악 90초" → 실측 69.57초)도 여기서 같이 닫았다.**
+**교훈: 신호 테스트에 진짜 신호를 쓰지 않는다** — `os.kill(getpid(), SIGINT)` 는
+핸들러가 `SIG_DFL` 로 내려간 뒤라 테스트 프로세스를 죽인다. 설치된 핸들러를 직접
+부르고, 센티널 핸들러를 깔았다 되돌리는 컨텍스트 매니저 안에서 돈다.
 
 - 자리: `src/websearch/crawl.py:249~292` 의 `main()`.
 - 할 일: `signal.signal(signal.SIGINT, ...)` 로 신호를 세우고 `crawl()` 에 넘긴다.
