@@ -1,11 +1,11 @@
 ---
 signal: GREEN
-phase: 개발
-step: 1
+phase: 테스트
+step: 2
 attempt: 0
-iteration: 174
+iteration: 175
 updated: 2026-08-30
-ctx: 82
+ctx: 26
 night_iterations: 50
 night_red: 0
 night_retries: 0
@@ -13,9 +13,14 @@ night_retries: 0
 
 # 현재 상태
 
-**계획 35 `deadline-stop` 을 열었다 — 계획 phase 완료, 설계는 생략(사유는 계획서 3절).**
+**계획 35 `deadline-stop` — 개발 스텝 1 완료. 다음은 테스트 스텝 2(e2e).**
 계획서 `docs/plan_deadline-stop.md`. 브랜치: `loop/deadline-stop`
 (`loop/graceful-interrupt` `eef1b50` 에서 팠다). 계획 34 는 DONE·아카이브 완료.
+
+**스텝 1 실측**: 탐침 재실측 종료 **70.08 → 10.05초** · 서버 수신 **3건 → 1건**(t=0.05) ·
+rc **0**(`예산 2초 소진`). 단위 **450건 OK**(+3) · e2e **18종 rc=0** ·
+변이 4종이 **각각 새 단언 하나씩만** 죽었다. 남은 10.05초는 소켓 10초 — 계획서 5절이
+안 건드리기로 한 자리다.
 
 기준선(착수 전 실측, 2026-08-30): 단위 **447건 OK** · e2e **18종 rc=0** ·
 recall@10 100%/95% · 오탐 평균 14.0 · p95 9.30ms · JS 0 B · 최저 명암비 4.87:1 ·
@@ -40,10 +45,10 @@ recall@10 100%/95% · 오탐 평균 14.0 · p95 9.30ms · JS 0 B · 최저 명�
 
 ## 다음
 
-**개발 스텝 1** — `src/websearch/crawl.py` 세 줄기(제품 ≈8줄): `futures.wait` 를 남은
-예산으로 자르기 · 소진 분기에서 `stop.set()` · `main()` 의 rc 판정을 신호 전용 플래그로
-가르기(`crawl.py:366` 을 그대로 두면 예산 만료가 rc 130 이 된다). 완료 기준·변이 4종은
-계획서 4절에 있다. 변이는 **`.git` 없는 스크래치패드 사본**에서만 심는다.
+**테스트 스텝 2(e2e)** — `e2e/deadline_e2e.py` 에 시나리오를 붙인다: 안 답하는 서버 +
+`Crawl-delay 30` + `--max 5 --deadline 2` 에서 **12초 안 rc 0** · 서버 수신 **1건** ·
+DB 유실 0. `--control` 로 불능 가드도 확인한다(잴 대상이 사라지면 초록이 아니라 2).
+되돌리기 변이 2종(M1·M2)에서 그 시나리오가 죽는 것까지가 완료 기준이다(계획서 4절).
 
 ## 한도 (넘으면 RED)
 

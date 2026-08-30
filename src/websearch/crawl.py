@@ -126,9 +126,11 @@ def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None,
     `deadline` 은 **총 크롤 시간 예산(상대 초)** 이다. `None` 이면 오늘과 같은 경로만
     돈다 — 기본값이 곧 꺼진 플래그다(docs/design_deadline.md 6절).
     예산이 하는 일은 **"덜 보낸다"** 뿐이고 "빨리 보낸다" 는 아니다: 간격은 안 깎는다.
-    **메인 스레드만 예산을 본다** — 이미 떠 있는 요청은 그대로 끝까지 간다.
-    그래서 실제 종료는 예산 + 떠 있는 요청 하나의 최악만큼 늦는다 — **실측 69.57초**다
-    (설계 5절 2번이 적어 둔 "90초" 는 오답이다. 분해는 아래 Ctrl-C 문단).
+    **예산이 만료되면 `stop` 을 세운다**(계획 35) — 그래야 워커도 재시도를 접는다.
+    메인만 끊으면 이미 뜬 워커가 `Crawl-delay` 만큼 자고 다음 요청을 냈다
+    (탐침: 예산 2초에 요청 3건 · 종료 70.08초 → 지금은 1건 · **10.05초**).
+    그래도 **이미 나간 요청의 응답은 줍는다** — 남는 10초가 그 소켓 읽기다.
+    `stop` 을 안 주면 예전 그대로다(설계 5절 2번의 "90초" 는 오답).
     `stop` 은 **중단 신호**다 — `is_set()`·`wait(t)` 를 가진 것(`threading.Event`).
     `None` 이면 오늘과 같은 경로만 돈다 — `deadline` 과 같은 형태로 기본값이 곧 꺼진
     플래그다(docs/design_graceful-interrupt.md). 신호가 서면 **새 요청을 제출하지 않고**
@@ -196,6 +198,12 @@ def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None,
             # 사유를 남기고 끝난다. 새 종료 경로를 만들지 않는다 (설계 계약 6)
             interrupted = stop is not None and stop.is_set()
             if interrupted or (left is not None and left <= 0):
+                # 예산 만료도 **워커의 재시도를 접는다** — 메인만 끊으면 이미 뜬 워커가
+                # `Crawl-delay` 만큼 자고 다음 요청을 낸다(탐침: 예산 2초에 t=30·t=60).
+                # **`interrupted` 판정 뒤에 세운다** — 앞에 세우면 예산 만료가 중단으로
+                # 보고돼 사용자가 끝난 이유를 잃는다
+                if stop is not None:
+                    stop.set()
                 # 떠 있는 요청은 **결과만 줍고** 끝낸다. `with` 를 나갈 때 executor 가
                 # 어차피 이것들을 기다리므로 추가 대기는 0이다 — 안 주우면 이미 보낸
                 # 요청의 응답을 버리고 다음 실행에서 같은 URL 을 또 때리게 된다
@@ -232,9 +240,14 @@ def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None,
                 continue
             # 던질 것이 없으면 결과를 기다린다 — 0초는 "떠 있는 도메인뿐" 이라는 뜻이라
             # 타임아웃 대신 완료를 기다린다 (계약 8)
-            wait_for = frontier.seconds_until_ready(exclude=busy)
+            wait_for = frontier.seconds_until_ready(exclude=busy) or None
+            # 예산이 있으면 **그 안에서만 기다린다** — 답 없는 서버 하나가 만료 판정을
+            # 무한정 미루면 위의 `stop.set()` 줄에 영영 도달하지 못한다. 자르기만으로는
+            # 1초도 안 줄어든다(탐침) — 두 자리가 같이 있어야 예산이 지켜진다
+            if left is not None:
+                wait_for = left if wait_for is None else min(wait_for, left)
             done, _ = concurrent.futures.wait(
-                inflight, timeout=wait_for or None,
+                inflight, timeout=wait_for,
                 return_when=concurrent.futures.FIRST_COMPLETED)
             for future in done:
                 url, domain = inflight.pop(future)
@@ -340,11 +353,15 @@ def main(argv):
         return 2
     # Ctrl-C 를 크롤이 보는 신호로 바꾼다 (docs/design_graceful-interrupt.md 계약 7)
     stop = threading.Event()
+    # **rc 는 이쪽으로만 가른다.** `stop` 은 예산 만료도 세우므로(계획 35) rc 를 거기서
+    # 읽으면 `--deadline` 이 130 을 내고 `crawl && indexer` 가 통째로 선다
+    signaled = threading.Event()
 
     def interrupt(signum, frame):
         # **자기를 먼저 내리고 그다음 세운다** — 두 번째 Ctrl-C 는 기본 동작으로
         # 즉사해야 한다. 순서가 반대면 사용자가 탈출구를 잃는 창이 생긴다
         signal.signal(signal.SIGINT, signal.SIG_DFL)
+        signaled.set()
         stop.set()
 
     # `signal.signal` 의 반환값이 곧 옛 핸들러다 — 안 되돌리면 한 프로세스에서
@@ -363,7 +380,7 @@ def main(argv):
     print("수집 %d 페이지" % n)
     # 중단은 **오늘 관측값과 같은 130** 이다 — 0 으로 내면 `crawl && indexer` 가
     # 중단 뒤에도 다음 단계를 돈다. 주운 페이지 수는 중단이어도 찍는다
-    return 130 if stop.is_set() else 0
+    return 130 if signaled.is_set() else 0
 
 
 if __name__ == "__main__":
