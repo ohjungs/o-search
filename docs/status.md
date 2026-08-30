@@ -1,19 +1,19 @@
 ---
 signal: GREEN
-phase: 테스트
+phase: 리뷰
 step: 2
 attempt: 0
-iteration: 177
+iteration: 178
 updated: 2026-08-30
-ctx: 35
-night_iterations: 50
+ctx: 44
+night_iterations: 51
 night_red: 0
 night_retries: 0
 ---
 
 # 현재 상태
 
-**계획 35 `deadline-stop` — 스텝 1·2 + 테스트 phase 완료. 다음은 리뷰.**
+**계획 35 `deadline-stop` — 스텝 1·2 + 테스트 + 리뷰 1/1 완료. 다음은 e2e phase.**
 계획서 `docs/plan_deadline-stop.md`. 브랜치: `loop/deadline-stop`
 (`loop/graceful-interrupt` `eef1b50` 에서 팠다). 계획 34 는 DONE·아카이브 완료.
 
@@ -37,6 +37,22 @@ rc **0**(`예산 2초 소진`). 단위 **450건 OK**(+3) · e2e **18종 rc=0** �
 새 테스트에서 변이 2종(`min`→`max` · 자르기 삭제)이 **각각 새 단언 하나만** 죽인다
 (둘 다 2.01초 — 형제의 5초 쿨다운을 기다린다). e2e **18종 rc=0**(161초, 무변경).
 **이 저장소엔 린터·타입체커가 없다**(`docs/project.md`) — 검증은 unittest + e2e 가 전부다.
+
+**리뷰 1/1 실측**: 대상 `fbbe8a3..HEAD`. `rules/review.md` 0절대로 **패스 A(백지)를
+먼저 끝내고** 패스 B로 갔다. **후보 8 · 80점 미만 버림 3 · 보고 5 · 고침 5(승인 필요 0)**.
+**제품 *동작* 지적은 0건이다** — 제품 파일 수정 2곳은 둘 다 주석/독스트링이다.
+A1 `crawl()` 독스트링이 `stop` 계약을 아직 읽기 둘(`is_set`·`wait`)로만 적는데 `:205` 가
+`stop.set()` 을 부른다 — `FakeStop` 이 우연히 `set()` 을 가져서 451건이 전부 초록이었다.
+A2 `:241` 의 "완료를 기다린다(계약 8)" 주석이 바로 아래 새 코드와 반대를 말한다.
+A3 `HANG_LIMIT 12.0` 은 예산 2 + 소켓 10 **정확히 그 합**인데 서브프로세스 기동부터
+재서 여유가 1.9초다 — 진짜 단언은 건수라 흔들리면 **오탐 RED**(digest `[4]` 에 셋째로).
+B1 `docs/index.md` 가 `0/2 · 미작성` 에 멈춰 있었다. B2 `metrics.md` 의 `반복` 이
+**175 인데 status 는 177** — 반복 3회에 phase 칸이 1회만 올랐다.
+**B1·B2 는 같은 뿌리라 `digest.md ## 반복 실패` 에 2회로 올렸다** — 계획 34 리뷰가
+`1abc058` 에서 같은 것을 잡았다. 기록 파일이 셋인데 스텝 커밋은 `status.md` 만 본다.
+고친 뒤 재검증: 단위 **451건 OK**(3.58초, rc 0) · 계획이 건드린 e2e 3종 개별
+**전부 rc=0**(`deadline_e2e` 수신 1건·10.1s · `interrupt_e2e` SIGINT 뒤 10.0s rc 130 ·
+`crawl_delay_e2e` 2.01s/1.00s).
 
 **곁가지 사고**: 3시간 자동 스냅샷(`a9202b6`)이 작업 중인 트리를 커밋하고 **푸시까지**
 했다 — digest `## 반복 실패` 의 그 항목이 **3회째**다. 이번엔 변이가 아니라 정상 작업이

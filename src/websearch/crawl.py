@@ -131,7 +131,9 @@ def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None,
     (탐침: 예산 2초에 요청 3건 · 종료 70.08초 → 지금은 1건 · **10.05초**).
     그래도 **이미 나간 요청의 응답은 줍는다** — 남는 10초가 그 소켓 읽기다.
     `stop` 을 안 주면 예전 그대로다(설계 5절 2번의 "90초" 는 오답).
-    `stop` 은 **중단 신호**다 — `is_set()`·`wait(t)` 를 가진 것(`threading.Event`).
+    `stop` 은 **중단 신호**다 — `is_set()`·`wait(t)`·**`set()`** 을 가진 것
+    (`threading.Event`). `set()` 이 계약에 든 것은 계획 35 부터다 — 예산 만료를 이 함수가
+    직접 세우므로, 읽기 두 개만 흉내낸 객체를 넘기면 그 자리에서 `AttributeError` 다.
     `None` 이면 오늘과 같은 경로만 돈다 — `deadline` 과 같은 형태로 기본값이 곧 꺼진
     플래그다(docs/design_graceful-interrupt.md). 신호가 서면 **새 요청을 제출하지 않고**
     예산 소진과 같은 가지로 빠진다 — 떠 있는 결과는 줍는다.
@@ -239,7 +241,8 @@ def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None,
                 wait_fn(wait if left is None else min(wait, left))
                 continue
             # 던질 것이 없으면 결과를 기다린다 — 0초는 "떠 있는 도메인뿐" 이라는 뜻이라
-            # 타임아웃 대신 완료를 기다린다 (계약 8)
+            # 타임아웃 대신 완료를 기다린다 (계약 8). **그 무한 대기는 예산이 없을 때만
+            # 무한이다** — 예산이 있으면 바로 아래가 자른다
             wait_for = frontier.seconds_until_ready(exclude=busy) or None
             # 예산이 있으면 **그 안에서만 기다린다** — 답 없는 서버 하나가 만료 판정을
             # 무한정 미루면 위의 `stop.set()` 줄에 영영 도달하지 못한다. 자르기만으로는
