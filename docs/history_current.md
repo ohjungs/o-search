@@ -263,3 +263,24 @@ append 전용. 수정·삭제 금지.
   `e2e/interrupt_e2e.py:129` 는 이 함정을 이미 주석으로 적어 두고 있었다.
 - 다음: **개발 스텝 1**(`tests/test_crawl.py` `TestCliTurnsSigintIntoTheSignal` 에 겹침
   단언 1건 · 452건 · 변이 M1·M2 가 새 단언만 죽이는지). 집안일 `digest.md` 220줄 미결.
+
+## 2026-08-31 00:1x | 36 signal-budget-cover | 개발 1/1 | 시도0 (DONE · `src` 0줄)
+
+- 한 일: `tests/test_crawl.py` 의 `TestCliTurnsSigintIntoTheSignal` 에
+  `test_a_signal_wins_over_an_expired_budget_in_either_order` 1건(두 순서를 `subTest`).
+  가짜 `crawl` 이 핸들러를 직접 부르고 `kwargs["stop"].set()` 을 **순서만 바꿔** 두 번
+  돈다 — 클래스가 이미 쓰는 관용구 그대로다(진짜 `os.kill` 은 SIG_DFL 뒤라 테스트를 죽인다).
+  `README.md` 단위 건수 451 → 452.
+- **TDD 는 변이가 대신했다** — 제품이 이미 옳아 RED 를 못 만든다. `.git` 없는 사본에서:
+  **M1**(`signaled.set()` 을 `if not stop.is_set():` 로 감싸기) → `[만료 먼저]` **한
+  갈래만** FAIL · **M2**(만료 갈래 이른 `return 0`) → **두 갈래 다** FAIL. 둘 다 나머지
+  451건은 전부 통과한다 — 그것이 이 단언이 없던 이유다. 심기 전 `count(old)==1`.
+- **M1 이 두 번째 subTest 의 존재 이유다.** 순서를 하나만 쟀으면 `signaled` 를 `stop`
+  뒤에 숨기는 변이가 살아남는다. 처음 쓴 독스트링은 "각각 다른 변이가 걸린다" 였는데
+  실측은 **M2 가 둘 다 죽인다** 였다 — 백지 리뷰에서 문장을 실측에 맞춰 고쳤다.
+- 결과: 단위 451 → **452건 OK**(3.425초) · `src/` diff **0줄** · `interrupt_e2e` **rc 0**
+  (SIGINT 뒤 10.0s/rc 130 · 두 번째 Ctrl-C rc -2) · `deadline_e2e` **rc 0**(시나리오 3
+  수신 1건·10.1s·DB 0행). 제품 0줄이라 e2e 전수 대신 이 계약을 재는 둘만 돌렸다.
+  `data/crawl.db` sha256 무변경.
+- 다음: **계획 36 DONE.** 집안일 `digest.md` 222줄(상한 200)·`history_current` 273줄은
+  미결로 넘긴다 — 삭제 전 `index.md`·`plan_history_*` 참조 확인이 선행이다.
