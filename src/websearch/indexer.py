@@ -86,6 +86,10 @@ def index_pages(db_path):
         # SCHEMA 는 IF NOT EXISTS 라 정의를 바꿔도 옛 DB 는 옛 정의로 조용히 남는다.
         # docs 는 pages 에서 파생된 색인이므로 버리고 다시 만들어도 원본이 사라지지 않는다.
         if _docs_sql(db) not in (None, _CURRENT_SQL):
+            # sqlite3 는 DDL 을 암묵 트랜잭션에 넣지 않는다 — 명시로 열지 않으면 중단 시
+            # DROP/CREATE 만 커밋되고 INSERT 만 롤백돼 옛 색인이 0행으로 남는다.
+            # DROP **앞**이어야 한다. 뒤면 DROP 은 이미 커밋된 뒤다.
+            db.execute("BEGIN")
             db.execute("DROP TABLE docs")
         db.execute(SCHEMA)
         # ponytail: 전표 스캔. 10만 문서에서 느려지면 pages 에 색인 상태 컬럼을 둔다

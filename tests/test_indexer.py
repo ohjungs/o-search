@@ -4,6 +4,7 @@ import os
 import sqlite3
 import tempfile
 import unittest
+from unittest import mock
 
 from websearch import indexer
 from websearch.indexer import index_pages, search
@@ -217,6 +218,24 @@ class TestSchemaDrift(unittest.TestCase):
         with contextlib.redirect_stderr(buf):
             self.assertEqual(indexer.main(["prog", self.db_path, "--query", "김치"]), 2)
         self.assertIn("색인", buf.getvalue())  # 긍정 짝 — 침묵도 통과하지 않는다
+
+    def test_interrupted_rebuild_leaves_the_old_index_intact(self):
+        # 재구축은 DROP → CREATE → 전량 INSERT 다. sqlite3 는 DDL 을 암묵 트랜잭션에
+        # 넣지 않으므로 명시로 열지 않으면 중단 시 DROP/CREATE 만 커밋되고 INSERT 만
+        # 롤백된다 — 옛 색인이 사라지고 0행이 남아 검색이 전부 "결과 없음" 이 된다.
+        # 크롤 데이터가 없는 것과 구별되지 않는 성공이라 조용하다.
+        rows = [("http://a.test/", "<title>가</title><p>첫</p>"),
+                ("http://b.test/", "<title>나</title><p>둘째</p>")]
+        self._seed_old_index(rows)
+        old_sql = self._docs_sql()
+        with mock.patch.object(indexer.extract, "extract_text",
+                               side_effect=KeyboardInterrupt):
+            with self.assertRaises(KeyboardInterrupt):
+                index_pages(self.db_path)
+        self.assertEqual(
+            self._connect().execute("SELECT count(*) FROM docs").fetchone()[0], 2)
+        # 정의도 옛것 그대로여야 한다 — 그래야 다음 실행이 다시 재구축한다
+        self.assertEqual(self._docs_sql(), old_sql)
 
 
 class TestSearch(unittest.TestCase):
