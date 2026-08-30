@@ -30,7 +30,17 @@ class NoUsableSeedsError(ValueError):
     """
 
 
-def _fetch_one(url, robots, now, floor, sleep=time.sleep):
+class _Interrupted(Exception):
+    """중단 신호가 발신 훅을 접었다. **`_fetch_one` 만 던지고 `_fetch_one` 만 잡는다** —
+
+    `fetcher` 는 훅을 `try` 밖에서 부르므로(`fetcher.py:36-37`) 이 예외는 그대로 나온다.
+    밖으로 흘리면 `_store_result` 의 `except` 가 **모르는 실패**로 읽어 in-flight 개수만큼
+    `요청이 예외로 끝났다` 를 찍는다 — 일부러 만든 상태를 오류로 보고하는 것이다
+    (docs/design_graceful-interrupt.md 계약 5).
+    """
+
+
+def _fetch_one(url, robots, now, floor, sleep=time.sleep, stop=None):
     """워커 스레드가 하는 일 전부. **`Store`·`Frontier`·카운터를 만지지 않는다** (설계 계약 4).
 
     `robots` 는 예외로 워커들이 **공유하는** `RobotsCache` 다. `_parser()` 가
@@ -52,6 +62,10 @@ def _fetch_one(url, robots, now, floor, sleep=time.sleep):
     **메인 스레드가 제출 시점에 읽어 넘긴다** — 워커는 `Frontier` 를 안 만진다(계약 4).
     올리기만 한다: `floor` 는 이미 `DOMAIN_INTERVAL` 이상이다.
     """
+    # 진입 검사 — **바로 뒤가 `robots.txt` 왕복이다**(`robots.allowed`). 재시도만 접으면
+    # 이 왕복은 안 막힌다. 신호 뒤에 새로 여는 소켓은 0개다 (설계 계약 4)
+    if stop is not None and stop.is_set():
+        return True, None, None, None
     if not robots.allowed(url):
         return False, None, None, None
     requested = robots.delay(url)
@@ -59,6 +73,8 @@ def _fetch_one(url, robots, now, floor, sleep=time.sleep):
     # **하한은 컨셉의 절대 조건**이라 그 보장이 호출부 한 곳에만 있으면 안 된다 —
     # 더 작은 값을 넘기는 호출이 하나 생기는 순간 조용히 사라지는 종류의 것이다
     interval = max(DOMAIN_INTERVAL, floor, requested or 0)
+    # `stop` 이 None 이면 주입된 `sleep` 만 불린다 (graceful-interrupt 계약 2)
+    wait = sleep if stop is None else stop.wait
     sends = []  # 이 URL 로 실제로 나간 시도들의 시각
 
     def before_send():
@@ -67,17 +83,31 @@ def _fetch_one(url, robots, now, floor, sleep=time.sleep):
         워커 스레드를 최대 `retries × interval` 만큼 붙든다 — 컨셉 우선순위상
         크롤 윤리가 성능 위라 받아들인 값이다(설계 2-3절). 타임아웃 실패는 이미
         10초가 벌어져 있어 남은 시간이 음수가 되고 잠들지 않는다.
+
+        **중단이면 안 보내고 접는다.** 잠만 깨우고 그대로 보내면 `Crawl-delay: 30` 을
+        선언한 서버에 10초 간격으로 3발이 나간다 — 지금 이 잠이 붙들고 있는 것이 바로
+        그 예절이라 깨우기와 취소는 나눌 수 없다 (graceful-interrupt 계획 2절 3번).
         """
+        if stop is not None and stop.is_set():
+            raise _Interrupted
         if sends:
             remaining = interval - (now() - sends[-1])
-            if remaining > 0:
-                sleep(remaining)
+            # `time.sleep` 은 None(거짓)을, `Event.wait` 는 신호가 서면 True 를 돌려준다 —
+            # 한 표현이 "간격이 찼다" 와 "중단으로 깼다" 를 다 덮는다 (graceful-interrupt 계약 3)
+            if remaining > 0 and wait(remaining):
+                raise _Interrupted
         sends.append(now())  # 간격 시계는 팝이 아니라 **발신**에서 시작한다 (계약 9)
 
     # 간격을 지킬 수 없는 도메인(상한 초과)에는 다시 보내지 않는다 — 깎아서 때리는 것보다
     # 안 보내는 것이 맞고, 요구대로 자면 워커가 하루를 붙든다 (설계 2-4절)
-    result = fetcher.fetch(url, before_send=before_send,
-                           retries=fetcher.RETRIES if interval <= MAX_DELAY else 0)
+    try:
+        result = fetcher.fetch(url, before_send=before_send,
+                               retries=fetcher.RETRIES if interval <= MAX_DELAY else 0)
+    except _Interrupted:
+        # 중단된 시도는 **결과가 아니다.** `FetchResult(0, None, None)` 로 돌려주면
+        # 안 받은 페이지가 status 0 으로 DB 에 박혀 다음 실행이 그 URL 을 영영
+        # 건너뛴다 — 중단이 프런티어를 오염시키면 안 된다 (설계 계약 5)
+        result = None
     # 훅이 한 번도 안 불렸으면 **요청이 나가지 않았다**(`Request()` 생성 실패).
     # 그때 시각을 지어내면 나가지도 않은 요청으로 도메인 쿨다운을 태운다
     # (cooldown-burn 계약 1). `mark_sent` 는 None 을 받으면 시계를 안 건다
@@ -183,7 +213,8 @@ def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None,
                 domain = urls.domain_key(url)
                 busy.add(domain)
                 inflight[pool.submit(_fetch_one, url, robots, now,
-                                     frontier.interval(domain), sleep)] = (url, domain)
+                                     frontier.interval(domain), sleep,
+                                     stop)] = (url, domain)
             if not inflight:
                 if frontier.empty():
                     break
@@ -251,6 +282,11 @@ def _store_result(future, url, domain, store, frontier, now, robots):
         return 0
     frontier.mark_sent(domain, sent_at)
     _apply_delay(frontier, domain, requested)
+    # 중단으로 접힌 시도 — **시계와 간격은 걸고 지나간 뒤** 아무것도 안 박는다.
+    # 이미 나간 발신이 있으면 그 쿨다운은 유효하고, 안 받은 페이지를 status 0 으로
+    # 박으면 다음 실행이 그 URL 을 영영 건너뛴다 (graceful-interrupt 계약 5)
+    if result is None:
+        return 0
     # 리다이렉트면 최종 URL 이 정본. 못 바꾸면 요청한 url(프런티어를 거쳤으니 ASCII)로 저장한다
     page_url = urls.normalize(result.url or url) or url
     if page_url != url and store.has(page_url):

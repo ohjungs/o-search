@@ -1,7 +1,7 @@
 # 계획 34 — `graceful-interrupt` (중단 신호)
 
 - 슬러그: `graceful-interrupt` · 브랜치: `loop/graceful-interrupt`
-- 상태: **개발 phase 스텝 2** (스텝 1 DONE `f316320`. 설계서 `design_graceful-interrupt.md` 의 계약 절이 명세)
+- 상태: **개발 phase 스텝 3** (스텝 1 DONE `f316320` · 스텝 2 DONE. 설계서 `design_graceful-interrupt.md` 의 계약 절이 명세)
 - 선행: 계획 33 `clock-injection` DONE (`crawl()`·`_fetch_one()` 이 `sleep=` 을 받는다)
 
 ## 1. 문제 · 목표 · 기대 결과
@@ -115,7 +115,17 @@ PEP 475 이후 락 획득은 신호 핸들러가 돌고 나면 **남은 시간�
 - 예상 파일: `src/websearch/crawl.py` · `tests/test_crawl.py`
 - 의존: 없음
 
-### 스텝 2 — 재시도 앞 잠을 깨우고, **같은 변경으로** 재시도를 취소한다
+### 스텝 2 — 재시도 앞 잠을 깨우고, **같은 변경으로** 재시도를 취소한다 — **DONE**
+
+> 신규 5건, 단위 441건 OK · e2e 17종 rc=0. 변이 6종 전부 사망.
+> 계획이 예상한 2건에 3건이 더 붙었다: **진입 검사**(계약 4의 나머지 반쪽 — 그 뒤가
+> `robots.txt` 왕복이다) · **중단된 시도를 안 박는다**(계약 5) · **`pool.submit` 배선**.
+> 마지막 것이 없으면 `_fetch_one` 단위 4건이 다 통과하는데 실제 크롤은 오늘 그대로다
+> (변이 M6 이 실제로 살아남았다가 이 테스트로 죽었다).
+> 곁가지: 스텝 1 의 `test_signal_stops_new_submissions_and_reaps_inflight` 가 간헐적으로
+> 깨졌다 — **진입 검사가 생기면서** 아직 발신 안 한 워커가 신호를 보고 정당하게 접어
+> "이미 나간 요청의 결과" 자체가 안 생겼다. b.com 의 발신을 기다린 뒤 신호를 세우도록
+> 테스트를 결정적으로 고쳤다(제품 코드 아님).
 
 - 자리: `src/websearch/crawl.py:64~76` 의 `before_send` 클로저 (`sleep(remaining)` 는 `:74`).
 - 할 일: 신호가 서 있으면 잠에서 즉시 깨고 **그 시도를 보내지 않는다.**

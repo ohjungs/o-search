@@ -1,3 +1,4 @@
+import concurrent.futures
 import contextlib
 import inspect
 import io
@@ -10,7 +11,7 @@ from unittest import mock
 
 from websearch import crawl, fetcher, urls
 from websearch import robots as robots_mod
-from websearch.frontier import DOMAIN_INTERVAL, MAX_DELAY
+from websearch.frontier import Frontier, DOMAIN_INTERVAL, MAX_DELAY
 from websearch.fetcher import FetchResult
 
 
@@ -1453,6 +1454,7 @@ class TestGracefulInterrupt(unittest.TestCase):
         올라와 **신호 뒤에 새 요청이 나간다**. 그것이 이 테스트가 재는 것이다.
         """
         released = threading.Event()
+        sent = threading.Event()  # b.com 의 요청이 **실제로 나갔다**
         pages = {"http://a.com/": '<a href="/1">1</a>', "http://a.com/1": "one",
                  "http://b.com/": "b"}
         clock = {"t": 1000.0}
@@ -1468,6 +1470,7 @@ class TestGracefulInterrupt(unittest.TestCase):
             if before_send is not None:
                 before_send()
             if url.startswith("http://b.com/"):  # 메인이 꼭대기를 다시 볼 때까지 떠 있는다
+                sent.set()
                 self.assertTrue(released.wait(10), "b.com 을 풀어 주지 못했다")
             return FetchResult(200, pages[url], url)
 
@@ -1481,6 +1484,11 @@ class TestGracefulInterrupt(unittest.TestCase):
             def hooked(url, html, status):  # 첫 저장 = a.com — 그 순간 신호가 선다
                 upsert(url, html, status)
                 if not released.is_set():
+                    # **b.com 이 발신한 뒤에** 신호를 세운다. 스텝 2 의 진입 검사(계약 4)
+                    # 때문에 아직 요청을 안 낸 워커는 신호를 보면 **정당하게 접는다** —
+                    # 그러면 이 테스트가 재려는 "이미 나간 요청의 결과" 가 아예 안 생긴다.
+                    # 안 기다리면 전체 스위트 부하에서 간헐적으로 그쪽으로 샜다(실측)
+                    self.assertTrue(sent.wait(10), "b.com 이 발신까지 못 갔다")
                     stop.set()
                     released.set()
 
@@ -1544,3 +1552,145 @@ class TestGracefulInterrupt(unittest.TestCase):
         self.assertEqual(ms.call_count, 0,
                          "stop 을 줬는데도 주입된 sleep 에 잠들었다 (%r)"
                          % (ms.call_args_list,))
+
+
+class TestWorkerSeesTheSignal(unittest.TestCase):
+    """워커가 중단을 본다 — design_graceful-interrupt.md 계약 3·4·5.
+
+    **깨우기와 취소는 한 변경이다.** 재시도 잠을 깨우기만 하고 발신을 안 접으면
+    `Crawl-delay: 30` 을 선언한 서버에 10초 간격으로 3발이 나간다 — 지금 워커가
+    40초를 붙들고 있는 것이 바로 그 예절이다(계획 2절 3번).
+    """
+
+    def _retrying_fetch(self, clock, stop, on_first_send=None):
+        """b.test 로 **끝까지 실패하는** `_fetch_one` 한 판. `(반환값, 발신들, sleep목)`.
+
+        가짜 `fetch` 는 진짜와 같은 순서로 훅을 부르고, 훅이 던진 예외를 안 잡는다 —
+        진짜도 훅 호출이 `try` 밖이라 그대로 나온다(`fetcher.py:36-37`).
+        발신 카운터는 **훅이 돌아온 뒤에만** 올라간다: 접힌 시도는 나간 요청이 아니다.
+        """
+        sends = []
+
+        def flaky_fetch(url, before_send=None, retries=fetcher.RETRIES):
+            for _ in range(1 + retries):
+                if before_send is not None:
+                    before_send()
+                sends.append(clock["t"])
+                if on_first_send is not None and len(sends) == 1:
+                    on_first_send()
+            return FetchResult(0, None, None)  # 계속 실패 — 재시도를 다 쓴다
+
+        ms = mock.Mock(side_effect=lambda s: clock.__setitem__("t", clock["t"] + s))
+        with mock.patch("websearch.crawl.fetcher") as mf:
+            mf.fetch = flaky_fetch
+            mf.RETRIES = fetcher.RETRIES
+            out = crawl._fetch_one("http://b.test/1", FakeRobots(),
+                                   now=lambda: clock["t"], floor=DOMAIN_INTERVAL,
+                                   sleep=ms, stop=stop)
+        return out, sends, ms
+
+    def test_signal_before_a_retry_sends_nothing(self):
+        """첫 발신 뒤 신호가 서면 **재시도가 안 나간다** (계약 4).
+
+        간격 대기를 건너뛰고 마지막 한 발을 보내는 것은 중단으로 예절을 우회하는 것이다.
+        """
+        clock = {"t": 1000.0}
+        stop = FakeStop(clock)
+        (allowed, _, sent_at, result), sends, ms = self._retrying_fetch(
+            clock, stop, on_first_send=stop.set)
+        self.assertEqual(len(sends), 1, "신호가 섰는데 재시도가 나갔다: %s" % (sends,))
+        self.assertIsNone(result, "중단된 시도가 결과처럼 돌아왔다 (계약 5)")
+        self.assertTrue(allowed)
+        self.assertEqual(sent_at, 1000.0,
+                         "이미 나간 발신의 시각을 잃었다 — 도메인 쿨다운이 안 걸린다")
+
+    def test_a_signal_already_up_opens_no_socket(self):
+        """진입 검사 — 그 바로 뒤가 `robots.txt` 왕복이다 (계약 4).
+
+        신호 뒤에 **새로 여는 소켓은 0개**다. 재시도 취소만으로는 이 왕복이 안 막힌다.
+        """
+        clock = {"t": 1000.0}
+        stop = FakeStop(clock)
+        stop.set()
+        robots = FakeRobots()
+        with mock.patch("websearch.crawl.fetcher") as mf:
+            mf.RETRIES = fetcher.RETRIES
+            mf.fetch = sending(lambda url: FetchResult(200, "hi", url))
+            allowed, _, sent_at, result = crawl._fetch_one(
+                "http://b.test/1", robots, now=lambda: clock["t"],
+                floor=DOMAIN_INTERVAL, sleep=None, stop=stop)
+        self.assertEqual(robots.loaded, set(), "신호 뒤에 robots.txt 를 새로 받았다")
+        self.assertIsNone(result, "신호가 섰는데 페이지 요청이 나갔다")
+        self.assertIsNone(sent_at, "나가지도 않은 요청에 발신 시각이 붙었다")
+        self.assertTrue(allowed)
+
+    def test_no_signal_keeps_the_retry_interval(self):
+        """**대조군.** `stop` 을 줘도 안 세우면 재시도는 오늘 그대로 나간다.
+
+        그리고 그 잠은 `stop.wait` 로 잔다 (계약 2) — 주입된 `sleep` 에 잠들면
+        신호가 잠든 워커를 못 깨워 재시도 하나당 최대 `interval` 이 그대로 남는다.
+        """
+        clock = {"t": 1000.0}
+        stop = FakeStop(clock)
+        (_, _, _, result), sends, ms = self._retrying_fetch(clock, stop)
+        self.assertEqual(len(sends), 1 + fetcher.RETRIES,
+                         "신호가 없는데 재시도가 사라졌다: %s" % (sends,))
+        self.assertEqual([b - a for a, b in zip(sends, sends[1:])],
+                         [DOMAIN_INTERVAL] * fetcher.RETRIES,
+                         "재시도 간격이 오늘과 달라졌다: %s" % (sends,))
+        self.assertEqual(stop.waits, [DOMAIN_INTERVAL] * fetcher.RETRIES,
+                         "워커가 stop.wait 로 안 잤다 — 신호가 못 깨운다")
+        self.assertEqual(ms.call_count, 0,
+                         "stop 을 줬는데도 주입된 sleep 에 잠들었다 (%r)"
+                         % (ms.call_args_list,))
+        self.assertEqual(result, FetchResult(0, None, None))
+
+    def test_an_interrupted_attempt_is_not_stored(self):
+        """중단된 시도는 **DB 에 안 박힌다** — 그래도 쿨다운과 간격은 건다 (계약 5).
+
+        `FetchResult(0, None, None)` 로 돌려주면 안 받은 페이지가 status 0 으로 박히고,
+        다음 실행의 `store.has()` 가 그 URL 을 영영 건너뛴다 — 중단이 프런티어를
+        오염시키는 종류다.
+        """
+        future = concurrent.futures.Future()
+        future.set_result((True, 5.0, 1000.0, None))
+        store = crawl.Store(":memory:")
+        frontier = Frontier()
+        saved = crawl._store_result(future, "http://b.test/1", "b.test", store,
+                                    frontier, lambda: 2000.0, FakeRobots())
+        self.assertEqual(saved, 0)
+        self.assertFalse(store.has("http://b.test/1"),
+                         "안 받은 페이지가 DB 에 박혔다 — 다음 실행이 이 URL 을 건너뛴다")
+        self.assertEqual(frontier.interval("b.test"), 5.0,
+                         "중단이 선언된 Crawl-delay 를 잊었다")
+
+    def test_a_running_crawl_hands_the_signal_to_its_workers(self):
+        """돌고 있는 크롤이 **워커에게 신호를 넘긴다** — 배선이 없으면 워커는 못 본다.
+
+        위 네 건은 `_fetch_one` 을 직접 부른다. `crawl()` 이 `pool.submit` 에 `stop` 을
+        안 실으면 그 넷은 전부 통과하는데 실제 크롤은 오늘 그대로 재시도를 계속한다.
+        """
+        clock = {"t": 1000.0}
+        stop = FakeStop(clock)
+        sends = []
+
+        def flaky_fetch(url, before_send=None, retries=fetcher.RETRIES):
+            for _ in range(1 + retries):
+                if before_send is not None:
+                    before_send()
+                sends.append(clock["t"])
+                stop.set()  # 첫 발신 뒤 Ctrl-C — 재시도가 나가면 안 된다
+            return FetchResult(0, None, None)
+
+        with mock.patch("websearch.crawl.fetcher") as mf, \
+             mock.patch("sys.stderr", new_callable=io.StringIO) as err:
+            mf.fetch = flaky_fetch
+            mf.RETRIES = fetcher.RETRIES
+            ms = mock.Mock(side_effect=lambda s: clock.__setitem__("t", clock["t"] + s))
+            n = crawl.crawl(["http://b.test/1"], 10, db_path=":memory:",
+                            robots_cache=FakeRobots(), now=lambda: clock["t"],
+                            workers=1, sleep=ms, stop=stop)
+        self.assertEqual(len(sends), 1,
+                         "크롤이 워커에게 신호를 안 넘겼다 — 재시도가 나갔다: %s" % (sends,))
+        self.assertEqual(n, 0)
+        self.assertIn("중단", err.getvalue())
