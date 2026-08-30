@@ -83,7 +83,7 @@ close** 했더니 되돌아가지 않았다 — 옛 테이블의 행은 사라�
 같은 파일이라 같은 트리에서 순차로 돈다(worktree 로 안 가른다 — `plan.md` 3-1 셋 중
 "파일이 안 겹친다" 가 거짓).
 
-**스텝 1 — 재구축을 한 트랜잭션으로 묶는다** (임계경로. 데이터가 걸린 쪽이 먼저다)
+**스텝 1 — 재구축을 한 트랜잭션으로 묶는다** (임계경로. 데이터가 걸린 쪽이 먼저다) — **완료**(`indexer.py:92`)
 - RED: `tests/test_indexer.py` 에 "재구축 도중 예외가 나면 옛 `docs` 가 그대로 살아 있다"
   단언. 중단은 `extract.extract_text` 가 `KeyboardInterrupt` 를 던지게 해서 만든다
   (탐침 B 의 실제 중단 지점과 같은 프레임).
@@ -91,7 +91,7 @@ close** 했더니 되돌아가지 않았다 — 옛 테이블의 행은 사라�
   트랜잭션을 연다. `db.commit()` 자리는 그대로다.
 - 시작점: `src/websearch/indexer.py:88-90`(`_docs_sql(db) not in (None, _CURRENT_SQL)` 갈래).
 
-**스텝 2 — `main` 이 중단을 관용구로 받는다**
+**스텝 2 — `main` 이 중단을 관용구로 받는다** — **완료**(`indexer.py:255`)
 - RED: `indexer.main` 이 `KeyboardInterrupt` 에서 rc **130** 과 안내를 내는 단언
   (`index_pages` 를 목으로 던지게 한다).
 - GREEN: 21 이 세운 `except NoCrawlDataError` / `except StaleIndexError` 옆에

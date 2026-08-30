@@ -251,6 +251,12 @@ def main(argv):
         print("색인이 옛 정의로 남아 있다. 먼저 색인을 다시 돌린다: "
               "python3 -m websearch.indexer %s" % db_path, file=sys.stderr)
         return 2
+    except KeyboardInterrupt:
+        # **KeyboardInterrupt 만** 잡는다 — BaseException 으로 넓히면 SystemExit 까지
+        # 삼켜 다른 계약이 된다. "색인은 바뀌지 않았다" 는 재구축이 한 트랜잭션이 된
+        # 뒤에야 두 갈래(정상 색인·재구축) 모두에서 참이다. rc 는 crawl 과 같은 130
+        print("중단 — 색인은 바뀌지 않았다", file=sys.stderr)
+        return 130
     return 0
 
 

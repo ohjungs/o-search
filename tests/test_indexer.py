@@ -518,6 +518,28 @@ class TestCli(unittest.TestCase):
         self.assertIn("1", buf.getvalue().split("\n")[-2])
         self.assertIn("noindex", buf.getvalue())
 
+    def test_interrupt_is_a_one_line_message_and_rc_130(self):
+        # 계획 37 스텝 2: Ctrl-C 는 트레이스백이 아니라 rc 130 과 한 줄 안내다.
+        # 스텝 1(재구축을 한 트랜잭션으로) 뒤라야 "색인은 바뀌지 않았다" 가 두 갈래 다 참이다
+        Store(self.db_path).upsert("http://a.test/", "<p>김치</p>", 200)
+        buf = io.StringIO()
+        with mock.patch.object(indexer, "index_pages", side_effect=KeyboardInterrupt), \
+                contextlib.redirect_stderr(buf):
+            self.assertEqual(indexer.main(["prog", self.db_path]), 130)
+        out = buf.getvalue()
+        self.assertNotIn("Traceback", out)
+        self.assertIn("중단", out)
+        self.assertIn("바뀌지 않았다", out)  # 안내가 무엇이 참인지 말한다
+        self.assertEqual(len(out.strip().split("\n")), 1)  # 한 줄
+
+    def test_interrupt_branch_does_not_swallow_other_base_exceptions(self):
+        # 대조군: 잡는 것은 KeyboardInterrupt **만** 이다. BaseException 으로 넓히면
+        # SystemExit 까지 삼켜 다른 계약이 된다 (계획 27 M4 의 교훈)
+        Store(self.db_path).upsert("http://a.test/", "<p>김치</p>", 200)
+        with mock.patch.object(indexer, "index_pages", side_effect=SystemExit(3)):
+            with self.assertRaises(SystemExit):
+                indexer.main(["prog", self.db_path])
+
     def test_index_then_query(self):
         Store(self.db_path).upsert("http://a.test/", "<title>요리</title><p>김치</p>", 200)
         self.assertEqual(indexer.main(["prog", self.db_path]), 0)
