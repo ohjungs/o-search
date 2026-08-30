@@ -3,9 +3,9 @@ signal: GREEN
 phase: 개발
 step: 1
 attempt: 0
-iteration: 164
+iteration: 165
 updated: 2026-08-30
-ctx: 63
+ctx: 29
 night_iterations: 44
 night_red: 0
 night_retries: 0
@@ -13,14 +13,34 @@ night_retries: 0
 
 # 현재 상태
 
-**계획 34 `graceful-interrupt`(중단 신호) 설계 완료 → 개발 phase.**
+**계획 34 `graceful-interrupt`(중단 신호) 개발 phase — 스텝 1/4 완료.**
 계획서: `docs/plan_graceful-interrupt.md` · 설계서: `docs/design_graceful-interrupt.md`.
-브랜치: 아직 `loop/clock-injection` (개발 착수 시 `loop/graceful-interrupt` 를 판다).
+브랜치: `loop/graceful-interrupt` (`f316320`). 작업 트리 깨끗.
 열린 계획 1. 직전 계획 33 `clock-injection` 은 DONE·아카이브 완료.
 `main` 은 `f888518` 그대로, 병합은 사람 판단 항목이다.
 
-기준선(계획 33 e2e 시점, 안 움직였다): 단위 **433건 OK** · e2e **17종 rc=0** ·
+기준선: 단위 **436건 OK**(스텝 1 에서 +3) · e2e **17종 rc=0** ·
 recall@10 100%/95% · 오탐 평균 14.0 · p95 9.33ms · JS 0 B · 최저 명암비 4.87:1.
+
+## 스텝 1 에서 한 것 — 메인 루프가 신호를 본다
+
+`crawl(stop=None)` 을 추가했다. 신호가 서면 **새 URL 을 제출하지 않고 예산 소진
+가지로 빠진다**(떠 있는 결과는 줍고, 사유를 찍고, `break`) — 새 종료 경로 0개.
+메인 잠(축3)은 `wait_fn = sleep if stop is None else stop.wait` 로 간다.
+`fetcher.py` 0줄, 워커 쪽 0줄. `stop=None` 이면 오늘 동작 그대로다.
+
+**배운 것 두 개** (테스트·리뷰 스텝이 이어받을 것):
+
+1. **약한 빨강을 탐침으로 뚫었다.** 첫 RED 는 `TypeError: unexpected keyword
+   argument 'stop'` 뿐이었다. `stop=` 을 **받기만 하고 안 보는** 탐침으로 같은
+   시나리오를 다시 돌리니 오늘 실제 동작이 나왔다 — 신호 뒤에 `http://a.com/1` 이
+   **한 건 더 나가** 3건을 수집했고, 메인은 `stop.waits == []` 로 주입된 `sleep` 에
+   잠들어 있었다. 계획 33 의 교훈이 그대로 먹혔다.
+2. **가짜 시계 위에서 선 `Event` 는 테스트를 멈춘다.** 변이 M1(꼭대기 검사 제거)이
+   실패가 아니라 **무한 정지**로 나왔다 — 선 `Event.wait` 는 즉시 돌아오는데 가짜
+   시계는 그때 안 흘러 쿨다운이 영영 안 찬다. 테스트 더블 `FakeStop`(잔 만큼 시계를
+   흘리고 `is_set` 을 돌려준다)으로 바꿔 그 변이가 **0.004초에 죽는다**.
+   스텝 2·3 의 중단 테스트도 같은 더블을 쓴다.
 
 ## 설계가 정한 것 — 네 자리를 **두 자리로** 줄였다
 
@@ -41,16 +61,26 @@ recall@10 100%/95% · 오탐 평균 14.0 · p95 9.33ms · JS 0 B · 최저 명�
 
 ## 다음 스텝
 
-**개발 스텝 1** — 계획서 4절 스텝 1(메인 루프에 중단 가지). 설계서 **계약 절이 곧 명세**다.
+**개발 스텝 2** — 계획서 4절 스텝 2(워커가 중단을 본다). 설계서 **계약 절이 곧 명세**다.
 
-- 시작 지점: `src/websearch/crawl.py:145~191`(메인 루프) · `tests/test_crawl.py`
-- 먼저 할 것: 브랜치 `loop/graceful-interrupt` 를 판다
-- 놓치기 쉬운 계약: 2번(`wait = sleep if stop is None else stop.wait` — 가짜 시계
-  10곳과 `test_injected_sleep_is_the_only_one_used` 가 안 깨져야 한다) ·
-  5번(중단된 시도는 **upsert 하지 않는다** — `FetchResult(0,…)` 을 쓰면 안 받은
-  페이지가 status 0 으로 박혀 다음 실행이 그 URL 을 영영 건너뛴다)
-- 확인 방법: `PYTHONPATH=src python3 -m unittest discover tests` 433건 유지 + 신규
-- 이미 한 것: 계획서 · 설계서 · `digest.md` `[4]`/`[6]` 정정 · 탐침 3종. 코드 0줄.
+- 시작 지점: `src/websearch/crawl.py:64~76` 의 `_fetch_one`(재시도 잠은 `:74`) ·
+  `tests/test_crawl.py`
+- 할 일: `_fetch_one(stop=None)` 을 받아 **깨우기와 취소를 한 변경으로** 넣는다.
+  둘을 쪼개면 `Crawl-delay: 30` 서버에 10초 간격 3발이 나간다 — 그것이 RED 다.
+- 놓치기 쉬운 계약: **3번**(`if remaining > 0 and wait(remaining):` — `time.sleep` 은
+  `None`(거짓), `Event.wait` 는 선 경우 `True` 라 한 표현이 두 경우를 덮는다) ·
+  **5번**(중단된 시도는 **upsert 하지 않는다** — `FetchResult(0,…)` 을 쓰면 안 받은
+  페이지가 status 0 으로 박혀 다음 실행이 그 URL 을 영영 건너뛴다. `_store_result`
+  에서 `result is None` 이면 `mark_sent`·`_apply_delay` **뒤에** 0 을 돌려준다) ·
+  **4번**(발신 취소는 `_fetch_one` 진입 시와 `before_send` 진입 시 두 곳. 신호 뒤에
+  새로 여는 소켓 0개). `fetcher.py` 는 **0줄**이다(계약 4).
+- 안 깨져야 하는 것: `TestRetriesKeepTheInterval` · 가짜 시계 10곳 ·
+  `test_injected_sleep_is_the_only_one_used`
+- 변이로 확인할 것(계획서 4절): 취소를 지우고 잠 깨우기만 남기면 발신이 2회 나가
+  예절 단언이 죽어야 한다
+- 확인 방법: `PYTHONPATH=src python3 -m unittest discover tests` 436건 유지 + 신규
+- **테스트 더블은 이미 있다** — `tests/test_crawl.py` 의 `FakeStop`. 선 `Event` 를
+  가짜 시계와 섞지 마라(위 "배운 것" 2번).
 
 ## 한도 (안 넘는다)
 

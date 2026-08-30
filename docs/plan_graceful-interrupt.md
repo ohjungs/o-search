@@ -1,7 +1,7 @@
 # 계획 34 — `graceful-interrupt` (중단 신호)
 
 - 슬러그: `graceful-interrupt` · 브랜치: `loop/graceful-interrupt`
-- 상태: 설계 완료 → **개발 phase 스텝 1** (설계서 `design_graceful-interrupt.md` 의 계약 절이 명세)
+- 상태: **개발 phase 스텝 2** (스텝 1 DONE `f316320`. 설계서 `design_graceful-interrupt.md` 의 계약 절이 명세)
 - 선행: 계획 33 `clock-injection` DONE (`crawl()`·`_fetch_one()` 이 `sleep=` 을 받는다)
 
 ## 1. 문제 · 목표 · 기대 결과
@@ -95,7 +95,11 @@ PEP 475 이후 락 획득은 신호 핸들러가 돌고 나면 **남은 시간�
 스텝 4개. 의존이 일렬인 것은 잘못 쪼개서가 아니라 **같은 함수 하나(`crawl()`)의
 같은 루프**를 고치기 때문이다 — 파일이 겹쳐 worktree 병렬도 못 한다.
 
-### 스텝 1 — 메인 루프가 중단을 본다 (워커는 안 건드린다)
+### 스텝 1 — 메인 루프가 중단을 본다 (워커는 안 건드린다) — **DONE** `f316320`
+
+> 신규 3건(중단·대조군·`stop.wait` 배선), 단위 436건 OK. 변이 M1·M2 가 각각 제
+> 테스트만 죽였다. 테스트 더블 `FakeStop` 이 여기서 생겼다 — **선 `Event` 를 가짜
+> 시계와 섞으면 변이가 실패 대신 무한 정지로 나온다**(history 2026-08-30 08:4x).
 
 - 자리: `src/websearch/crawl.py:145~191` 의 `while saved < max_pages` 루프.
   **이미 있는 예산 소진 가지(`:149~161`)가 그대로 중단 종료 코드다** — 떠 있는

@@ -192,3 +192,80 @@ append 전용. 수정·삭제 금지.
 - 결과: 코드 0줄. 계약 9항. rc는 **130**(오늘 관측값과 같은 값 — 0으로 바꾸면
   `crawl && indexer` 가 중단 뒤에도 다음 단계를 돈다).
 - 다음: 개발 스텝 1 — 브랜치 `loop/graceful-interrupt` 를 파고 메인 루프 중단 가지.
+
+## 2026-08-30 10:1x | 34 graceful-interrupt | 개발 1 | 시도0 (복구)
+
+- **복구 기록 — 앞 세션이 스텝 1 도중 죽었고, 자동 스냅샷 둘이 갈라져 있었다.**
+  이번 반복은 코드를 쓴 것이 아니라 **스냅샷이 담은 것을 검증하고 정식으로 닫은 것**이다.
+
+  | 스냅샷 | 담은 것 |
+  |---|---|
+  | `06bc289` (05:37, **origin 에 푸시됨**) | **변이 M1 을 심은 상태** (`interrupted = False  # M1`) |
+  | `05a4808` (08:37, 로컬 HEAD) | 변이를 되돌리고 `FakeStop` 까지 들어간 정상 상태 |
+
+- **제자리 변이 사고가 또 났다 — `0aac7b0` 과 같은 형태인데 이번엔 푸시까지 갔다.**
+  3시간 자동 스냅샷이 변이 심은 작업 트리를 커밋하고 원격에 올렸다. 08:37 쪽이
+  05:37 의 상위집합이라 `git merge -s ours` 로 트리를 유지한 채 갈라짐만 없앴다
+  (강제 푸시 없음). **변이는 반드시 `.git` 없는 스크래치패드 사본에서 심는다** —
+  이번 반복의 RED 판정은 전부 `scratchpad/red/` 에서 쟀다.
+- 한 일(스냅샷이 담은 코드): `src/websearch/crawl.py` 세 자리 —
+  `:89` 시그니처에 `stop=None` · `:155` `wait_fn = sleep if stop is None else stop.wait`
+  (설계 계약 2) · `:162~172` 루프 꼭대기 `interrupted` 검사와 종료 사유 출력
+  (설계 계약 6, **예산 소진과 같은 가지**라 새 종료 경로가 없다) · `:195` 잠 호출.
+  구현은 **실질 5줄**이고 나머지는 주석이다.
+- **`tests/test_crawl.py` 에 `FakeStop` 과 `TestGracefulInterrupt` 3건.**
+  진짜 `threading.Event` 를 쓰면 선 이벤트의 `wait` 가 즉시 돌아오는데 가짜 시계는
+  안 흘러, **꼭대기 검사를 지운 변이가 쿨다운이 영영 안 차는 자리를 무한히 돈다**
+  (05:37 스냅샷이 그 상태였다). `FakeStop.wait` 가 잔 만큼 시계를 흘려 그 변이도
+  **끝까지 가서 죽는다** — 계획 33 의 M2(rc=124 행)와 같은 함정을 테스트 쪽에서 막았다.
+- 결과: 단위 **436건 OK**(433 → 436, 신규 3건. 기준선은 `2981dca` 의 433건).
+  `README.md` 의 단위 건수도 436 으로 갱신돼 있어 `tests/test_readme.py` 가 안 깨진다.
+- **RED 판정 — 스크래치패드 사본에서 변이 2종, 둘 다 `AssertionError` 로 죽었다.**
+  `TypeError`/`KeyError` 가 아니므로 단언이 실제로 동작을 잰 것이다.
+
+  | 변이 | 죽은 테스트 | 실패 |
+  |---|---|---|
+  | M1 — `:163` 의 `interrupted or` 삭제 (계약 6) | `test_signal_stops_new_submissions_and_reaps_inflight` | `['a.com/', 'a.com/1', 'b.com/'] != ['a.com/', 'b.com/']` — 신호 뒤에 새 요청이 나갔다 |
+  | M2 — `:155` 를 `wait_fn = sleep` 으로 되돌리기 (계약 2) | `test_main_loop_waits_on_the_signal_not_the_sleep` | `stop.waits == [] != [1.0]` — 메인이 `stop.wait` 로 안 기다렸다 |
+
+  대조군 `test_no_signal_keeps_today` 는 두 변이에서 **다 살아남았다** — `stop=None` 경로가
+  오늘 그대로임을 재는 테스트라 중단 로직을 지워도 안 죽는 것이 맞다.
+- e2e **17종 rc=0** — 기준선 유지. 스텝 1 은 `stop=None` 기본값 뒤에 있어
+  CLI 경로가 안 바뀐다(되돌리기 = `main()` 이 `stop=` 을 안 넘기는 것).
+- 다음: 개발 스텝 2 — 워커 쪽(`crawl.py:64~76` `before_send`). 재시도 잠을 깨우고
+  **발신을 취소**한다. 깨우기만 하면 `Crawl-delay: 30` 서버에 10초 간격 3발이 나가
+  RED 다(계획 2절 3번).
+
+## 2026-08-30 08:4x | 34 graceful-interrupt | 개발 스텝1 | 시도0
+
+- 브랜치 `loop/graceful-interrupt` (`f316320`). `crawl(stop=None)` 하나 추가.
+  신호가 서면 **새 URL 제출 0건**, 예산 소진 가지로 빠진다(떠 있는 결과는 줍고,
+  사유를 찍고 `break`) — **새 종료 경로 0개**(설계 계약 6, ponytail 2번).
+  메인 잠(축3)은 `wait_fn = sleep if stop is None else stop.wait`.
+  `fetcher.py` 0줄 · 워커 0줄 · `_store_result` 0줄(계약 5는 스텝 2 다).
+- **약한 빨강을 탐침으로 뚫었다.** 첫 RED 원문은 시그니처 에러 하나였다:
+  `TypeError: crawl() got an unexpected keyword argument 'stop'`.
+  그것만으로는 오늘 무엇이 일어나는지 모른다 → `stop=` 을 **받기만 하고 안 보는**
+  탐침(`# 탐침: 받기만 하고 안 본다`)으로 같은 시나리오를 다시 돌렸다. 진짜 RED:
+  `['http://a.com/', 'http://a.com/1', 'http://b.com/'] != [...a.com/, ...b.com/]`
+  — 신호 뒤에 **한 건이 더 나갔다**(3건 수집). 그리고 `stop.waits == [] != [1.0]`
+  — 메인은 주입된 `sleep` 에 잠들어 있어 **신호가 깨울 수 없었다.**
+  계획 33 의 교훈("약한 빨강은 탐침으로 뚫는다")이 두 번째로 값을 했다.
+- **가짜 시계 위에서 선 `Event` 는 테스트를 멈춘다 — 새 교훈.** 변이 M1(루프 꼭대기
+  검사를 `False` 로) 이 실패가 아니라 **무한 정지**로 나왔다(120초 타임아웃). 원인:
+  선 `Event.wait` 는 **즉시** 돌아오는데 가짜 시계는 그때 **안 흐른다** → 쿨다운이
+  영영 안 차 메인이 같은 자리를 무한히 돈다. CI 90초를 통째로 태울 실패 모드다.
+  고침: 테스트 더블 `FakeStop`(`wait` 가 **잔 만큼 시계를 흘리고** `is_set` 을
+  돌려준다)으로 바꾸니 같은 변이가 **0.004초에 죽는다**. 스텝 2·3 도 이 더블을 쓴다.
+- **변이 2종 모두 제 테스트만 물었다.** M1(꼭대기 검사 제거) →
+  `test_signal_stops_new_submissions_and_reaps_inflight` 만 죽는다.
+  M2(`wait_fn = sleep` 고정) → `test_main_loop_waits_on_the_signal_not_the_sleep`
+  만 죽는다. 계약 2와 계약 6이 **서로 다른 테스트에 걸려 있다**는 뜻이다.
+- 대조군 `test_no_signal_keeps_today` 를 같이 넣었다 — `stop` 을 안 주면 오늘 그대로.
+  기본값 `None` 이 곧 꺼진 플래그라 되돌리기는 커밋 하나 revert.
+- **자동 스냅샷 훅이 두 번 끼어들었다**(`06bc289`·`05a4808`, 변이가 든 중간 상태를
+  커밋). `git reset --soft 2981dca` 로 접어 **커밋 하나**로 만들었다 — 설계
+  "되돌리기" 절이 커밋 하나 revert 를 전제하므로 그 전제를 지켰다.
+- 단위 **436건 OK**(신규 3건). README 의 단위 숫자를 433→436 으로 동기화했다
+  (`test_readme.py` 가 잡아냈다 — 의도된 가드다).
+- 다음: 개발 스텝 2 — `_fetch_one` 이 중단을 본다. **깨우기와 취소는 한 변경**이다.
