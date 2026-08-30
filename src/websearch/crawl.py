@@ -127,7 +127,8 @@ def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None,
     돈다 — 기본값이 곧 꺼진 플래그다(docs/design_deadline.md 6절).
     예산이 하는 일은 **"덜 보낸다"** 뿐이고 "빨리 보낸다" 는 아니다: 간격은 안 깎는다.
     **메인 스레드만 예산을 본다** — 이미 떠 있는 요청은 그대로 끝까지 간다.
-    그래서 실제 종료는 예산 + 최악 90초다(설계 5절 2번).
+    그래서 실제 종료는 예산 + 떠 있는 요청 하나의 최악만큼 늦는다 — **실측 69.57초**다
+    (설계 5절 2번이 적어 둔 "90초" 는 오답이다. 분해는 아래 Ctrl-C 문단).
     `stop` 은 **중단 신호**다 — `is_set()`·`wait(t)` 를 가진 것(`threading.Event`).
     `None` 이면 오늘과 같은 경로만 돈다 — `deadline` 과 같은 형태로 기본값이 곧 꺼진
     플래그다(docs/design_graceful-interrupt.md). 신호가 서면 **새 요청을 제출하지 않고**
