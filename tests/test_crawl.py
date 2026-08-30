@@ -1755,6 +1755,84 @@ class TestWorkerSeesTheSignal(unittest.TestCase):
         self.assertIn("중단", err.getvalue())
 
 
+class TestBudgetFoldsRetries(unittest.TestCase):
+    """예산 만료가 **중단 신호와 같은 기제로** 재시도를 접는다 — 계획 35 `deadline-stop`.
+
+    `--deadline` 의 계약은 "예산을 다하면 새 요청을 안 던진다" 인데(`crawl()` 독스트링),
+    그 약속이 워커 안에서 깨진다 — 메인 루프가 끊겨도 워커의 재시도는 나간다.
+    착수 탐침: `--deadline 2` · 안 답하는 서버 · `Crawl-delay: 30` 에서 종료 70.08초,
+    서버가 받은 요청 3건(t=0.05/30.05/60.06). 뒤의 두 건이 **예산 만료 뒤**다.
+
+    두 자리를 **따로** 잰다 — 탐침이 보였듯 한쪽만으로는 1초도 안 줄어든다.
+    """
+
+    def test_expired_budget_raises_the_stop_signal(self):
+        """예산이 만료되면 `stop` 이 서 있다 — 워커는 그걸 보고 재시도를 접는다 (계약 4).
+
+        떠 있는 요청이 **없는** 자리(쿨다운 대기)에서 만료시킨다 — 아래 `futures.wait`
+        자르기와 섞이지 않게 하려는 것이다.
+
+        신호는 **`interrupted` 판정 뒤에** 서야 한다. 앞에 세우면 예산 만료가 중단으로
+        보고돼 사용자가 끝난 이유를 잃는다 — 그것이 두 번째 단언이다.
+        """
+        clock = {"t": 1000.0}
+        # 진짜 `Event` 를 쓰면 메인 루프의 쿨다운 대기가 벽시계로 진짜 5초를 잔다
+        stop = FakeStop(clock)
+
+        with mock.patch("websearch.crawl.fetcher") as mf, \
+             mock.patch("sys.stderr", new_callable=io.StringIO) as err:
+            mf.fetch = sending(lambda url: FetchResult(200, '<a href="/1">1</a>', url))
+            mf.RETRIES = fetcher.RETRIES
+            n = crawl.crawl(["http://a.com/"], 10, db_path=":memory:",
+                            robots_cache=FakeRobots({"http://a.com": 5.0}),
+                            now=lambda: clock["t"], workers=1, deadline=3, stop=stop)
+        self.assertEqual(n, 1, "5초 간격 · 예산 3초 — 한 쪽만 살 수 있다")
+        self.assertTrue(stop.is_set(),
+                        "예산이 만료됐는데 신호가 안 섰다 — 워커의 재시도가 그대로 나간다")
+        self.assertIn("예산", err.getvalue(),
+                      "예산 만료를 중단으로 보고했다 — 신호를 판정 앞에서 세웠다: %r"
+                      % err.getvalue())
+
+    def test_waiting_for_results_never_outlasts_the_budget(self):
+        """결과를 기다리는 잠도 **예산 안에서만** 잔다.
+
+        안 자르면 답 없는 서버 하나가 만료 판정을 무한정 미루고, 그동안 워커의 재시도가
+        계속 나간다 — 위의 신호를 세워 놔도 **메인이 그 줄에 도달하지 못한다**.
+
+        **벽시계로 잰다.** `futures.wait` 는 주입한 가짜 시계를 안 보고 진짜로 잔다
+        (digest `[7]`: mock 이 못 보는 자리를 mock 으로 재면 안 된다).
+        """
+        stop = threading.Event()
+        naps = []
+        real_wait = concurrent.futures.wait
+
+        def timed_wait(fs, timeout=None, **kw):
+            began = time.monotonic()
+            try:
+                return real_wait(fs, timeout=timeout, **kw)
+            finally:
+                naps.append(time.monotonic() - began)
+
+        def hanging_fetch(url, before_send=None, **kw):
+            if before_send is not None:
+                before_send()
+            stop.wait(2.0)  # 답이 없는 서버 — 신호를 봐야 접는다
+            return FetchResult(0, None, None)
+
+        with mock.patch("websearch.crawl.fetcher") as mf, \
+             mock.patch("concurrent.futures.wait", timed_wait), \
+             mock.patch("sys.stderr", new_callable=io.StringIO):
+            mf.fetch = hanging_fetch
+            mf.RETRIES = fetcher.RETRIES
+            crawl.crawl(["http://a.com/"], 10, db_path=":memory:",
+                        robots_cache=FakeRobots(), now=time.monotonic,
+                        workers=1, deadline=0.2, stop=stop)
+        self.assertTrue(naps, "결과를 기다리는 자리에 못 갔다 — 재는 것이 없다")
+        self.assertLess(max(naps), 1.0,
+                        "예산 0.2초인데 %.2f초를 잤다 — 그만큼 만료 판정이 밀린다"
+                        % max(naps))
+
+
 class TestCliTurnsSigintIntoTheSignal(unittest.TestCase):
     """CLI 가 SIGINT 를 `stop` 으로 바꾼다 — design_graceful-interrupt.md 계약 7.
 
@@ -1847,6 +1925,23 @@ class TestCliTurnsSigintIntoTheSignal(unittest.TestCase):
                 self.assertEqual(rc, expected)
                 self.assertIs(signal.getsignal(signal.SIGINT), sentinel,
                               "원래 핸들러가 안 돌아왔다")
+
+    def test_an_expired_budget_is_not_an_interrupt(self):
+        """예산 만료도 `stop` 을 세운다 — **그래도 rc 0** 이다 (계획 35).
+
+        rc 를 `stop` 으로 가르면 `--deadline` 이 130 을 내고 `crawl && indexer` 가
+        예산대로 끝난 크롤 뒤에도 통째로 선다. 130 은 **신호가 왔을 때만**이다.
+        """
+        def budget_expires(*args, **kwargs):
+            kwargs["stop"].set()  # 만료 때 `crawl()` 이 하는 일 그대로
+            return 4
+
+        with self.sentinel_handler(), \
+             mock.patch("websearch.crawl.crawl", budget_expires), \
+             mock.patch("sys.stdout", new_callable=io.StringIO) as out:
+            rc = crawl.main(["prog", "http://a.com/", "--deadline", "2"])
+        self.assertEqual(rc, 0, "예산 만료를 중단으로 읽었다 — `crawl && indexer` 가 선다")
+        self.assertIn("수집 4 페이지", out.getvalue())
 
     def test_no_signal_still_returns_zero(self):
         """**대조군.** 중단이 없으면 오늘 그대로 rc 0 이다."""
