@@ -1,11 +1,11 @@
 ---
 signal: GREEN
-phase: 리뷰
+phase: 테스트
 step: 2
 attempt: 0
-iteration: 176
+iteration: 177
 updated: 2026-08-30
-ctx: 30
+ctx: 35
 night_iterations: 50
 night_red: 0
 night_retries: 0

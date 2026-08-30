@@ -1832,6 +1832,58 @@ class TestBudgetFoldsRetries(unittest.TestCase):
                         "예산 0.2초인데 %.2f초를 잤다 — 그만큼 만료 판정이 밀린다"
                         % max(naps))
 
+    def test_a_cooling_sibling_domain_never_extends_the_budget_wait(self):
+        """쿨다운 중인 **형제 도메인**이 있어도 잠은 예산 안에서 끝난다.
+
+        위 테스트는 도메인이 하나뿐이라 `busy` 가 그것을 빼고 나면
+        `seconds_until_ready()` 가 `0.0` 을 주고(`frontier.py`), `or None` 때문에
+        **자르기가 "예산을 그대로 쓴다" 가지로만** 간다 — `min(wait_for, left)` 는
+        한 번도 안 불린다. 실측: 그 `min` 을 `max` 로 뒤집는 변이가 단위 450건을
+        **전부 통과했다**(digest `[7]`: 살아남은 변이가 곧 형제 구멍이다).
+
+        여기는 그 가지를 재는 자리다. 다중 도메인이야말로 실제 크롤의 모습이고,
+        형제의 쿨다운(최대 `MAX_DELAY` 30초)을 기다려 버리면 그동안 워커의 재시도가
+        나간다 — 계획 35 가 없애려던 바로 그 증상이 다른 문으로 돌아온다.
+        """
+        stop = threading.Event()
+        naps = []
+        real_wait = concurrent.futures.wait
+
+        def timed_wait(fs, timeout=None, **kw):
+            began = time.monotonic()
+            try:
+                return real_wait(fs, timeout=timeout, **kw)
+            finally:
+                naps.append(time.monotonic() - began)
+
+        def fetch(url, before_send=None, **kw):
+            if before_send is not None:
+                before_send()
+            if "b.com" in url:
+                # 답하는 형제. 링크를 남겨 b 의 큐를 안 비운다 — 큐가 비면 그 도메인은
+                # 쿨다운을 세는 대상에서 빠져 재려는 자리가 사라진다
+                return FetchResult(200, '<a href="/2">2</a>'
+                                        '<a href="http://a.com/">a</a>', url)
+            stop.wait(2.0)          # 안 답하는 서버 — 신호를 봐야 접는다
+            return FetchResult(0, None, None)
+
+        with mock.patch("websearch.crawl.fetcher") as mf, \
+             mock.patch("concurrent.futures.wait", timed_wait), \
+             mock.patch("sys.stderr", new_callable=io.StringIO):
+            mf.fetch = fetch
+            mf.RETRIES = fetcher.RETRIES
+            n = crawl.crawl(["http://b.com/"], 10, db_path=":memory:",
+                            robots_cache=FakeRobots({"http://b.com": 5.0}),
+                            now=time.monotonic, workers=1, deadline=0.3,
+                            stop=stop)
+        # 시나리오 가드. b 를 실제로 주웠다는 것이 곧 "b 가 5초 쿨다운 중이고 큐에
+        # `/2` 가 남아 있다" 는 증거다 — 이게 아니면 `min` 가지에 도달조차 못 했다
+        self.assertEqual(n, 1, "형제 도메인을 안 주웠다 — 쿨다운이 시작되지 않았다")
+        self.assertTrue(naps, "결과를 기다리는 자리에 못 갔다 — 재는 것이 없다")
+        self.assertLess(max(naps), 1.0,
+                        "예산 0.3초인데 %.2f초를 잤다 — 형제의 5초 쿨다운을 기다렸다"
+                        % max(naps))
+
 
 class TestCliTurnsSigintIntoTheSignal(unittest.TestCase):
     """CLI 가 SIGINT 를 `stop` 으로 바꾼다 — design_graceful-interrupt.md 계약 7.
