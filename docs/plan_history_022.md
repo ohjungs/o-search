@@ -1,7 +1,9 @@
 # 계획 35 — `deadline-stop` (예산 만료가 재시도를 접는다)
 
 - 슬러그: `deadline-stop` · 브랜치: `loop/deadline-stop` (현재 `loop/graceful-interrupt` 에서 판다)
-- 상태: **스텝 1·2 + 리뷰 1/1 완료 — e2e phase 대기** (2026-08-30)
+- 상태: **DONE** (2026-08-30) — 스텝 1·2 + 테스트 + 리뷰 1/1 + e2e 완료.
+  e2e 결과: `docs/e2e/deadline-stop/result.md` (18종 rc=0 · 시나리오 3 서버 수신 **1건** ·
+  10.1초 · rc 0 · DB 0행 · `--control` rc 2). 단위 **451건 OK**
 - 근거: `docs/digest.md` `## 다음 계획 후보` `[5]` — "`--deadline` 만료가 `stop` 을 안 쓴다"
   (2026-08-30 계획 34 `graceful-interrupt` 리뷰가 남긴 항목)
 - 선행: 계획 34 `graceful-interrupt` DONE — `crawl()`·`_fetch_one()` 이 `stop=` 을 받고
