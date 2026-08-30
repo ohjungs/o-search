@@ -245,3 +245,34 @@ append 전용. 수정·삭제 금지.
   `data/crawl.db` 안 지나감.
 - 다음: 개발 스텝 1 — `indexer.py:88` `DROP` 앞 `db.execute("BEGIN")`, RED 는
   `extract.extract_text` 가 `KeyboardInterrupt` 를 던지게 만든다.
+
+## 2026-08-31 01:0x | 37 indexer-interrupt | 개발 스텝1 | 시도0 (제품 1줄 · 단위 +1)
+
+- 한 일: 재구축을 **한 트랜잭션으로 묶었다**. `src/websearch/indexer.py:88` `DROP TABLE docs`
+  **앞**에 `db.execute("BEGIN")` 한 줄(+주석 3줄). 단언 1건 추가
+  (`tests/test_indexer.py` `TestSchemaDrift.test_interrupted_rebuild_leaves_the_old_index_intact`):
+  옛 정의 `docs` 2행을 심고 `mock.patch.object(indexer.extract, "extract_text",
+  side_effect=KeyboardInterrupt)` 로 재구축 한복판을 끊은 뒤 **행수 2 · 정의 옛것 유지**를 잰다.
+  **TDD 실패를 눈으로 봤다** — 고치기 전 `AssertionError: 0 != 2`(계획서가 예고한 그 모양).
+- 변이(`.git` 없는 rsync 사본, 심기 전 `count(원문)==1` 단언): **M1**(`BEGIN` 삭제) →
+  새 단언 **하나만** FAIL, 나머지 452건 전부 초록 — 이 자리를 재던 것이 정말 없었다.
+  **M6**(`BEGIN` 을 `DROP` **뒤로**) → 같은 단언이 `no such table: docs` 로 ERROR.
+  순서가 계약이라는 것이 값으로 박혔다. M2~M5 는 스텝 2 몫이라 안 심었다.
+- 결과: 단위 452 → **453건 OK**(3.841초, 무회귀). README 검증 건수 452→453
+  (`test_readme.py` 가 먼저 잡았다 — 세 번째 반복). e2e 개별 **전부 rc=0**:
+  `indexer_e2e` · `search_api_e2e`(p95 2.22ms) · `tokenizer_e2e` · `pagination_ui_e2e` ·
+  `noindex_e2e` · `quality_eval`(한 20/20 · 영 19/20) · `perf_search`(p95 9.26ms).
+  **린터·타입체커 없음**(`docs/project.md`) — 검증은 단위+e2e 두 줄이 전부다.
+  `data/crawl.db` sha256 `85c96744…` 무변경(8월 29 mtime 그대로).
+- 탐침 재실측(임시 디렉터리, 6000문서·본문 3.5KB로 전건 색인 4.53초에 맞춘 뒤 2.0초에 SIGINT):
+  **B 재구축 중단 → `docs` 6000행 유지 · 정의 옛것 유지**(고치기 전엔 6000→0). **완료 기준 2 충족.**
+  **A 정상 색인 중단 → pages 6000 · docs 0 · integrity ok**(기준 3, 오늘과 동일).
+  rc 는 아직 **-2** · Traceback 1회 — **기준 4 는 스텝 2 몫이다.** 성능: 재구축
+  `BEGIN` 있음 4.63/4.54초 vs 없음 4.56/4.59초 — **회귀 없음**(전건 색인 경로는 이 분기를 아예 안 밟는다).
+- **락 실측(계획 밖 확인, 보고만 한다)**: DB 는 WAL 이라 재구축 4.6초 동안 **읽기는 안 막힌다**
+  (0.001초). 다만 커밋 전까지 읽는 쪽은 **옛 정의**를 보므로 `search()` 가 `StaleIndexError`
+  를 낸다 — 고치기 전 같은 시점은 새 빈 테이블을 봐서 **조용히 0건**이었다. 이 저장소 관례
+  ("조용한 0건은 구분되지 않는다")로는 나아진 쪽이라 **안 고쳤다.** 동시 쓰기 대기는
+  2.99초 vs 2.97초로 **사실상 무변화**(`Store` `busy_timeout` 30초 안).
+- 다음: **개발 스텝 2** — `indexer.main` 에 `except KeyboardInterrupt` 한 갈래, rc **130** ·
+  안내 한 줄. 스텝 1 이 끝났으니 "색인은 바뀌지 않았다" 가 두 갈래 모두에서 참이다.

@@ -1,22 +1,24 @@
 ---
 signal: GREEN
 phase: 개발
-step: 0
+step: 1
 attempt: 0
-iteration: 182
+iteration: 183
 updated: 2026-08-31
-ctx: 76
-night_iterations: 55
+ctx: 66
+night_iterations: 56
 night_red: 0
 night_retries: 0
 ---
 
 # 현재 상태
 
-**계획 37 `indexer-interrupt` 착수** — 계획서 `docs/plan_indexer-interrupt.md`,
+**계획 37 `indexer-interrupt` 개발 스텝 1 완료** — 계획서 `docs/plan_indexer-interrupt.md`,
 브랜치 `loop/indexer-interrupt`(`loop/signal-budget-cover` `a8ad633` 에서 팠다).
-설계 생략(계획서 8절). **다음은 개발 스텝 1.**
-계획 36 까지 전부 DONE. **`main` 병합은 사람이 정한다.**
+설계 생략(계획서 8절). **재구축이 한 트랜잭션이 됐다** — `indexer.py:88` `DROP` 앞
+`db.execute("BEGIN")` 한 줄. 탐침 B 재실측: 재구축 중 SIGINT 에 `docs` **6000행 유지**·
+옛 정의 유지(고치기 전 6000→0). **다음은 개발 스텝 2**(`main` 의 `except KeyboardInterrupt`
+→ rc 130). 계획 36 까지 전부 DONE. **`main` 병합은 사람이 정한다.**
 
 ## 이번 계획이 여는 것
 
