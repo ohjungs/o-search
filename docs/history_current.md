@@ -193,49 +193,6 @@ append 전용. 수정·삭제 금지.
   `crawl && indexer` 가 중단 뒤에도 다음 단계를 돈다).
 - 다음: 개발 스텝 1 — 브랜치 `loop/graceful-interrupt` 를 파고 메인 루프 중단 가지.
 
-## 2026-08-30 10:1x | 34 graceful-interrupt | 개발 1 | 시도0 (복구)
-
-- **복구 기록 — 앞 세션이 스텝 1 도중 죽었고, 자동 스냅샷 둘이 갈라져 있었다.**
-  이번 반복은 코드를 쓴 것이 아니라 **스냅샷이 담은 것을 검증하고 정식으로 닫은 것**이다.
-
-  | 스냅샷 | 담은 것 |
-  |---|---|
-  | `06bc289` (05:37, **origin 에 푸시됨**) | **변이 M1 을 심은 상태** (`interrupted = False  # M1`) |
-  | `05a4808` (08:37, 로컬 HEAD) | 변이를 되돌리고 `FakeStop` 까지 들어간 정상 상태 |
-
-- **제자리 변이 사고가 또 났다 — `0aac7b0` 과 같은 형태인데 이번엔 푸시까지 갔다.**
-  3시간 자동 스냅샷이 변이 심은 작업 트리를 커밋하고 원격에 올렸다. 08:37 쪽이
-  05:37 의 상위집합이라 `git merge -s ours` 로 트리를 유지한 채 갈라짐만 없앴다
-  (강제 푸시 없음). **변이는 반드시 `.git` 없는 스크래치패드 사본에서 심는다** —
-  이번 반복의 RED 판정은 전부 `scratchpad/red/` 에서 쟀다.
-- 한 일(스냅샷이 담은 코드): `src/websearch/crawl.py` 세 자리 —
-  `:89` 시그니처에 `stop=None` · `:155` `wait_fn = sleep if stop is None else stop.wait`
-  (설계 계약 2) · `:162~172` 루프 꼭대기 `interrupted` 검사와 종료 사유 출력
-  (설계 계약 6, **예산 소진과 같은 가지**라 새 종료 경로가 없다) · `:195` 잠 호출.
-  구현은 **실질 5줄**이고 나머지는 주석이다.
-- **`tests/test_crawl.py` 에 `FakeStop` 과 `TestGracefulInterrupt` 3건.**
-  진짜 `threading.Event` 를 쓰면 선 이벤트의 `wait` 가 즉시 돌아오는데 가짜 시계는
-  안 흘러, **꼭대기 검사를 지운 변이가 쿨다운이 영영 안 차는 자리를 무한히 돈다**
-  (05:37 스냅샷이 그 상태였다). `FakeStop.wait` 가 잔 만큼 시계를 흘려 그 변이도
-  **끝까지 가서 죽는다** — 계획 33 의 M2(rc=124 행)와 같은 함정을 테스트 쪽에서 막았다.
-- 결과: 단위 **436건 OK**(433 → 436, 신규 3건. 기준선은 `2981dca` 의 433건).
-  `README.md` 의 단위 건수도 436 으로 갱신돼 있어 `tests/test_readme.py` 가 안 깨진다.
-- **RED 판정 — 스크래치패드 사본에서 변이 2종, 둘 다 `AssertionError` 로 죽었다.**
-  `TypeError`/`KeyError` 가 아니므로 단언이 실제로 동작을 잰 것이다.
-
-  | 변이 | 죽은 테스트 | 실패 |
-  |---|---|---|
-  | M1 — `:163` 의 `interrupted or` 삭제 (계약 6) | `test_signal_stops_new_submissions_and_reaps_inflight` | `['a.com/', 'a.com/1', 'b.com/'] != ['a.com/', 'b.com/']` — 신호 뒤에 새 요청이 나갔다 |
-  | M2 — `:155` 를 `wait_fn = sleep` 으로 되돌리기 (계약 2) | `test_main_loop_waits_on_the_signal_not_the_sleep` | `stop.waits == [] != [1.0]` — 메인이 `stop.wait` 로 안 기다렸다 |
-
-  대조군 `test_no_signal_keeps_today` 는 두 변이에서 **다 살아남았다** — `stop=None` 경로가
-  오늘 그대로임을 재는 테스트라 중단 로직을 지워도 안 죽는 것이 맞다.
-- e2e **17종 rc=0** — 기준선 유지. 스텝 1 은 `stop=None` 기본값 뒤에 있어
-  CLI 경로가 안 바뀐다(되돌리기 = `main()` 이 `stop=` 을 안 넘기는 것).
-- 다음: 개발 스텝 2 — 워커 쪽(`crawl.py:64~76` `before_send`). 재시도 잠을 깨우고
-  **발신을 취소**한다. 깨우기만 하면 `Crawl-delay: 30` 서버에 10초 간격 3발이 나가
-  RED 다(계획 2절 3번).
-
 ## 2026-08-30 08:4x | 34 graceful-interrupt | 개발 스텝1 | 시도0
 
 - 브랜치 `loop/graceful-interrupt` (`f316320`). `crawl(stop=None)` 하나 추가.
@@ -268,4 +225,34 @@ append 전용. 수정·삭제 금지.
   "되돌리기" 절이 커밋 하나 revert 를 전제하므로 그 전제를 지켰다.
 - 단위 **436건 OK**(신규 3건). README 의 단위 숫자를 433→436 으로 동기화했다
   (`test_readme.py` 가 잡아냈다 — 의도된 가드다).
+- 다음: 개발 스텝 2 — `_fetch_one` 이 중단을 본다. **깨우기와 취소는 한 변경**이다.
+
+## 2026-08-30 10:1x | 34 graceful-interrupt | 개발 1 | 시도0 (복구 · 재검증)
+
+- 앞 반복이 스텝 1 을 `f316320` 으로 닫은 뒤 **커밋만 남기고 죽었다.** 이 반복은
+  코드를 0줄 쓰고 **원격 갈라짐을 풀고 검증을 다시 받은 것**이다.
+- **`git reset --soft` 가 늦었다 — 05:37 스냅샷은 그전에 이미 푸시돼 있었다.**
+  로컬에서 접어 만든 `f316320` 과, 원격의 `06bc289` 가 둘 다 `2981dca` 를 부모로
+  갖는 **갈라진 두 갈래**였다. 그리고 원격 쪽이 담은 것은 **변이 M1 을 심은 상태**다:
+
+  ```
+  -            interrupted = stop is not None and stop.is_set()
+  +            interrupted = False  # M1
+  ```
+
+  **제자리 변이가 원격까지 나간 첫 사례다**(`0aac7b0` 은 로컬에서 끝났다).
+  `git merge -s ours origin/loop/graceful-interrupt`(→ `d31560a`)로 트리를 그대로 둔 채
+  갈라짐만 없앴다 — 강제 푸시 없이 푼다. 세 커밋의 트리가 전부 `76c531f` 로 같다.
+- **교훈: `reset --soft` 는 푸시된 스냅샷을 못 되돌린다.** 스냅샷 훅이 끼어들었으면
+  접기 전에 `git log origin/<브랜치>` 를 먼저 본다. 이번엔 `-s ours` 로 풀렸지만,
+  원격 쪽이 상위집합이었으면 못 풀었다. **변이는 `.git` 없는 사본에서만 심는다** —
+  이번 재검증은 전부 `scratchpad/red/`(사본, `.git` 없음)에서 쟀다.
+- 재검증 결과 — 앞 반복의 수치를 독립적으로 다시 받았다:
+  - 단위 **436건 OK** (3.0초, `discover tests` 전체)
+  - **RED 재판정 2종, 둘 다 `AssertionError`** — `TypeError`/`KeyError` 가 아니라
+    단언이 실제 동작을 쟀다. M1(`:163` 의 `interrupted or` 삭제) →
+    `['a.com/', 'a.com/1', 'b.com/'] != ['a.com/', 'b.com/']`(신호 뒤 발신 1건).
+    M2(`:155` 를 `wait_fn = sleep` 으로) → `stop.waits == [] != [1.0]`.
+    각 변이는 **자기 테스트 하나만** 죽이고 대조군은 둘 다 살아남았다.
+  - **e2e 17종 rc=0** (약 100초). 스텝 1 은 `stop=None` 기본값 뒤라 CLI 경로 무변경.
 - 다음: 개발 스텝 2 — `_fetch_one` 이 중단을 본다. **깨우기와 취소는 한 변경**이다.

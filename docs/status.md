@@ -3,9 +3,9 @@ signal: GREEN
 phase: 개발
 step: 1
 attempt: 0
-iteration: 165
+iteration: 166
 updated: 2026-08-30
-ctx: 29
+ctx: 42
 night_iterations: 44
 night_red: 0
 night_retries: 0
@@ -15,11 +15,11 @@ night_retries: 0
 
 **계획 34 `graceful-interrupt`(중단 신호) 개발 phase — 스텝 1/4 완료.**
 계획서: `docs/plan_graceful-interrupt.md` · 설계서: `docs/design_graceful-interrupt.md`.
-브랜치: `loop/graceful-interrupt` (`f316320`). 작업 트리 깨끗.
+브랜치: `loop/graceful-interrupt` (`d31560a`). 작업 트리 깨끗 · 원격과 갈라짐 없음.
 열린 계획 1. 직전 계획 33 `clock-injection` 은 DONE·아카이브 완료.
 `main` 은 `f888518` 그대로, 병합은 사람 판단 항목이다.
 
-기준선: 단위 **436건 OK**(스텝 1 에서 +3) · e2e **17종 rc=0** ·
+기준선(반복 166 에서 재측정): 단위 **436건 OK**(스텝 1 에서 +3) · e2e **17종 rc=0**(약 135초) ·
 recall@10 100%/95% · 오탐 평균 14.0 · p95 9.33ms · JS 0 B · 최저 명암비 4.87:1.
 
 ## 스텝 1 에서 한 것 — 메인 루프가 신호를 본다
@@ -29,18 +29,22 @@ recall@10 100%/95% · 오탐 평균 14.0 · p95 9.33ms · JS 0 B · 최저 명�
 메인 잠(축3)은 `wait_fn = sleep if stop is None else stop.wait` 로 간다.
 `fetcher.py` 0줄, 워커 쪽 0줄. `stop=None` 이면 오늘 동작 그대로다.
 
-**배운 것 두 개** (테스트·리뷰 스텝이 이어받을 것):
+**배운 것 셋** (테스트·리뷰 스텝이 이어받을 것):
 
 1. **약한 빨강을 탐침으로 뚫었다.** 첫 RED 는 `TypeError: unexpected keyword
-   argument 'stop'` 뿐이었다. `stop=` 을 **받기만 하고 안 보는** 탐침으로 같은
-   시나리오를 다시 돌리니 오늘 실제 동작이 나왔다 — 신호 뒤에 `http://a.com/1` 이
-   **한 건 더 나가** 3건을 수집했고, 메인은 `stop.waits == []` 로 주입된 `sleep` 에
-   잠들어 있었다. 계획 33 의 교훈이 그대로 먹혔다.
+   argument 'stop'` 뿐이었다. `stop=` 을 **받기만 하고 안 보는** 탐침으로 다시 돌리니
+   오늘 실제 동작이 나왔다 — 신호 뒤에 `http://a.com/1` 이 **한 건 더 나가** 3건을
+   수집했고, 메인은 `stop.waits == []` 로 주입된 `sleep` 에 잠들어 있었다.
 2. **가짜 시계 위에서 선 `Event` 는 테스트를 멈춘다.** 변이 M1(꼭대기 검사 제거)이
    실패가 아니라 **무한 정지**로 나왔다 — 선 `Event.wait` 는 즉시 돌아오는데 가짜
    시계는 그때 안 흘러 쿨다운이 영영 안 찬다. 테스트 더블 `FakeStop`(잔 만큼 시계를
    흘리고 `is_set` 을 돌려준다)으로 바꿔 그 변이가 **0.004초에 죽는다**.
    스텝 2·3 의 중단 테스트도 같은 더블을 쓴다.
+3. **`reset --soft` 는 푸시된 스냅샷을 못 되돌린다.** 05:37 자동 스냅샷(`06bc289`)이
+   **변이 M1 이 심긴 트리**를 커밋하고 **원격까지 올려** 브랜치가 갈라져 있었다.
+   `merge -s ours` 로 트리를 유지한 채 풀었다(`d31560a`, 강제 푸시 없음).
+   스냅샷 훅이 끼어들었으면 **접기 전에 `git log origin/<브랜치>` 를 본다.**
+   변이는 `.git` 없는 스크래치패드 사본에서만 심는다.
 
 ## 설계가 정한 것 — 네 자리를 **두 자리로** 줄였다
 
