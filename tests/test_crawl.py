@@ -1436,6 +1436,18 @@ class FakeStop:
         return self._set
 
 
+class WokenStop(FakeStop):
+    """잠든 **동안** 신호가 서는 경우 — `wait` 가 `True`(중단으로 깼다)를 준다.
+
+    `FakeStop` 은 잠들기 전에 이미 서 있던 신호만 흉내낸다. 그것만으로는 계약 3
+    (깬 이유를 구별한다)이 진입 검사에 가려져 안 재진다.
+    """
+
+    def wait(self, timeout=None):
+        self.set()
+        return super().wait(timeout)
+
+
 class TestGracefulInterrupt(unittest.TestCase):
     """중단 신호가 메인 루프를 접는다 — docs/design_graceful-interrupt.md 계약 2·6.
 
@@ -1605,6 +1617,52 @@ class TestWorkerSeesTheSignal(unittest.TestCase):
         self.assertEqual(sent_at, 1000.0,
                          "이미 나간 발신의 시각을 잃었다 — 도메인 쿨다운이 안 걸린다")
 
+    def test_a_signal_during_the_wait_cancels_the_retry(self):
+        """간격 대기 **중에** 신호가 서면 깨어나서 안 보낸다 (계약 3).
+
+        진입 검사(계약 4)는 잠들기 **전에** 이미 서 있던 신호만 본다. 잠든 사이에 선
+        신호는 `wait` 의 반환값으로만 알 수 있고, 그 값을 안 보면 워커는 깨자마자
+        마지막 한 발을 보낸다 — `Crawl-delay: 30` 을 선언한 서버에 중단이 예절을
+        우회해 요청을 밀어 넣는 것이다.
+        """
+        clock = {"t": 1000.0}
+        stop = WokenStop(clock)
+        (allowed, _, sent_at, result), sends, _ = self._retrying_fetch(clock, stop)
+        self.assertEqual(len(sends), 1,
+                         "중단으로 깨고도 재시도를 보냈다: %s" % (sends,))
+        self.assertEqual(stop.waits, [DOMAIN_INTERVAL],
+                         "간격 대기를 stop.wait 로 안 잤다 — 깰 수가 없다")
+        self.assertIsNone(result, "중단된 시도가 결과처럼 돌아왔다 (계약 5)")
+        self.assertTrue(allowed)
+        self.assertEqual(sent_at, 1000.0,
+                         "이미 나간 발신의 시각을 잃었다 — 도메인 쿨다운이 안 걸린다")
+
+    def test_a_retry_past_its_interval_is_still_cancelled(self):
+        """간격이 **이미 지난** 재시도도 신호를 보면 안 나간다 (계약 4, `before_send`).
+
+        앞선 시도가 간격보다 오래 걸리면(소켓 타임아웃 10초 > 간격 1초) 잘 일이
+        없다. 잠이 없으면 계약 3 의 `wait` 반환값도 없으니, 이 자리를 막는 것은
+        `before_send` 진입 검사뿐이다.
+        """
+        clock = {"t": 1000.0}
+        stop = FakeStop(clock)
+
+        def slow_first_send():
+            stop.set()
+            clock["t"] += fetcher.TIMEOUT  # 소켓이 간격보다 오래 붙들었다
+
+        (allowed, _, sent_at, result), sends, ms = self._retrying_fetch(
+            clock, stop, on_first_send=slow_first_send)
+        self.assertEqual(len(sends), 1,
+                         "간격이 지났다고 신호를 무시하고 보냈다: %s" % (sends,))
+        self.assertEqual(stop.waits, [],
+                         "간격이 이미 지났는데 잤다 — 이 테스트가 계약 3 을 재고 있다")
+        self.assertEqual(ms.call_count, 0, "주입된 sleep 에 잠들었다")
+        self.assertIsNone(result, "중단된 시도가 결과처럼 돌아왔다 (계약 5)")
+        self.assertTrue(allowed)
+        self.assertEqual(sent_at, 1000.0,
+                         "이미 나간 발신의 시각을 잃었다 — 도메인 쿨다운이 안 걸린다")
+
     def test_a_signal_already_up_opens_no_socket(self):
         """진입 검사 — 그 바로 뒤가 `robots.txt` 왕복이다 (계약 4).
 
@@ -1731,14 +1789,22 @@ class TestCliTurnsSigintIntoTheSignal(unittest.TestCase):
     def test_the_handler_disarms_itself_before_setting_the_signal(self):
         """핸들러는 **SIG_DFL 먼저, `stop.set()` 그다음** — 두 번째 Ctrl-C 는 즉사다.
 
-        순서가 뒤집히면 첫 신호와 둘째 신호 사이에 창이 생긴다. 여기서는 핸들러가
-        돌아온 **직후의 상태**를 재는 것으로 그 순서를 고정한다: 신호가 서 있는데
-        핸들러가 아직 우리 것이면 탈출구가 없는 구간이 있었다는 뜻이다.
+        순서가 뒤집히면 첫 신호와 둘째 신호 사이에 창이 생긴다. **핸들러가 돌아온
+        뒤의 상태로는 그 순서를 못 잰다** — 두 순서 다 끝나고 보면 `SIG_DFL` 이고
+        신호도 서 있다(변이 실측: 순서를 뒤집어도 447건이 전부 통과했다). 그래서
+        `stop.set()` 이 불리는 **그 순간** 핸들러가 이미 내려갔는지를 본다.
         """
         seen = {}
 
         def fake_crawl(*args, **kwargs):
             stop = kwargs["stop"]
+            real_set = stop.set
+
+            def spy_set():
+                seen["armed_at_set"] = signal.getsignal(signal.SIGINT)
+                real_set()
+
+            stop.set = spy_set
             signal.getsignal(signal.SIGINT)(signal.SIGINT, None)  # Ctrl-C
             seen["armed"] = signal.getsignal(signal.SIGINT)
             seen["set"] = stop.is_set()
@@ -1751,6 +1817,9 @@ class TestCliTurnsSigintIntoTheSignal(unittest.TestCase):
         self.assertTrue(seen["set"], "핸들러가 stop 을 안 세웠다 — 크롤이 안 멈춘다")
         self.assertIs(seen["armed"], signal.SIG_DFL,
                       "핸들러가 자기를 안 내렸다 — 두 번째 Ctrl-C 가 안 먹는다")
+        self.assertIs(seen.get("armed_at_set"), signal.SIG_DFL,
+                      "stop 을 세울 때 핸들러가 아직 우리 것이었다 — 그 사이에 온 "
+                      "두 번째 Ctrl-C 는 이미 선 신호를 다시 세울 뿐이라 탈출구가 없다")
         self.assertEqual(rc, 130, "중단인데 rc 0 을 냈다 — `crawl && indexer` 가 계속 돈다")
         self.assertIn("수집 3 페이지", out.getvalue(), "중단이어도 수집 수는 찍는다")
 
