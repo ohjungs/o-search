@@ -1995,6 +1995,38 @@ class TestCliTurnsSigintIntoTheSignal(unittest.TestCase):
         self.assertEqual(rc, 0, "예산 만료를 중단으로 읽었다 — `crawl && indexer` 가 선다")
         self.assertIn("수집 4 페이지", out.getvalue())
 
+    def test_a_signal_wins_over_an_expired_budget_in_either_order(self):
+        """예산 만료와 SIGINT 가 **함께** 오면 순서와 무관하게 rc **130** 이다.
+
+        예산만(rc 0)·신호만(rc 130)은 각각 위에서 재는데 **겹치는 자리는 아무도 안
+        쟀다** — 그래서 겹침에서 0 을 내는 변이가 조용히 통과했다. 실제로 그렇게 되면
+        `--deadline` 을 켠 사용자만 Ctrl-C 로 끊은 뒤에도 `crawl && indexer` 가 다음
+        단계를 돈다. **순서를 하나만 재면 부족하다** — `signaled.set()` 을
+        `if not stop.is_set():` 뒤에 숨기는 변이는 **만료가 먼저** 온 갈래에서만 죽는다
+        (만료 갈래에서 일찍 `return 0` 하는 변이는 둘 다 죽인다).
+        착수 탐침(`docs/status.md`)이 CLI 서브프로세스로 두 순서를 실측한 값이다 —
+        rc 는 둘 다 130 이고 갈리는 것은 문구뿐이다(`중단` / `예산 2초 소진`).
+        """
+        def signal_then_budget(*args, **kwargs):
+            signal.getsignal(signal.SIGINT)(signal.SIGINT, None)  # Ctrl-C 가 먼저
+            kwargs["stop"].set()  # 드레인하는 사이 예산도 만료 — `crawl()` 이 하는 그대로
+            return 1
+
+        def budget_then_signal(*args, **kwargs):
+            kwargs["stop"].set()  # 예산이 먼저 만료
+            signal.getsignal(signal.SIGINT)(signal.SIGINT, None)  # 드레인 중 Ctrl-C
+            return 1
+
+        for name, fake in (("신호 먼저", signal_then_budget),
+                           ("만료 먼저", budget_then_signal)):
+            with self.subTest(name), self.sentinel_handler(), \
+                 mock.patch("websearch.crawl.crawl", fake), \
+                 mock.patch("sys.stdout", new_callable=io.StringIO) as out:
+                rc = crawl.main(["prog", "http://a.com/", "--deadline", "2"])
+                self.assertEqual(rc, 130, "예산과 신호가 겹쳤는데 rc 0 — 중단 뒤에도 "
+                                          "`crawl && indexer` 가 다음 단계를 돈다")
+                self.assertIn("수집 1 페이지", out.getvalue(), "중단이어도 수집 수는 찍는다")
+
     def test_no_signal_still_returns_zero(self):
         """**대조군.** 중단이 없으면 오늘 그대로 rc 0 이다."""
         with self.sentinel_handler(), \

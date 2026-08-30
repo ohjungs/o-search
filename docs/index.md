@@ -418,7 +418,7 @@ plan_history_<NNN>.md 를 다 열어볼 필요가 없게 하는 것이 목적이
     단위 447 → **451건 OK** · e2e **18종 rc=0**(`deadline_e2e` 9 → 19초, 늘어난 10초가
     시나리오 3 이 실제로 태우는 소켓 타임아웃이다).
 
-36. `signal-budget-cover` — 진행 (**짧은 경로**, 계획서 없음 · 설계 없음 ·
+36. `signal-budget-cover` — 완료 (**짧은 경로**, 계획서 없음 · 설계 없음 · e2e 문서 없음 ·
     브랜치 `loop/signal-budget-cover`, 기점 `346884a`)
     **예산 만료와 SIGINT 가 겹칠 때의 rc 를 못박는다.** 의존: 35(rc 를 `signaled` 로 가른 것)
     (사양 분할에 없던 계획. `digest.md ## 다음 계획 후보` `[6]` 에서 왔다. 계획 35 가
@@ -432,6 +432,16 @@ plan_history_<NNN>.md 를 다 열어볼 필요가 없게 하는 것이 목적이
     `if not stop.is_set():` 로 감싸거나 만료 갈래에 `return 0` 을 먼저 두면 겹침만 rc 0 이
     되는데 **451건이 전부 초록이다**. 곁가지: 탐침이 `cwd=저장소` 로 돌아 기본 db 경로
     (`data/crawl.db`)를 지나갔다 — 실물 무변경 확인했고 한도에 `cwd` 조항을 더했다)
+    **결과 — 단언 한 건(두 순서를 `subTest`)으로 닫았다. `src` diff 0줄.**
+    개발 스텝 하나가 계획 전체다: `tests/test_crawl.py` +31줄 · `README.md` 건수 ±1.
+    **RED 를 못 만드는 계획이라 TDD 를 변이가 대신했다** — M1(`signaled.set()` 을
+    `if not stop.is_set():` 로 감싸기)은 **만료가 먼저 온 갈래에서만** 죽고
+    M2(만료 갈래 이른 `return 0`)는 둘 다 죽인다. **M1 이 두 번째 순서의 존재
+    이유다** — 순서를 하나만 쟀으면 살아남았을 변이다. 둘 다 나머지 451건은 전부 통과한다.
+    제품 0줄이라 e2e 전수 대신 이 계약을 재는 둘만 돌렸다 — `interrupt_e2e` rc 0
+    (SIGINT 뒤 10.0s/rc 130 · 두 번째 Ctrl-C rc -2) · `deadline_e2e` rc 0(시나리오 3
+    수신 1건·10.1s·DB 0행). `data/crawl.db` sha256 무변경.
+    단위 451 → **452건 OK**. 재시도 0·RED 0
 
 색인 규모 단계(10만→100만)는 별도 계획이 아니라 7번(quality-eval) 이후 운영 측정으로 판정.
 
