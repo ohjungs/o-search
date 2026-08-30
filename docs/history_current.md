@@ -276,3 +276,35 @@ append 전용. 수정·삭제 금지.
   2.99초 vs 2.97초로 **사실상 무변화**(`Store` `busy_timeout` 30초 안).
 - 다음: **개발 스텝 2** — `indexer.main` 에 `except KeyboardInterrupt` 한 갈래, rc **130** ·
   안내 한 줄. 스텝 1 이 끝났으니 "색인은 바뀌지 않았다" 가 두 갈래 모두에서 참이다.
+
+## 2026-08-31 01:2x | 37 indexer-interrupt | 개발 스텝2 | 시도0 (제품 5줄 · 단위 +2)
+
+- 한 일: `src/websearch/indexer.py:255` `StaleIndexError` 갈래 옆에 `except KeyboardInterrupt`
+  → `중단 — 색인은 바뀌지 않았다`(stderr) · rc **130**. 단언 2건(`tests/test_indexer.py`
+  `TestCli`): rc·문구·한 줄·`Traceback` 0 을 재는 것 하나, **대조군** 하나(`SystemExit` 는
+  안 삼킨다). README 단위 건수 453→455.
+- **TDD 실패를 눈으로 봤다 — 다만 약한 빨강이다.** 고치기 전에는 `KeyboardInterrupt` 가
+  `main` 을 뚫고 나가 **러너 자체를 rc 130 으로 죽였다**(assert 에 닿지도 못했다). 강한
+  빨강은 변이가 대신 줬다 — 갈래를 둔 채 M2·M3·M4 를 심으니 같은 단언이 `FAIL` 로 죽는다.
+- 변이 6종 전부 죽었고 **각각 단언 하나만** 죽였다(`.git` 없는 사본, 심기 전 `count(원문)==1`):
+  M1 `BEGIN` 삭제→스텝1 단언 FAIL · M2 `return 0`·M3 `130→1`·M4 문구를 `"오류"` 로 →
+  전부 스텝2 rc/문구 단언 FAIL · M5 `BaseException` 으로 넓힘→**대조군만** FAIL ·
+  M6 `BEGIN` 을 `DROP` 뒤로→스텝1 단언 ERROR. **M1 이 나머지 454건을 안 건드린 것이 요점**
+  — 이 자리를 재고 있던 것이 정말로 0건이었다.
+- 탐침 재실측(임시 디렉터리, SIGINT 는 전건 색인 시간의 40% 시점 · **보낼 때 프로세스가
+  살아 있었음을 단언**했다 — 첫 시도는 색인이 먼저 끝나 아무것도 안 재고 있었다):
+  **A** 정상 색인 중 → `pages 6000 / docs 0 / integrity ok`, **B** 재구축 중 → `docs`
+  **6000행 · 옛 정의 유지**. 둘 다 rc **130** · stderr **한 줄** · `Traceback` **0회**.
+- 완료 기준 5(성능)는 **숫자가 아니라 A/B 로 판정했다.** 이 코퍼스에서 전건 색인이 5.19초라
+  계획서의 `4.58초 ±10%` 밴드 밖인데, 같은 기계·같은 코퍼스에서 `BEGIN` 을 뺀 트리와 3회씩
+  번갈아 재니 **전건 5.11/5.32/5.18 vs 5.18/5.17/5.21 · 재구축 5.14/5.23/5.20 vs
+  5.19/5.19/5.24** — 차이가 잡음 안이다. 밴드를 벗어난 것은 변경이 아니라 코퍼스·기계다.
+  **절대 기준선 숫자는 기계가 바뀌면 못 쓴다. 재려던 것("BEGIN 이 느리게 만드나")은 A/B 가 잰다.**
+- 결과: 단위 453 → **455건 OK**(3.409초, 무회귀) · e2e **7종 개별 전부 rc=0**
+  (`indexer_e2e`·`search_api_e2e`·`tokenizer_e2e`·`pagination_ui_e2e`·`noindex_e2e`·
+  `quality_eval` 한20/20·영19/20 · `perf_search` p95 9.27ms). **린터·타입체커 없음**
+  (`docs/project.md`) — 검증은 이 두 줄이 전부다. `data/crawl.db` sha256 **무변경**
+  (`85c96744…5bda18`). 스크래치패드 사본 삭제 완료.
+- 다음: **계획 37 개발 끝.** 테스트 phase — `indexer` 중단을 실제 CLI+SIGINT 로 지나는
+  e2e 가 아직 없다(중단 e2e 둘은 `crawl` 쪽). 집안일 `digest.md` 223줄·`history_current`
+  300줄 상한 초과는 그대로 미결.

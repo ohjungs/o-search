@@ -1,24 +1,26 @@
 ---
 signal: GREEN
-phase: 개발
+phase: 테스트
 step: 1
 attempt: 0
-iteration: 183
+iteration: 184
 updated: 2026-08-31
-ctx: 66
-night_iterations: 56
+ctx: 69
+night_iterations: 57
 night_red: 0
 night_retries: 0
 ---
 
 # 현재 상태
 
-**계획 37 `indexer-interrupt` 개발 스텝 1 완료** — 계획서 `docs/plan_indexer-interrupt.md`,
+**계획 37 `indexer-interrupt` 개발 끝(스텝 1·2 완료)** — 계획서 `docs/plan_indexer-interrupt.md`,
 브랜치 `loop/indexer-interrupt`(`loop/signal-budget-cover` `a8ad633` 에서 팠다).
-설계 생략(계획서 8절). **재구축이 한 트랜잭션이 됐다** — `indexer.py:88` `DROP` 앞
-`db.execute("BEGIN")` 한 줄. 탐침 B 재실측: 재구축 중 SIGINT 에 `docs` **6000행 유지**·
-옛 정의 유지(고치기 전 6000→0). **다음은 개발 스텝 2**(`main` 의 `except KeyboardInterrupt`
-→ rc 130). 계획 36 까지 전부 DONE. **`main` 병합은 사람이 정한다.**
+설계 생략(계획서 8절). **재구축이 한 트랜잭션이 됐고**(`indexer.py:92` `DROP` 앞
+`db.execute("BEGIN")`) **`main` 이 중단을 관용구로 받는다**(`indexer.py:255` `except
+KeyboardInterrupt` → `중단 — 색인은 바뀌지 않았다` · rc **130**). 탐침 재실측: A 는
+`pages 6000 / docs 0 / integrity ok`, B 는 `docs` **6000행·옛 정의 유지**(고치기 전 6000→0),
+**둘 다 rc 130 · Traceback 0회 · stderr 한 줄**. 완료 기준 7개 전부 대조 통과.
+**다음은 테스트 phase.** 계획 36 까지 전부 DONE. **`main` 병합은 사람이 정한다.**
 
 ## 이번 계획이 여는 것
 
@@ -46,12 +48,16 @@ rc 0, `indexer` 만 트레이스백 + rc -2 다. `digest ## 반복 실패` 의 "
 단위 452건 중 `indexer` 중단 단언 **0건** · e2e 18종에도 없다(중단 e2e 둘은 `crawl` 쪽) ·
 스키마 재구축 단언은 있으나 **중단된 재구축**은 없다.
 
-## 다음 스텝 (계획서 5절)
+## 다음 스텝 (계획서 5절 — 개발 두 스텝 다 끝났다)
 
-1. **재구축을 한 트랜잭션으로** — `indexer.py:88-90` 의 `DROP` 앞에 `db.execute("BEGIN")`.
-   RED 는 `extract.extract_text` 가 `KeyboardInterrupt` 를 던지게 만든다.
-2. **`main` 이 중단을 관용구로** — `indexer.py:236-249` 옆에 `except KeyboardInterrupt`,
-   rc **130** + 안내 한 줄. 스텝 1 뒤라야 "색인은 바뀌지 않았다" 가 참이다.
+1. ~~재구축을 한 트랜잭션으로~~ **완료**(`indexer.py:92`). 단언
+   `TestSchemaDrift.test_interrupted_rebuild_leaves_the_old_index_intact`.
+2. ~~`main` 이 중단을 관용구로~~ **완료**(`indexer.py:255`). 단언 둘 —
+   `TestCli.test_interrupt_is_a_one_line_message_and_rc_130` 과 대조군
+   `test_interrupt_branch_does_not_swallow_other_base_exceptions`(M5 를 잰다).
+
+→ **다음은 테스트 phase.** 개발이 남긴 것은 단위 단언 3건뿐이고 중단 e2e 는 아직
+`crawl` 쪽 둘뿐이다 — `indexer` 중단을 실제 CLI+SIGINT 로 지나는 e2e 가 있는지가 다음 판정이다.
 
 ## 집안일 (미결로 넘긴다)
 
