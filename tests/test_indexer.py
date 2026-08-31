@@ -603,6 +603,21 @@ class TestCli(unittest.TestCase):
         self.assertNotIn("잠겨", out)
         self.assertIn("not a database", out)  # 원문이 남는다
 
+    def test_query_on_a_not_a_database_file_is_a_message_and_rc_2(self):
+        # 갭 탐색: 새 갈래를 **색인 경로에서만** 쟀다. `--query` 도 같은 세 연결 중
+        # 하나(`search`)를 쓰므로 계약이 같아야 한다. 갈래를 티켓이 말한 경로로만
+        # 좁히면(`query is None` 안으로 넣으면) 이 진입점만 조용히 트레이스백이 된다
+        bogus = os.path.join(self.dir.name, "가짜.db")
+        with open(bogus, "wb") as f:
+            f.write(b"not a database at all" * 100)
+        buf = io.StringIO()
+        with contextlib.redirect_stderr(buf):
+            self.assertEqual(indexer.main(["prog", bogus, "--query", "김치"]), 2)
+        out = buf.getvalue()
+        self.assertNotIn("Traceback", out)
+        self.assertIn("not a database", out)
+        self.assertEqual(len(out.strip().split("\n")), 1)  # 한 줄
+
     def test_index_then_query(self):
         Store(self.db_path).upsert("http://a.test/", "<title>요리</title><p>김치</p>", 200)
         self.assertEqual(indexer.main(["prog", self.db_path]), 0)
