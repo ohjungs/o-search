@@ -575,6 +575,34 @@ class TestCli(unittest.TestCase):
             with contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(indexer.main(["prog", self.db_path]), 0)
 
+    def test_lock_past_timeout_is_a_message_and_rc_2(self):
+        # 계획 39 스텝 2: 30초를 기다려도 안 풀린 락은 트레이스백이 아니라 rc 2 와 복구법이다.
+        # 실측 35초 락으로 잰 갈래를 단위에서는 같은 예외로 세운다(35초를 매번 기다릴 수 없다)
+        Store(self.db_path).upsert("http://a.test/", "<p>김치</p>", 200)
+        buf = io.StringIO()
+        with mock.patch.object(indexer, "index_pages",
+                               side_effect=sqlite3.OperationalError("database is locked")), \
+                contextlib.redirect_stderr(buf):
+            self.assertEqual(indexer.main(["prog", self.db_path]), 2)
+        out = buf.getvalue()
+        self.assertNotIn("Traceback", out)
+        self.assertIn("잠겨", out)  # 락이라고 말한다
+        self.assertIn("다시 돌린다", out)  # 복구법을 말한다
+
+    def test_not_a_database_is_a_message_and_rc_2(self):
+        # 형제 구멍(계획 39 3절 D): 진짜 DB 가 아닌 파일도 트레이스백으로 새면 안 된다.
+        # 락이 아니므로 락 안내를 내면 오진이다 — 원문을 그대로 보인다
+        bogus = os.path.join(self.dir.name, "가짜.db")
+        with open(bogus, "wb") as f:
+            f.write(b"not a database at all" * 100)
+        buf = io.StringIO()
+        with contextlib.redirect_stderr(buf):
+            self.assertEqual(indexer.main(["prog", bogus]), 2)
+        out = buf.getvalue()
+        self.assertNotIn("Traceback", out)
+        self.assertNotIn("잠겨", out)
+        self.assertIn("not a database", out)  # 원문이 남는다
+
     def test_index_then_query(self):
         Store(self.db_path).upsert("http://a.test/", "<title>요리</title><p>김치</p>", 200)
         self.assertEqual(indexer.main(["prog", self.db_path]), 0)
