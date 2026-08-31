@@ -11,7 +11,7 @@
 
 | | 값 |
 |---|---|
-| 반복 | 185 |
+| 반복 | 186 |
 | 계획 (완료/폐기/보류) | 21 / 0 / 0 |
 | 재시도 | 0 |
 | RED | 0 |
@@ -26,17 +26,17 @@
 | 설계 | 8 (생략 4) |
 | 개발 | 39 |
 | 테스트 | 16 |
-| 리뷰 | 14 |
+| 리뷰 | 15 |
 | e2e | 16 |
 
 ## 리뷰 정확도 — 80점 임계 검증용
 
 | | 값 |
 |---|---|
-| 발견 후보 | 84 |
-| 80점 미만으로 버림 | 21 (기보류 중복 2 + search-api 2 + crawl-delay 3 + quality-eval 3 + non-ascii-url 2 + cooldown-burn 3 + crawl-politeness 1 + graceful-interrupt 2 + deadline-stop 3) |
-| 보고함 | 57 |
-| **그중 실제로 고친 것** | 45 |
+| 발견 후보 | 91 |
+| 80점 미만으로 버림 | 24 (기보류 중복 2 + search-api 2 + crawl-delay 3 + quality-eval 3 + non-ascii-url 2 + cooldown-burn 3 + crawl-politeness 1 + graceful-interrupt 2 + deadline-stop 3 + indexer-interrupt 3) |
+| 보고함 | 61 |
+| **그중 실제로 고친 것** | 47 |
 
 **보고한 것 대비 실제로 고친 비율이 낮으면 임계를 올린다.**
 버린 것 중에 나중에 진짜 문제로 드러난 게 있으면 내린다.
