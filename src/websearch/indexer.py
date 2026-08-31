@@ -75,7 +75,7 @@ def index_pages(db_path):
     """
     if not os.path.exists(db_path):
         raise FileNotFoundError(db_path)
-    db = sqlite3.connect(db_path)
+    db = sqlite3.connect(db_path, timeout=30)
     try:
         # pages 가 없으면 아래 SELECT 가 sqlite3.OperationalError 를 흘려 CLI 가
         # 트레이스백을 낸다. 읽기 직전 한 번만 본다 — 만들지는 않는다(store 몫).
@@ -133,7 +133,7 @@ def _doc_count(db_path):
     """
     if not os.path.exists(db_path):
         return 0
-    db = sqlite3.connect(db_path)
+    db = sqlite3.connect(db_path, timeout=30)
     try:
         if _docs_sql(db) != _CURRENT_SQL:
             return 0
@@ -178,7 +178,7 @@ def search(db_path, query, limit=10, offset=0):
     match = _fts_query(query)
     if not match:
         return []
-    db = sqlite3.connect(db_path)
+    db = sqlite3.connect(db_path, timeout=30)
     try:
         sql = _docs_sql(db)
         if sql is None:

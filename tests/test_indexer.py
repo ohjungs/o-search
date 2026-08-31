@@ -2,6 +2,8 @@ import contextlib
 import io
 import os
 import sqlite3
+import subprocess
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -553,6 +555,25 @@ class TestCli(unittest.TestCase):
         with mock.patch.object(indexer, "index_pages", side_effect=SystemExit(3)):
             with self.assertRaises(SystemExit):
                 indexer.main(["prog", self.db_path])
+
+    def test_index_waits_out_a_write_lock_instead_of_dying(self):
+        # 계획 39 스텝 1: crawl 이 쓰기 락을 쥔 채여도 색인은 죽지 않고 기다린다.
+        # sqlite3 기본 timeout 은 5초라 8초 락에서 트레이스백이 났다 — store.py:22 가
+        # 이미 고른 30초를 indexer 의 연결도 그대로 쓴다
+        Store(self.db_path).upsert("http://a.test/", "<p>김치</p>", 200)
+        holder = subprocess.Popen(
+            [sys.executable, "-c",
+             "import sqlite3, sys, time\n"
+             "db = sqlite3.connect(sys.argv[1])\n"
+             "db.execute('BEGIN IMMEDIATE')\n"
+             "print('locked', flush=True)\n"
+             "time.sleep(8)\n",
+             self.db_path],
+            stdout=subprocess.PIPE, text=True)
+        with holder:
+            holder.stdout.readline()  # 락을 실제로 쥔 것을 보고 나서 색인한다
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(indexer.main(["prog", self.db_path]), 0)
 
     def test_index_then_query(self):
         Store(self.db_path).upsert("http://a.test/", "<title>요리</title><p>김치</p>", 200)
