@@ -1,6 +1,6 @@
 # 계획 37 — `indexer-interrupt`: 색인 도중 Ctrl-C 가 색인을 지운다
 
-phase: 개발 (설계 생략 — 아래 8절)
+phase: 리뷰 (개발·테스트 끝 · 설계 생략 — 아래 8절)
 브랜치: `loop/indexer-interrupt` (기점 `a8ad633`, `loop/signal-budget-cover` 에서 팠다)
 슬러그: `indexer-interrupt`
 
@@ -112,6 +112,11 @@ close** 했더니 되돌아가지 않았다 — 옛 테이블의 행은 사라�
    `search_api_e2e`·`tokenizer_e2e`·`pagination_ui_e2e` rc **0**.
 7. `data/crawl.db` sha256 **무변경**.
 
+**테스트 phase 실측(2026-08-31)** — 7개 전부 통과. 단위는 **456건**(계획의 "455건 내외"에
+갭 하나를 더했다): 기대 결과 2번(정상 색인 중단은 색인을 안 바꾼다)을 탐침이 아니라 단언이
+잡게 했다 — `TestIndexPages.test_interrupted_incremental_run_indexes_nothing`, 변이
+**M7**(행마다 `db.commit()`)이 그 단언만 죽인다. 5번(성능)은 개발 phase 의 A/B 판정 그대로다.
+
 ## 7. 변이 목록 (심기 전 `count(원문)==1` 을 먼저 단언한다 — `digest [8]`)
 
 | # | 변이 | 죽어야 하는 것 |
@@ -122,6 +127,7 @@ close** 했더니 되돌아가지 않았다 — 옛 테이블의 행은 사라�
 | M4 | 안내 문구를 고정 문자열로 치환 | 문구를 재는 단언. **없으면 32 의 교훈대로 아무것도 안 재고 있는 것** |
 | M5 | **더 잡는 쪽** — `except KeyboardInterrupt` → `except BaseException` | 대조군이 죽어야 한다. `SystemExit` 까지 삼키면 다른 계약이다(27 의 M4 교훈) |
 | M6 | `BEGIN` 을 `DROP` **뒤로** 옮긴다 | 스텝 1 단언. 순서가 계약이다 — 늦게 열면 DROP 은 이미 커밋됐다 |
+| M7 | (테스트 phase 추가) `indexed += 1` 뒤에 `db.commit()` 한 줄 | 평소 색인 경로의 중단 단언 **만**. 안내 "색인은 바뀌지 않았다" 가 재구축 아닌 갈래에서도 참인지를 잰다 |
 
 ## 8. 설계 phase 트리거 판정 — **걸리지 않는다. 설계 생략**
 

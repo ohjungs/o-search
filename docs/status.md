@@ -1,26 +1,26 @@
 ---
 signal: GREEN
-phase: 테스트
+phase: 리뷰
 step: 1
 attempt: 0
-iteration: 184
+iteration: 185
 updated: 2026-08-31
-ctx: 69
-night_iterations: 57
+ctx: 85
+night_iterations: 58
 night_red: 0
 night_retries: 0
 ---
 
 # 현재 상태
 
-**계획 37 `indexer-interrupt` 개발 끝(스텝 1·2 완료)** — 계획서 `docs/plan_indexer-interrupt.md`,
+**계획 37 `indexer-interrupt` 테스트 phase 끝** — 계획서 `docs/plan_indexer-interrupt.md`,
 브랜치 `loop/indexer-interrupt`(`loop/signal-budget-cover` `a8ad633` 에서 팠다).
-설계 생략(계획서 8절). **재구축이 한 트랜잭션이 됐고**(`indexer.py:92` `DROP` 앞
-`db.execute("BEGIN")`) **`main` 이 중단을 관용구로 받는다**(`indexer.py:255` `except
-KeyboardInterrupt` → `중단 — 색인은 바뀌지 않았다` · rc **130**). 탐침 재실측: A 는
-`pages 6000 / docs 0 / integrity ok`, B 는 `docs` **6000행·옛 정의 유지**(고치기 전 6000→0),
-**둘 다 rc 130 · Traceback 0회 · stderr 한 줄**. 완료 기준 7개 전부 대조 통과.
-**다음은 테스트 phase.** 계획 36 까지 전부 DONE. **`main` 병합은 사람이 정한다.**
+개발 스텝 1·2 완료(재구축이 한 트랜잭션 · `main` 이 rc **130** 과 한 줄 안내).
+테스트는 **갭 하나를 메웠다** — 재구축이 아닌 **평소 색인 경로의 중단**을 재는 단언이
+0건이었다(`tests/test_indexer.py:123`
+`TestIndexPages.test_interrupted_incremental_run_indexes_nothing`). 단위 455 → **456건 OK**,
+e2e 7종 rc=0, `data/crawl.db` sha256 무변경(`85c96744…`). **다음은 리뷰 phase.**
+계획 36 까지 전부 DONE. **`main` 병합은 사람이 정한다.**
 
 ## 이번 계획이 여는 것
 
@@ -29,35 +29,31 @@ KeyboardInterrupt` → `중단 — 색인은 바뀌지 않았다` · rc **130**)
 **Python 3.9.6 `sqlite3` 은 DDL 을 암묵 트랜잭션에 안 넣는다** — DROP/CREATE 는 그 자리에서
 커밋되고 INSERT 만 롤백된다. 그래서 재구축 중 SIGINT 는 **옛 6000행을 지우고 0행을 남긴다.**
 그때부터 검색은 전부 `결과 없음` 이고, 이는 크롤 데이터가 없는 것과 **구별되지 않는다**
-(21·26·29 가 세 번 닫은 실패 모양).
+(21·26·29 가 세 번 닫은 실패 모양). 곁들여 `indexer.main` 만 중단 계약이 없었다
+(`crawl` rc 130 · `serve` rc 0 · `indexer` 트레이스백 + rc -2).
 
-곁들여 **`indexer.main` 만 중단 계약이 없다** — `crawl` 은 rc 130(34·35·36), `serve` 는
-rc 0, `indexer` 만 트레이스백 + rc -2 다. `digest ## 반복 실패` 의 "CLI 가 트레이스백을
-낸다"(2회)의 **세 번째 자리**이고, 계획 21 이 이 함수에 세운 관용구를 중단 경로만 안 따른다.
+## 테스트 phase 가 찾은 것 (2026-08-31)
 
-## 착수 탐침 실측 (2026-08-31 · 전부 임시 디렉터리)
+- **메운 갭(중요도 8).** `main` 이 내는 안내 "색인은 바뀌지 않았다" 는 **두 갈래 모두에서**
+  참이라고 주장하는데, 평소(증분) 경로의 중단을 재는 단언이 없었다. 계획서 기대 결과 2번이
+  "이미 참, 회귀 방지로 못박는다" 라고 적어 둔 자리이고 착수 탐침 A 가 손으로 한 번 봤을 뿐이다.
+  새 단언은 **둘째 문서에서** 끊어 "부분만 남는다" 를 잰다 — 변이 **M7**(`indexed += 1` 뒤에
+  `db.commit()` 한 줄)을 심으면 그 단언 **하나만** 죽는다(`.git` 없는 사본에서 확인).
+- **남긴 갭(8 미만).** ① 중단 뒤 재실행이 재구축을 마치는 회복 경로 → 기존 드리프트 단언
+  둘의 합성이라 새로 쓰지 않았다. ② 중단된 색인이 DB 락을 남기지 않는다 → 단언들이
+  `finally: db.close()` 뒤에 다시 열어 읽으므로 이미 지나간다.
+- **e2e phase 로 넘기는 것.** `indexer` 중단을 **실제 CLI + SIGINT** 로 지나는 e2e 가 아직
+  없다(중단 e2e 둘은 `crawl` 쪽 `interrupt_e2e`·`deadline_e2e`). 단위는 예외 주입이라
+  진짜 시그널·진짜 프로세스 종료 코드를 못 잰다 — 착수 탐침 A·B 가 그것을 손으로 쟀다.
 
-- **A 정상 색인 중 SIGINT**: rc **-2** · stdout 빈 문자열 · `KeyboardInterrupt` 트레이스백
-  (`extract.py:60` 프레임까지) · DB `pages 6000 / docs 0 / integrity ok`(색인 무변경).
-- **B 재구축 중 SIGINT**: rc **-2** · `docs` **6000행 → 0행** · 새 정의는 커밋된 채로 남는다.
-- **뿌리**: 맨 `sqlite3`(3.9.6)에서 `DROP`+`CREATE` 뒤 commit 없이 close → **안 되돌아간다.**
-- 전건 색인 기준선 **6000문서 4.58초**(성능 회귀 판정용).
+## 검증 (전부 이번 반복에 직접 돌렸다)
 
-## 오늘의 검증이 이 변화를 재는가 — 못 잰다
-
-단위 452건 중 `indexer` 중단 단언 **0건** · e2e 18종에도 없다(중단 e2e 둘은 `crawl` 쪽) ·
-스키마 재구축 단언은 있으나 **중단된 재구축**은 없다.
-
-## 다음 스텝 (계획서 5절 — 개발 두 스텝 다 끝났다)
-
-1. ~~재구축을 한 트랜잭션으로~~ **완료**(`indexer.py:92`). 단언
-   `TestSchemaDrift.test_interrupted_rebuild_leaves_the_old_index_intact`.
-2. ~~`main` 이 중단을 관용구로~~ **완료**(`indexer.py:255`). 단언 둘 —
-   `TestCli.test_interrupt_is_a_one_line_message_and_rc_130` 과 대조군
-   `test_interrupt_branch_does_not_swallow_other_base_exceptions`(M5 를 잰다).
-
-→ **다음은 테스트 phase.** 개발이 남긴 것은 단위 단언 3건뿐이고 중단 e2e 는 아직
-`crawl` 쪽 둘뿐이다 — `indexer` 중단을 실제 CLI+SIGINT 로 지나는 e2e 가 있는지가 다음 판정이다.
+- 단위 **456건 OK**(3.9초) — `PYTHONPATH=src python3 -m unittest discover -s tests`.
+- e2e 7종 개별 rc **0**: `indexer_e2e`(3문서·증분 0) · `search_api_e2e`(p95 2.30ms) ·
+  `tokenizer_e2e` · `pagination_ui_e2e` · `noindex_e2e` · `quality_eval`(한 20/20 · 영 19/20)
+  · `perf_search`(p95 **8.97ms**, 예산 300ms 의 3.0%).
+- **린터·타입체커 없다**(`docs/project.md`) — 검증은 위 두 줄이 전부다.
+- `data/crawl.db` sha256 `85c96744…5bda18` **무변경**. 스크래치패드 사본 삭제 완료.
 
 ## 집안일 (미결로 넘긴다)
 

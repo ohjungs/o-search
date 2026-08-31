@@ -308,3 +308,29 @@ append 전용. 수정·삭제 금지.
 - 다음: **계획 37 개발 끝.** 테스트 phase — `indexer` 중단을 실제 CLI+SIGINT 로 지나는
   e2e 가 아직 없다(중단 e2e 둘은 `crawl` 쪽). 집안일 `digest.md` 223줄·`history_current`
   300줄 상한 초과는 그대로 미결.
+
+## 2026-08-31 19:5x | 37 indexer-interrupt | 테스트 1 | 시도0 (단위 +1 · 제품 0줄)
+
+- 한 일: 갭 탐색 6종을 훑고 **하나만 메웠다**(중요도 8) — `tests/test_indexer.py:123`
+  `TestIndexPages.test_interrupted_incremental_run_indexes_nothing`. README 단위 455→456.
+- **왜 8인가.** 개발이 남긴 단언 3건은 전부 **재구축** 갈래를 잰다. 그런데 `main` 이 내는
+  안내 "색인은 바뀌지 않았다" 는 **평소(증분) 경로에서도** 참이라고 주장하고, 계획서 기대
+  결과 2번이 그 자리를 "이미 참, 회귀 방지로 못박는다" 라고 적어 뒀는데 단언이 **0건**이었다.
+  착수 탐침 A 가 손으로 한 번 본 것이 전부다 — 탐침은 다음 반복에 다시 돌지 않는다.
+- **단언을 둘째 문서에서 끊었다.** 첫 문서에서 끊으면 "아무것도 안 들어갔다" 는 어떤 구현으로도
+  참이라 아무것도 안 잰다. 둘째에서 끊어야 **부분만 남는다**가 관측 가능해진다: 변이
+  **M7**(`indexed += 1` 뒤 `db.commit()` 한 줄, 10만 문서 메모리 걱정이 낳을 법한 그 수정)을
+  심으니 **그 단언 하나만** FAIL(`['a','b'] != ['a']`), 나머지 455건은 초록.
+  (`.git` 없는 rsync 사본, 심기 전 `count(원문)==1` 단언 — `docs/history` 의 관례 그대로.)
+- **안 쓴 것(8 미만).** ① 중단 뒤 재실행이 재구축을 마치는 회복 경로 → 기존 드리프트 단언
+  둘의 합성이라 새 파일을 안 늘렸다 ② 중단이 DB 락을 남기지 않는다 → 단언들이 `finally:
+  db.close()` 뒤에 다시 열어 읽으므로 이미 지나간다. **기존 단언은 하나도 안 고쳤다**
+  (diff 는 순수 추가 41+14줄, 삭제 0 — 21 의 `NoCrawlDataError`·`StaleIndexError` 갈래 그대로).
+- 결과: 단위 455 → **456건 OK**(3.9초, 무회귀) · e2e **7종 개별 전부 rc=0**
+  (`indexer_e2e`·`search_api_e2e` p95 2.30ms·`tokenizer_e2e`·`pagination_ui_e2e`·
+  `noindex_e2e`·`quality_eval` 한20/20·영19/20 · `perf_search` p95 **8.97ms**).
+  **린터·타입체커 없음**(`docs/project.md`). `data/crawl.db` sha256 **무변경**
+  (`85c96744…5bda18`, e2e 전후 두 번 쟀다). 스크래치패드 사본 삭제 완료.
+- 다음: **리뷰 phase.** e2e phase 로 넘길 것 하나를 status 에 명시했다 — 실제 CLI+SIGINT 로
+  `indexer` 중단을 지나는 e2e 가 없다(단위는 예외 주입이라 진짜 시그널·rc 를 못 잰다).
+  집안일 `digest.md` 223줄·`history_current` 300줄 상한 초과는 그대로 미결.

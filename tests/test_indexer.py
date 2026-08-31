@@ -120,6 +120,20 @@ class TestIndexPages(unittest.TestCase):
         self.assertEqual(index_pages(self.db_path), 0)
         self.assertEqual([row[0] for row in self._docs()], ["http://a.test/"])
 
+    def test_interrupted_incremental_run_indexes_nothing(self):
+        # 재구축이 아닌 평소 경로. main 의 안내 "색인은 바뀌지 않았다" 는 이쪽에서도
+        # 참이어야 한다 — 오늘은 암묵 트랜잭션 덕에 참이고, 중간 commit 이 하나라도
+        # 끼면 거짓이 된다. 둘째 문서에서 끊어 "부분만 남는다" 를 재게 만든다.
+        self._seed([("http://a.test/", "<title>가</title><p>첫</p>")])
+        self.assertEqual(index_pages(self.db_path), 1)
+        self._seed([("http://b.test/", "<title>나</title><p>둘째</p>"),
+                    ("http://c.test/", "<title>다</title><p>셋째</p>")])
+        with mock.patch.object(indexer.extract, "extract_text",
+                               side_effect=[("나", "둘째"), KeyboardInterrupt]):
+            with self.assertRaises(KeyboardInterrupt):
+                index_pages(self.db_path)
+        self.assertEqual([row[0] for row in self._docs()], ["http://a.test/"])
+
 
 class TestSchemaDrift(unittest.TestCase):
     """`SCHEMA` 는 CREATE ... IF NOT EXISTS 다 — 정의를 바꿔도 옛 DB 는 옛 정의로 남는다.
