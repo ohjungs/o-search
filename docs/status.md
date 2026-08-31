@@ -1,11 +1,11 @@
 ---
 signal: GREEN
 phase: 개발
-step: 1
+step: 2
 attempt: 0
-iteration: 188
+iteration: 189
 updated: 2026-08-31
-ctx: 55
+ctx: 66
 night_iterations: 59
 night_red: 0
 night_retries: 0
@@ -15,7 +15,7 @@ night_retries: 0
 
 **계획 38 `digest-rotate` 를 열었다 — 계획서 `docs/plan_digest-rotate.md`.**
 브랜치 `loop/digest-rotate`(기점 `c2a115e`, `loop/indexer-interrupt` 에서 팠다).
-계획 37 까지 전부 DONE·아카이브 완료. **활성 계획 1개, 다음은 개발 스텝 1.**
+계획 37 까지 전부 DONE·아카이브 완료. **활성 계획 1개, 개발 스텝 1 완료, 다음은 스텝 2.**
 계획 34~37 은 PR #2 로 `main` 에 병합됐다(`main` 최신 `e0890c8`) — 이번 계획도
 `main` 병합은 사람이 정한다.
 
@@ -46,18 +46,31 @@ night_retries: 0
 - 회전 시뮬레이션(사본): 취소선만 지우면 **194줄**(여유 6줄뿐이라 두 반복이면 재발),
   2026-08-25·26 완료 7줄까지 지우면 **187줄 · 57,241바이트**(−36%).
 
+## 개발 스텝 1 (2026-08-31) — 머리 복구 + 닫힘 표시 제자리로
+
+`docs/digest.md` 만 3줄 고쳤다(제거 3·추가 3). **옮긴 것뿐이고 새로 쓴 문장은 0** —
+지운 머리 1줄과 `:134` 에 붙인 닫힘 문구가 `cksum` 으로 동일하고(981바이트), 복구된
+머리 3줄은 사고 이전 판(`b11fd40~1`)의 머리 3줄과 동일하다(28바이트).
+**열린 항목은 `[5]` 하나만 빠졌다** — 고치기 전후 목록을 `diff` 로 대조해 확인했다(48 → **47**).
+`[5]` 가 018 에서 닫힌 근거: `docs/index.md:129`(18 `url-normalize` 완료 =
+`plan_history_016`) · `plan_history_016.md:35`(호스트 소문자) · 실측
+`urls.normalize('http://A.com/')` → `http://a.com/`.
+
 ## 검증 (이번 반복에 직접 돌렸다)
 
-- 단위 **456건 OK** — `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python3 -m unittest
-  discover -s tests`.
-- `PYTHONPATH=src python3 e2e/indexer_interrupt_e2e.py` rc **0**.
-- 탐침은 전부 스크래치패드 임시 디렉터리 사본에서 돌렸고 저장소는 무변경으로 유지했다
-  (`git status --short` 빈 상태에서 계획서만 새로 썼다).
-- `data/crawl.db` sha256 `85c96744…5bda18` **무변경**.
+- 단위 **456건 OK** — `PYTHONPATH=src python3 -m unittest discover -s tests`.
+- `PYTHONPATH=src python3 e2e/indexer_interrupt_e2e.py` rc **0**(19종).
+- 린터·타입체커는 이 저장소에 없다(`docs/project.md`) — 돌릴 것이 없다.
+- `data/crawl.db` sha256 `85c96744…5bda18` **무변경**. `src/`·`tests/`·`e2e/` **0줄**.
 
 ## 남은 것 (다음 반복이 읽을 것)
 
-- **개발 스텝 1 부터** — `docs/plan_digest-rotate.md` 4절. 완료 기준이 전부 실행 명령이다.
+- **개발 스텝 2(회전)부터** — `docs/plan_digest-rotate.md` 5절. 줄 수는 아직 **232줄**이다
+  (스텝 1 은 옮기기라 순증감 0). 목표 **187줄**은 스텝 2 가 만든다.
+- **스텝 1 의 완료 기준 하나가 계획서에서 어긋났다** — `grep -c '^  - \[원문\]'` 은
+  "오늘 값 +1"(12)로 적혔지만 실제는 **11**이다. 깨진 머리의 둘째 줄
+  (`  - [원문] # 아카이브 요약`)이 그 카운트에 이미 들어가 있었고 이번에 지워졌다
+  (진짜 원문 줄은 10 → 11). 계획서의 산수가 틀린 것이고 회귀가 아니다.
 - **보류 2건은 그대로 열려 있다**(`plan_history_023.md` 12-2) — ① `commit()` 뒤 도착한
   중단이 "색인은 바뀌지 않았다" 를 거짓으로 만든다 ② `--query` 도중 중단도 같은 안내를
   낸다. 둘 다 사용자 표면이라 자기 RED 가 필요하다.
