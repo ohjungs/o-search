@@ -1,11 +1,11 @@
 ---
 signal: GREEN
-phase: 개발
-step: 2
+phase: 테스트
+step: 1
 attempt: 0
-iteration: 194
-updated: 2026-08-31
-ctx: 58
+iteration: 195
+updated: 2026-09-01
+ctx: 29
 night_iterations: 62
 night_red: 0
 night_retries: 0
@@ -13,28 +13,30 @@ night_retries: 0
 
 # 현재 상태
 
-**계획 39 `indexer-lock` 개발 스텝 1 완료 — 계획서 `docs/plan_indexer-lock.md`.**
+**계획 39 `indexer-lock` 개발 스텝 2/2 완료 — 계획서 `docs/plan_indexer-lock.md`.**
 브랜치 `loop/indexer-lock`(기점 `bf78d02`, `loop/digest-rotate` 에서 팠다).
-**계획 38 까지 전부 DONE·아카이브 완료.** 활성 계획 1개, 다음은 **개발 스텝 2**.
+**계획 38 까지 전부 DONE·아카이브 완료.** 활성 계획 1개, 개발은 끝났고 다음은 **테스트**.
 계획 34~37 은 PR #2 로 `main` 에 병합됐다(`main` 최신 `e0890c8`) — 38·39 의
 `main` 병합은 사람이 정한다.
 
-## 방금 한 것 (2026-08-31 · 개발 1/2)
+## 방금 한 것 (2026-09-01 · 개발 2/2)
 
-**`indexer.py` 의 세 `sqlite3.connect(db_path)` 에 `timeout=30` 을 줬다 — 제품 3줄.**
-값은 새로 안 정했다: `store.py:22` 가 계획 8 에서 고른 30초를 그대로 따른다(사다리 2번).
+**`indexer.main` 에 `except sqlite3.DatabaseError` 갈래를 넣었다 — 제품 9줄(주석 3 포함).**
+`NoCrawlDataError`·`StaleIndexError` 와 같은 자리·같은 관용구로 rc **2** + stderr 한 줄이다.
+락이면 "DB 가 잠겨 있다 — 크롤이 끝난 뒤 다시 돌린다", 아니면 원문을 그대로 보인다
+(`"locked" in str(e)` 한 줄). `OperationalError` 의 상위인 `DatabaseError` 로 잡아
+**"진짜 DB 가 아닌 파일" 형제 구멍이 같은 갈래에 덮였다**(계획서 3절 D).
 
-**TDD 를 순서대로 밟았다.** 먼저 테스트 하나(`TestCli.test_index_waits_out_a_write_lock_
-instead_of_dying`) — 하위 프로세스가 `BEGIN IMMEDIATE` 로 **8초** 락을 쥐고, `locked` 한 줄을
-읽어 락을 실제로 쥔 것을 본 뒤에 `indexer.main()` 을 부른다. **RED 를 눈으로 봤다**:
-`sqlite3.OperationalError: database is locked` at `indexer.py:94`(`db.execute(SCHEMA)`) —
-계획서 탐침 B·E 와 같은 자리다. 고친 뒤 **458건 OK**(11.9초, 새 테스트가 8초).
+**TDD 를 순서대로 밟았다.** 테스트 둘을 먼저 쓰고 **RED 를 눈으로 봤다** — 둘 다
+트레이스백이 그대로 샜다(`indexer.py:228` `index_pages`, `indexer.py:67` `_docs_sql`).
+락 테스트는 35초를 매번 기다릴 수 없어 같은 예외를 `index_pages` 에 세웠고,
+**진짜 35초 락은 탐침으로 따로 쟀다**: 30초 만에 **rc 2 · 트레이스백 0줄** ·
+첫 줄이 복구법이다(고치기 전은 30.04초 rc 1). 비 DB 파일도 실물로 **rc 2**.
 
-**변이 둘로 단언이 값을 못박는지 확인했다.** M1(`timeout=30` 3곳 삭제)은 위 RED 자체가
-증거다 — 고치기 전 상태가 변이체와 바이트 단위로 같다. **M2(30 → 3)** 는 `.git` 없는
-스크래치패드 사본(`src`·`tests` 만, `*.db` 없음)에 `sed -i ''` 로 심고 자리 3곳을 grep 으로
-먼저 확인한 뒤 돌려 **RED**(8.03초, 같은 트레이스백). 즉 이 테스트는 인자의 **존재**만이
-아니라 **값**을 고정한다 — `digest.md [7]` 이 지적한 0.3초 락의 거짓 초록을 피했다.
+**변이 셋을 사본에 심어 전부 죽였다.** `.git`·`*.db` 없는 스크래치패드 사본(`src` 만)에
+파이썬으로 심고 `PYTHONPATH` 를 사본으로 돌렸다 — 대조군 OK 를 먼저 확인한 뒤
+M2(`except` 절 삭제) **errors=2** · M3(rc 2 → 0) **failures=2** · M4(락 분기 문구 제거,
+전부 원문) **failures=1**. M4 가 하나만 죽는 것이 맞다 — 비 DB 테스트는 원문을 요구한다.
 
 ## 이번 계획이 하려는 일
 
@@ -64,19 +66,19 @@ instead_of_dying`) — 하위 프로세스가 `BEGIN IMMEDIATE` 로 **8초** 락
 `timeout` 만으로는 계약을 못 닫고, 예외 갈래만으로는 5초 비대칭이 남는다.
 `digest.md [8]`("깨우기와 접기는 하나다 — 한 줄씩은 0초를 회수한다")과 같은 모양이다.
 
-## 다음 스텝 (개발 2/2)
+## 다음 스텝 (테스트)
 
-`indexer.main` 에 `except sqlite3.DatabaseError` 갈래를 더한다 — 락이 **30초를 넘으면**
-지금도 rc 1 + 트레이스백이다(탐침: 락 35초에서 30.04초 rc 1). 스텝 1 은 그 문턱을
-5초에서 30초로 옮겼을 뿐 계약을 못 닫는다. `NoCrawlDataError`·`StaleIndexError` 와 같은
-자리에서 rc **2** + 한 줄 안내로, `OperationalError` 의 상위인 `DatabaseError` 로 잡아
-"진짜 DB 가 아닌 파일"(`file is not a database`) 형제 구멍까지 한 갈래로 덮는다.
+**개발 두 스텝이 다 끝났다.** 계획서 4절의 완료 기준은 실측으로 전부 닫혔다 —
+락 8초·20초 rc 0(스텝 1), 락 35초 rc 2 · 비 DB 파일 rc 2 · 트레이스백 0줄(스텝 2).
+테스트 phase 가 볼 자리: **락 갈래의 단위 테스트는 예외를 세운 것**이라 진짜 35초
+경로는 탐침으로만 봤다(단위에 35초를 넣지 않기로 한 판단) · e2e 19종에 **동시 실행
+시나리오가 없다** — `indexer_e2e.py` 옆에 락 e2e 를 붙일지가 그 phase 의 물음이다.
 
 ## 한도 (넘으면 RED)
 
 - `data/crawl.db` 실물·스키마 무변경 (sha256 `85c96744…5bda18` — 이번 스텝에서 대조함).
   탐침은 임시 디렉터리에서만, `cwd` 도 거기다 — 색인 경로가 cwd 기준이다.
-- 단위 **458건**(스텝 1 에서 +1)이 하나라도 줄면 RED · e2e 19종이 줄면 RED.
+- 단위 **460건**(스텝 1 에서 +1, 스텝 2 에서 +2)이 하나라도 줄면 RED · e2e 19종이 줄면 RED.
 - `docs/digest.md` 열린 항목 **48**(`grep -c '^- \['`)이 줄면 RED · 189줄(상한 200).
 - 제품 diff 는 `src/websearch/indexer.py` **한 파일**이다. 다른 `src/` 파일이 바뀌면 RED.
 - 변이는 `.git` 없는 스크래치패드 사본에서만 심는다(`## 반복 실패` 3회 항목).

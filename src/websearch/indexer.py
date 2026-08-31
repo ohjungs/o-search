@@ -251,6 +251,15 @@ def main(argv):
         print("색인이 옛 정의로 남아 있다. 먼저 색인을 다시 돌린다: "
               "python3 -m websearch.indexer %s" % db_path, file=sys.stderr)
         return 2
+    except sqlite3.DatabaseError as e:
+        # 트레이스백은 복구법을 안 알려 준다 — StaleIndexError 와 같은 관용구다.
+        # 락은 안내가 다르다: 30초를 기다리고도 안 풀린 것이라 답이 "나중에 다시" 다.
+        # 나머지(손상·비 DB 파일)를 락으로 오인하면 오진이므로 원문을 그대로 보인다
+        if "locked" in str(e):
+            print("DB 가 잠겨 있다 — 크롤이 끝난 뒤 다시 돌린다: %s" % db_path, file=sys.stderr)
+        else:
+            print("DB 를 열 수 없다: %s — %s" % (db_path, e), file=sys.stderr)
+        return 2
     except KeyboardInterrupt:
         # **KeyboardInterrupt 만** 잡는다 — BaseException 으로 넓히면 SystemExit 까지
         # 삼켜 다른 계약이 된다. "색인은 바뀌지 않았다" 는 재구축이 한 트랜잭션이 된

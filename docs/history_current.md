@@ -152,3 +152,25 @@ append 전용. 수정·삭제 금지.
 - 다음: 개발 2/2 — `main` 에 `except sqlite3.DatabaseError` 갈래(rc 2 + 한 줄 안내).
   스텝 1 은 문턱을 5초에서 30초로 옮겼을 뿐이다. 락 35초는 오늘도 rc 1 트레이스백이고,
   `DatabaseError` 로 잡으면 "진짜 DB 가 아닌 파일" 형제 구멍이 같은 갈래에 덮인다.
+
+## 2026-09-01 00:0x | 39 indexer-lock | 개발 2/2 | 시도0 (제품 9줄 · 테스트 +2)
+
+- 한 일: `indexer.main` 에 `except sqlite3.DatabaseError` 갈래 —
+  `NoCrawlDataError`·`StaleIndexError` 와 같은 자리·같은 관용구로 rc **2** + stderr 한 줄.
+  락(`"locked" in str(e)`)이면 "크롤이 끝난 뒤 다시 돌린다", 아니면 원문 그대로.
+  테스트가 먼저다 — `TestCli.test_lock_past_timeout_is_a_message_and_rc_2` 와
+  `..._not_a_database_is_a_message_and_rc_2`.
+- 결과: **RED 를 눈으로 봤다** — 둘 다 트레이스백이 그대로 샜다(`indexer.py:228`·`:67`).
+  고친 뒤 단위 458 → **460건 OK**(11.7초) · e2e 2종 rc 0 · `crawl.db` sha256 무변경 ·
+  README `단위 458건` → 460(가드가 또 즉시 울었다) · 제품 diff 는 `indexer.py` 한 파일.
+  **진짜 35초 락을 탐침으로 따로 쟀다**: 30초 만에 rc 2 · 트레이스백 0줄 · 첫 줄이 복구법
+  (고치기 전 30.04초 rc 1). 비 DB 파일도 실물로 rc 2 + `file is not a database` 원문.
+  변이 M2(`except` 삭제) errors=2 · M3(rc 2 → 0) failures=2 · M4(락 분기 문구 제거)
+  failures=1 — 사본은 `.git`·`*.db` 없이 `src` 만, 대조군 OK 를 먼저 확인했다.
+- 배운 것: **단위에서 못 재는 시간은 탐침이 재야 한다.** timeout 30 을 넘기는 락은
+  정의상 30초가 드는데 그 값을 단위 테스트에 넣으면 스위트가 30초 느려진다. 단위는
+  같은 예외를 세워 **갈래**를 고정하고(변이 3개로 죽는 것을 확인), **경로**는 임시
+  디렉터리 탐침이 한 번 실측했다. 갈래만 재고 경로를 안 재면 "예외가 실제로 저 자리에서
+  나는가" 가 미검증으로 남는다 — 스텝 1 의 RED 가 `indexer.py:94` 였는데 스텝 2 의
+  실제 락 예외는 `_doc_count` 쪽에서 먼저 났다. 자리는 예상과 달라진다.
+- 다음: 테스트 phase. 락 e2e(동시 실행 시나리오)가 19종에 없다 — 붙일지가 그 물음이다.
