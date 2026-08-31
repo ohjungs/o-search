@@ -618,6 +618,23 @@ class TestCli(unittest.TestCase):
         self.assertIn("not a database", out)
         self.assertEqual(len(out.strip().split("\n")), 1)  # 한 줄
 
+    def test_every_connection_waits_the_same_thirty_seconds(self):
+        # 리뷰 변이 M6: `_doc_count`·`search` 의 `timeout=30` 을 지워도 461건이 전부
+        # 초록이었다 — 락 테스트는 `index_pages` 경로만 지난다. 그 둘은 읽기 전용이고
+        # WAL 에서 읽기는 락에 안 막히므로(실측 0.02초) 행동으로는 못 잰다.
+        # 그래서 값을 고정한다 — 안 그러면 지워져도 아무도 안 운다(`digest.md` `[7]`)
+        Store(self.db_path).upsert("http://a.test/", "<title>요리</title><p>김치</p>", 200)
+        seen = []
+        real = sqlite3.connect
+        with mock.patch.object(indexer.sqlite3, "connect",
+                               lambda path, **kw: (seen.append(kw.get("timeout")),
+                                                   real(path, **kw))[1]), \
+                contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(indexer.main(["prog", self.db_path]), 0)  # _doc_count·index_pages
+            self.assertEqual(indexer.main(["prog", self.db_path, "--query", "김치"]), 0)  # search
+        self.assertGreaterEqual(len(seen), 3)  # 세 연결을 전부 지났다
+        self.assertEqual(set(seen), {30}, "store.py:22 와 같은 30초가 아닌 연결이 있다")
+
     def test_index_then_query(self):
         Store(self.db_path).upsert("http://a.test/", "<title>요리</title><p>김치</p>", 200)
         self.assertEqual(indexer.main(["prog", self.db_path]), 0)
