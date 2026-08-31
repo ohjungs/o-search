@@ -33,14 +33,21 @@
 
 | | 값 |
 |---|---|
-| 발견 후보 | 91 |
-| 80점 미만으로 버림 | 24 (기보류 중복 2 + search-api 2 + crawl-delay 3 + quality-eval 3 + non-ascii-url 2 + cooldown-burn 3 + crawl-politeness 1 + graceful-interrupt 2 + deadline-stop 3 + indexer-interrupt 3) |
+| 발견 후보 | 94 |
+| 80점 미만으로 버림 | 27 (기보류 중복 3 + search-api 2 + crawl-delay 3 + quality-eval 3 + non-ascii-url 2 + cooldown-burn 3 + crawl-politeness 1 + graceful-interrupt 2 + deadline-stop 3 + indexer-interrupt 5) |
 | 보고함 | 61 |
 | **그중 실제로 고친 것** | 47 |
 
 **보고한 것 대비 실제로 고친 비율이 낮으면 임계를 올린다.**
 버린 것 중에 나중에 진짜 문제로 드러난 게 있으면 내린다.
 지금 80 은 gstack 에서 가져온 값이고 근거가 없다.
+
+**백지 패스의 수율을 처음 따로 쟀다 (2026-08-31 indexer-interrupt).** diff 만 보게 묶은
+별도 에이전트가 지적 **3건**을 냈고 결과는 **확증 1 · 무해한 no-op 1 · diff 밖 1**,
+새로 고친 줄 **0**. 수율은 낮지만 확증 1건의 값은 작지 않다 — 작성자가 혼자 "보류" 로
+분류한 항목을 **독립적으로 같은 결론**에 도달시킨 것이라 그 판정의 신뢰도가 올라간다.
+**단, 보고가 스텝 커밋보다 늦게 오면 그 값은 다음 반복으로 밀린다** — 이번이 그랬다.
+다음 리뷰는 백지 패스를 **먼저 회수**하고 패스 B 를 시작한다.
 
 **임계에 반례가 생겼다 (2026-08-26 quality-eval 리뷰).** 이 반복에서 고친 6건 중
 **3건이 80점 미만**이었다 — 70(테스트가 깨진 동작을 계약으로 굳힘) · 30(fixture
