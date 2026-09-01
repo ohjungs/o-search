@@ -11,7 +11,7 @@
 
 | | 값 |
 |---|---|
-| 반복 | 206 |
+| 반복 | 207 |
 | 계획 (완료/폐기/보류) | 25 / 0 / 0 |
 | 재시도 | 0 |
 | RED | 0 |
@@ -26,17 +26,23 @@
 | 설계 | 10 (생략 4) |
 | 개발 | 45 |
 | 테스트 | 20 |
-| 리뷰 | 18 |
+| 리뷰 | 19 |
 | e2e | 17 |
 
 ## 리뷰 정확도 — 80점 임계 검증용
 
 | | 값 |
 |---|---|
-| 발견 후보 | 107 |
-| 80점 미만으로 버림 | 29 (기보류 중복 3 + search-api 2 + crawl-delay 3 + quality-eval 3 + non-ascii-url 2 + cooldown-burn 3 + crawl-politeness 1 + graceful-interrupt 2 + deadline-stop 3 + indexer-interrupt 5 + indexer-lock 2) |
+| 발견 후보 | 108 |
+| 80점 미만으로 버림 | 30 (기보류 중복 4 + search-api 2 + crawl-delay 3 + quality-eval 3 + non-ascii-url 2 + cooldown-burn 3 + crawl-politeness 1 + graceful-interrupt 2 + deadline-stop 3 + indexer-interrupt 5 + indexer-lock 2) |
 | 보고함 | 72 |
 | **그중 실제로 고친 것** | 52 |
+
+**보고 0건의 리뷰가 처음 나왔다 (2026-09-01 crawl-db-guard, 반복 207).** 후보 1건은
+설계가 근거와 여는 조건까지 적어 둔 기보류 중복이라 버렸고, 앞 스텝이 넘긴 결함 둘은
+**테스트 phase 가 이미 `digest` 에 적어** 리뷰가 주울 것이 없었다. 임계 이야기가 아니라
+**앞 phase 가 자기 결함을 적으면 리뷰의 몫이 줄어든다**는 이야기다 — 제품 diff 8줄에
+스텝 넷을 쓴 계획이라 그 비율이 정상인지는 몇 건 더 쌓아야 안다.
 
 **보고한 것 대비 실제로 고친 비율이 낮으면 임계를 올린다.**
 버린 것 중에 나중에 진짜 문제로 드러난 게 있으면 내린다.
