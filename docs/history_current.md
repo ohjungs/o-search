@@ -260,3 +260,31 @@ append 전용. 수정·삭제 금지.
 - 다음: **개발 스텝 3** — 화면 순서 == JSON 순서(사양 기능 6). `src` **0줄** 예상이고
   `tests/test_serve.py` 만 는다. 같은 페이지의 `/` HTML 에서 `<div class="url">` 을 뽑아
   `/search` 의 `results[].url` 과 **리스트로** 비교한다(집합이면 M14 를 놓친다).
+
+## 2026-09-02 02:58 | json-contract | 개발 3/3 | 시도0
+
+- 한 일: `tests/test_serve.py` 에 `TestScreenMatchesJson` 하나(사양 기능 6). 같은 질의·같은
+  페이지에서 `/` HTML 의 `<div class="url">` 목록과 `/search` 의 `results[].url` 을
+  **리스트로** 비교한다 — 1·2페이지 둘 다, 20문서 픽스처(`MANY_PAGES`) 재사용.
+  제품 `src/` **0줄**(설계 추정 그대로) · 새 파일 0 · 의존성 0.
+- **RED 를 변이로 만들었다.** 재는 성질이 구조상 이미 참(두 경로가 `_page_hits` 한 벌을
+  나눠 쓴다)이라 실패를 볼 길이 변이뿐이었다 — `.mutation-lock` 아래 제자리에 심어
+  **M13**(`_do_html` 만 `page + 1`) 2건 · **M14**(화면 쪽만 `reversed()`) 2건이 죽는 것을
+  봤다. 매번 원본 복원 · 커밋된 변이 0 · 락 제거 확인.
+- **M14 를 전 스위트에 걸어 «오늘 0건» 을 실물로 확인했다** — 심은 채 492건을 돌리니 운 것이
+  새 단언 둘과 README 카운트 가드뿐이었다. **순서만 뒤집는(집합은 같은) 변이를 잡는 테스트가
+  저장소에 하나도 없었다.** 설계 변이 표가 예측한 그대로다.
+- **집합이 아니라 리스트인 이유가 여기서 증명됐다** — M14 는 집합 비교였다면 살아남는다.
+  그리고 빈 목록끼리는 무엇과도 같으므로 `len(screen) == PAGE_SIZE` 를 먼저 못박았다
+  (탐침 한 줄이 화면에 새는 것도 같은 단언에서 죽는다).
+- URL 을 링크가 아니라 `<div class="url">` 에서 뽑는다 — `_safe_href` 가 거른 URL 이 빠지면
+  길이부터 달라진다. 되돌리기는 `html.unescape`(stdlib), 새 파서 0.
+- 결과: 맨몸 실측 `PYTHONPATH=src python3 -m unittest discover -s tests` → **492건 OK**
+  (12.124초). JSON 을 파싱하는 e2e 넷(`search_api`·`pagination_ui`·`tokenizer`·`perf_search`)
+  전부 rc=0 · p95 **8.73ms**(기준선 8.86ms). `data/crawl.db` 무변경 · 의존성 0.
+- 기록 갱신: `README.md` 카운트 491 → **492**(가드가 세 반복 연속 울었다) ·
+  `status.md`(반복 239 · phase 테스트) · `metrics.md`(반복 239 · 개발 phase 53→54) ·
+  `index.md`(계획 46 행 2/3 → **3/3**) · 계획서 스텝 3 상태 완료. 회전 미달(4항목).
+- 다음: **테스트 phase** — 개발 세 스텝이 전부 끝났다. 새로 쓰는 곳이 아니라 빠뜨린 것을
+  찾고 전체를 돌리는 곳이다. `history_current.md` 가 상한에 닿았으니 다음 반복이 항목을
+  붙인 **뒤에** 세어 회전한다.

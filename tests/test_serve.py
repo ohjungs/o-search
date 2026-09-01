@@ -229,6 +229,43 @@ class TestPagination(ServeTestCase):
         self.assertFalse(body["has_next"], "상한이 1인데 2페이지가 있다고 답했다")
 
 
+class TestScreenMatchesJson(ServeTestCase):
+    """사양 기능 6 — 같은 질의·같은 페이지에서 화면의 결과 순서와 JSON 순서가 완전히 일치한다.
+
+    두 경로가 `_page_hits` 한 벌을 나눠 쓰므로 오늘 **구조상** 참이다. 그런데 그 구조가
+    계약인데 재는 단언이 0건이었다 — 화면 쪽만 페이지를 어긋내거나(`page + 1`) 순서를
+    뒤집는 변이가 스위트를 하나도 못 죽였다(design_json-contract.md 변이 M13·M14).
+
+    **리스트로 비교한다** — 집합이면 순서를 뒤집는 변이가 안 죽어 "일치"를 안 재게 된다.
+    화면에서 URL 을 뽑는 자리는 `<div class="url">` 이다. 링크(`<a href>`)로 뽑으면
+    `_safe_href` 가 거른 URL 이 빠져 길이부터 달라진다. 값은 `html.escape` 를 지났으므로
+    `html.unescape` 로 되돌려 비교한다.
+    **1·2페이지 둘 다** 잰다 — 한 페이지만 재면 페이지를 어긋내는 변이가 안 죽는다.
+    """
+
+    pages = MANY_PAGES
+    Q = "q=%EA%B9%80%EC%B9%98"  # q=김치
+
+    def screen_urls(self, page):
+        status, body, _ = self.raw("/?%s&page=%d" % (self.Q, page))
+        self.assertEqual(status, 200)
+        return [html_unescape(u) for u in re.findall(r'<div class="url">(.*?)</div>', body)]
+
+    def json_urls(self, page):
+        status, body, _ = self.get("/search?%s&page=%d" % (self.Q, page))
+        self.assertEqual(status, 200, body)
+        return [r["url"] for r in body["results"]]
+
+    def test_screen_and_json_list_the_same_urls_in_the_same_order(self):
+        for page in (1, 2):
+            with self.subTest(page=page):
+                screen = self.screen_urls(page)
+                # 빈 목록끼리는 무엇과도 같다 — 실제로 잴 것이 있는 상태인지 먼저 못박는다.
+                # 탐침 한 줄(PAGE_SIZE + 1 번째)이 화면에 새는 것도 여기서 죽는다.
+                self.assertEqual(len(screen), serve.PAGE_SIZE)
+                self.assertEqual(screen, self.json_urls(page))
+
+
 class TestTiedRanking(ServeTestCase):
     """bm25 동점 문서는 실제 색인에서 흔하다(같은 틀로 찍힌 페이지들).
 
