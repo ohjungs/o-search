@@ -11,7 +11,7 @@
 
 | | 값 |
 |---|---|
-| 반복 | 212 |
+| 반복 | 213 |
 | 계획 (완료/폐기/보류) | 26 / 0 / 0 |
 | 재시도 | 0 |
 | RED | 0 |
@@ -24,7 +24,7 @@
 |---|---|
 | 계획 | 23 |
 | 설계 | 10 (생략 5) |
-| 개발 | 46 |
+| 개발 | 47 |
 | 테스트 | 21 |
 | 리뷰 | 20 |
 | e2e | 18 |
@@ -36,7 +36,7 @@
 | 발견 후보 | 115 |
 | 80점 미만으로 버림 | 32 (기보류 중복 4 + search-api 2 + crawl-delay 3 + quality-eval 3 + non-ascii-url 2 + cooldown-burn 3 + crawl-politeness 1 + graceful-interrupt 2 + deadline-stop 3 + indexer-interrupt 5 + indexer-lock 2 + docs-citation-guard 2) |
 | 보고함 | 77 |
-| **그중 실제로 고친 것** | 53 |
+| **그중 실제로 고친 것** | 55 |
 
 **버린 2건이 처음으로 "실측해서 안 하기로 한 것" 이다 (2026-09-01 docs-citation-guard, 반복 212).**
 지금까지의 기각은 대부분 도달 불가·기보류 중복이었는데, 이번 둘은 **확장 후보를 재서

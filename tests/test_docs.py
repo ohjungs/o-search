@@ -33,8 +33,12 @@ APPEND_TARGETS = ("digest.md", "index.md", "history_current.md")
 # 자리표시자(`digest.md:<줄번호>`)는 숫자가 아니라 꺾쇠라 걸리지 않는다.
 # `행` 앞의 공백은 일부러 허용하지 않는다 — "`index.md` 41 행" 은 줄이 아니라
 # 계획 41 의 행을 뜻하는 다른 표현이다.
+# 이름과 숫자의 **인접**을 요구하면 마크다운 표 칸 구분자 하나로 빠져나간다
+# (`` | `docs/digest.md` | 80행 ... | ``) — 닫는 백틱 뒤 분리자를 3자까지 받는다.
+# 위·아래 두 리터럴 표는 `CitationPatternTest` 가 코드 안에 고정해 둔 것이다.
 CITATION = re.compile(
-    r"(?:%s)(?::[0-9]|`? ?[0-9]+행)" % "|".join(re.escape(n) for n in APPEND_TARGETS))
+    r"(?:%s)(?::[0-9]|`?[^0-9]{0,3}[0-9]+행)"
+    % "|".join(re.escape(n) for n in APPEND_TARGETS))
 # 회전이 닫아 둔 아카이브는 수정·삭제 금지 문서라 검사 대상이 아니다.
 ARCHIVE = re.compile(r"^(?:history|plan_history|design_history)_[0-9]+\.md$")
 
@@ -51,6 +55,41 @@ class DocHeadTest(unittest.TestCase):
                     first, r"^# \S",
                     "%s 의 첫 줄이 H1 이 아니다 — 머리가 본문에 빨려 들어갔다: %r"
                     % (name, first))
+
+
+class CitationPatternTest(unittest.TestCase):
+    """`CITATION` 자신을 리터럴로 붙든다 — 아래 검사는 자기를 못 잰다.
+
+    문서를 다 고쳐 놓으면 `DocCitationTest` 의 hits 는 정규식이 넓든 좁든 0 이라
+    **좁아지는 변이가 전부 초록으로 산다**(2026-09-01 계획 42 리뷰 실측: 축소 변이
+    4종 전원 생존). 린트형 검사는 데이터가 초록일 때 자기 자신을 못 잰다 —
+    그래서 검사 대상을 문서가 아니라 **코드 안에 고정**한다.
+    """
+
+    # 막아야 하는 세 표기 + 대상 셋을 각각 한 줄씩. 이름 하나를 빼는 변이도 여기서 죽는다.
+    CAUGHT = (
+        "근거 `digest.md:156` 의 `[6]`",                    # 콜론 꼴
+        "`index.md` 22행을 이름 인용으로 고쳤다",           # 한국어 `N행` 꼴 (인접)
+        "| `docs/digest.md` | 80행의 인용 형태 교정 |",     # 표 칸 구분자로 갈린 꼴
+        "`history_current.md` 12행",                        # 셋째 대상
+    )
+    # 잡으면 안 되는 꼴 — 오탐 0 을 코드가 지킨다(주석만으로는 다음 편집이 지운다).
+    NOT_CAUGHT = (
+        "`index.md` 41 행",                # 줄 41 이 아니라 계획 41 의 행 — 공백이 가른다
+        "`digest.md` 200줄 · 49항목",
+        "`index.md` 15~17번",
+        "자리표시자 `digest.md:<156>`",
+    )
+
+    def test_pattern_catches_line_number_citations(self):
+        for line in self.CAUGHT:
+            with self.subTest(line=line):
+                self.assertRegex(line, CITATION, "금지 표기를 못 잡는다 — 검사가 좁아졌다")
+
+    def test_pattern_leaves_line_number_lookalikes(self):
+        for line in self.NOT_CAUGHT:
+            with self.subTest(line=line):
+                self.assertNotRegex(line, CITATION, "줄번호가 아닌 것을 잡는다 — 오탐")
 
 
 class DocCitationTest(unittest.TestCase):
