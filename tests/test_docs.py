@@ -137,5 +137,39 @@ class IterationSyncTest(unittest.TestCase):
             % (a.group(1), b.group(1)))
 
 
+class ArchiveIndexTest(unittest.TestCase):
+    """아카이브 전부가 `digest.md` 의 `## 완료` 절 명부에 실려 있는가.
+
+    `digest.md` 는 스스로 *"원본은 `history_<NNN>.md` 에 그대로 있다"* 로 아카이브
+    색인을 자처하는데, 오늘 22개 중 다섯이 그 절에 없었다. 색인에 구멍이 나면 그
+    반복들의 판단 재료를 이름으로 못 찾는다 — 회전이 완료 항목을 지울 때마다 는다.
+
+    **범위를 `## 완료` 절로 자른다.** `digest.md` 전체를 보면 `history_001.md` 를
+    초록으로 만드는 것이 **구멍을 신고하는 그 문장 자신**이다(`## 반복 실패`).
+    그리고 경계 매칭이 없으면 `plan_history_019.md` 가 `history_019.md` 를 대신
+    통과시킨다 — 명부가 가리키는 것은 아카이브 원본뿐이다.
+    """
+
+    def test_every_archive_is_in_digest_done_section(self):
+        archives = [p.name for p in sorted(DOCS.glob("history_[0-9]*.md"))]
+        # glob 이 빈손이면 아래 단언이 "구멍 0" 위에서 조용히 통과한다.
+        self.assertTrue(archives, "아카이브를 못 찾았다 — 경로가 틀렸다: %s" % DOCS)
+        digest = DOCS / "digest.md"
+        self.assertTrue(digest.is_file(), "digest 를 못 찾았다: %s" % digest)
+        lines = digest.read_text(encoding="utf-8").split("\n")
+        # 절을 못 찾으면 빈 텍스트 위에서 통과하는 것이 아니라 실패한다.
+        self.assertIn("## 완료", lines, "digest.md 에서 `## 완료` 절을 못 찾았다")
+        head = lines.index("## 완료")
+        tail = next((i for i, ln in enumerate(lines[head + 1:], head + 1)
+                     if ln.startswith("## ")), len(lines))
+        section = "\n".join(lines[head:tail])
+        missing = [n for n in archives
+                   if not re.search(r"(?<![A-Za-z_])" + re.escape(n), section)]
+        self.assertEqual(
+            [], missing,
+            "아카이브가 `digest.md` 의 `## 완료` 명부에 없다 — 이름으로 못 찾는다:\n"
+            + "\n".join("  " + n for n in missing))
+
+
 if __name__ == "__main__":
     unittest.main()
