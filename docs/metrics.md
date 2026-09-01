@@ -11,7 +11,7 @@
 
 | | 값 |
 |---|---|
-| 반복 | 217 |
+| 반복 | 219 |
 | 계획 (완료/폐기/보류) | 27 / 0 / 0 |
 | 재시도 | 0 |
 | RED | 0 |
@@ -25,18 +25,18 @@
 | 계획 | 24 |
 | 설계 | 11 (생략 5) |
 | 개발 | 48 |
-| 테스트 | 21 |
-| 리뷰 | 20 |
+| 테스트 | 22 |
+| 리뷰 | 21 |
 | e2e | 19 |
 
 ## 리뷰 정확도 — 80점 임계 검증용
 
 | | 값 |
 |---|---|
-| 발견 후보 | 115 |
-| 80점 미만으로 버림 | 32 (기보류 중복 4 + search-api 2 + crawl-delay 3 + quality-eval 3 + non-ascii-url 2 + cooldown-burn 3 + crawl-politeness 1 + graceful-interrupt 2 + deadline-stop 3 + indexer-interrupt 5 + indexer-lock 2 + docs-citation-guard 2) |
-| 보고함 | 77 |
-| **그중 실제로 고친 것** | 55 |
+| 발견 후보 | 121 |
+| 80점 미만으로 버림 | 34 (기보류 중복 4 + search-api 2 + crawl-delay 3 + quality-eval 3 + non-ascii-url 2 + cooldown-burn 3 + crawl-politeness 1 + graceful-interrupt 2 + deadline-stop 3 + indexer-interrupt 5 + indexer-lock 2 + docs-citation-guard 2 + focus-contrast 2) |
+| 보고함 | 81 |
+| **그중 실제로 고친 것** | 58 |
 
 **버린 2건이 처음으로 "실측해서 안 하기로 한 것" 이다 (2026-09-01 docs-citation-guard, 반복 212).**
 지금까지의 기각은 대부분 도달 불가·기보류 중복이었는데, 이번 둘은 **확장 후보를 재서
