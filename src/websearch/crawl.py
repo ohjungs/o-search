@@ -5,6 +5,7 @@
 """
 import concurrent.futures
 import signal
+import sqlite3
 import sys
 import threading
 import time
@@ -29,6 +30,19 @@ class NoUsableSeedsError(ValueError):
     (robots 가 정당하게 막은 사이트가 그 자리다), 이쪽은 요청이 한 건도 나갈 수
     없는 것이라 사용자 입력 오류(rc 2)다. 이 구분을 없애면 예의를 지킨 크롤이
     오작동으로 보고된다.
+    """
+
+
+class StoreOpenError(Exception):
+    """저장할 DB 를 열 수조차 없다 — **환경이 안 된 것이라 rc 1, 명령줄 오류 2 와 가른다.**
+
+    `NoUsableSeedsError` 와 같은 관용구다: 크롤이 시작될 수 없는 이유를 `crawl()` 이
+    판정하고 `main()` 이 화면과 rc 로 번역한다. 가르는 것은 **누가 틀렸나**다 —
+    시드는 사용자가 준 것이라 2, DB 는 손상·권한·경로라 1 이다(계약표는 `README`).
+
+    그물은 `Store(db_path)` **생성자 한 줄**이다. 크롤 도중의 쓰기 실패는 오늘 그대로
+    트레이스백이다 — 그것은 "DB 를 못 열었다" 가 아니라 "N페이지를 줍고 나서 죽었다" 라
+    안내 문구가 달라야 한다(docs/design_crawl-db-guard.md 물음 1).
     """
 
 
@@ -154,7 +168,14 @@ def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None,
     저장은 upsert 마다 커밋이라 **유실은 없다**. `cancel_futures` 로는 안 줄어든다 —
     취소되는 건 대기 중인 작업뿐인데 여기선 제출한 것이 곧 실행 중인 것이다.
     """
-    store = Store(db_path)
+    # 손상·비 DB 파일·쓸 수 없는 부모·경로가 디렉터리·락 — 다섯 상황이 `store.py` 의
+    # **세 줄**(`:19`·`:22~23`·`:24`)에서 던진다. 그물을 줄이 아니라 **생성자 호출
+    # 한 줄 전체**에 걸어 넷째 던지는 줄이 생겨도 자동으로 덮는다. 두 타입은 겹치지
+    # 않고(`sqlite3.Error` 는 `OSError` 의 하위가 아니다) 둘이면 다섯을 다 덮는다
+    try:
+        store = Store(db_path)
+    except (sqlite3.Error, OSError) as err:
+        raise StoreOpenError("DB 를 열 수 없다: %s — %s" % (db_path, err)) from err
     robots = robots_cache if robots_cache is not None else RobotsCache()
     frontier = Frontier(now=now)
     ascii_seeds = []
@@ -378,6 +399,12 @@ def main(argv):
         # 한 덩어리가 되어 27 의 변이 M4 가 경고한 다른 계약으로 넓어진다
         print(exc, file=sys.stderr)
         return 2
+    except StoreOpenError as exc:
+        # 환경이 안 된 것이라 1 이다 — 시드(위)는 사용자가 준 것이라 2 다.
+        # 문구는 `indexer.py:264` 와 글자까지 같다: 같은 상황을 두 CLI 가 다르게
+        # 부르면 안내가 아니라 소음이다
+        print(exc, file=sys.stderr)
+        return 1
     finally:
         signal.signal(signal.SIGINT, previous)
     print("수집 %d 페이지" % n)
