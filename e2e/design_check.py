@@ -2,7 +2,7 @@
 """컨셉 디자인 4축(`docs/specs/concept.md:49-54`)을 실제 응답 바이트로 판정한다.
 
     1. 결과 페이지 LCP 1.5s 이하    2. JS 번들 50KB(gzip) 이하
-    3. 텍스트 대비 4.5:1 이상        4. 모바일(360px)에서 가로 스크롤 없음
+    3. 대비 — 텍스트 4.5:1 · 비텍스트 3:1   4. 모바일(360px)에서 가로 스크롤 없음
 
 실행: PYTHONPATH=src python3 e2e/design_check.py
 종료: 0 통과 · 1 기준 위반 · 2 측정 불능
@@ -32,6 +32,7 @@ from websearch import indexer, serve
 
 JS_BUDGET = 50 * 1024      # concept.md:50 — gzip 기준
 MIN_CONTRAST = 4.5         # concept.md:53
+MIN_CONTRAST_NONTEXT = 3.0 # WCAG 2.1 SC 1.4.11 — 비텍스트 UI 지시자. concept.md 는 텍스트만 적었다
 MOBILE_WIDTH = 360         # concept.md:54
 ROOT_FONT_PX = 16          # rem→px 환산. 사용자가 기본 글꼴을 키우면 실제로는 더 크다
 DOC_BUDGET = 100 * 1024    # LCP 대리: 왕복이 1이므로 전송 시간의 유일한 변수다
@@ -48,6 +49,14 @@ PAIRS = [
     ("--fg-link", "--bg-page"),
     ("--fg-button", "--bg-button"),
 ]
+
+# 비텍스트 UI 지시자는 다른 자로 잰다(3:1). 포커스 링은 outline-offset:2px 라
+# 링의 이웃은 언제나 페이지 배경이다 — 둘이 갈라지는 날 짝을 하나 더 적는다.
+NONTEXT_PAIRS = [("--focus", "--bg-page")]
+
+# 짝이 없어도 되는 토큰과 **그 사유**. 아래 커버리지 강제가 이름을 안 보므로,
+# 여기 사유를 적는 것만이 검사를 빠져나가는 길이다 — dict 라 사유 없이는 문법이 안 된다.
+NO_PAIR = {"--line": "순수 장식 테두리(구분선·입력창 테두리) — UI 지시자가 아니다"}
 
 PAGES = {
     "http://a.test/%d" % i: ("<html><head><title>김치찌개 만드는 법 %d</title></head>"
@@ -174,30 +183,36 @@ def check_contrast(css, fail, unmeasurable):
     if not light:
         unmeasurable.append("CSS 에 색 토큰(--…)이 하나도 없다")
         return
-    # 규약이 커버리지를 강제한다 — --fg- 토큰을 새로 만들고 PAIRS 에 안 적으면 여기서 멈춘다.
+    # 규약이 커버리지를 강제한다 — 색 토큰을 새로 만들고 짝도 사유도 안 적으면 여기서 멈춘다.
     # 이게 없으면 "검사기에 안 적었으니 안 재고 넘어간다"가 가능해진다.
-    # **두 맵의 합집합**이다 — 다크에만 있는 전경색 토큰이 강제를 빠져나가던 구멍(리뷰 지적).
-    declared = {k for k in set(light) | set(dark) if k.startswith("--fg-")}
-    missing = declared - {fg for fg, _ in PAIRS}
+    # **이름을 보지 않는다** — 접두어 허용 목록(--fg-)은 그 밖의 --focus 를 통째로 놓쳤고,
+    # 그래서 다음 --ring·--accent 도 같은 자리로 샌다. 허용은 이름이 아니라 NO_PAIR 로만 받는다.
+    # **두 맵의 합집합**이다 — 다크에만 있는 토큰이 강제를 빠져나가던 구멍(리뷰 지적).
+    paired = {t for pair in PAIRS + NONTEXT_PAIRS for t in pair}
+    missing = (set(light) | set(dark)) - paired - set(NO_PAIR)
     if missing:
-        unmeasurable.append("PAIRS 에 짝이 없는 전경색 토큰: %s" % ", ".join(sorted(missing)))
+        unmeasurable.append("짝도 제외도 없는 색 토큰: %s" % ", ".join(sorted(missing)))
         return
-    for label, tokens in (("라이트", light), ("다크", dark)):
-        for fg, bg in PAIRS:
-            if fg not in tokens or bg not in tokens:
-                unmeasurable.append("%s: 토큰 %s 가 CSS 에 없다"
-                                    % (label, fg if fg not in tokens else bg))
-                continue
-            try:
-                ratio = contrast(tokens[fg], tokens[bg])
-            except ValueError as exc:
-                unmeasurable.append("%s: %s/%s — %s" % (label, fg, bg, exc))
-                continue
-            mark = "OK" if ratio >= MIN_CONTRAST else "**미달**"
-            print("    %-6s %-14s on %-12s %5.2f:1  %s" % (label, fg, bg, ratio, mark))
-            if ratio < MIN_CONTRAST:
-                fail.append("%s %s/%s 대비 %.2f:1 < %.1f"
-                            % (label, fg, bg, ratio, MIN_CONTRAST))
+    # 두 자(텍스트 4.5 · 비텍스트 3.0)가 한 절에 섞이므로 **출력 행에 기준값을 적는다** —
+    # 화면만 보고 어느 자로 잰 행인지 알 수 있어야 한다.
+    for pairs, floor in ((PAIRS, MIN_CONTRAST), (NONTEXT_PAIRS, MIN_CONTRAST_NONTEXT)):
+        for label, tokens in (("라이트", light), ("다크", dark)):
+            for fg, bg in pairs:
+                if fg not in tokens or bg not in tokens:
+                    unmeasurable.append("%s: 토큰 %s 가 CSS 에 없다"
+                                        % (label, fg if fg not in tokens else bg))
+                    continue
+                try:
+                    ratio = contrast(tokens[fg], tokens[bg])
+                except ValueError as exc:
+                    unmeasurable.append("%s: %s/%s — %s" % (label, fg, bg, exc))
+                    continue
+                mark = "OK" if ratio >= floor else "**미달**"
+                print("    %-6s %-14s on %-12s %5.2f:1 / 기준 %.1f  %s"
+                      % (label, fg, bg, ratio, floor, mark))
+                if ratio < floor:
+                    fail.append("%s %s/%s 대비 %.2f:1 < %.1f"
+                                % (label, fg, bg, ratio, floor))
 
 
 def check_js(page, fail):
@@ -308,7 +323,7 @@ def main():
     check_js(home, fail)
     check_js(results, fail)
 
-    print("\n  [3] 텍스트 대비 4.5:1 이상")
+    print("\n  [3] 대비 — 텍스트 4.5:1 · 비텍스트(포커스 링) 3:1 이상")
     if css:
         check_contrast(css, fail, unmeasurable)
 

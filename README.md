@@ -58,7 +58,7 @@ PYTHONPATH=src python3 -m websearch.indexer data/crawl.db --query 검색어
 | 검색 지연 | p95 ≤ 300ms | `e2e/perf_search.py` |
 | 수집 속도 | ≥ 5 docs/s | `e2e/perf_crawl.py` |
 | UI 무게 | JS ≤ 50KB gzip | `e2e/design_check.py` |
-| 명암비 | ≥ 4.5:1 | 〃 |
+| 명암비 | 텍스트 ≥ 4.5:1 · 비텍스트 ≥ 3:1 | 〃 |
 
 ## 검증
 
