@@ -146,7 +146,8 @@ def main():
             drift.commit()
             drift.close()
             status, body = screen(base, "보관법")
-            assert status == 500, "⑥ 옛 색인인데 화면이 %d 다 — 조용히 넘어갔다" % status
+            # 503 이다 — 재색인하면 낫는 상태라 "재시도 안 함"(500)이 아니다(사양 디자인 5)
+            assert status == 503, "⑥ 옛 색인인데 화면이 %d 다 — 조용히 넘어갔다" % status
             assert "Traceback" not in body, "⑥ 오류 화면에 트레이스백이 있다"
             stale = run("-m", "websearch.indexer", db, "--query", "보관법",
                         allow_fail=True)
@@ -165,7 +166,7 @@ def main():
 
     print("e2e 통과 — %d문서를 crawl→색인→CLI 서버로 띄우고 화면(HTML)으로 확인했다: "
           "복합어 뒷부분·띄어쓰기 양방향·어순·영어 굴절이 잡히고, 스니펫에 bigram 이 "
-          "새지 않으며, 섞인 두 어절의 AND 가 유지되고, 옛 색인은 500/rc=1 로 소리를 낸 뒤 "
+          "새지 않으며, 섞인 두 어절의 AND 가 유지되고, 옛 색인은 503/rc=1 로 소리를 낸 뒤 "
           "재색인으로 낫는다" % (len(DOCS) + 1))
 
 

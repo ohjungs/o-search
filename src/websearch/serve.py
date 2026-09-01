@@ -250,6 +250,13 @@ def make_server(db_path, port=8000):
                 hits = _page_hits(db_path, query, page)
             except ValueError as exc:
                 self._send(400, {"error": str(exc)})
+            # **`except Exception` 앞이어야 한다** — 뒤면 영영 안 닿는다. 색인을 다시
+            # 돌리면 낫는 상태에 500(재시도 안 함)은 틀린 신호다. 이 코드를 읽는 것은
+            # 사람이 아니라 인프라다(사양 디자인 5 · design_json-contract.md 갈림길 B).
+            # 본문은 고정 문구다 — `str(exc)` 는 곧 DB 경로다.
+            except (FileNotFoundError, indexer.StaleIndexError) as exc:
+                self.log_error("색인 없음: %r", exc)
+                self._send(503, {"error": "색인이 아직 준비되지 않았다"})
             except Exception as exc:  # 트레이스백을 응답 본문에 싣지 않는다
                 self.log_error("search 실패: %r", exc)
                 self._send(500, {"error": "검색 중 오류가 났다"})
@@ -276,6 +283,9 @@ def make_server(db_path, port=8000):
                 hits = _page_hits(db_path, query, page)  # JSON 경로와 **같은 한 벌**
             except ValueError as exc:
                 self._send_html(400, _error_page(str(exc), typed))
+            except (FileNotFoundError, indexer.StaleIndexError) as exc:  # JSON 과 같은 값
+                self.log_error("색인 없음: %r", exc)
+                self._send_html(503, _error_page("색인이 아직 준비되지 않았다", typed))
             except Exception as exc:  # 트레이스백을 응답 본문에 싣지 않는다
                 self.log_error("검색 화면 실패: %r", exc)
                 self._send_html(500, _error_page("검색 중 오류가 났다", typed))
