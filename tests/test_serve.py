@@ -130,6 +130,53 @@ class TestSearchEndpoint(ServeTestCase):
         self.assertNotIn("Traceback", json.dumps(body))
 
 
+class TestSchemaVersion(ServeTestCase):
+    """응답 스키마의 버전(사양 기능 9). **JSON 다섯 응답 전부**가 갖는다.
+
+    다섯을 따로 재는 이유: 버전은 `_send` 한 곳에서 붙는데, 200 만 재면 그것을
+    호출부로 흩어 놓는 변이(오류 응답만 버전을 잃는다)가 안 죽는다.
+    값이 **정수**인 것도 계약이다 — 사양이 *"새 버전에서만"* 이라 단조 증가고
+    소비자가 `>=` 로 비교한다. `"1"` 이면 그 비교가 조용히 문자열 비교가 된다.
+    """
+
+    def q(self, path="/search?q=%EA%B9%80%EC%B9%98"):
+        status, body, _ = self.get(path)
+        return status, body
+
+    def test_ok_response_carries_version_one(self):
+        status, body = self.q()
+        self.assertEqual((status, body["version"]), (200, 1))
+
+    def test_bad_request_and_unknown_path_carry_it_too(self):
+        # 최상위 키 집합까지 본다 — 버전이 error 를 덮거나 밀어내면 여기서 죽는다
+        self.assertEqual(self.q("/search"),
+                         (400, {"version": 1, "error": "q 파라미터에 질의 문자열이 필요하다"}))
+        status, body = self.q("/no-such-path")
+        self.assertEqual((status, body["version"]), (404, 1))
+
+    def test_503_and_500_carry_it_too(self):
+        """오류 응답이야말로 기계가 파싱하는 자리다 — 여기서 빠지면 계약이 아니다."""
+        for exc, expected in ((FileNotFoundError("db"), 503), (AttributeError("boom"), 500)):
+            with self.subTest(status=expected), \
+                    mock.patch("websearch.serve._page_hits", side_effect=exc), \
+                    mock.patch("sys.stderr", new_callable=io.StringIO):
+                status, body = self.q()
+            self.assertEqual((status, body["version"]), (expected, 1))
+
+    def test_version_is_an_int_not_a_string(self):
+        _, body = self.q()
+        self.assertIsInstance(body["version"], int)
+
+    def test_the_html_screen_does_not_carry_it(self):
+        """화면에는 안 붙는다 — 계약은 기계가 읽고 화면은 사람이 읽는다.
+        `_send_html` 이 `_send` 와 다른 함수라 구조로 성립하지만, 단언이 없으면
+        다음 사람이 "일관성" 을 이유로 붙여도 아무도 안 막는다."""
+        for path in ("/", "/?q=%EA%B9%80%EC%B9%98"):
+            with self.subTest(path=path):
+                _, body, _ = self.raw(path)
+                self.assertNotIn("version", body.lower())
+
+
 class TestPagination(ServeTestCase):
     """20건 색인 = 2페이지. 페이지 경계와 has_next 를 못박는다."""
 

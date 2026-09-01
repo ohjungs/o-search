@@ -27,6 +27,12 @@ MAX_PAGE = 100
 # 요청 라인을 끝내지 않는 연결은 스레드를 무기한 점유한다(슬로로리스). 깊은 OFFSET 을
 # 막으면서 이쪽을 열어두면 균형이 안 맞는다 — 이게 훨씬 싼 고갈 경로다.
 REQUEST_TIMEOUT = 10
+# JSON 응답 스키마의 버전(사양 기능 9). `_send` 한 곳에서 붙어 200·400·404·500·503 이
+# 전부 갖는다 — 호출부마다 붙이면 다섯 벌이고 언젠가 하나가 빠진다.
+# **화면(`_send_html`)에는 안 붙는다** — 계약은 기계가 읽고 화면은 사람이 읽는다.
+# **올리는 규칙**: 필드를 빼거나 뜻을 바꿀 때만 +1 한다. 필드를 **더하는** 변경은 1 그대로다
+# (소비자가 모르는 키를 무시하면 그대로 산다). 정수라 소비자가 `>=` 로 비교한다.
+VERSION = 1
 
 
 def _parse(params):
@@ -306,7 +312,7 @@ def make_server(db_path, port=8000):
 
         def _send(self, status, payload):
             # ensure_ascii=False: 한국어가 \uXXXX 로 나가면 눈으로 검증할 수 없다
-            body = json.dumps(payload, ensure_ascii=False).encode()
+            body = json.dumps({"version": VERSION, **payload}, ensure_ascii=False).encode()
             self.send_response(status)
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.send_header("X-Content-Type-Options", "nosniff")
