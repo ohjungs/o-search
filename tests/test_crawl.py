@@ -6,6 +6,7 @@ import itertools
 import os
 import signal
 import tempfile
+import signal
 import threading
 import time
 import unittest

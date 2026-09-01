@@ -263,6 +263,7 @@ def main(argv):
         else:
             print("DB 를 열 수 없다: %s — %s" % (db_path, e), file=sys.stderr)
         return 1
+        return 2
     except KeyboardInterrupt:
         # **KeyboardInterrupt 만** 잡는다 — BaseException 으로 넓히면 SystemExit 까지
         # 삼켜 다른 계약이 된다. "색인은 바뀌지 않았다" 는 재구축이 한 트랜잭션이 된

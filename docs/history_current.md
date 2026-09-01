@@ -193,3 +193,209 @@ append 전용. 수정·삭제 금지.
   반복이 실측한다. 안 들으면 남은 처방은 러너 호출을 한 줄로 굳히는 것뿐이다.
 - 다음: 리뷰 phase. 단위 4건이 검사기 옆에 값을 따로 드는 것이 아닌지, 그리고 옮겨 적은
   "맨몸으로" 가 제자리인지 둘을 본다.
+
+---
+
+## 2026-08-30 23:5x | 36 signal-budget-cover | 탐색+계획 | 시도0 (코드 0줄 · 짧은 경로)
+
+- **탐색: 출처 1~4 가 실측 0건**(단위 451 OK · 린터/타입체커 없음 · 코드 `TODO` 0 —
+  `ponytail:` 7건은 전부 천장 주석 · `candidates.md`·`patches/` 없음). 6순위로 내려가
+  `digest.md` 후보 넷을 갈랐고 `[6]`(예산+SIGINT 겹침 rc 무측정)만 남았다 — `[5]` 는
+  e2e 시나리오 3 이 밖에서 이미 덮고, `[4]` 둘은 지우면 즉사하거나 값이 곧 계약이다.
+- **착수 탐침이 계획의 모양을 바꿨다** — 겹침을 실측하니 rc 는 두 순서 다 **130**,
+  문구는 먼저 온 쪽(`중단` / `예산 2초 소진`)이다. 계약이 이미 참이라 `src` 0줄이고
+  **본체는 코드가 아니라 단언**이다. digest 가 "기제상 자명" 이라 적어 점수를 낮춘
+  항목인데, 자명한 것을 흔드는 변이 둘이 **451건을 전부 통과한다** — 자명함은 커버가 아니다.
+- **탐침이 한도를 스쳤다**: `crawl.main` 은 db 인자가 없어 기본 `data/crawl.db` 가
+  **cwd 기준**인데 탐침을 `cwd=저장소` 로 돌렸다. 실물 무변경 확인(크기·mtime 그대로 ·
+  `-wal` 0바이트 · `git status` 비었다). `status.md` 한도에 `cwd` 조항을 더했다 —
+  `e2e/interrupt_e2e.py:129` 는 이 함정을 이미 주석으로 적어 두고 있었다.
+- 다음: **개발 스텝 1**(`tests/test_crawl.py` `TestCliTurnsSigintIntoTheSignal` 에 겹침
+  단언 1건 · 452건 · 변이 M1·M2 가 새 단언만 죽이는지). 집안일 `digest.md` 220줄 미결.
+
+## 2026-08-31 00:1x | 36 signal-budget-cover | 개발 1/1 | 시도0 (DONE · `src` 0줄)
+
+- 한 일: `tests/test_crawl.py` 의 `TestCliTurnsSigintIntoTheSignal` 에
+  `test_a_signal_wins_over_an_expired_budget_in_either_order` 1건(두 순서를 `subTest`).
+  가짜 `crawl` 이 핸들러를 직접 부르고 `kwargs["stop"].set()` 을 **순서만 바꿔** 두 번
+  돈다 — 클래스가 이미 쓰는 관용구 그대로다(진짜 `os.kill` 은 SIG_DFL 뒤라 테스트를 죽인다).
+  `README.md` 단위 건수 451 → 452.
+- **TDD 는 변이가 대신했다** — 제품이 이미 옳아 RED 를 못 만든다. `.git` 없는 사본에서:
+  **M1**(`signaled.set()` 을 `if not stop.is_set():` 로 감싸기) → `[만료 먼저]` **한
+  갈래만** FAIL · **M2**(만료 갈래 이른 `return 0`) → **두 갈래 다** FAIL. 둘 다 나머지
+  451건은 전부 통과한다 — 그것이 이 단언이 없던 이유다. 심기 전 `count(old)==1`.
+- **M1 이 두 번째 subTest 의 존재 이유다.** 순서를 하나만 쟀으면 `signaled` 를 `stop`
+  뒤에 숨기는 변이가 살아남는다. 처음 쓴 독스트링은 "각각 다른 변이가 걸린다" 였는데
+  실측은 **M2 가 둘 다 죽인다** 였다 — 백지 리뷰에서 문장을 실측에 맞춰 고쳤다.
+- 결과: 단위 451 → **452건 OK**(3.425초) · `src/` diff **0줄** · `interrupt_e2e` **rc 0**
+  (SIGINT 뒤 10.0s/rc 130 · 두 번째 Ctrl-C rc -2) · `deadline_e2e` **rc 0**(시나리오 3
+  수신 1건·10.1s·DB 0행). 제품 0줄이라 e2e 전수 대신 이 계약을 재는 둘만 돌렸다.
+  `data/crawl.db` sha256 무변경.
+- 다음: **계획 36 DONE.** 집안일 `digest.md` 222줄(상한 200)·`history_current` 273줄은
+  미결로 넘긴다 — 삭제 전 `index.md`·`plan_history_*` 참조 확인이 선행이다.
+
+## 2026-08-31 01:0x | 37 indexer-interrupt | 탐색+계획 | 시도0 (코드 0줄 · 평소 경로)
+- 한 일: 계획 36 마감 확인(status DONE · `index.md` 36번 · digest 완료 항목 — 전부 있었다)
+  뒤 탐색. **1~4순위 0건**(실패 테스트 0 · 보류 0 · `TODO|FIXME|HACK` **grep 0건** ·
+  `candidates.md` 없음). 5순위 후보를 **믿지 않고 다시 쟀고 넷이 틀렸다**(`digest [7]`
+  다섯 번째 사례): ① `_fetch_one` 위치 인자 무단언 `[5]`+`[6]` → **반증**(인자 삽입 변이
+  세 자리가 각각 58·8·1건을 죽인다. digest 가 "조용해진다" 고 지목한 `floor`↔`sleep`
+  자리가 8건이다). ② `[4]` 간격 시계가 pop 시각 → **011 이 닫았다**(`frontier.py:70`).
+  ③ `[7]` OFFSET 페이지네이션 → 게이트("화면이 없다")가 013·015 로 열렸다. 실측 **중복 1
+  ·누락 1**(문서 하나 증분 색인). ④ `[6]` `serve` 400 유출 → 16질의×2경로 **500 0건**.
+  6순위 `## 반복 실패`("CLI 가 트레이스백을 낸다", 2회)로 내려가 `indexer` 를 쟀다.
+- 결과: **착수 탐침이 후보보다 무거운 것을 냈다.** Python 3.9.6 `sqlite3` 은 DDL 을 암묵
+  트랜잭션에 안 넣어, 스키마 재구축 중 SIGINT 가 **`docs` 6000행 → 0행**(DROP/CREATE 는
+  커밋, INSERT 만 롤백)으로 끝난다 — 그 뒤 검색은 전부 `결과 없음` 이고 크롤 데이터 없음과
+  **구별되지 않는다**(21·26·29 가 세 번 닫은 모양). 정상 색인 중 SIGINT 는 무변경이지만
+  rc **-2** + `extract.py:60` 프레임 트레이스백. 맨 `sqlite3` 으로 뿌리도 확인했다.
+  계획서 `docs/plan_indexer-interrupt.md`(2스텝 · 변이 6종 · 완료 기준 7개) · 설계 생략 ·
+  **짧은 경로 아님**(다섯 중 "데이터와 무관" 이 거짓). 탐침은 전부 임시 디렉터리,
+  `data/crawl.db` 안 지나감.
+- 다음: 개발 스텝 1 — `indexer.py:88` `DROP` 앞 `db.execute("BEGIN")`, RED 는
+  `extract.extract_text` 가 `KeyboardInterrupt` 를 던지게 만든다.
+
+## 2026-08-31 01:0x | 37 indexer-interrupt | 개발 스텝1 | 시도0 (제품 1줄 · 단위 +1)
+
+- 한 일: 재구축을 **한 트랜잭션으로 묶었다**. `src/websearch/indexer.py:88` `DROP TABLE docs`
+  **앞**에 `db.execute("BEGIN")` 한 줄(+주석 3줄). 단언 1건 추가
+  (`tests/test_indexer.py` `TestSchemaDrift.test_interrupted_rebuild_leaves_the_old_index_intact`):
+  옛 정의 `docs` 2행을 심고 `mock.patch.object(indexer.extract, "extract_text",
+  side_effect=KeyboardInterrupt)` 로 재구축 한복판을 끊은 뒤 **행수 2 · 정의 옛것 유지**를 잰다.
+  **TDD 실패를 눈으로 봤다** — 고치기 전 `AssertionError: 0 != 2`(계획서가 예고한 그 모양).
+- 변이(`.git` 없는 rsync 사본, 심기 전 `count(원문)==1` 단언): **M1**(`BEGIN` 삭제) →
+  새 단언 **하나만** FAIL, 나머지 452건 전부 초록 — 이 자리를 재던 것이 정말 없었다.
+  **M6**(`BEGIN` 을 `DROP` **뒤로**) → 같은 단언이 `no such table: docs` 로 ERROR.
+  순서가 계약이라는 것이 값으로 박혔다. M2~M5 는 스텝 2 몫이라 안 심었다.
+- 결과: 단위 452 → **453건 OK**(3.841초, 무회귀). README 검증 건수 452→453
+  (`test_readme.py` 가 먼저 잡았다 — 세 번째 반복). e2e 개별 **전부 rc=0**:
+  `indexer_e2e` · `search_api_e2e`(p95 2.22ms) · `tokenizer_e2e` · `pagination_ui_e2e` ·
+  `noindex_e2e` · `quality_eval`(한 20/20 · 영 19/20) · `perf_search`(p95 9.26ms).
+  **린터·타입체커 없음**(`docs/project.md`) — 검증은 단위+e2e 두 줄이 전부다.
+  `data/crawl.db` sha256 `85c96744…` 무변경(8월 29 mtime 그대로).
+- 탐침 재실측(임시 디렉터리, 6000문서·본문 3.5KB로 전건 색인 4.53초에 맞춘 뒤 2.0초에 SIGINT):
+  **B 재구축 중단 → `docs` 6000행 유지 · 정의 옛것 유지**(고치기 전엔 6000→0). **완료 기준 2 충족.**
+  **A 정상 색인 중단 → pages 6000 · docs 0 · integrity ok**(기준 3, 오늘과 동일).
+  rc 는 아직 **-2** · Traceback 1회 — **기준 4 는 스텝 2 몫이다.** 성능: 재구축
+  `BEGIN` 있음 4.63/4.54초 vs 없음 4.56/4.59초 — **회귀 없음**(전건 색인 경로는 이 분기를 아예 안 밟는다).
+- **락 실측(계획 밖 확인, 보고만 한다)**: DB 는 WAL 이라 재구축 4.6초 동안 **읽기는 안 막힌다**
+  (0.001초). 다만 커밋 전까지 읽는 쪽은 **옛 정의**를 보므로 `search()` 가 `StaleIndexError`
+  를 낸다 — 고치기 전 같은 시점은 새 빈 테이블을 봐서 **조용히 0건**이었다. 이 저장소 관례
+  ("조용한 0건은 구분되지 않는다")로는 나아진 쪽이라 **안 고쳤다.** 동시 쓰기 대기는
+  2.99초 vs 2.97초로 **사실상 무변화**(`Store` `busy_timeout` 30초 안).
+- 다음: **개발 스텝 2** — `indexer.main` 에 `except KeyboardInterrupt` 한 갈래, rc **130** ·
+  안내 한 줄. 스텝 1 이 끝났으니 "색인은 바뀌지 않았다" 가 두 갈래 모두에서 참이다.
+
+## 2026-08-31 01:2x | 37 indexer-interrupt | 개발 스텝2 | 시도0 (제품 5줄 · 단위 +2)
+
+- 한 일: `src/websearch/indexer.py:255` `StaleIndexError` 갈래 옆에 `except KeyboardInterrupt`
+  → `중단 — 색인은 바뀌지 않았다`(stderr) · rc **130**. 단언 2건(`tests/test_indexer.py`
+  `TestCli`): rc·문구·한 줄·`Traceback` 0 을 재는 것 하나, **대조군** 하나(`SystemExit` 는
+  안 삼킨다). README 단위 건수 453→455.
+- **TDD 실패를 눈으로 봤다 — 다만 약한 빨강이다.** 고치기 전에는 `KeyboardInterrupt` 가
+  `main` 을 뚫고 나가 **러너 자체를 rc 130 으로 죽였다**(assert 에 닿지도 못했다). 강한
+  빨강은 변이가 대신 줬다 — 갈래를 둔 채 M2·M3·M4 를 심으니 같은 단언이 `FAIL` 로 죽는다.
+- 변이 6종 전부 죽었고 **각각 단언 하나만** 죽였다(`.git` 없는 사본, 심기 전 `count(원문)==1`):
+  M1 `BEGIN` 삭제→스텝1 단언 FAIL · M2 `return 0`·M3 `130→1`·M4 문구를 `"오류"` 로 →
+  전부 스텝2 rc/문구 단언 FAIL · M5 `BaseException` 으로 넓힘→**대조군만** FAIL ·
+  M6 `BEGIN` 을 `DROP` 뒤로→스텝1 단언 ERROR. **M1 이 나머지 454건을 안 건드린 것이 요점**
+  — 이 자리를 재고 있던 것이 정말로 0건이었다.
+- 탐침 재실측(임시 디렉터리, SIGINT 는 전건 색인 시간의 40% 시점 · **보낼 때 프로세스가
+  살아 있었음을 단언**했다 — 첫 시도는 색인이 먼저 끝나 아무것도 안 재고 있었다):
+  **A** 정상 색인 중 → `pages 6000 / docs 0 / integrity ok`, **B** 재구축 중 → `docs`
+  **6000행 · 옛 정의 유지**. 둘 다 rc **130** · stderr **한 줄** · `Traceback` **0회**.
+- 완료 기준 5(성능)는 **숫자가 아니라 A/B 로 판정했다.** 이 코퍼스에서 전건 색인이 5.19초라
+  계획서의 `4.58초 ±10%` 밴드 밖인데, 같은 기계·같은 코퍼스에서 `BEGIN` 을 뺀 트리와 3회씩
+  번갈아 재니 **전건 5.11/5.32/5.18 vs 5.18/5.17/5.21 · 재구축 5.14/5.23/5.20 vs
+  5.19/5.19/5.24** — 차이가 잡음 안이다. 밴드를 벗어난 것은 변경이 아니라 코퍼스·기계다.
+  **절대 기준선 숫자는 기계가 바뀌면 못 쓴다. 재려던 것("BEGIN 이 느리게 만드나")은 A/B 가 잰다.**
+- 결과: 단위 453 → **455건 OK**(3.409초, 무회귀) · e2e **7종 개별 전부 rc=0**
+  (`indexer_e2e`·`search_api_e2e`·`tokenizer_e2e`·`pagination_ui_e2e`·`noindex_e2e`·
+  `quality_eval` 한20/20·영19/20 · `perf_search` p95 9.27ms). **린터·타입체커 없음**
+  (`docs/project.md`) — 검증은 이 두 줄이 전부다. `data/crawl.db` sha256 **무변경**
+  (`85c96744…5bda18`). 스크래치패드 사본 삭제 완료.
+- 다음: **계획 37 개발 끝.** 테스트 phase — `indexer` 중단을 실제 CLI+SIGINT 로 지나는
+  e2e 가 아직 없다(중단 e2e 둘은 `crawl` 쪽). 집안일 `digest.md` 223줄·`history_current`
+  300줄 상한 초과는 그대로 미결.
+
+## 2026-08-31 19:5x | 37 indexer-interrupt | 테스트 1 | 시도0 (단위 +1 · 제품 0줄)
+
+- 한 일: 갭 탐색 6종을 훑고 **하나만 메웠다**(중요도 8) — `tests/test_indexer.py:123`
+  `TestIndexPages.test_interrupted_incremental_run_indexes_nothing`. README 단위 455→456.
+- **왜 8인가.** 개발이 남긴 단언 3건은 전부 **재구축** 갈래를 잰다. 그런데 `main` 이 내는
+  안내 "색인은 바뀌지 않았다" 는 **평소(증분) 경로에서도** 참이라고 주장하고, 계획서 기대
+  결과 2번이 그 자리를 "이미 참, 회귀 방지로 못박는다" 라고 적어 뒀는데 단언이 **0건**이었다.
+  착수 탐침 A 가 손으로 한 번 본 것이 전부다 — 탐침은 다음 반복에 다시 돌지 않는다.
+- **단언을 둘째 문서에서 끊었다.** 첫 문서에서 끊으면 "아무것도 안 들어갔다" 는 어떤 구현으로도
+  참이라 아무것도 안 잰다. 둘째에서 끊어야 **부분만 남는다**가 관측 가능해진다: 변이
+  **M7**(`indexed += 1` 뒤 `db.commit()` 한 줄, 10만 문서 메모리 걱정이 낳을 법한 그 수정)을
+  심으니 **그 단언 하나만** FAIL(`['a','b'] != ['a']`), 나머지 455건은 초록.
+  (`.git` 없는 rsync 사본, 심기 전 `count(원문)==1` 단언 — `docs/history` 의 관례 그대로.)
+- **안 쓴 것(8 미만).** ① 중단 뒤 재실행이 재구축을 마치는 회복 경로 → 기존 드리프트 단언
+  둘의 합성이라 새 파일을 안 늘렸다 ② 중단이 DB 락을 남기지 않는다 → 단언들이 `finally:
+  db.close()` 뒤에 다시 열어 읽으므로 이미 지나간다. **기존 단언은 하나도 안 고쳤다**
+  (diff 는 순수 추가 41+14줄, 삭제 0 — 21 의 `NoCrawlDataError`·`StaleIndexError` 갈래 그대로).
+- 결과: 단위 455 → **456건 OK**(3.9초, 무회귀) · e2e **7종 개별 전부 rc=0**
+  (`indexer_e2e`·`search_api_e2e` p95 2.30ms·`tokenizer_e2e`·`pagination_ui_e2e`·
+  `noindex_e2e`·`quality_eval` 한20/20·영19/20 · `perf_search` p95 **8.97ms**).
+  **린터·타입체커 없음**(`docs/project.md`). `data/crawl.db` sha256 **무변경**
+  (`85c96744…5bda18`, e2e 전후 두 번 쟀다). 스크래치패드 사본 삭제 완료.
+- 다음: **리뷰 phase.** e2e phase 로 넘길 것 하나를 status 에 명시했다 — 실제 CLI+SIGINT 로
+  `indexer` 중단을 지나는 e2e 가 없다(단위는 예외 주입이라 진짜 시그널·rc 를 못 잰다).
+  집안일 `digest.md` 223줄·`history_current` 300줄 상한 초과는 그대로 미결.
+
+## 2026-08-31 20:1x | 37 indexer-interrupt | 리뷰 1/1 | 시도0 (지적 4 · 제품 0줄)
+
+- **패스 A 를 먼저 닫고 계획서를 열었다.** diff(`a8ad633..HEAD`, 제품은 `indexer.py` 10줄
+  하나)와 수정된 파일만 보고 findings 를 적은 뒤 계획서로 갔다. `serve.py` 는 **diff 에
+  아예 없다** — 락 질문이 그 파일을 지목하길래 읽어서 판정하지 않고 **띄워서 쟀다.**
+- **락 — 안 막힌다(실측).** `serve` 가 쓰는 것과 같은 `indexer.search()` 를 다른 프로세스에서
+  10ms 간격으로 두드리며 색인을 돌렸다. DB 는 WAL(`store.py:23`, 파일 헤더에 남는다).
+  평소 증분 갈래(3000행 색인 + 3000행 추가·5.00초) **59/59 성공** p50 **77.6ms**·p95 80.3·
+  max 81.8, 대조군(같은 코퍼스·색인 미실행) p50 **71.3ms**·p95 71.7 → **+6.3ms(+9%)이고
+  정지 구간이 0**이다. 재구축 갈래(4.63초) 390회에서 `database is locked` **0회** —
+  나온 예외는 전부 `StaleIndexError` 이고 그건 *옛 정의 색인은 원래 못 쓴다*는 기존
+  계약이지 이 diff 와 무관하다. **첫 탐침은 틀렸다**: 질의를 URL 인코딩 안 해
+  `UnicodeEncodeError` 만 셌고, 고친 뒤에도 HTTP 500 이 락인지 드리프트인지 구별이 안 됐다.
+  예외 종류를 보게 고치고 나서야 답이 나왔다.
+- **쓰기 창은 이 diff 가 안 늘렸다.** `INSERT` 루프는 **원래부터** 한 트랜잭션이다
+  (실측 `in_transaction`: `CREATE` 뒤 False, 첫 `INSERT` 뒤 True). `BEGIN` 이 창에 새로
+  넣은 것은 `DROP`/`CREATE` 두 문장뿐이라 락 이야기는 시작부터 회귀가 아니었다.
+- **중첩 트랜잭션 — 불가능.** `index_pages` 가 매 호출 `sqlite3.connect(db_path)` 로 자기
+  연결을 연다. 호출자 41곳 전부 경로 문자열만 넘긴다(연결 객체를 받는 호출자 **0**).
+- **계획서보다 이득이 넓다.** 재구축 중에 `RuntimeError`·`sqlite3.OperationalError`·
+  `MemoryError` 를 주입해도 셋 다 `docs` 2행·옛 정의·integrity ok 로 산다 —
+  `finally: db.close()` 가 열린 트랜잭션을 롤백하기 때문이다. 계획서는 SIGINT 만
+  주장했는데 **실제로는 모든 예외에서 안전해졌다.**
+- **지적 4건 — 제품 동작 지적 0건.** 자동 2 는 둘 다 문서다: ① `index.md:24` 스텝 칸이
+  `0/2`(개발 1·2 는 이미 커밋) → `2/2`, **`digest ## 반복 실패` 의 3회째**라 처방을
+  좁혔다(검사는 `iteration` 대조가 아니라 **스텝 칸 대 개발 커밋 수**를 재야 한다).
+  ② `history_current.md` 336줄 → 계획 35 여섯 반복을 `history_014.md` 로 회전(192줄).
+  보류 2 는 둘 다 **문구**다: ③ `db.commit()` 이 끝난 **뒤** 온 중단은 `색인은 바뀌지
+  않았다` 를 거짓으로 만든다(결정적 재현 — rc 130 인데 실제 `docs` 는 2행 **새 정의**),
+  ④ `--query` 중단도 같은 색인 안내를 낸다. 둘 다 `severity.md` 3절이 승인 쪽으로
+  못박는 종류(트랜잭션 경계 · 사용자 눈에 보이는 동작 변경)이고 데이터 결과는 옳다.
+- **버린 것 3건**(80점 미만): 대조 단언이 `SystemExit` 의 코드 3 을 안 본다 / rc 단언과
+  행수 단언이 서로 다른 테스트다 / 재구축 중 WAL 체크포인트. 앞 둘은 `severity.md` 4절
+  억제 항목이고, 셋째는 위 "쓰기 창" 실측대로 기존 동작과 같다. **대조 단언 자체는
+  이름값을 한다** — `except` 를 `BaseException` 으로 넓히면 `main` 이 130 을 돌려주어
+  `assertRaises(SystemExit)` 가 깨진다.
+- 결과: 단위 **456건 OK**(3.87초) · e2e **7종 rc=0**(`indexer_e2e`·`search_api_e2e`
+  p95 2.28ms·`tokenizer_e2e`·`pagination_ui_e2e`·`noindex_e2e`·`non_ascii_e2e`·`crawl_e2e`)
+  · 성능 A/B 6000문서 평소 0.69초 vs 재구축 0.66초 · **린터·타입체커 없음**
+  (`docs/project.md`) · `data/crawl.db` sha256 **무변경**(`85c96744…5bda18`, 전후 두 번).
+  **제품 코드 0줄** · `git diff -- src tests` 비어 있음(변이 잔재 0). 스크래치패드 삭제 완료.
+- 다음: **e2e phase.** 넘길 것은 테스트 phase 가 적은 그대로다 — `indexer` 중단을 **실제
+  CLI + SIGINT** 로 지나는 e2e 가 없다(단위는 예외 주입이라 진짜 시그널·진짜 rc 를 못 잰다).
+  보류 2건은 문구 계약이라 e2e 가 아니라 다음 계획 후보로 간다. 집안일 `digest.md` 232줄 미결.
+- **백지 리뷰어는 리뷰 커밋 `e2359d5` 뒤에 보고했다** — 지적 3 · 생존 변이 0 · 82/100.
+  셋을 실측으로 재판정: ① `commit` 뒤 창의 거짓 안내 = 위 보류 ③과 **독립 일치(확증)**,
+  ② 첫 실행 경로에 `BEGIN` 이 없다 = 사실이나 `search()` `[]`·`_doc_count()` 0·재실행
+  전건 복구로 **관측 차이 0**(무해한 no-op), ③ `connect` timeout 5초 대 `store.py` 30초
+  = **이 diff 에 없는 줄**(`87c4f69`)이고 `BEGIN` 은 DEFERRED 라 락을 안 잡는다(실측:
+  `BEGIN` 직후 다른 연결 쓰기 **성공**, 첫 `INSERT` 뒤에야 `database is locked` — 쓰기 락을
+  처음 잡는 문장은 diff 이전과 똑같이 `DROP`). **새로 고친 줄 0.** 계획서 12-5.
+- **여기서 배운 것 — 백지 패스를 스텝 안에 회수하지 못하면 그 값은 다음 반복으로 밀린다.**
+  `review.md` 는 패스 A(백지)를 **닫고** 패스 B(계획 대조)를 열라고 한다. 이번엔 그 순서를
+  못 지킨 채 진행했고, 결과적으로 손해는 크지 않았지만(제품 지적 0건 결론 불변) **확증
+  1건을 커밋 뒤에 받았다.** 다음 리뷰는 백지 패스를 먼저 띄우고 닫힐 때까지 B 를 안 연다.
