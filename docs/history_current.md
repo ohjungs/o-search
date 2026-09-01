@@ -255,3 +255,37 @@ append 전용. 수정·삭제 금지.
 - 다음: 개발 1/1. RED 3건 → `crawl.py`. 단위 462 → **465건**. 변이 M1·M2 가 각각
   **하나씩만** 죽여야 한다.
 
+
+## 2026-09-01 12:15 | crawl-db-guard | 개발 1/1 | 시도0
+- 한 일: 설계 계약을 글자 그대로 구현했다. `src/websearch/crawl.py` **한 파일 · 실질 8줄**
+  — `import sqlite3` · `class StoreOpenError` (`NoUsableSeedsError` 옆, docstring 에 "환경이라
+  rc 1, 명령줄 오류 2 와 가른다") · `crawl()` 의 `Store(db_path)` 를 `except (sqlite3.Error,
+  OSError)` 로 감싸 `from err` 로 다시 던지기 · `main()` 에 `except StoreOpenError` → rc 1.
+  문구는 `indexer.py:264` 와 글자까지 같다. `tests/test_crawl.py` 에 `TestUnopenableDb` 3건.
+  `README.md:66` 은 `단위 462건` → `465건` **한 줄**(rc 1 칸은 계획 40 이 이미 참으로 만들었다).
+- 결과: 단위 462 → **465건 OK 11.732초** · e2e `crawl_e2e`(수집 15) · `indexer_e2e` 통과 ·
+  `data/crawl.db` 무변경(mtime 08-29) · `digest` 50항목 **정확히 200줄**.
+  **TDD 0절대로 갔다** — 세 테스트를 먼저 쓰고 `AttributeError: module 'websearch.crawl' has
+  no attribute 'StoreOpenError'` 로 **RED 를 눈으로 본 뒤** 구현했다.
+  실제 CLI 실측(임시 cwd 4곳): 네 상황 전부 **rc 1 · stderr 1줄 · 트레이스백 없음**.
+  `DB 를 열 수 없다: data/crawl.db — file is not a database` / `unable to open database file`
+  (쓰기 불가·디렉터리) / `[Errno 17] File exists: 'data'`. **전엔 14~16줄이었다.**
+- 배운 것:
+  ① **변이가 설계의 예측 한 칸을 정정했다.** M1(`OSError` 제거)→2번만 · M2(`return 1`→`2`)
+  →3번만 은 설계표 그대로인데, **M3(`try` 통째 제거)는 "셋 다" 가 아니라 1·2번만** 죽인다.
+  3번이 `crawl.crawl` 을 목으로 갈아 **`main` 의 번역만** 재기 때문이다 — 그물과 번역은
+  다른 축이라 같은 변이에 함께 죽을 이유가 없었다. 셋 다 사망이라 결론은 안 바뀌지만,
+  **설계가 예측한 변이표도 실측 대상이다**(203 이 "잠정을 적어 두면 확인이 한 줄" 이라
+  적은 것의 반대 방향 사례 — 적어 둔 것이 틀리면 정정이 한 줄이다).
+  ② **RED 셋이 같은 줄에서 죽었다.** 클래스가 없으니 세 테스트가 전부 `AttributeError` 다 —
+  "실패를 봤다" 는 섰지만 **셋이 서로 다른 것을 재는지는 그 시점에 증명되지 않았다.**
+  그것을 증명한 것은 RED 가 아니라 **변이 셋**이다(각각 다른 테스트를 죽였다).
+  TDD 0절의 "실패를 눈으로 본다" 는 필요조건이고, 충분조건은 변이 쪽에 있다.
+- **또 밟았다 — 러너를 `| tail -5` 로 감쌌다. 여섯 번째다.** README 를 고친 뒤 **재확인**
+  실행에서 나왔다(첫 실행은 맨몸이었고 465건 중 README 1건 FAIL 을 그것으로 봤다).
+  맨몸 재실행으로 465 OK 확인. `digest ## 반복 실패` 를 5 → **6회**(뒤의 다섯이 연속).
+  **새 사실 한 칸**: 앞 다섯과 달리 이번 파이프는 첫 실행이 아니라 **"이미 봤으니 끝만
+  보면 된다" 는 재확인**에서 나왔다 — 조항을 아는 것과 무관하게 *두 번째 실행*이 방아쇠다.
+- 다음: 테스트 1. 붙일 곳을 찾는다 — 그물(`sqlite3.Error` 갈래)·번역(rc)·문구 동일성
+  (`indexer.py:264` 와 글자까지)이 각각 몇 건에 붙들려 있는지, 특히 **문구 동일성은
+  지금 아무도 안 잰다**(양쪽을 따로 고치면 조용히 갈린다).

@@ -3,7 +3,9 @@ import contextlib
 import inspect
 import io
 import itertools
+import os
 import signal
+import tempfile
 import threading
 import time
 import unittest
@@ -2034,3 +2036,51 @@ class TestCliTurnsSigintIntoTheSignal(unittest.TestCase):
              mock.patch("sys.stdout", new_callable=io.StringIO) as out:
             self.assertEqual(crawl.main(["prog", "http://a.com/"]), 0)
         self.assertIn("수집 2 페이지", out.getvalue())
+
+
+class TestUnopenableDb(unittest.TestCase):
+    """DB 를 열 수조차 없으면 트레이스백이 아니라 안내 한 줄 + rc 1 이다.
+
+    오늘은 `Store(db_path)`(`crawl.py:157`) 의 `sqlite3`·`OSError` 가 그대로 밖으로
+    나가 stderr 에 14~16줄을 낸다 — 값(rc 1)은 맞지만 화면이 거짓이다.
+    `indexer` 는 같은 상황을 이미 한 줄로 낸다(`indexer.py:264`).
+    """
+
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.dir.cleanup)
+
+    def test_unopenable_db_raises_store_open_error(self):
+        """비 DB 파일 — `sqlite3.DatabaseError` 갈래. 안내가 **경로와 원인**을 부른다."""
+        path = os.path.join(self.dir.name, "남의.db")
+        with open(path, "wb") as f:
+            f.write(b"not a database" * 8)
+        with self.assertRaises(crawl.StoreOpenError) as caught:
+            crawl.crawl(["http://a.com/"], 1, db_path=path)
+        message = str(caught.exception)
+        # 경로: 사용자가 준 적 없는 기본값(`data/crawl.db`)일 수 있어 더 필요하다
+        self.assertIn(path, message)
+        # 원문: 손상·비 DB·락을 뭉뚱그리면 무엇을 고쳐야 하는지 사라진다
+        self.assertIn(str(caught.exception.__cause__), message)
+
+    def test_unusable_db_parent_is_the_same_error(self):
+        """부모가 일반 파일 — `OSError` 갈래. 같은 예외 하나로 받는다.
+
+        권한과 무관하다(`chmod` 없음) — root 로 돌려도 결과가 같다.
+        """
+        path = os.path.join(self.dir.name, "파일", "crawl.db")
+        with open(os.path.dirname(path), "w"):
+            pass
+        with self.assertRaises(crawl.StoreOpenError):
+            crawl.crawl(["http://a.com/"], 1, db_path=path)
+
+    def test_store_open_error_is_environment_not_usage(self):
+        """환경이 안 된 것이라 **rc 1** 이다 — 명령줄 오류 2 와 가른다."""
+        buf = io.StringIO()
+        with mock.patch("websearch.crawl.crawl",
+                        side_effect=crawl.StoreOpenError("DB 를 열 수 없다: x — y")), \
+             contextlib.redirect_stderr(buf):
+            self.assertEqual(crawl.main(["prog", "http://a.com/"]), 1)
+        out = buf.getvalue()
+        self.assertNotIn("Traceback", out)
+        self.assertEqual(len(out.strip().split("\n")), 1)
