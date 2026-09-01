@@ -199,8 +199,6 @@ def search(db_path, query, limit=10, offset=0):
     offset 은 앞에서 건너뛸 개수다 — 기본값이 있어 기존 호출부는 그대로 돈다.
     """
     match = _fts_query(query)
-    if not match:
-        return []
     db = _connect(db_path)
     try:
         sql = _docs_sql(db)
@@ -209,6 +207,12 @@ def search(db_path, query, limit=10, offset=0):
         if sql != _CURRENT_SQL:
             # 빈 목록을 내면 "결과 0건" 과 구분되지 않는다 — 원인이 다르니 소리를 낸다
             raise StaleIndexError(db_path)
+        # 무토큰 질의(제어문자·따옴표만)의 조기 반환은 **DB 상태 판정 뒤**다.
+        # 앞에 두면 판정이 질의 내용에 달린다 — 같은 고장난 DB 가 `q=김치` 면 500,
+        # `q=%01` 이면 200 으로 갈린다. 옛 색인 검사 뒤인 것도 같은 이유다(변이 M6).
+        # 비용은 무토큰 질의가 연결 하나를 여는 것뿐이다(실측 0.066ms/회).
+        if not match:
+            return []
         rows = db.execute(
             # 스니펫은 title(0)·body(1) 에서만 뽑는다. `-1` 은 **매치된 열 중 가장 왼쪽**을
             # 고르는데, 2-gram 으로만 매치된 문서는 title_ng 가 뽑혀 화면에

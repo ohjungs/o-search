@@ -537,6 +537,20 @@ class TestBrokenDbStays500(ServeTestCase):
         self.assertNotIn(self.db, json.dumps(body, ensure_ascii=False), "DB 경로가 샜다")
         self.assertIn("DatabaseError", logged, "500 의 원인이 로그에 안 남았다")
 
+    def test_corrupt_db_is_500_for_a_tokenless_query_too(self):
+        """위 단언은 **`q=김치` 한 갈래에만** 걸려 있었다 — 계약의 두 번째 구멍이다.
+
+        `indexer.search` 의 조기 반환(`if not match`)이 DB 를 여는 자리 **앞**에 있으면
+        `%01` 처럼 토큰이 안 나오는 질의는 DB 를 아예 안 본 채 `[]`→**200** 으로 나간다.
+        같은 파일, 같은 고장인데 질의어에 따라 500 과 200 이 갈리면 계약이 아니다.
+        """
+        self.corrupt()
+        with mock.patch("sys.stderr", new_callable=io.StringIO):
+            status, body, _ = self.get("/search?q=%01")
+        self.assertEqual(status, 500, body)
+        self.assertEqual(body["error"], "검색 중 오류가 났다")
+        self.assertNotIn(self.db, json.dumps(body, ensure_ascii=False), "DB 경로가 샜다")
+
     def test_corrupt_db_screen_is_500_too(self):
         """두 경로의 튜플은 한 벌이어야 한다(설계 갈림길 C) — 한쪽만 넓히는 변이가 있다."""
         self.corrupt()

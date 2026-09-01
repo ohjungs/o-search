@@ -1,12 +1,12 @@
 ---
 signal: GREEN
-phase: 개발
-step: 2
+phase: 테스트
+step: 1
 attempt: 0
-iteration: 245
+iteration: 246
 updated: 2026-09-02
 ctx: 58
-night_iterations: 97
+night_iterations: 98
 night_red: 0
 night_retries: 0
 plan: db-open-atomic
@@ -20,10 +20,44 @@ plan: db-open-atomic
 보는 방식이다. 하나는 「보는 시점과 여는 시점이 갈라져 있다」(TOCTOU), 하나는
 「보느냐 마느냐가 **질의 내용**에 달려 있다」. 제품 파일 **1개**(`indexer.py`) ·
 새 e2e 파일 **0개** · 의존성 **0** · 스키마·`data/crawl.db` 무관.
-**설계 끝났다 — `docs/design_db-open-atomic.md`(111줄). 개발 스텝 1/2 도 끝났다 —
-`_connect()` 가 서고 세 호출부가 옮겨졌다. 다음 반복은 개발 스텝 2/2.**
+**설계 끝났다 — `docs/design_db-open-atomic.md`(111줄). 개발 스텝 1/2·2/2 둘 다 끝났다 —
+`_connect()` 가 서고 세 호출부가 옮겨졌고, 무토큰 조기 반환이 판정 뒤로 갔다.
+계획서 4절의 기대 결과 다섯 칸이 전부 참이다. 다음 반복은 테스트 phase(갭 탐색).**
 
-## 방금 한 것 (2026-09-02 · 개발 phase 1/2)
+## 방금 한 것 (2026-09-02 · 개발 phase 2/2)
+
+**DB 상태 판정이 질의 내용을 안 따른다.** `src/websearch/indexer.py` 의 `search()` 에서
+`if not match: return []` 를 `_connect()` 와 **옛 색인 검사(`sql != _CURRENT_SQL`) 뒤**로
+옮겼다. 제품 **+6 / -2줄** · 파일 1개 · 의존성 0. 테스트 **+3건** · `README.md` 1줄.
+
+**RED 를 눈으로 봤다 — 세 번째가 구멍을 그대로 찍어 냈다.** 손상 DB + `q=%01` 이
+`200 {'version': 1, ..., 'results': []}` 를 냈고 그 JSON 이 실패 메시지에 통째로 찍혔다.
+옛 색인 + `q=%01` 은 `StaleIndexError` 가, 손상 DB + `q=%01` 은 `DatabaseError` 가 안 났다.
+
+| 상황 | 고치기 전 (RED) | 고친 뒤 |
+|---|---|---|
+| 손상 DB + `q=%01` | `[]` → **200** | `sqlite3.DatabaseError` → **500** |
+| 옛 색인 + `q=%01` | `[]` → 200 | `StaleIndexError` → **503** |
+| 정상 색인 + `q=%01` | `[]` → 200 | **그대로** (이 갈래를 안 바꾸는 것이 계약) |
+
+**같은 파일, 같은 고장인데 `q=김치` 면 500, `q=%01` 이면 200 이었다.**
+`test_corrupt_db_is_500_not_503` 이 *"손상은 기다린다고 낫지 않는다"* 며 500 을 못박아
+뒀지만 **그 단언이 질의어 하나에만 걸려 있었다** — 계약을 재는 단언도 재는 입력이
+좁으면 우회된다.
+
+**변이 둘을 제자리에 심어 죽는 것을 봤다** (`.mutation-lock` 걸고 즉시 원복 ·
+`PYTHONDONTWRITEBYTECODE=1`). M5(조기 반환을 `_connect` 앞으로 되돌림): 신규 **3건 전부**
+사망. M6(조기 반환을 옛 색인 검사 **앞**에 둠): **정확히 1건**만 사망 — 설계가 «앞에
+두면 구멍이 절반 남는다» 로 예측한 그 한 건이다. **M6 이 유일하게 값을 낸 변이다** —
+손상 DB 쪽 두 건은 M6 아래에서도 초록이라, 자리를 «`_connect` 뒤» 까지만 옮기고
+멈췄으면 절반짜리 수정을 초록불 위에서 커밋할 뻔했다.
+
+**되돌림에서 실물 사고가 났고 `git diff` 가 잡았다** — M6 원복 편집이 주석 블록을 **두
+벌** 남겼다(같은 `if not match: return []` 이 연달아 둘). 504건 전부 초록이라 스위트로는
+안 보였다. **변이 원복은 초록이 아니라 `git diff` 로 확인한다** — 등가 중복은 통과하면서
+남는다.
+
+## 그 전 반복 (2026-09-02 · 개발 phase 1/2)
 
 **DB 를 여는 자리가 하나가 됐다.** `src/websearch/indexer.py` 에 `_connect(db_path)`
 (`file:…?pathname2url…?mode=rw` URI · `timeout=30`)를 세우고 `index_pages`·`_doc_count`·
@@ -91,34 +125,31 @@ M2 `pathname2url` 제거: `a b#c?d.db` 하나만 죽고 **한글 경로를 지�
   `docs/specs/` 읽기만 · `data/crawl.db` 무변경 · 의존성 추가 금지(stdlib 만).
 - **러너 호출에는 출력 조작을 아무것도 붙이지 않는다 — 파이프·`grep`·`tail`·
   `2>&1`·`2>/dev/null` 전부.** 직전 반복이 ⑭·⑮ 로 두 번 뚫렸다.
-  **이번 반복 러너 호출 6회 · 출력 조작 0회** — 앞뒤로 `PYTHONPATH=src python3 -m
-  unittest discover tests` 를 맨몸으로 한 번씩(**RED 3실패 → 501건 OK · 12.400초**),
-  변이 4회는 `PYTHONDONTWRITEBYTECODE=1 … -m unittest tests.test_indexer` 를 맨몸으로.
-  범위를 좁힌 것은 인자이지 출력 조작이 아니다 — 판정 줄은 여섯 번 다 통째로 봤다.
-- 이번 반복 실측: 제품 `src/` **+31 / -8줄** · 새 파일 **1개**(`history_028.md` · 회전) ·
-  의존성 0 · 변이 4회(전부 원복 · `git diff` 로 확인) · `data/crawl.db` 무변경 · 스키마 무변경.
-- 기준선: 단위 **495 → 501건** · `e2e/*.py` **19종**(안 건드렸다) · p95 **8.71ms** ·
-  품질 ko 20/20 · en 19/20 · 처리량 10.22/10.21/s · 디자인 4축.
-- **README 카운트 가드가 이번 반복에 울었다** — 테스트 +6 에 `test_readme` 가 즉시
-  FAILED. `README.md` 의 `단위 495건` → `501건` 한 곳만 고쳤다(`e2e/*.py` 19 그대로).
-- `history_current.md` **회전 1회**(315 → 247줄 · `history_028.md`) · 아카이브 **28개** ·
-  `digest.md` **198줄**(회전 요약 1줄 추가 + 스스로 «위 항목이 담고 있다» 라 적어 둔
-  완료 항목 하나를 지워 200 아래로 되돌렸다 — `[4]` 는 계획이 닫을 때 지운다).
+  **이번 반복 러너 호출 12회 · 출력 조작 0회** — 전체 `PYTHONPATH=src python3 -m
+  unittest discover tests` 맨몸 3회(**RED 4실패 → 504건 OK → 원복 후 504건 OK · 12.335초**),
+  변이 2회는 `PYTHONDONTWRITEBYTECODE=1 … -m unittest tests.test_indexer tests.test_serve`,
+  e2e 7종·성능·품질이 각각 맨몸 1회. 범위를 좁힌 것은 인자이지 출력 조작이 아니다 —
+  판정 줄은 열두 번 다 통째로 봤다.
+- 이번 반복 실측: 제품 `src/` **+6 / -2줄** · 새 파일 **0개** · 의존성 0 ·
+  변이 2회(전부 원복 · `git diff` 로 확인 — **중복 한 벌을 그 diff 가 잡았다**) ·
+  `data/crawl.db` 무변경 · 스키마 무변경 · `serve.py` 0줄.
+- 기준선: 단위 **501 → 504건** · `e2e/*.py` **19종**(안 건드렸다 · **7종을 실제로 돌려
+  전부 통과**) · p95 **8.92ms**(직전 8.71ms · 예산 300ms 의 3.0%) ·
+  품질 ko 20/20 · en 19/20 · 처리량 10.22/10.21/s · 디자인 4축(`pagination_ui` 통과).
+- **README 카운트 가드가 두 반복 연속 울었다** — 테스트 +3 에 `test_readme` 가 즉시
+  FAILED. `README.md` 의 `단위 501건` → `504건` 한 곳만 고쳤다(`e2e/*.py` 19 그대로).
+- `history_current.md` **287줄**(회전 없음 · 상한 300 미만) · 아카이브 **28개** ·
+  `digest.md` **198줄**(안 건드렸다 — `[4]` 는 계획이 닫을 때 지운다).
 
-## 다음 — 개발 스텝 2/2 (DB 판정이 질의 내용을 안 따르게)
+## 다음 — 테스트 phase (갭 탐색)
 
-**어디서 시작하나**: `src/websearch/indexer.py` 의 `search()` 안 `match = _fts_query(query)` /
-`if not match: return []`. 스텝 1 이 끝나 `db = _connect(db_path)` 가 그 **바로 아래**에 있다.
+**개발은 끝났다 — 새 코드를 쓰는 자리가 아니라 빠뜨린 것을 찾는 자리다**(`rules/test.md`).
+계획 47 이 닫은 두 구멍은 각각 변이로 이빨을 확인했으니, 볼 것은 **그 옆**이다.
 
-**할 일**: 조기 반환을 `db` 를 연 **뒤**로, 그리고 **옛 색인 검사(`sql != _CURRENT_SQL`) 뒤**로
-옮긴다. 앞에 두면 옛 색인 + `q=%01` 이 `[]`→200 으로 새 나가 구멍이 절반 남는다(변이 M6).
-
-**RED 로 먼저 볼 것** (`tests/test_indexer.py` · `tests/test_serve.py`):
-손상 DB + `q=%01` → `sqlite3.DatabaseError` → **500**(기존 `test_corrupt_db_is_500_not_503`
-옆에 붙인다) · 옛 색인 + `q=%01` → `StaleIndexError` → **503** · 정상 색인 + `q=%01` 은
-**`[]` · 200 그대로**(이 갈래를 안 바꾸는 것이 계약이다 — `tests/test_serve.py` 에 이미 있다).
-
-**비용은 재 뒀다 — 0.066ms/회**(무토큰 질의가 이제 DB 를 연다). p95 8.71ms · 예산 300ms 대비 무시 가능.
+**볼 만한 곳**: 계획 46 의 상태 코드 표(400·404·500·503·`version`)에서 **재는 입력이
+하나뿐인 칸**이 또 있나. 이번 반복이 찾은 유형이 정확히 그것이다 — 계약을 재는 단언이
+`q=김치` 한 갈래에만 걸려 있어 질의어 하나로 우회됐다. 같은 방식으로 좁은 단언이
+남아 있는지 본다(404·400 경로 · HTML 경로와 JSON 경로의 짝).
 
 ## 기점 — 원격 갈라짐은 닫혀 있다 (2026-09-02 확인)
 

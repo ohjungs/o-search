@@ -226,6 +226,13 @@ class TestSchemaDrift(unittest.TestCase):
         with self.assertRaises(indexer.StaleIndexError):
             search(self.db_path, "김치")
 
+    def test_drifted_index_is_loud_for_a_tokenless_query_too(self):
+        # DB 상태 판정이 **질의 내용**에 달리면 안 된다. 조기 반환이 `_connect` 앞에
+        # 있으면 `%01` 같은 무토큰 질의만 옛 색인을 그대로 지나쳐 `[]`→200 으로 샌다
+        self._seed_old_index([("http://a.test/", "<title>김치</title><p>김치찌개</p>")])
+        with self.assertRaises(indexer.StaleIndexError):
+            search(self.db_path, "\x01")
+
     def test_cli_query_on_drifted_index_is_an_error_not_a_traceback(self):
         # 리뷰 발견: 바로 옆에서 FileNotFoundError 는 정성껏 처리하는데 이쪽만
         # 트레이스백 + rc=1 로 나간다. 복구법(색인 다시 돌리기)이 화면에 안 보인다
@@ -352,6 +359,16 @@ class TestSearch(unittest.TestCase):
     def test_missing_db_raises(self):
         with self.assertRaises(FileNotFoundError):
             search(os.path.join(self.dir.name, "없는.db"), "김치")
+
+    def test_corrupt_db_is_loud_for_a_tokenless_query_too(self):
+        # 짝: 위 무토큰 단언들(`\x00` → `[]`)은 **정상** 색인에서만 참이다. 고장난 DB 를
+        # 무토큰 질의로 물으면 조용한 `[]` 가 아니라 소리가 나야 한다 — 안 그러면
+        # 「고장은 500」이라는 계약이 질의어 하나로 우회된다
+        self._seed_and_index([("http://a.test/", "<p>김치</p>")])
+        with open(self.db_path, "wb") as fh:
+            fh.write(b"NOT a sqlite file\n" * 64)
+        with self.assertRaises(sqlite3.DatabaseError):
+            search(self.db_path, "\x01")
 
 
 class TestDbOpenIsAtomic(unittest.TestCase):
