@@ -24,7 +24,13 @@ DOCS = pathlib.Path(__file__).resolve().parent.parent / "docs"
 # append 편집이 머리를 삼킬 수 있는 기록 문서 — 셋 다 H1 로 시작한다.
 APPEND_TARGETS = ("digest.md", "index.md", "history_current.md")
 # 그 셋을 줄번호로 가리킨 인용 — append 한 번에 다른 항목을 가리키게 된다.
-CITATION = re.compile("(?:%s):[0-9]" % "|".join(re.escape(n) for n in APPEND_TARGETS))
+# 두 표기를 함께 본다: `digest.md:156` 과 `` `digest.md` 156행 ``. 콜론 꼴만 막으면
+# 한국어 꼴이 그대로 탈출구가 된다(반복 210 이 실제로 그리로 옮겨 적었다).
+# 자리표시자(`digest.md:<줄번호>`)는 숫자가 아니라 꺾쇠라 걸리지 않는다.
+# `행` 앞의 공백은 일부러 허용하지 않는다 — "`index.md` 41 행" 은 줄이 아니라
+# 계획 41 의 행을 뜻하는 다른 표현이다.
+CITATION = re.compile(
+    r"(?:%s)(?::[0-9]|`? ?[0-9]+행)" % "|".join(re.escape(n) for n in APPEND_TARGETS))
 # 회전이 닫아 둔 아카이브는 수정·삭제 금지 문서라 검사 대상이 아니다.
 ARCHIVE = re.compile(r"^(?:history|plan_history|design_history)_[0-9]+\.md$")
 
@@ -46,12 +52,18 @@ class DocHeadTest(unittest.TestCase):
 class DocCitationTest(unittest.TestCase):
     def test_live_docs_cite_append_targets_by_name(self):
         hits = []
+        scanned = []
         for path in sorted(DOCS.glob("*.md")):
             if ARCHIVE.match(path.name):
                 continue
+            scanned.append(path.name)
             for no, line in enumerate(path.read_text(encoding="utf-8").split("\n"), 1):
                 if CITATION.search(line):
                     hits.append("  %s %d행: %s" % (path.name, no, line.strip()))
+        # 경로를 잘못 잡으면 순회가 0회 돌고 아래 단언이 빈 목록 위에서 조용히 통과한다.
+        for name in APPEND_TARGETS:
+            self.assertIn(name, scanned, "검사가 %s 를 안 훑었다 — 경로가 틀렸다: %s"
+                          % (name, DOCS))
         self.assertEqual(
             [], hits,
             "append 전용 문서를 줄번호로 가리킨 인용 — 줄이 아니라 항목 이름으로 "
