@@ -1,6 +1,15 @@
 # 계획 40 — `exit-code-contract`: 같은 저장소의 CLI 가 환경 오류를 서로 다른 값으로 끝내고, 재시도로 풀리는 오류와 안 풀리는 오류가 같은 값이다
 
-상태: **계획 완료** (2026-09-01) — 다음은 **설계**(아래 6절, 트리거에 걸린다).
+상태: **DONE** (2026-09-01) — 계획 + 설계 1/1 + 개발 1/1 + 테스트 1/1 + 리뷰 1/1 완료.
+  설계 있음(`design_history_026.md`, 대안 A) · **새 e2e 0개**(7절 판정 — 프로세스 경계가
+  필요한 두 자리를 `e2e/tokenizer_e2e.py:153`·`e2e/indexer_interrupt_e2e.py:281` 이 이미 잰다).
+  결과: `indexer.main` 의 환경 오류 네 갈래(`indexer.py:245`·`:251`·`:256`·`:265`)가
+  `rc 2` → **`rc 1`** 로 내려와 `serve` 와 같은 값이 됐고, 명령줄 오류만 rc 2 로 남았다.
+  `README.md` 에 종료 코드 계약 표(0·1·2·130 + "어디서" 칸)를 넣었다.
+  `crawl.py`·`serve.py` 제품 diff **0줄** · 단위 **462건 OK**(11.95초, 건수 무변) ·
+  e2e 3종 통과 · 변이 5종 **5/5 사망** · `data/crawl.db` sha256 무변경.
+  리뷰 지적 4건(제품 동작 0건) 전부 수정 — 반복별 서술은 `docs/history_current.md`
+  반복 198~203 에, 요약은 `docs/index.md` 40행에 있다.
 브랜치: `loop/exit-code-contract` (기점 `064e8a5`, `loop/indexer-lock` 에서 팠다)
 슬러그: `exit-code-contract`
 
