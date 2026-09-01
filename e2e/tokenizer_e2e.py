@@ -150,7 +150,7 @@ def main():
             assert "Traceback" not in body, "⑥ 오류 화면에 트레이스백이 있다"
             stale = run("-m", "websearch.indexer", db, "--query", "보관법",
                         allow_fail=True)
-            assert stale.returncode == 2, "⑥ CLI 가 옛 색인에서 %d 로 끝났다" % stale.returncode
+            assert stale.returncode == 1, "⑥ CLI 가 옛 색인에서 %d 로 끝났다" % stale.returncode
             assert "Traceback" not in stale.stderr, "⑥ CLI 가 트레이스백을 뱉는다"
 
             rebuilt = run("-m", "websearch.indexer", db).stdout
@@ -165,7 +165,7 @@ def main():
 
     print("e2e 통과 — %d문서를 crawl→색인→CLI 서버로 띄우고 화면(HTML)으로 확인했다: "
           "복합어 뒷부분·띄어쓰기 양방향·어순·영어 굴절이 잡히고, 스니펫에 bigram 이 "
-          "새지 않으며, 섞인 두 어절의 AND 가 유지되고, 옛 색인은 500/rc=2 로 소리를 낸 뒤 "
+          "새지 않으며, 섞인 두 어절의 AND 가 유지되고, 옛 색인은 500/rc=1 로 소리를 낸 뒤 "
           "재색인으로 낫는다" % (len(DOCS) + 1))
 
 

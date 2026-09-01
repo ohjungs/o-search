@@ -232,7 +232,7 @@ class TestSchemaDrift(unittest.TestCase):
         self._seed_old_index([("http://a.test/", "<title>김치</title><p>김치찌개</p>")])
         buf = io.StringIO()
         with contextlib.redirect_stderr(buf):
-            self.assertEqual(indexer.main(["prog", self.db_path, "--query", "김치"]), 2)
+            self.assertEqual(indexer.main(["prog", self.db_path, "--query", "김치"]), 1)
         self.assertIn("색인", buf.getvalue())  # 긍정 짝 — 침묵도 통과하지 않는다
 
     def test_interrupted_rebuild_leaves_the_old_index_intact(self):
@@ -502,12 +502,13 @@ class TestCli(unittest.TestCase):
         self.assertEqual(indexer.main(["prog"]), 2)
 
     def test_missing_db_is_error_not_traceback(self):
-        self.assertEqual(indexer.main(["prog", os.path.join(self.dir.name, "없는.db")]), 2)
+        # 환경이 안 된 것이지 명령줄이 틀린 게 아니다 → rc 1 (계약은 README)
+        self.assertEqual(indexer.main(["prog", os.path.join(self.dir.name, "없는.db")]), 1)
 
     def test_db_without_pages_is_error_not_traceback(self):
         other = os.path.join(self.dir.name, "남의.db")
         sqlite3.connect(other).execute("CREATE TABLE junk(x)")
-        self.assertEqual(indexer.main(["prog", other]), 2)
+        self.assertEqual(indexer.main(["prog", other]), 1)
 
     def test_query_without_value_is_error(self):
         Store(self.db_path).upsert("http://a.test/", "<p>김치</p>", 200)
@@ -575,21 +576,21 @@ class TestCli(unittest.TestCase):
             with contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(indexer.main(["prog", self.db_path]), 0)
 
-    def test_lock_past_timeout_is_a_message_and_rc_2(self):
-        # 계획 39 스텝 2: 30초를 기다려도 안 풀린 락은 트레이스백이 아니라 rc 2 와 복구법이다.
+    def test_lock_past_timeout_is_a_message_and_rc_1(self):
+        # 계획 39 스텝 2: 30초를 기다려도 안 풀린 락은 트레이스백이 아니라 rc 1 과 복구법이다.
         # 실측 35초 락으로 잰 갈래를 단위에서는 같은 예외로 세운다(35초를 매번 기다릴 수 없다)
         Store(self.db_path).upsert("http://a.test/", "<p>김치</p>", 200)
         buf = io.StringIO()
         with mock.patch.object(indexer, "index_pages",
                                side_effect=sqlite3.OperationalError("database is locked")), \
                 contextlib.redirect_stderr(buf):
-            self.assertEqual(indexer.main(["prog", self.db_path]), 2)
+            self.assertEqual(indexer.main(["prog", self.db_path]), 1)
         out = buf.getvalue()
         self.assertNotIn("Traceback", out)
         self.assertIn("잠겨", out)  # 락이라고 말한다
         self.assertIn("다시 돌린다", out)  # 복구법을 말한다
 
-    def test_not_a_database_is_a_message_and_rc_2(self):
+    def test_not_a_database_is_a_message_and_rc_1(self):
         # 형제 구멍(계획 39 3절 D): 진짜 DB 가 아닌 파일도 트레이스백으로 새면 안 된다.
         # 락이 아니므로 락 안내를 내면 오진이다 — 원문을 그대로 보인다
         bogus = os.path.join(self.dir.name, "가짜.db")
@@ -597,13 +598,13 @@ class TestCli(unittest.TestCase):
             f.write(b"not a database at all" * 100)
         buf = io.StringIO()
         with contextlib.redirect_stderr(buf):
-            self.assertEqual(indexer.main(["prog", bogus]), 2)
+            self.assertEqual(indexer.main(["prog", bogus]), 1)
         out = buf.getvalue()
         self.assertNotIn("Traceback", out)
         self.assertNotIn("잠겨", out)
         self.assertIn("not a database", out)  # 원문이 남는다
 
-    def test_query_on_a_not_a_database_file_is_a_message_and_rc_2(self):
+    def test_query_on_a_not_a_database_file_is_a_message_and_rc_1(self):
         # 갭 탐색: 새 갈래를 **색인 경로에서만** 쟀다. `--query` 도 같은 세 연결 중
         # 하나(`search`)를 쓰므로 계약이 같아야 한다. 갈래를 티켓이 말한 경로로만
         # 좁히면(`query is None` 안으로 넣으면) 이 진입점만 조용히 트레이스백이 된다
@@ -612,7 +613,7 @@ class TestCli(unittest.TestCase):
             f.write(b"not a database at all" * 100)
         buf = io.StringIO()
         with contextlib.redirect_stderr(buf):
-            self.assertEqual(indexer.main(["prog", bogus, "--query", "김치"]), 2)
+            self.assertEqual(indexer.main(["prog", bogus, "--query", "김치"]), 1)
         out = buf.getvalue()
         self.assertNotIn("Traceback", out)
         self.assertIn("not a database", out)
