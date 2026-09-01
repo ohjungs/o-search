@@ -75,7 +75,7 @@ def index_pages(db_path):
     """
     if not os.path.exists(db_path):
         raise FileNotFoundError(db_path)
-    db = sqlite3.connect(db_path)
+    db = sqlite3.connect(db_path, timeout=30)
     try:
         # pages 가 없으면 아래 SELECT 가 sqlite3.OperationalError 를 흘려 CLI 가
         # 트레이스백을 낸다. 읽기 직전 한 번만 본다 — 만들지는 않는다(store 몫).
@@ -133,7 +133,7 @@ def _doc_count(db_path):
     """
     if not os.path.exists(db_path):
         return 0
-    db = sqlite3.connect(db_path)
+    db = sqlite3.connect(db_path, timeout=30)
     try:
         if _docs_sql(db) != _CURRENT_SQL:
             return 0
@@ -178,7 +178,7 @@ def search(db_path, query, limit=10, offset=0):
     match = _fts_query(query)
     if not match:
         return []
-    db = sqlite3.connect(db_path)
+    db = sqlite3.connect(db_path, timeout=30)
     try:
         sql = _docs_sql(db)
         if sql is None:
@@ -238,19 +238,31 @@ def main(argv):
             for url, title, text in hits:
                 print("%s\n  %s\n  %s" % (title or "(제목 없음)", url, text))
     except FileNotFoundError:
+        # 아래 넷은 **환경이 안 된 것**이라 rc 1 이다(명령줄 오류 2 와 가른다).
+        # 안 잡힌 예외를 파이썬이 이미 1 로 끝내므로, 손으로 잡은 갈래만 2 로 갈라
+        # 두면 새 `except` 를 안 단 환경 오류마다 계약이 갈린다. 계약표는 `README` 에 있다.
         print("DB 파일이 없다: %s" % db_path, file=sys.stderr)
-        return 2
+        return 1
     except NoCrawlDataError:
         # 트레이스백은 복구법을 안 알려 준다 — StaleIndexError 와 같은 관용구다
         print("크롤 데이터가 없다(pages 테이블 없음): %s\n"
               "먼저 크롤한다: python3 -m websearch.crawl <시드 URL>" % db_path,
               file=sys.stderr)
-        return 2
+        return 1
     except StaleIndexError:
         # 트레이스백은 복구법을 안 알려 준다 — docstring 에 적어 둔 것을 화면에 낸다
         print("색인이 옛 정의로 남아 있다. 먼저 색인을 다시 돌린다: "
               "python3 -m websearch.indexer %s" % db_path, file=sys.stderr)
-        return 2
+        return 1
+    except sqlite3.DatabaseError as e:
+        # 트레이스백은 복구법을 안 알려 준다 — StaleIndexError 와 같은 관용구다.
+        # 락은 안내가 다르다: 30초를 기다리고도 안 풀린 것이라 답이 "나중에 다시" 다.
+        # 나머지(손상·비 DB 파일)를 락으로 오인하면 오진이므로 원문을 그대로 보인다
+        if "locked" in str(e):
+            print("DB 가 잠겨 있다 — 크롤이 끝난 뒤 다시 돌린다: %s" % db_path, file=sys.stderr)
+        else:
+            print("DB 를 열 수 없다: %s — %s" % (db_path, e), file=sys.stderr)
+        return 1
     except KeyboardInterrupt:
         # **KeyboardInterrupt 만** 잡는다 — BaseException 으로 넓히면 SystemExit 까지
         # 삼켜 다른 계약이 된다. "색인은 바뀌지 않았다" 는 재구축이 한 트랜잭션이 된

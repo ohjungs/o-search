@@ -2,6 +2,8 @@ import contextlib
 import io
 import os
 import sqlite3
+import subprocess
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -230,7 +232,7 @@ class TestSchemaDrift(unittest.TestCase):
         self._seed_old_index([("http://a.test/", "<title>김치</title><p>김치찌개</p>")])
         buf = io.StringIO()
         with contextlib.redirect_stderr(buf):
-            self.assertEqual(indexer.main(["prog", self.db_path, "--query", "김치"]), 2)
+            self.assertEqual(indexer.main(["prog", self.db_path, "--query", "김치"]), 1)
         self.assertIn("색인", buf.getvalue())  # 긍정 짝 — 침묵도 통과하지 않는다
 
     def test_interrupted_rebuild_leaves_the_old_index_intact(self):
@@ -500,12 +502,13 @@ class TestCli(unittest.TestCase):
         self.assertEqual(indexer.main(["prog"]), 2)
 
     def test_missing_db_is_error_not_traceback(self):
-        self.assertEqual(indexer.main(["prog", os.path.join(self.dir.name, "없는.db")]), 2)
+        # 환경이 안 된 것이지 명령줄이 틀린 게 아니다 → rc 1 (계약은 README)
+        self.assertEqual(indexer.main(["prog", os.path.join(self.dir.name, "없는.db")]), 1)
 
     def test_db_without_pages_is_error_not_traceback(self):
         other = os.path.join(self.dir.name, "남의.db")
         sqlite3.connect(other).execute("CREATE TABLE junk(x)")
-        self.assertEqual(indexer.main(["prog", other]), 2)
+        self.assertEqual(indexer.main(["prog", other]), 1)
 
     def test_query_without_value_is_error(self):
         Store(self.db_path).upsert("http://a.test/", "<p>김치</p>", 200)
@@ -553,6 +556,85 @@ class TestCli(unittest.TestCase):
         with mock.patch.object(indexer, "index_pages", side_effect=SystemExit(3)):
             with self.assertRaises(SystemExit):
                 indexer.main(["prog", self.db_path])
+
+    def test_index_waits_out_a_write_lock_instead_of_dying(self):
+        # 계획 39 스텝 1: crawl 이 쓰기 락을 쥔 채여도 색인은 죽지 않고 기다린다.
+        # sqlite3 기본 timeout 은 5초라 8초 락에서 트레이스백이 났다 — store.py:22 가
+        # 이미 고른 30초를 indexer 의 연결도 그대로 쓴다
+        Store(self.db_path).upsert("http://a.test/", "<p>김치</p>", 200)
+        holder = subprocess.Popen(
+            [sys.executable, "-c",
+             "import sqlite3, sys, time\n"
+             "db = sqlite3.connect(sys.argv[1])\n"
+             "db.execute('BEGIN IMMEDIATE')\n"
+             "print('locked', flush=True)\n"
+             "time.sleep(8)\n",
+             self.db_path],
+            stdout=subprocess.PIPE, text=True)
+        with holder:
+            holder.stdout.readline()  # 락을 실제로 쥔 것을 보고 나서 색인한다
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(indexer.main(["prog", self.db_path]), 0)
+
+    def test_lock_past_timeout_is_a_message_and_rc_1(self):
+        # 계획 39 스텝 2: 30초를 기다려도 안 풀린 락은 트레이스백이 아니라 rc 1 과 복구법이다.
+        # 실측 35초 락으로 잰 갈래를 단위에서는 같은 예외로 세운다(35초를 매번 기다릴 수 없다)
+        Store(self.db_path).upsert("http://a.test/", "<p>김치</p>", 200)
+        buf = io.StringIO()
+        with mock.patch.object(indexer, "index_pages",
+                               side_effect=sqlite3.OperationalError("database is locked")), \
+                contextlib.redirect_stderr(buf):
+            self.assertEqual(indexer.main(["prog", self.db_path]), 1)
+        out = buf.getvalue()
+        self.assertNotIn("Traceback", out)
+        self.assertIn("잠겨", out)  # 락이라고 말한다
+        self.assertIn("다시 돌린다", out)  # 복구법을 말한다
+
+    def test_not_a_database_is_a_message_and_rc_1(self):
+        # 형제 구멍(계획 39 3절 D): 진짜 DB 가 아닌 파일도 트레이스백으로 새면 안 된다.
+        # 락이 아니므로 락 안내를 내면 오진이다 — 원문을 그대로 보인다
+        bogus = os.path.join(self.dir.name, "가짜.db")
+        with open(bogus, "wb") as f:
+            f.write(b"not a database at all" * 100)
+        buf = io.StringIO()
+        with contextlib.redirect_stderr(buf):
+            self.assertEqual(indexer.main(["prog", bogus]), 1)
+        out = buf.getvalue()
+        self.assertNotIn("Traceback", out)
+        self.assertNotIn("잠겨", out)
+        self.assertIn("not a database", out)  # 원문이 남는다
+
+    def test_query_on_a_not_a_database_file_is_a_message_and_rc_1(self):
+        # 갭 탐색: 새 갈래를 **색인 경로에서만** 쟀다. `--query` 도 같은 세 연결 중
+        # 하나(`search`)를 쓰므로 계약이 같아야 한다. 갈래를 티켓이 말한 경로로만
+        # 좁히면(`query is None` 안으로 넣으면) 이 진입점만 조용히 트레이스백이 된다
+        bogus = os.path.join(self.dir.name, "가짜.db")
+        with open(bogus, "wb") as f:
+            f.write(b"not a database at all" * 100)
+        buf = io.StringIO()
+        with contextlib.redirect_stderr(buf):
+            self.assertEqual(indexer.main(["prog", bogus, "--query", "김치"]), 1)
+        out = buf.getvalue()
+        self.assertNotIn("Traceback", out)
+        self.assertIn("not a database", out)
+        self.assertEqual(len(out.strip().split("\n")), 1)  # 한 줄
+
+    def test_every_connection_waits_the_same_thirty_seconds(self):
+        # 리뷰 변이 M6: `_doc_count`·`search` 의 `timeout=30` 을 지워도 461건이 전부
+        # 초록이었다 — 락 테스트는 `index_pages` 경로만 지난다. 그 둘은 읽기 전용이고
+        # WAL 에서 읽기는 락에 안 막히므로(실측 0.02초) 행동으로는 못 잰다.
+        # 그래서 값을 고정한다 — 안 그러면 지워져도 아무도 안 운다(`digest.md` `[7]`)
+        Store(self.db_path).upsert("http://a.test/", "<title>요리</title><p>김치</p>", 200)
+        seen = []
+        real = sqlite3.connect
+        with mock.patch.object(indexer.sqlite3, "connect",
+                               lambda path, **kw: (seen.append(kw.get("timeout")),
+                                                   real(path, **kw))[1]), \
+                contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(indexer.main(["prog", self.db_path]), 0)  # _doc_count·index_pages
+            self.assertEqual(indexer.main(["prog", self.db_path, "--query", "김치"]), 0)  # search
+        self.assertGreaterEqual(len(seen), 3)  # 세 연결을 전부 지났다
+        self.assertEqual(set(seen), {30}, "store.py:22 와 같은 30초가 아닌 연결이 있다")
 
     def test_index_then_query(self):
         Store(self.db_path).upsert("http://a.test/", "<title>요리</title><p>김치</p>", 200)

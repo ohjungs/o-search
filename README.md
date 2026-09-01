@@ -27,6 +27,19 @@ PYTHONPATH=src python3 -m websearch.indexer data/crawl.db --query 검색어
 
 인자 없이 부르면 각 명령이 자기 usage 를 낸다(rc 2).
 
+### 종료 코드 — 세 명령이 같은 값을 쓴다
+
+| rc | 뜻 | 어디서 | 호출자가 할 일 |
+|---|---|---|---|
+| **0** | 성공 (결과 0건도 성공이다) | 세 명령 | 다음 단계로 |
+| **1** | **환경이 안 됐다.** 안 잡힌 예외도 같은 값이다 | `indexer`: DB 없음·pages 없음·옛 색인·DB 손상·락 · `serve`: 포트를 못 연다(점유·권한) · `crawl`: DB 손상·쓸 수 없는 경로 | 환경을 고친다 |
+| **2** | **명령줄이 틀렸다** | 세 명령: usage·플래그 값 · `crawl`: 가져올 수 없는 시드 | 사람이 명령을 고친다 |
+| **130** | Ctrl-C 중단 | `crawl`·`indexer` | 재개하거나 멈춘다 |
+
+**`serve` 는 DB 오류로 안 죽는다** — DB 가 없거나 깨져 있어도 뜨고, 요청마다 500 을 낸다.
+서버는 오래 사는 프로세스라 종료 코드로 알릴 상대가 없다. `serve` 의 rc 1 은 포트를 못
+열었을 때뿐이다.
+
 ## 크롤 윤리
 
 성능과 부딪히면 성능을 포기한다.
@@ -45,13 +58,13 @@ PYTHONPATH=src python3 -m websearch.indexer data/crawl.db --query 검색어
 | 검색 지연 | p95 ≤ 300ms | `e2e/perf_search.py` |
 | 수집 속도 | ≥ 5 docs/s | `e2e/perf_crawl.py` |
 | UI 무게 | JS ≤ 50KB gzip | `e2e/design_check.py` |
-| 명암비 | ≥ 4.5:1 | 〃 |
+| 명암비 | 텍스트 ≥ 4.5:1 · 비텍스트 ≥ 3:1 | 〃 |
 
 ## 검증
 
 ```bash
-PYTHONPATH=src python3 -m unittest discover -s tests   # 단위 456건
-ls e2e/*.py                                            # e2e 시나리오 18종
+PYTHONPATH=src python3 -m unittest discover -s tests   # 단위 473건
+ls e2e/*.py                                            # e2e 시나리오 19종
 ```
 
 e2e 는 각각 따로 돌린다 — `PYTHONPATH=src python3 e2e/<이름>.py`.

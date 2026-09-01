@@ -54,14 +54,15 @@ MAX_SNIPPET = 200
 # 색은 **전부 토큰으로만** 선언한다. e2e/design_check.py 가 --fg-* 와 --bg-* 를 여기서
 # 읽어 WCAG 대비를 매번 다시 계산하기 때문이다 — 검사기가 값을 따로 들면 색을 고쳐도
 # 옛 값으로 통과를 내준다(docs/design_search-ui.md 갈림길 2).
-# **--fg- 토큰을 새로 만들면 design_check.PAIRS 에도 짝을 적어야 한다.** 안 적으면
+# **색 토큰을 새로 만들면 design_check 의 PAIRS/NONTEXT_PAIRS 에 짝을 적거나
+# NO_PAIR 에 사유를 적어야 한다.** 안 적으면
 # 검사기가 종료 2(측정 불능)를 낸다 — 재지 않고 넘어가는 길을 규약으로 막았다.
 # 색 표기는 #rrggbb 만 쓴다(검사기가 그것만 해석한다).
 CSS = """
 :root{color-scheme:light dark;
 --bg-page:#ffffff;--bg-input:#ffffff;--bg-button:#c2410c;
 --fg-body:#1a1a1a;--fg-muted:#6b6b6b;--fg-url:#7c6f64;--fg-snippet:#4d4d4d;
---fg-link:#c2410c;--fg-button:#ffffff;--line:#e5ddd8;--focus:#f97316}
+--fg-link:#c2410c;--fg-button:#ffffff;--line:#e5ddd8;--focus:#ea580c}
 @media(prefers-color-scheme:dark){:root{
 --bg-page:#141110;--bg-input:#1e1917;--bg-button:#f97316;
 --fg-body:#eeeeee;--fg-muted:#a89a92;--fg-url:#a1897a;--fg-snippet:#c9c1bc;
