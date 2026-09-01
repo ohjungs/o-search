@@ -102,7 +102,7 @@ class ContrastAxisTest(unittest.TestCase):
     def test_product_css_reports_the_ring_rule(self):
         """제품 CSS 에서 링을 그리는 규칙이 **읽혀서 화면에 찍힌다.**
 
-        이 줄이 안 찍히면 아래 여섯 변이가 전부 "우연히" 통과하는 상태로 돌아간 것이다.
+        이 줄이 안 찍히면 아래 아홉 변이가 전부 "우연히" 통과하는 상태로 돌아간 것이다.
         값(2px)은 안 붙든다 — 붙들면 검사기 옆에 옛 값을 하나 더 두는 꼴이 된다.
         """
         fail, unmeasurable, out = run(CSS)
@@ -112,9 +112,15 @@ class ContrastAxisTest(unittest.TestCase):
     def test_ring_that_is_not_drawn_is_unmeasurable(self):
         """링을 죽이는 변이는 **측정 불능**이다 — 무효가 된 3.56:1 을 안 찍는다.
 
-        계획 44 착수 탐침에서 이 여섯이 **전부 종료 0 으로 살아남았다**. 색만 재는
+        계획 44 착수 탐침에서 앞 여섯이 **전부 종료 0 으로 살아남았다**. 색만 재는
         검사기는 그 색이 아무 데도 안 그려지는 것을 못 본다. 기준 위반(1)이 아니라
         측정 불능(2)인 이유는 설계서 `## 갈림길 A` — 찍은 숫자 자체가 무효가 된다.
+
+        **뒤 셋은 테스트 phase 가 더했다.** 설계는 *"규칙 수 세기 하나에 V7·V8·V10
+        셋이 걸린다"* 고 적었는데 개발이 붙든 것은 V7 하나였고, `:focus` 셀렉터 조건은
+        설계 첫 문단의 네 조건 중 하나면서 계약의 메시지 갈래에는 없어 개발이 계약
+        밖에서 만든 가드다(`history_current.md` 개발 1/1 의 ⓐ) — 셋 다 지워도 나머지
+        단언은 전부 초록이었다.
         """
         for name, old, new, expect in (
             ("V1 규칙 통째 삭제", RING_RULE, "", "규칙이 0개"),
@@ -126,6 +132,18 @@ class ContrastAxisTest(unittest.TestCase):
             ("V6 offset 0", "outline-offset:2px", "outline-offset:0", "outline-offset"),
             ("V7 뒤 규칙이 덮는다", ".hits{list-style:none",
              "a:focus{outline:none}\n.hits{list-style:none", "규칙이 2개"),
+            # 뒤 규칙이 `outline:none` 이 아니라 **폭만** 0 으로 덮는 갈래. OUTLINE_RE 가
+            # `outline-width` 를 세는 것이 여기 걸려 있다 — 축약형만 세면 살아남는다.
+            ("V8 뒤 규칙이 폭을 0 으로 덮는다", ".hits{list-style:none",
+             "a:focus{outline-width:0}\n.hits{list-style:none", "규칙이 2개"),
+            # 덮어쓰기가 **at-rule 안**에 있는 갈래. RULE_RE 가 다크 블록 안쪽 규칙을
+            # 따로 세지 못하면(바깥 `@media…{` 짝에 먹히면) 규칙은 1개로 보이고 통과한다.
+            ("V10 다크 블록 안에서 덮는다", "--focus:#fdba74}}",
+             "--focus:#fdba74}\na:focus{outline:none}}", "규칙이 2개"),
+            # 규칙도 색도 offset 도 멀쩡한데 **포커스가 아닐 때만** 그린다. 마우스에는
+            # 링이 보이고 키보드에는 안 보이므로 색 넷을 다 봐도 안 걸린다.
+            ("V11 셀렉터가 포커스용이 아니다", ":focus-visible", ":hover",
+             "포커스용이 아니다"),
         ):
             with self.subTest(name):
                 fail, unmeasurable, out = run(self.twist(old, new))
