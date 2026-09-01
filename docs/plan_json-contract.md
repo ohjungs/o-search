@@ -239,7 +239,9 @@ if sql != _CURRENT_SQL:
   - 미색인 DB(오늘 200)의 처리는 **설계 갈림길 D 가 정한 값**이고, 정한 뒤에는
     `TestUnindexedDb` 가 그 값을 단언한다.
   - 화면(`/`) 경로의 상태 코드는 **설계 갈림길 C 가 정한다.**
-- **건드릴 파일**: `src/websearch/serve.py` · `tests/test_serve.py`
+  - **[설계가 더한 줄]** `README.md:39` 의 *"요청마다 500 을 낸다"* 가 이 스텝에서
+    거짓이 된다 — 503/500 을 가르는 문장으로 함께 고친다. (설계 1절 세 번째 탐침)
+- **건드릴 파일**: `src/websearch/serve.py` · `tests/test_serve.py` · `README.md`
 - **의존**: 없음
 - **상태**: 대기
 
@@ -251,7 +253,9 @@ if sql != _CURRENT_SQL:
   - 버전을 지우거나 값을 바꾸는 변이가 스위트를 죽인다.
   - **화면(`/`) 응답에는 안 붙인다** — 사양 기능 9 는 계약(API)의 항목이고 HTML 은
     사람이 읽는다.
-  - `README.md` 의 API 설명이 있으면 같이 맞춘다(없으면 안 만든다 — YAGNI).
+  - ~~`README.md` 의 API 설명이 있으면 같이 맞춘다~~ — **설계가 실측해 스텝 1 로 옮겼다.**
+    README 에 API 스키마 설명은 없고(`grep -rn "/search" README.md` → 0건), 대신 상태
+    코드를 적은 줄(`README.md:39`)이 있어 그것이 걸리는 것은 버전이 아니라 503 이다.
 - **건드릴 파일**: `src/websearch/serve.py` · `tests/test_serve.py`
 - **의존**: 없음 (스텝 1 이 먼저 들어가면 새 503 도 자동으로 버전을 갖는다. 순서가
   뒤집혀도 결과는 같다 — 진짜 의존이 아니다)
@@ -341,11 +345,13 @@ if sql != _CURRENT_SQL:
 |---|---|---|
 | `src/websearch/serve.py` | 1·2 | 예외 갈래 · 응답 조립 |
 | `tests/test_serve.py` | 1·2·3 | 새 단언 + `TestMissingDb`·`TestUnindexedDb`·`TestHtmlPathFailsSafely` 의 기존 값 갱신 |
-| `README.md` | 2 | API 설명이 있으면 버전 반영 · 단위 건수 가드(`tests/test_readme.py`) |
-| `docs/design_json-contract.md` | — | 다음 반복이 만든다 |
+| `README.md` | **1** | `:39` 의 *"요청마다 500 을 낸다"* → 503/500 을 가르는 문장 (설계가 스텝 2→1 로 옮겼다) · 단위 건수 가드(`tests/test_readme.py`) |
+| `docs/design_json-contract.md` | — | **있다** (2026-09-02 설계 반복) |
 
 `src/websearch/indexer.py` 는 갈림길 B 가 ②를 고르면 들어온다. 그러면 파일 3개가 되고
 `CLAUDE.md` 규모 표의 *"파일 3개+"* 행(그래프를 문서로 그린다 · 역할 검토 전부)이 켜진다.
+→ **설계가 B 를 ①(최소)로 닫아 `indexer.py` 는 안 들어온다.** 다만 `README.md` 가
+들어와 건드릴 파일은 그대로 3개라 역할 검토는 전부 돌렸다(설계 3·8절).
 
 ## 7. 보안 · 데이터 판정
 
