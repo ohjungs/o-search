@@ -240,7 +240,7 @@ def main(argv):
     except FileNotFoundError:
         # 아래 넷은 **환경이 안 된 것**이라 rc 1 이다(명령줄 오류 2 와 가른다).
         # 안 잡힌 예외를 파이썬이 이미 1 로 끝내므로, 손으로 잡은 갈래만 2 로 갈라
-        # 두면 새 `except` 를 안 단 환경 오류마다 계약이 갈린다. 계약표는 README
+        # 두면 새 `except` 를 안 단 환경 오류마다 계약이 갈린다. 계약표는 `README` 에 있다.
         print("DB 파일이 없다: %s" % db_path, file=sys.stderr)
         return 1
     except NoCrawlDataError:
