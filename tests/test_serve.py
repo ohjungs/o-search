@@ -509,6 +509,54 @@ class TestProgrammingErrorStays500(ServeTestCase):
         self.assertNotIn("Traceback", body)
 
 
+class TestBrokenDbStays500(ServeTestCase):
+    """DB 파일이 **깨졌거나 못 읽는다** — 503 이 아니라 500 이다.
+
+    위 두 단언은 `_page_hits` 를 mock 으로 갈아 `AttributeError` 를 던지게 한다. 그래서
+    못박힌 것은 *"코드가 틀렸을 때 500"* 뿐이고 **실물 DB 상태로 500 을 재는 단언은
+    0건**이었다 — 503 튜플에 `sqlite3.DatabaseError` 를 더하는 변이(*"DB 오류도 인프라니
+    재시도"*)가 스위트를 하나도 못 죽인다. 손상은 기다린다고 낫지 않는다. 503 은
+    *"색인을 다시 돌리면 낫는다"* 는 약속이라 거기 넣으면 인프라가 영영 재시도한다.
+
+    설계서 §1 은 이 자리를 `PermissionError` 라 적었는데 **실물은 아니다**(탐침으로 측정):
+    `sqlite3.connect` 가 `OperationalError('unable to open database file')` 로 바꿔 던진다.
+    `DatabaseError` 의 하위라 잡히는 자리는 같지만, 예외 **이름**으로 짜는 단언은 빗나간다.
+    """
+
+    def corrupt(self):
+        with open(self.db, "wb") as fh:
+            fh.write(b"NOT a sqlite file\n" * 64)
+
+    def test_corrupt_db_is_500_not_503(self):
+        self.corrupt()
+        with mock.patch("sys.stderr", new_callable=io.StringIO) as err:
+            status, body, _ = self.get("/search?q=%EA%B9%80%EC%B9%98")
+            logged = err.getvalue()
+        self.assertEqual(status, 500, body)
+        self.assertEqual(body["error"], "검색 중 오류가 났다")
+        self.assertNotIn(self.db, json.dumps(body, ensure_ascii=False), "DB 경로가 샜다")
+        self.assertIn("DatabaseError", logged, "500 의 원인이 로그에 안 남았다")
+
+    def test_corrupt_db_screen_is_500_too(self):
+        """두 경로의 튜플은 한 벌이어야 한다(설계 갈림길 C) — 한쪽만 넓히는 변이가 있다."""
+        self.corrupt()
+        with mock.patch("sys.stderr", new_callable=io.StringIO):
+            status, body, _ = self.raw("/?q=%EA%B9%80%EC%B9%98")
+        self.assertEqual(status, 500)
+        self.assertIn("검색 중 오류가 났다", body)
+        self.assertNotIn(self.db, body, "DB 경로가 화면으로 샜다")
+
+    @unittest.skipIf(os.geteuid() == 0, "root 는 파일 권한을 무시한다")
+    def test_unreadable_db_is_500_not_503(self):
+        """읽을 수 없는 DB 는 사람이 `chmod` 를 해야 낫는다 — 재시도가 아니라 고칠 일이다."""
+        os.chmod(self.db, 0o000)
+        self.addCleanup(os.chmod, self.db, 0o600)
+        with mock.patch("sys.stderr", new_callable=io.StringIO):
+            status, body, _ = self.get("/search?q=%EA%B9%80%EC%B9%98")
+        self.assertEqual(status, 500, body)
+        self.assertEqual(body["error"], "검색 중 오류가 났다")
+
+
 class TestSlowClient(ServeTestCase):
     def test_idle_connection_does_not_hold_a_thread_forever(self):
         """요청 라인을 끝내지 않는 연결은 스레드를 무기한 점유한다(슬로로리스).
