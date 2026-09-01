@@ -11,7 +11,7 @@
 
 | | 값 |
 |---|---|
-| 반복 | 211 |
+| 반복 | 212 |
 | 계획 (완료/폐기/보류) | 26 / 0 / 0 |
 | 재시도 | 0 |
 | RED | 0 |
@@ -26,17 +26,23 @@
 | 설계 | 10 (생략 5) |
 | 개발 | 46 |
 | 테스트 | 21 |
-| 리뷰 | 19 |
+| 리뷰 | 20 |
 | e2e | 18 |
 
 ## 리뷰 정확도 — 80점 임계 검증용
 
 | | 값 |
 |---|---|
-| 발견 후보 | 108 |
-| 80점 미만으로 버림 | 30 (기보류 중복 4 + search-api 2 + crawl-delay 3 + quality-eval 3 + non-ascii-url 2 + cooldown-burn 3 + crawl-politeness 1 + graceful-interrupt 2 + deadline-stop 3 + indexer-interrupt 5 + indexer-lock 2) |
-| 보고함 | 72 |
-| **그중 실제로 고친 것** | 52 |
+| 발견 후보 | 115 |
+| 80점 미만으로 버림 | 32 (기보류 중복 4 + search-api 2 + crawl-delay 3 + quality-eval 3 + non-ascii-url 2 + cooldown-burn 3 + crawl-politeness 1 + graceful-interrupt 2 + deadline-stop 3 + indexer-interrupt 5 + indexer-lock 2 + docs-citation-guard 2) |
+| 보고함 | 77 |
+| **그중 실제로 고친 것** | 53 |
+
+**버린 2건이 처음으로 "실측해서 안 하기로 한 것" 이다 (2026-09-01 docs-citation-guard, 반복 212).**
+지금까지의 기각은 대부분 도달 불가·기보류 중복이었는데, 이번 둘은 **확장 후보를 재서
+0건이라 버린 것**이다 — 다섯 표기가 문서 77개 전수에서 0회, 맨 숫자 확장은 오탐 14건.
+**같은 리뷰가 반대 방향도 쟀다**(분리자 완화 = 위반 2건·오탐 0). 넓힐지 말지를 감으로
+답했으면 양쪽 다 틀렸다. 기각 사유에 **"근거 없음" 과 "재 보니 없음" 을 갈라 세는 편이 낫다.**
 
 **보고 0건의 리뷰가 처음 나왔다 (2026-09-01 crawl-db-guard, 반복 207).** 후보 1건은
 설계가 근거와 여는 조건까지 적어 둔 기보류 중복이라 버렸고, 앞 스텝이 넘긴 결함 둘은
