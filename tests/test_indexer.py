@@ -445,6 +445,21 @@ class TestDbOpenIsAtomic(unittest.TestCase):
         self.assertFalse(os.path.exists(os.path.join(self.dir.name, "a b")),
                          "`#` 앞에서 잘린 경로에 다른 DB 가 생겼다")
 
+    def test_a_relative_db_path_still_opens(self):
+        """README 의 세 명령이 전부 `data/crawl.db` — **상대 경로**다(README.md:16-18,25).
+
+        그런데 `_connect` 를 재는 단언은 위 여섯을 포함해 전부 `tempfile` 의 **절대 경로**
+        하나에 걸려 있었다 — 재는 입력이 한 축뿐이라 다른 축이 통째로 우회한다.
+        URI 를 `file:` 가 아니라 `file://` + 경로로 적는 변이(가장 자연스러운 형태다)는
+        절대 경로에서는 멀쩡히 돌고 상대 경로에서만 죽는다. 실측: 단위 **504건 전부 초록**
+        인 채 `python3 -m websearch.indexer data/crawl.db --query 김치` 가
+        `invalid uri authority: data` 로 rc 1 을 냈다.
+        """
+        index_pages(self.db_path)
+        self.addCleanup(os.chdir, os.getcwd())
+        os.chdir(self.dir.name)
+        self.assertEqual(len(search("crawl.db", "김치")), 1)
+
 
 class TestHangulBigrams(unittest.TestCase):
     """`_bigrams` — 한글 런의 문자 2-gram. 복합어 안쪽과 띄어쓰기 변형을 매치시키는 재료."""
