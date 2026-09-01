@@ -17,11 +17,16 @@
 """
 
 import pathlib
+import re
 import unittest
 
 DOCS = pathlib.Path(__file__).resolve().parent.parent / "docs"
 # append 편집이 머리를 삼킬 수 있는 기록 문서 — 셋 다 H1 로 시작한다.
 APPEND_TARGETS = ("digest.md", "index.md", "history_current.md")
+# 그 셋을 줄번호로 가리킨 인용 — append 한 번에 다른 항목을 가리키게 된다.
+CITATION = re.compile("(?:%s):[0-9]" % "|".join(re.escape(n) for n in APPEND_TARGETS))
+# 회전이 닫아 둔 아카이브는 수정·삭제 금지 문서라 검사 대상이 아니다.
+ARCHIVE = re.compile(r"^(?:history|plan_history|design_history)_[0-9]+\.md$")
 
 
 class DocHeadTest(unittest.TestCase):
@@ -36,6 +41,21 @@ class DocHeadTest(unittest.TestCase):
                     first, r"^# \S",
                     "%s 의 첫 줄이 H1 이 아니다 — 머리가 본문에 빨려 들어갔다: %r"
                     % (name, first))
+
+
+class DocCitationTest(unittest.TestCase):
+    def test_live_docs_cite_append_targets_by_name(self):
+        hits = []
+        for path in sorted(DOCS.glob("*.md")):
+            if ARCHIVE.match(path.name):
+                continue
+            for no, line in enumerate(path.read_text(encoding="utf-8").split("\n"), 1):
+                if CITATION.search(line):
+                    hits.append("  %s %d행: %s" % (path.name, no, line.strip()))
+        self.assertEqual(
+            [], hits,
+            "append 전용 문서를 줄번호로 가리킨 인용 — 줄이 아니라 항목 이름으로 "
+            "가리킨다:\n" + "\n".join(hits))
 
 
 if __name__ == "__main__":
