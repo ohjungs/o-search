@@ -12,7 +12,7 @@ import unittest
 import urllib.parse
 from unittest import mock
 
-from websearch import crawl, fetcher, urls
+from websearch import crawl, fetcher, indexer, urls
 from websearch import robots as robots_mod
 from websearch.frontier import Frontier, DOMAIN_INTERVAL, MAX_DELAY
 from websearch.fetcher import FetchResult
@@ -2073,6 +2073,24 @@ class TestUnopenableDb(unittest.TestCase):
             pass
         with self.assertRaises(crawl.StoreOpenError):
             crawl.crawl(["http://a.com/"], 1, db_path=path)
+
+    def test_wording_is_identical_to_indexer(self):
+        """**같은 상황을 두 CLI 가 같은 문장으로 부른다** — 설계 계약("글자까지 같다").
+
+        어제까지 이 계약을 붙들고 있는 것은 설계서 한 줄뿐이었다. `crawl.py:178` 과
+        `indexer.py:264` 중 **한쪽만 고치면 조용히 갈린다** — 같은 상황에 두 이름이
+        붙으면 그건 안내가 아니라 소음이다. 그물(1·2번)·번역(3번)과 달리 이 축은
+        **두 모듈을 함께** 돌려야 재진다: 원문(`file is not a database`)도 각자 만든다.
+        """
+        path = os.path.join(self.dir.name, "남의.db")
+        with open(path, "wb") as f:
+            f.write(b"not a database" * 8)
+        with self.assertRaises(crawl.StoreOpenError) as caught:
+            crawl.crawl(["http://a.com/"], 1, db_path=path)
+        buf = io.StringIO()
+        with contextlib.redirect_stderr(buf):
+            self.assertEqual(indexer.main(["prog", path]), 1)
+        self.assertEqual(buf.getvalue().strip(), str(caught.exception))
 
     def test_store_open_error_is_environment_not_usage(self):
         """환경이 안 된 것이라 **rc 1** 이다 — 명령줄 오류 2 와 가른다."""
