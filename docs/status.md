@@ -1,12 +1,12 @@
 ---
-signal: YELLOW
-phase: 리뷰
-step: 1
+signal: GREEN
+phase: e2e
+step: 0
 attempt: 0
-iteration: 219
+iteration: 220
 updated: 2026-09-01
-ctx: 60
-night_iterations: 79
+ctx: 18
+night_iterations: 80
 night_red: 0
 night_retries: 0
 plan: docs/plan_focus-contrast.md
@@ -18,9 +18,8 @@ plan: docs/plan_focus-contrast.md
 브랜치 `loop/focus-contrast` · 설계서 `docs/design_focus-contrast.md` ·
 계획서 `docs/plan_focus-contrast.md`. 단위 **473건 OK**(무변).
 
-**YELLOW 인 이유는 리뷰 결과가 아니라 원격이다** — 스텝 자체는 초록으로 끝났고
-(검증 셋 전부 통과), 원격 브랜치에 **이 루프가 만들지 않은 머지 커밋**이 앞서 있어
-**푸시를 멈췄다.** 아래 `## 판단 필요` 가 그것이고 **e2e 는 그게 정리된 뒤에 연다.**
+**원격 갈라짐은 닫혔다(2026-09-01 · `83d3f91`).** 리뷰가 YELLOW 로 올린 `de12184`
+문제는 아래 `## 닫힌 판단` 대로 정리됐고 **푸시까지 끝났다.** 다음은 **e2e 1/1** 이다.
 
 ## 방금 것 (2026-09-01 · 리뷰 1/1)
 
@@ -90,7 +89,7 @@ header·pager 구분선(진짜 장식)과 입력창 경계(SC 1.4.11 이 말하�
   파일 둘을 정규식으로 읽는 3줄이면 되고 새 의존성이 없다). **개발 스텝을 하나 여는
   일이라 승인 필요다.**
 
-## 판단 필요 — 원격에 남이 만든 머지가 있다. 이 반복은 푸시를 멈췄다
+## 닫힌 판단 (2026-09-01 · `83d3f91`) — 원격에 남이 만든 머지가 있었다
 
 **`origin/loop/focus-contrast` 가 `de12184`("Merge branch 'main' into loop/focus-contrast",
 작성자 `Little Dev Duck`, 2026-09-01 16:16)로 앞서 있다.** 이 루프가 만든 커밋이 아니다.
@@ -104,21 +103,32 @@ header·pager 구분선(진짜 장식)과 입력창 경계(SC 1.4.11 이 말하�
 | 테스트 | `tests/test_crawl.py` 에 `import signal` 중복 |
 | 문서 | `history_current.md` **401줄**(상한 300) · `digest.md` **232줄**(상한 200) · 아카이브한 `plan_indexer-interrupt.md` **274줄**이 살아 있는 계획으로 부활 |
 
-**그래서 안 받았다.** 이 리뷰 커밋은 `d22fd56` 위에 로컬로만 있다(`git log loop/focus-contrast -1`).
-받아서 고치는 것은 리뷰 스텝의 범위가 아니고, 머지를 지우는 것은 남의 커밋을 버리는
-force-push 라 **둘 다 사람 결정**이다.
+**어떻게 닫았나 — `git merge -s ours origin/loop/focus-contrast` (커밋 `83d3f91`).**
 
-**사람이 할 일 (순서대로)**
+들여온 630줄이 **한 줄도 빠짐없이 이미 있는 내용의 중복**이라는 것을 먼저 실측했다
+(위 표의 넷 + `README.md` 검증 블록이 옛 수치 `456건`·`18종` 으로 한 벌 더 · `index.md`
+계획 33·34·35·37 의 옛 행 부활). **새 내용이 0줄이라 그쪽 트리를 안 받아도 잃는 것이 없다** —
+그래서 남의 커밋을 버리는 force-push 대신 `de12184` 를 **부모에 남긴 채** 트리만
+`f066e70` 으로 고정했다. 이력은 보존되고 되돌릴 수 있으며, 원격은 **fast-forward**
+(`de12184..83d3f91`)로 받았다. 트리 동일성 확인: `git diff --stat f066e70 HEAD` **빈 출력**.
 
-1. `de12184` 를 어떻게 할지 정한다 — 되돌리거나(`git revert -m 1`), 브랜치를 `d22fd56`
-   으로 되돌리고 이 리뷰 커밋을 얹는다. 어느 쪽이든 **`indexer.py` 의 죽은 `return 2`
-   와 `status.md` 의 두 번째 YAML 머리는 반드시 지운다.**
-2. **`Little Dev Duck` 이 무엇인지 확인한다** — 이 저장소에 `main` 을 브랜치로 자동
-   머지하는 무언가가 붙어 있다는 뜻이고, `## 한도` 의 *"`main` 직접 커밋 금지"* 와 같은
-   자리를 반대편에서 뚫는다. `digest` 의 *"제자리 변이를 자동 스냅샷이 커밋한다(5회,
-   뒤의 넷은 원격까지 갔다)"* 와 **같은 뿌리로 보인다.**
-3. 그 다음이 원래 있던 일: **PR #4 병합 → 계획 42 체리픽 PR → 계획 43 체리픽 PR.**
-   계획 42·43 둘 다 `origin/main` 기점이 아니라 지금 PR 을 열면 PR #3 과 같은 사고가 난다.
+**`Little Dev Duck` 의 정체 — 자동화가 아니라 브라우저다.** 커미터가
+`GitHub <noreply@github.com>` 이고 작성자가 `81200313+ohjungs@users.noreply.github.com`
+이다. **github.com 웹 UI 에서 계정 `ohjungs` 가 버튼을 눌러 만든 머지**이고,
+`.github` 가 없으니 저장소에 붙은 Actions 도 아니다. `digest` 의 *"자동 스냅샷"* 항목과
+**뿌리가 다르다** — 리뷰가 세운 "자동 머지가 붙어 있다" 가정은 실측으로 기각됐다.
+
+**교훈은 남는다**: `main` 이 rebase-merge 로 해시가 새로 쓰인 뒤에는 웹 UI 의 *Update
+branch* 가 **머지가 아니라 복제**가 된다. PR #3 을 깨뜨린 것과 **같은 원인**이고,
+이번엔 사람의 클릭 한 번이 같은 자리를 다시 밟았다.
+
+**남은 것 (순서대로 · 사람 결정)**
+
+1. **PR #4 병합** — https://github.com/ohjungs/o-search/pull/4 에서 **"Create merge commit"**.
+   squash·rebase 를 고르면 해시가 또 새로 쓰여 이 사고가 세 번째로 난다.
+2. 그 다음 **계획 42 체리픽 PR → 계획 43 체리픽 PR.** 둘 다 `origin/main` 기점이 아니라
+   지금 그대로 PR 을 열면 PR #3 과 같은 사고가 난다.
+3. 병합 전까지 **웹 UI 의 *Update branch* 를 누르지 않는다.**
 
 ## 한도 (매 반복 확인)
 
