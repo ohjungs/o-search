@@ -113,5 +113,29 @@ class DocCitationTest(unittest.TestCase):
             "가리킨다:\n" + "\n".join(hits))
 
 
+class IterationSyncTest(unittest.TestCase):
+    """`metrics.md` 의 `반복` 과 `status.md` 의 `iteration` 이 같은 수인가.
+
+    사람이 매 반복 끝에 두 곳을 손으로 갱신하는데, 어긋난 채로 간 것이 **4회**
+    재발했다(`digest ## 반복 실패`). 어긋나면 다음 반복이 자기 번호를 잘못 적고
+    기록이 통째로 밀린다. 규율이 아니라 스위트가 붙든다.
+
+    매치가 `None` 이면 비교 전에 실패한다 — 표 형식이 바뀌면 검사가 `None == None`
+    위에서 조용히 통과하는 것이 여기 유일한 눈먼 자리다.
+    """
+
+    def test_metrics_and_status_agree(self):
+        metrics = (DOCS / "metrics.md").read_text(encoding="utf-8")
+        status = (DOCS / "status.md").read_text(encoding="utf-8")
+        a = re.search(r"^\| 반복 \| ([0-9]+) \|", metrics, re.M)
+        b = re.search(r"^iteration: ([0-9]+)$", status, re.M)
+        self.assertIsNotNone(a, "metrics.md 에서 `| 반복 | <수> |` 행을 못 찾았다")
+        self.assertIsNotNone(b, "status.md 에서 `iteration: <수>` 줄을 못 찾았다")
+        self.assertEqual(
+            a.group(1), b.group(1),
+            "반복 번호가 어긋났다 — metrics.md `반복` %s ≠ status.md `iteration` %s"
+            % (a.group(1), b.group(1)))
+
+
 if __name__ == "__main__":
     unittest.main()
