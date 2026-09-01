@@ -354,6 +354,81 @@ class TestSearch(unittest.TestCase):
             search(os.path.join(self.dir.name, "없는.db"), "김치")
 
 
+class TestDbOpenIsAtomic(unittest.TestCase):
+    """DB 를 여는 자리 하나 — `exists` 와 `connect` 사이에 창이 있으면 안 된다.
+
+    창에 지면 나오는 것은 오답 하나가 아니라 **크기 0 의 빈 DB 파일**이다. 그것이
+    남으면 그 뒤로 `os.path.exists` 가 참이라 503 이 영영 안 난다 — 흔적이 영구적이다.
+    """
+
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.dir.cleanup)
+        self.db_path = os.path.join(self.dir.name, "crawl.db")
+        Store(self.db_path).upsert("http://a.test/", "<title>요리</title><p>김치</p>", 200)
+
+    def _race(self):
+        """`connect` 직전에 파일을 지운다 — 창이 열려 있으면 여기서 실제로 진다.
+
+        WAL 사이드카까지 지우는 것은 `rm crawl.db*` 와 같다. 본 파일만 지우면 남은
+        `-wal` 이 무슨 일을 하는지가 변수로 끼어들어 재는 것이 흐려진다.
+        """
+        real = sqlite3.connect
+
+        def hook(path, **kw):
+            for suffix in ("", "-wal", "-shm"):
+                if os.path.exists(self.db_path + suffix):
+                    os.remove(self.db_path + suffix)
+            return real(path, **kw)
+
+        return mock.patch.object(indexer.sqlite3, "connect", hook)
+
+    def test_search_losing_the_race_raises_instead_of_returning_empty(self):
+        index_pages(self.db_path)
+        with self._race():
+            with self.assertRaises(FileNotFoundError):
+                search(self.db_path, "김치")
+        self.assertFalse(os.path.exists(self.db_path), "빈 DB 파일이 남았다")
+
+    def test_doc_count_losing_the_race_makes_no_file(self):
+        index_pages(self.db_path)
+        with self._race():
+            self.assertEqual(indexer._doc_count(self.db_path), 0)
+        self.assertFalse(os.path.exists(self.db_path), "빈 DB 파일이 남았다")
+
+    def test_index_pages_losing_the_race_raises_instead_of_making_a_db(self):
+        with self._race():
+            with self.assertRaises(FileNotFoundError):
+                index_pages(self.db_path)
+        self.assertFalse(os.path.exists(self.db_path), "빈 DB 파일이 남았다")
+
+    def test_doc_count_on_a_missing_db_is_zero_and_makes_no_file(self):
+        # `_doc_count` 독스트링의 "DB 파일을 만들지 않는다" 를 재는 유일한 단언이다
+        missing = os.path.join(self.dir.name, "없는.db")
+        self.assertEqual(indexer._doc_count(missing), 0)
+        self.assertFalse(os.path.exists(missing))
+
+    def test_present_but_unopenable_path_is_not_reported_as_missing(self):
+        # 권한·디렉터리는 기다린다고 낫지 않는다 — 503(FileNotFoundError)이 아니라
+        # 원문 그대로의 OperationalError 여야 `serve` 가 500 으로 옮긴다 (계획 46 의 표)
+        blocked = os.path.join(self.dir.name, "dir.db")
+        os.mkdir(blocked)
+        with self.assertRaises(sqlite3.OperationalError):
+            search(blocked, "김치")
+        with self.assertRaises(sqlite3.OperationalError):
+            indexer._doc_count(blocked)
+
+    def test_uri_metacharacters_in_path_open_the_real_file(self):
+        # 경로를 URI 에 날것으로 끼우면 `#` 뒤가 잘려 **다른 파일**이 조용히 열린다.
+        # 게다가 `?mode=rw` 도 함께 잘려나가 고치려던 버그가 그대로 부활한다.
+        odd = os.path.join(self.dir.name, "a b#c?d.db")
+        Store(odd).upsert("http://b.test/", "<title>요리</title><p>김치</p>", 200)
+        index_pages(odd)
+        self.assertEqual(len(search(odd, "김치")), 1)
+        self.assertFalse(os.path.exists(os.path.join(self.dir.name, "a b")),
+                         "`#` 앞에서 잘린 경로에 다른 DB 가 생겼다")
+
+
 class TestHangulBigrams(unittest.TestCase):
     """`_bigrams` — 한글 런의 문자 2-gram. 복합어 안쪽과 띄어쓰기 변형을 매치시키는 재료."""
 
