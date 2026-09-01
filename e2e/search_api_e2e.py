@@ -7,6 +7,8 @@
 
 검증: ① q=김치 200·정답 URL ② page=2 가 1페이지와 안 겹치고 has_next 가 맞다
 ③ q 없음 400 / 없는 경로 404 / POST 501 ④ 어느 응답에도 트레이스백이 없다
+⑤ 색인을 치우면 503 이고 되돌리면 200 이다 (계획 46 · 사양 디자인 5)
+⑥ 성공 응답과 503 이 스키마 버전을 갖는다 (계획 46 · 사양 기능 9)
 
 실행: PYTHONPATH=src python3 e2e/search_api_e2e.py
 """
@@ -101,6 +103,7 @@ def main():
             assert status == 200, "q=김치 → %d" % status
             assert "김치" in raw and "\\u" not in raw, "한국어가 이스케이프됐다: %r" % raw[:120]
             first = json.loads(raw)
+            assert first["version"] == 1, "스키마 버전이 %r 이다" % first.get("version")
             assert len(first["results"]) == 10, "1페이지 %d건" % len(first["results"])
             assert first["has_next"] is True, "15문서인데 has_next 가 거짓이다"
             assert any(site + "/doc" in r["url"] for r in first["results"]), first["results"]
@@ -119,6 +122,21 @@ def main():
                 status, raw = request(api + path, method)
                 assert status == expect, "%s %s → %d (기대 %d)" % (method, path, status, expect)
                 assert "Traceback" not in raw, "%s 응답에 트레이스백: %r" % (path, raw[:200])
+
+            # 「DB 없음 → 503」. 위 표에 한 줄로 못 올리는 이유는 **파일을 치워야**
+            # 나기 때문이다 — 서버는 요청마다 DB 를 새로 여니 프로세스는 그대로다.
+            # 단위도 같은 값을 재지만 여기서만 진짜 프로세스가 진짜 파일을 잃는다.
+            os.rename(db, db + ".moved")
+            status, raw = request("%s/search?q=%s" % (api, q))
+            assert status == 503, "색인을 치웠는데 %d 다 (기대 503)" % status
+            gone = json.loads(raw)
+            assert gone["version"] == 1, "503 이 버전을 안 갖는다: %r" % gone
+            assert "Traceback" not in raw and tmp not in raw, \
+                "503 본문이 경로나 트레이스백을 흘린다: %r" % raw[:200]
+            # 되돌려 200 을 다시 본다 — 안 보면 503 이 «치웠기 때문» 인지 알 수 없다
+            os.rename(db + ".moved", db)
+            back = request("%s/search?q=%s" % (api, q))[0]
+            assert back == 200, "색인을 되돌렸는데 %d 다 (기대 200)" % back
         finally:
             server.terminate()
             server.wait(timeout=20)
@@ -127,7 +145,8 @@ def main():
     assert "p95" in perf, "측정이 숫자를 안 냈다: %r" % perf
 
     print("e2e 통과 — %d문서 색인, CLI 로 띄운 API 가 1페이지 10건(has_next 참)·"
-          "2페이지 5건(거짓)·겹침 0, 400/404/501 이 트레이스백 없이 나온다" % (DOCS + 1))
+          "2페이지 5건(거짓)·겹침 0, 400/404/501 이 트레이스백 없이 나온다. "
+          "색인을 치우면 503·되돌리면 200 이고 200 과 503 이 version 1 을 갖는다" % (DOCS + 1))
     print(perf.strip().splitlines()[-1])
 
 
