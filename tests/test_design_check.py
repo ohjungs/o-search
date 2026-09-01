@@ -37,6 +37,12 @@ def run(css):
     return fail, unmeasurable, out.getvalue()
 
 
+# 링을 그리는 제품 규칙 그대로. **색값이 아니라 규칙의 모양**이라 드리프트 대상이 아니다 —
+# 자리가 사라지면 `twist` 가 먼저 빨개진다.
+RING_RULE = (".sb input:focus-visible,.sb button:focus-visible,a:focus-visible{"
+             "outline:3px solid var(--focus);\noutline-offset:2px}")
+
+
 class ContrastAxisTest(unittest.TestCase):
     def twist(self, old, new):
         """제품 CSS 를 한 곳만 비튼다. 비틀 자리가 실재하는지 먼저 단언한다."""
@@ -51,7 +57,8 @@ class ContrastAxisTest(unittest.TestCase):
         """
         fail, unmeasurable, out = run(CSS)
         self.assertEqual((fail, unmeasurable), ([], []), out)
-        lines = [ln for ln in out.splitlines() if "--focus" in ln]
+        # 규칙 요약 줄에도 --focus 가 있으므로 **재는 행만** 센다(`on` 이 있는 행).
+        lines = [ln for ln in out.splitlines() if "--focus" in ln and " on " in ln]
         self.assertEqual(len(lines), 2, "라이트·다크 두 행이어야 한다:\n%s" % out)
         for line in lines:
             self.assertIn("기준 3.0", line)
@@ -91,6 +98,43 @@ class ContrastAxisTest(unittest.TestCase):
         self.assertEqual(len(fail), 1, out)
         self.assertIn("--fg-muted/--bg-page", fail[0])
         self.assertIn("< 4.5", fail[0])
+
+    def test_product_css_reports_the_ring_rule(self):
+        """제품 CSS 에서 링을 그리는 규칙이 **읽혀서 화면에 찍힌다.**
+
+        이 줄이 안 찍히면 아래 여섯 변이가 전부 "우연히" 통과하는 상태로 돌아간 것이다.
+        값(2px)은 안 붙든다 — 붙들면 검사기 옆에 옛 값을 하나 더 두는 꼴이 된다.
+        """
+        fail, unmeasurable, out = run(CSS)
+        self.assertEqual((fail, unmeasurable), ([], []), out)
+        self.assertIn("포커스 링 규칙 1개 · outline var(--focus) · offset ", out)
+
+    def test_ring_that_is_not_drawn_is_unmeasurable(self):
+        """링을 죽이는 변이는 **측정 불능**이다 — 무효가 된 3.56:1 을 안 찍는다.
+
+        계획 44 착수 탐침에서 이 여섯이 **전부 종료 0 으로 살아남았다**. 색만 재는
+        검사기는 그 색이 아무 데도 안 그려지는 것을 못 본다. 기준 위반(1)이 아니라
+        측정 불능(2)인 이유는 설계서 `## 갈림길 A` — 찍은 숫자 자체가 무효가 된다.
+        """
+        for name, old, new, expect in (
+            ("V1 규칙 통째 삭제", RING_RULE, "", "규칙이 0개"),
+            ("V2 outline:none", "outline:3px solid var(--focus)", "outline:none",
+             "색 토큰을 안 쓴다"),
+            ("V3 다른 토큰을 그린다", "solid var(--focus)", "solid var(--line)",
+             "그려지는 색 --line"),
+            ("V5 offset 제거", ";\noutline-offset:2px}", "}", "outline-offset"),
+            ("V6 offset 0", "outline-offset:2px", "outline-offset:0", "outline-offset"),
+            ("V7 뒤 규칙이 덮는다", ".hits{list-style:none",
+             "a:focus{outline:none}\n.hits{list-style:none", "규칙이 2개"),
+        ):
+            with self.subTest(name):
+                fail, unmeasurable, out = run(self.twist(old, new))
+                self.assertEqual(fail, [], out)
+                self.assertEqual(len(unmeasurable), 1, out)
+                self.assertIn(expect, unmeasurable[0])
+                # 요점은 판정이 아니라 **안 찍는 것**이다 — 링이 없는데 링의 대비를
+                # 화면에 내놓으면 사람이 그 숫자를 근거로 다음 판단을 한다.
+                self.assertNotIn("--focus", out)
 
 
 if __name__ == "__main__":

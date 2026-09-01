@@ -163,3 +163,33 @@ append 전용. 수정·삭제 금지.
 - 다음: **개발 1/1**. `focus_rule(css)` 약 15줄 + 호출 한 줄 + 출력 한 줄, 단언 7건.
   계약은 설계서 `## 계약` 9항. `src/websearch/serve.py` 0줄이고 `design_check.py` 는
   계속 rc 0 이어야 한다.
+
+## 2026-09-01 17:55 | focus-ring-presence | 개발 1/1 | 시도0
+
+- 한 일: **TDD 로 단언 7건을 먼저 쓰고 실패를 눈으로 봤다.** `tests/test_design_check.py`
+  에 `RING_RULE` 상수 + `test_product_css_reports_the_ring_rule` +
+  `test_ring_that_is_not_drawn_is_unmeasurable`(V1·V2·V3·V5·V6·V7 subTest).
+  **RED 실측: 여섯 변이 전부 `unmeasurable` 0건**으로 통과했다 — 착수 탐침이 적은
+  "여섯이 다 산다"를 이 반복에서 직접 재확인한 것이다. 그 뒤 `e2e/design_check.py` 에
+  `focus_rule(css)` + `RULE_RE`·`OUTLINE_RE` 를 넣고 `check_contrast` 에서 불렀다.
+- **계약 9항 전부 이행.** ① `focus_rule` 하나(`ValueError` 관용구) ② 성공하면 요약 줄 +
+  `NONTEXT_PAIRS` 측정, 실패면 사유만 담고 **비텍스트 짝을 안 잰다**(텍스트 7짝 × 2맵은
+  양쪽 다 잰다) ③ 상수 4개와 커버리지 강제 무변경 ④ 요약 줄
+  `포커스 링 규칙 1개 · outline var(--focus) · offset 2px` ⑤ 메시지 갈래
+  ⑥ `NONTEXT_PAIRS` 주석을 단언에서 포인터로 ⑦ `NO_PAIR["--line"]` 의 `1.08` →
+  **`1.27`**(다크 `--line`/`--bg-input` 실측, 판단 보류 문장은 안 건드렸다)
+  ⑧ 단언 7건 ⑨ `src/websearch/serve.py` **0줄**.
+- **계약에 없던 것 둘을 적는다.** ⓐ `:focus` 셀렉터 조건은 설계 첫 문단의 네 조건 중
+  하나인데 `## 계약` 5항의 메시지 네 갈래에 없어서 **다섯 번째 메시지**를 만들었다
+  (`outline 을 정하는 규칙이 포커스용이 아니다`). ⓑ **README 의 단위 수 473→475** —
+  `tests/test_readme.py` 가 강제해서 안 고치면 RED 다.
+- 결과: `PYTHONPATH=src python3 -m unittest discover tests` **475건 OK 11.940초** ·
+  `PYTHONPATH=src python3 e2e/design_check.py` **4축 전부 통과**(요약 줄이 찍힌다,
+  `--focus` 라이트 3.56:1 · 다크 11.14:1) · `PYTHONPATH=src python3 e2e/pagination_ui_e2e.py`
+  **통과**. `data/crawl.db` 무변경 · 의존성 0.
+- **러너 파이프 1회 — 네 반복 연속 0회를 내가 깼다.** README 를 고친 뒤 확인이 급해
+  `... discover tests 2>&1 | tail -5` 를 돌렸고, 판정 줄과 종료 코드가 잘려 **출력이
+  통과처럼 보였다**(`project.md ## 명령` 이 경고한 바로 그 모양이다). 방아쇠도 그 파일이
+  적어 둔 대로 *"이미 초록일 것 같은 실행"* 이었다. 즉시 맨몸으로 다시 돌려 475건 OK 를
+  확인했다. **그래서 `digest` 의 그 항목을 안 접는다 — 연속 카운트는 0 으로 되돌아간다.**
+- 다음: **테스트 phase**. 이 반복은 개발 1/1 로 끝이다(설계가 개발 스텝을 1개로 정했다).
