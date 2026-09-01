@@ -11,7 +11,7 @@
 
 | | 값 |
 |---|---|
-| 반복 | 225 |
+| 반복 | 226 |
 | 계획 (완료/폐기/보류) | 28 / 0 / 0 |
 | 재시도 | 0 |
 | RED | 0 |
@@ -26,17 +26,17 @@
 | 설계 | 12 (생략 5) |
 | 개발 | 49 |
 | 테스트 | 23 |
-| 리뷰 | 21 |
+| 리뷰 | 22 |
 | e2e | 20 |
 
 ## 리뷰 정확도 — 80점 임계 검증용
 
 | | 값 |
 |---|---|
-| 발견 후보 | 121 |
-| 80점 미만으로 버림 | 34 (기보류 중복 4 + search-api 2 + crawl-delay 3 + quality-eval 3 + non-ascii-url 2 + cooldown-burn 3 + crawl-politeness 1 + graceful-interrupt 2 + deadline-stop 3 + indexer-interrupt 5 + indexer-lock 2 + docs-citation-guard 2 + focus-contrast 2) |
-| 보고함 | 81 |
-| **그중 실제로 고친 것** | 58 |
+| 발견 후보 | 127 |
+| 80점 미만으로 버림 | 37 (기보류 중복 4 + search-api 2 + crawl-delay 3 + quality-eval 3 + non-ascii-url 2 + cooldown-burn 3 + crawl-politeness 1 + graceful-interrupt 2 + deadline-stop 3 + indexer-interrupt 5 + indexer-lock 2 + docs-citation-guard 2 + focus-contrast 2 + focus-ring-presence 3) |
+| 보고함 | 84 |
+| **그중 실제로 고친 것** | 59 |
 
 **버린 2건이 처음으로 "실측해서 안 하기로 한 것" 이다 (2026-09-01 docs-citation-guard, 반복 212).**
 지금까지의 기각은 대부분 도달 불가·기보류 중복이었는데, 이번 둘은 **확장 후보를 재서
@@ -58,6 +58,11 @@
 별도 에이전트가 지적 **3건**을 냈고 결과는 **확증 1 · 무해한 no-op 1 · diff 밖 1**,
 새로 고친 줄 **0**. 수율은 낮지만 확증 1건의 값은 작지 않다 — 작성자가 혼자 "보류" 로
 분류한 항목을 **독립적으로 같은 결론**에 도달시킨 것이라 그 판정의 신뢰도가 올라간다.
+
+**백지 패스 수율 두 번째 측정 (2026-09-01 focus-ring-presence).** 지적 **3건** →
+**확증 2 · diff 밖 1**, 새로 고친 줄 **1**(diff 밖 것). 첫 측정(3건 → 확증 1)과
+합치면 **6건 중 확증 3 · 고침 1** 이다 — 수율은 낮게 유지되지만 두 번 다 **확증이
+0이 아니다.** 임계를 올릴 근거는 아직 없다.
 **단, 보고가 스텝 커밋보다 늦게 오면 그 값은 다음 반복으로 밀린다** — 이번이 그랬다.
 다음 리뷰는 백지 패스를 **먼저 회수**하고 패스 B 를 시작한다.
 
