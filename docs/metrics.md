@@ -11,7 +11,7 @@
 
 | | 값 |
 |---|---|
-| 반복 | 261 |
+| 반복 | 262 |
 | 계획 (완료/폐기/보류) | 32 / 0 / 0 (진행 1 — 48 `passage-api`) |
 | 재시도 | 0 |
 | RED | 0 |
@@ -26,17 +26,25 @@
 | 설계 | 16 (생략 5) |
 | 개발 | 61 |
 | 테스트 | 29 |
-| 리뷰 | 27 |
+| 리뷰 | 28 |
 | e2e | 24 |
 
 ## 리뷰 정확도 — 80점 임계 검증용
 
 | | 값 |
 |---|---|
-| 발견 후보 | 148 |
-| 80점 미만으로 버림 | 46 (기보류 중복 4 + search-api 2 + crawl-delay 3 + quality-eval 3 + non-ascii-url 2 + cooldown-burn 3 + crawl-politeness 1 + graceful-interrupt 2 + deadline-stop 3 + indexer-interrupt 5 + indexer-lock 2 + docs-citation-guard 2 + focus-contrast 2 + focus-ring-presence 3 + passage-api 9) |
-| 보고함 | 96 |
+| 발견 후보 | 154 |
+| 80점 미만으로 버림 | 49 (기보류 중복 4 + search-api 2 + crawl-delay 3 + quality-eval 3 + non-ascii-url 2 + cooldown-burn 3 + crawl-politeness 1 + graceful-interrupt 2 + deadline-stop 3 + indexer-interrupt 5 + indexer-lock 2 + docs-citation-guard 2 + focus-contrast 2 + focus-ring-presence 3 + passage-api 12) |
+| 보고함 | 99 |
 | **그중 실제로 고친 것** | 65 |
+
+**보고 3건이 전부 «단위 558건이 통과하는 결함» 이었다 (2026-09-02 passage-api, 반복 262).**
+계획 48 의 세 번째 반려이고 앞 둘과 유형이 다르다 — 앞 둘은 «성능 초록불이 예산을 안
+밟는 축 위에서 났다» 였는데, 이번은 **직전 테스트 phase 가 자기가 만든 컷(증상)만 닫고
+형제 경로를 안 본 것**이다. 리뷰가 제안 수리를 `.mutation-lock` 아래 심어 보니 **558건이
+그대로 초록**이었다 — 즉 기존 스위트가 두 결함에 눈이 멀어 있고, 결함을 «보고했다» 의
+근거가 테스트가 아니라 리뷰의 실측(`probe_leak.py`·`probe_fix.py`)뿐이었다.
+**80점 임계 이야기가 아니라 «앞 phase 가 증상을 닫으면 리뷰가 뿌리를 본다» 는 이야기다.**
 
 **보고했으나 셋 다 안 고친 리뷰가 처음 나왔다 (2026-09-02 docs-record-guard, 반복 233).**
 "보고 0건"(반복 207)과는 다른 모양이다 — 후보 셋이 다 80점을 넘겨 살아남았고,
