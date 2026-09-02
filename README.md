@@ -56,7 +56,9 @@ PYTHONPATH=src python3 -m websearch.indexer data/crawl.db --query 검색어
 | 축 | 기준 | 측정 |
 |---|---|---|
 | 검색 정확도 | recall@10 ≥ 80% | `e2e/quality_eval.py` |
+| 근거 정확도 | 문단의 ≥ 90% 가 질의어·2-gram 포함 | `e2e/passage_eval.py` |
 | 검색 지연 | p95 ≤ 300ms | `e2e/perf_search.py` |
+| 문단 지연 | `/passages` p95 ≤ 500ms | `e2e/passage_eval.py` |
 | 수집 속도 | ≥ 5 docs/s | `e2e/perf_crawl.py` |
 | UI 무게 | JS ≤ 50KB gzip | `e2e/design_check.py` |
 | 명암비 | 텍스트 ≥ 4.5:1 · 비텍스트 ≥ 3:1 | 〃 |
@@ -65,7 +67,7 @@ PYTHONPATH=src python3 -m websearch.indexer data/crawl.db --query 검색어
 
 ```bash
 PYTHONPATH=src python3 -m unittest discover -s tests   # 단위 544건
-ls e2e/*.py                                            # e2e 시나리오 19종
+ls e2e/*.py                                            # e2e 시나리오 20종
 ```
 
 e2e 는 각각 따로 돌린다 — `PYTHONPATH=src python3 e2e/<이름>.py`.
