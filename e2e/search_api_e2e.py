@@ -10,6 +10,8 @@
 ⑤ 색인을 치우면 503 이고 되돌리면 200 이다 (계획 46 · 사양 디자인 5)
 ⑥ 성공 응답과 503 이 스키마 버전을 갖는다 (계획 46 · 사양 기능 9)
 ⑦ 빈 `DB_PATH` 로 뜬 서버가 200 이 아니라 503 이다 (계획 47 리뷰)
+⑧ `/passages` 가 200·문단마다 위치·400·501·치우면 503 (계획 48 · 사양 기능 7·9)
+⑨ 손상된 DB 는 503 이 아니라 500 이다 — 두 경로 다 (계획 48 완료 기준)
 
 서버는 **README 그대로 상대 경로**(`data/crawl.db`)로 띄운다 — 단위와 다른 e2e 는 전부
 절대 경로라, DB 를 여는 `file:` URI 조립이 상대 경로에서만 깨지는 갈래를 아무도 안 잰다
@@ -122,11 +124,26 @@ def main():
             overlap = {r["url"] for r in first["results"]} & {r["url"] for r in second["results"]}
             assert not overlap, "페이지가 겹친다: %s" % overlap
 
+            # ⑧ 근거 문단(계획 48). 같은 서버·같은 프로세스 경계에서 계약만 잰다 —
+            # 정확도(사양 기능 8)와 p95(성능 5)는 `passage_eval.py` 가 따로 판정한다.
+            status, raw = request("%s/passages?q=%s" % (api, q))
+            assert status == 200, "/passages?q=김치 → %d" % status
+            found = json.loads(raw)
+            assert found["version"] == 1, "스키마 버전이 %r 이다" % found.get("version")
+            assert found["passages"], "문단이 0건이다: %r" % raw[:200]
+            for p in found["passages"]:
+                assert isinstance(p["position"], int) and p["position"] >= 0, p
+                assert p["title"] and p["url"].startswith(site), p
+                assert "김치" in p["text"], "질의어가 없는 문단이 나왔다: %r" % p
+
             for path, expect, method in [("/search", 400, "GET"),
                                          ("/search?q=%s&page=0" % q, 400, "GET"),
                                          ("/search?q=%s&page=101" % q, 400, "GET"),
+                                         ("/passages", 400, "GET"),
+                                         ("/passages?q=%s&page=2" % q, 400, "GET"),
                                          (urllib.parse.quote("/없는경로"), 404, "GET"),
-                                         ("/search?q=%s" % q, 501, "POST")]:
+                                         ("/search?q=%s" % q, 501, "POST"),
+                                         ("/passages?q=%s" % q, 501, "POST")]:
                 status, raw = request(api + path, method)
                 assert status == expect, "%s %s → %d (기대 %d)" % (method, path, status, expect)
                 assert "Traceback" not in raw, "%s 응답에 트레이스백: %r" % (path, raw[:200])
@@ -141,10 +158,27 @@ def main():
             assert gone["version"] == 1, "503 이 버전을 안 갖는다: %r" % gone
             assert "Traceback" not in raw and tmp not in raw, \
                 "503 본문이 경로나 트레이스백을 흘린다: %r" % raw[:200]
+            assert request("%s/passages?q=%s" % (api, q))[0] == 503, \
+                "색인을 치웠는데 /passages 가 503 이 아니다"
             # 되돌려 200 을 다시 본다 — 안 보면 503 이 «치웠기 때문» 인지 알 수 없다
             os.rename(db + ".moved", db)
             back = request("%s/search?q=%s" % (api, q))[0]
             assert back == 200, "색인을 되돌렸는데 %d 다 (기대 200)" % back
+
+            # 「손상된 DB → 500」. 503(다시 색인하면 낫는다)과 500(안 낫는다)이 갈리는
+            # 자리라 프로세스 밖에서 한 번은 재야 한다 — 여태 어느 e2e 도 500 을 본 적이
+            # 없었다(계획 47 result.md 5절 «500 은 한 번도 안 났다»).
+            os.rename(db, db + ".ok")
+            with open(db, "wb") as fp:
+                fp.write(b"not a sqlite database")
+            for path in ("/search?q=%s" % q, "/passages?q=%s" % q):
+                status, raw = request(api + path)
+                assert status == 500, "손상 DB 인데 %s → %d (기대 500)" % (path, status)
+                assert json.loads(raw)["version"] == 1, "500 이 버전을 안 갖는다: %r" % raw[:200]
+                assert "Traceback" not in raw and tmp not in raw, \
+                    "500 본문이 경로나 트레이스백을 흘린다: %r" % raw[:200]
+            os.remove(db)
+            os.rename(db + ".ok", db)
         finally:
             server.terminate()
             server.wait(timeout=20)
@@ -170,7 +204,9 @@ def main():
     print("e2e 통과 — %d문서 색인, CLI 로 README 형태의 상대 경로로 띄운 API 가 "
           "1페이지 10건(has_next 참)·2페이지 5건(거짓)·겹침 0, 400/404/501 이 트레이스백 "
           "없이 나온다. 색인을 치우면 503·되돌리면 200 이고 200 과 503 이 version 1 을 "
-          "가지며, 빈 DB 경로로 뜬 서버는 200 이 아니라 503 이다" % (DOCS + 1))
+          "가지며, 빈 DB 경로로 뜬 서버는 200 이 아니라 503 이다. /passages 도 같은 "
+          "계약 위에 있고(200·위치·400·501·503), 손상된 DB 는 두 경로 다 500 이다"
+          % (DOCS + 1))
     print(perf.strip().splitlines()[-1])
 
 
