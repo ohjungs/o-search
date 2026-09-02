@@ -293,16 +293,20 @@ def passages(db_path, query, limit=10):
             # 안 닫힌 구성물은 자기 안에 `>` 를 담을 수 있다(`<!-- a>`·`title="a > b"`)
             html = row[0][:MAX_PASSAGE_HTML]
             best = None
-            for pos, (tag, block) in enumerate(extract.extract_blocks(html)):
+            for pos, (_tag, block) in enumerate(extract.extract_blocks(html)):
                 low = block.lower()
                 score = sum(low.count(n) for n in needles)
-                # **동점이면 문단(`<p>`)이다.** 내비·제목·표 칸·푸터·사이드바는
-                # 질의어를 한 번만 담아 점수가 본문과 같아지는데, 그때 길이로 가르면
-                # 방향이 하나뿐이라 **반대쪽에서 그대로 틀린다** — 짧은 내비를 이기는
-                # 규칙(긴 쪽)이 긴 푸터·사이드바에게 진다(갈림길 6 · 리뷰 5 실측).
-                # 길이도 순서도 못 가르는 것을 마크업은 이름으로 갖고 있다.
-                # 등호가 아니라 부등호다 — 문단끼리면 먼저 나온 블록이 남는다
-                key = (score, tag == "p")
+                # **동점이면 긴 블록이다.** 이름표(`tag == "p"`)로 갈랐더니 더 나빴다 —
+                # 이름표는 **컨테이너를 못 본다**. `<footer><p>ⓒ…</p></footer>` 의
+                # 이름표가 `p` 라 보일러플레이트가 문단으로 위장하고, 실물에서 가장
+                # 흔한 `<p>` 대 `<p>` 동점은 아예 못 가른다(리뷰 6 재측 · 19행 표에서
+                # 이름표 12/19 · 길이 15/19 · 점수만 11/19).
+                # **길이도 방향이 하나뿐이다** — 짧은 내비는 이기고 긴 푸터·사이드바에는
+                # 진다. 못 맞추는 네 행은 `_UNMATCHED_SHAPES` 에 그대로 적어 뒀다.
+                # 셋 중 무엇도 19행을 못 맞춘다: 갈림길 6 은 손잡이로 안 닫히고,
+                # 닫는 조건은 갈림길 5 의 캡과 같은 **실물 크롤 코퍼스**다.
+                # 등호가 아니라 부등호다 — 길이까지 같으면 먼저 나온 블록이 남는다
+                key = (score, len(block))
                 if score and (best is None or key > best[0]):
                     best = (key, pos, block)
             if best:

@@ -74,14 +74,29 @@ class TestExtractBlocks(unittest.TestCase):
         self.assertEqual(" ".join(texts(html)), extract_text(html)[1])
 
     def test_each_block_carries_the_tag_that_made_it(self):
-        # 갈림길 6 — 근거를 고르는 자가 읽는 **유일한 비텍스트 신호**다. 길이도
-        # 순서도 방향이 하나뿐이라 내비(앞·짧다)와 푸터(뒤·길다)를 동시에 못 진다.
+        # 이름표는 «열려 있는 가장 안쪽 블록 태그» 다. 소비자에게 내는 값이라
+        # 맞아야 하지만 **근거를 고르는 자는 안 읽는다** — 이름표로 동점을 가르면
+        # `<footer><p>` 를 문단으로 보고 더 틀린다(리뷰 6 · 12/19 대 15/19).
         # 이름표를 «직전 시작 태그» 로 붙이는 변이는 여기서 죽는다 — `</p>` 로
         # 끊기는 블록의 주인은 `<footer>` 가 아니라 `<p>` 다
         html = ("<nav><a href=/>김치</a></nav><article><p>본문 문단</p></article>"
                 "<footer>맨 끝</footer>")
         self.assertEqual(extract_blocks(html),
                          [("nav", "김치"), ("p", "본문 문단"), ("footer", "맨 끝")])
+
+    def test_the_label_survives_a_title_and_a_closing_tag(self):
+        # 리뷰 6 [R6-2] — 이름표가 새는 자리 둘. ① `<title>` 은 부모가 블록을 **안 끊고**
+        # early-return 하는데 이름표만 갈아 끼워져, 앞 문단이 `title` 로 나왔다.
+        # ② 이름표가 닫는 태그에서 복원되지 않아 `</p>` 뒤의 꼬리 텍스트가 `p` 로
+        # 나왔다 — 텍스트는 맞고 이름표만 틀리는 **거짓양성**이라 눈으로는 안 보인다
+        self.assertEqual(extract_blocks("<p>김치찌개 하나<title>제목</title>"),
+                         [("p", "김치찌개 하나")])
+        self.assertEqual(extract_blocks("<article><p>본문</p>꼬리 텍스트</article>"),
+                         [("p", "본문"), ("article", "꼬리 텍스트")])
+        # 같은 이름이 겹치면 **안쪽부터** 닫는다 — `<div>` 중첩은 실물 HTML 의 기본형이라
+        # 바깥부터 닫으면 한 번의 `</div>` 로 주인이 통째로 날아간다(변이 D 가 여기서 죽는다)
+        self.assertEqual(extract_blocks("<article><div><div>가</div>나</div>다</article>"),
+                         [("div", "가"), ("div", "나"), ("article", "다")])
 
     def test_last_block_survives_broken_html(self):
         # 변이 M2(마지막 flush 삭제)가 여기서 죽는다. 정상 HTML 은 닫는 태그가

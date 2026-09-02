@@ -126,21 +126,32 @@ class _BlockParser(_TextParser):
     def __init__(self):
         super().__init__()
         self.blocks = []
-        self._tag = ""
+        self._open = []  # 열려 있는 블록 태그 — 꼭대기가 이름표다
 
     def _flush(self):
         block = _normalize(self.text_parts)
         if block:
-            self.blocks.append((self._tag, block))
+            self.blocks.append((self._open[-1] if self._open else "", block))
         del self.text_parts[:]
 
     def handle_starttag(self, tag, attrs):
         # 블록에 **자기를 낸 태그**를 붙여 준다. 부모가 먼저 이전 블록을 끊으므로
-        # 이름표는 그 뒤에 갈아 끼운다 — 끊기는 블록의 주인은 아직 앞 태그다.
+        # 스택은 그 뒤에 쌓는다 — 끊기는 블록의 주인은 아직 앞 태그다.
         # 문단 안에 끼어드는 태그(`<img>`·`<script>`)는 주인이 아니라 지나간다
         super().handle_starttag(tag, attrs)
-        if tag not in _INLINE_TAGS and tag not in _NON_BLOCK_TAGS:
-            self._tag = tag
+        # `<title>` 은 부모가 블록을 **안 끊고** 돌아간다 — 안 끊었으면 주인도 안 바뀐다
+        # (리뷰 6 [R6-2]: `<p>김치<title>제목</title>` 의 이름표가 `title` 로 샜다)
+        if self._in_title or tag in _INLINE_TAGS or tag in _NON_BLOCK_TAGS:
+            return
+        self._open.append(tag)
+
+    def handle_endtag(self, tag):
+        # 닫는 태그는 주인을 **바깥 태그로 되돌린다** — `</p>` 뒤의 꼬리 텍스트는
+        # `<p>` 가 아니라 그것을 감싼 `<article>` 것이다(리뷰 6 [R6-2]).
+        # 열린 적 없는 닫는 태그는 버린다. 같은 이름이 겹쳐 있으면 안쪽부터 닫는다
+        super().handle_endtag(tag)
+        if tag in self._open:
+            del self._open[len(self._open) - self._open[::-1].index(tag) - 1:]
 
     def _separate(self, block=True):
         if self._in_title or not block:
@@ -167,10 +178,11 @@ class _BlockParser(_TextParser):
 def extract_blocks(html_text):
     """본문을 블록(문단) 단위로 끊어 `(태그, 텍스트)` 로 돌려준다. 빈 블록은 안 낸다.
 
-    태그를 같이 내는 이유는 «어느 블록이 근거인가» 를 **텍스트만으로는 못 가르기
-    때문이다**(계획 48 갈림길 6). 길이도 순서도 방향이 하나뿐이라 내비(앞·짧다)와
-    푸터(뒤·길다)와 사이드바(앞·길다)를 동시에 못 진다 — 셋을 가르는 것은
-    «이 텍스트가 문단(`<p>`)이었나» 다. HTML 이 이미 그 이름표를 갖고 있다.
+    태그는 **열려 있는 가장 안쪽 블록 태그**다 — 소비자가 «이 텍스트가 무엇이었나» 를
+    볼 수 있게 같이 낸다. **근거를 고르는 자는 이것을 안 읽는다**(계획 48 갈림길 6):
+    이름표는 컨테이너를 못 봐서 `<footer><p>ⓒ…</p></footer>` 가 `p` 로 나오고,
+    실물에서 가장 흔한 `<p>` 대 `<p>` 동점을 못 가른다(리뷰 6 재측 12/19 · 길이 15/19).
+    그 갈림길은 손잡이가 아니라 **실물 크롤 코퍼스**로 닫힌다.
 
     불변식: `" ".join(t for _tag, t in extract_blocks(h)) == extract_text(h)[1]`
     # 예외 둘 — 둘 다 **깨진 입력에서만** 갈리고 정상 HTML 에서는 같다.
