@@ -188,8 +188,15 @@ OUTLINE_RE = re.compile(r"outline(?:-width|-style|-color)?\s*:")
 # 링을 **키보드 포커스에** 그리는 셀렉터인가(조건 5). 부분 문자열 `":focus"` 로는
 # 두 갈래가 새 나갔다 — `:not(:focus-visible)` 은 극성이 뒤집혀 포커스가 아닐 때만
 # 그리고, `:focus-within` 은 자식이 받은 포커스라 링이 부모 상자에 그려진다.
-NOT_RE = re.compile(r":not\([^()]*\)")
-FOCUS_RE = re.compile(r":focus(?:-visible)?(?![\w-])")
+# `:has(…:focus-visible)` 은 `:focus-within` 과 의미가 같아 함께 지운다 — 링이
+# 조상 상자로 옮겨간다. **`:is()`·`:where()` 는 안 지운다**: 투명해서 그 안의
+# 포커스는 여전히 이 요소가 받는다(오탐 표가 그 둘을 붙든다).
+# 이름은 대소문자를 안 가린다 — CSS 셀렉터 규정이라 `:NOT(` 도 `:not(` 이고
+# `:FOCUS-VISIBLE` 도 링을 그린다. 소문자만 읽으면 앞쪽은 거짓 초록, 뒤쪽은 오탐이다.
+# ponytail: 괄호 중첩은 **한 겹**까지 읽는다(`:not(:is(:focus-visible))`). 두 겹부터는
+# 못 지워 거짓 초록이 된다 — 그런 셀렉터는 지금 0곳이고 제품 CSS 에는 괄호가 없다.
+INDIRECT_RE = re.compile(r":(?:not|has)\((?:[^()]|\([^()]*\))*\)", re.I)
+FOCUS_RE = re.compile(r":focus(?:-visible)?(?![\w-])", re.I)
 # 링 규칙이 at-rule **밖**인가는 그 앞의 중괄호를 세서 본다(조건 6). 세기의 함정은
 # 블록을 안 여는 중괄호 — 주석 안의 `{` 와 `content:"}"` 는 짝이 없어도 CSS 로는
 # 정상이다. 세기 전에 지운다. 주석을 먼저 지우는 순서라 주석 안의 따옴표는 안 문다.
@@ -220,10 +227,11 @@ def focus_rule(css):
         raise ValueError("outline 을 정하는 규칙이 %d개 — 캐스케이드를 바이트로 못 정한다"
                          % len(rules))
     selector, body = rules[0].group(1), rules[0].group(2)
-    # `:not(…)` 안은 링을 그릴 조건이 아니라 그리지 **않을** 조건이라 먼저 지운다.
-    # 남은 자리에서 `:focus`/`:focus-visible` 이 **낱말로** 있어야 한다 — `:focus-within`
-    # 은 뒤에 `-` 가 붙어 안 남는다. `:not(.foo):focus-visible` 은 그대로 통과한다.
-    if not FOCUS_RE.search(NOT_RE.sub("", selector)):
+    # `:not(…)`·`:has(…)` 안은 링을 **이 요소에** 그릴 조건이 아니라 그리지 않을 조건이거나
+    # 조상에 그릴 조건이라 먼저 지운다. 남은 자리에서 `:focus`/`:focus-visible` 이
+    # **낱말로** 있어야 한다 — `:focus-within` 은 뒤에 `-` 가 붙어 안 남는다.
+    # `:not(.foo):focus-visible` 은 괄호 밖 포커스가 남아 그대로 통과한다.
+    if not FOCUS_RE.search(INDIRECT_RE.sub("", selector)):
         raise ValueError("outline 을 정하는 유일한 규칙이 키보드 포커스용이 아니다: %s"
                          % " ".join(selector.split()))
     # 규칙 앞의 중괄호가 안 닫혀 있으면 링은 어떤 at-rule 안이다(조건 6). **prelude 를

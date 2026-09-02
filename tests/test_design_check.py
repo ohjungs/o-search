@@ -155,6 +155,25 @@ class ContrastAxisTest(unittest.TestCase):
             # ⓓ 는 자식이 받은 포커스라 링이 부모 상자에 그려진다 — 낱말 경계로 가른다.
             ("ⓓ 셀렉터 :focus-within", ":focus-visible", ":focus-within",
              "포커스용이 아니다"),
+            # 아래 셋은 **테스트 phase 가 찾은 ⓒⓓ 의 형제 구멍**이다 — 셋 다 종료 0 으로
+            # 살아남아 3.56:1 을 찍고 있었다(갭 탐침 실측). 셀렉터에 `:focus-visible` 이
+            # 낱말로 남아 있는데 링은 포커스받은 요소에 안 그려지는 갈래라, 조건 5 가
+            # `:not(…)` 을 **한 겹만·소문자로만** 지운 것이 그대로 구멍이 됐다.
+            # ⓔ 는 ⓒ 를 괄호 한 겹으로 감싼 것뿐이고, ⓕ 는 ⓓ 와 의미가 같고
+            # (링이 조상 상자로 간다), ⓖ 는 CSS 가 셀렉터 이름의 대소문자를 안 가린다.
+            ("ⓔ 셀렉터 :not(:is(:focus-visible))", ":focus-visible",
+             ":not(:is(:focus-visible))", "포커스용이 아니다"),
+            ("ⓕ 셀렉터 :has(:focus-visible)", ":focus-visible",
+             ":has(:focus-visible)", "포커스용이 아니다"),
+            ("ⓖ 셀렉터 대문자 :NOT(:focus-visible)", ":focus-visible",
+             ":NOT(:focus-visible)", "포커스용이 아니다"),
+            # offset 의 **세 번째** 갈래. 주석은 «없는 것과 0 과 음수는 같은 결과다» 인데
+            # 붙들려 있던 것은 앞 둘(V5·V6)뿐이었다. 음수를 거절하는 일은
+            # `float(re.match(r"[\d.]*", offset).group() or 0)` 이 `-` 앞에서 빈 문자열을
+            # 내는 데 기대고 있다 — 순진한 `float(offset.rstrip("px"))` 로 바뀌면
+            # 음수만 조용히 통과한다.
+            ("V12 offset 음수", "outline-offset:2px", "outline-offset:-2px",
+             "outline-offset"),
             # 아래 넷은 계획 49 스텝 2. 규칙 하나 · 셀렉터 · 색 · offset 이 **전부
             # 멀쩡한데** 링이 at-rule 안에 있어 라이트 화면에 늘 그려지지는 않는다.
             # ⓐⓑ 가 계획서가 죽이러 온 둘이고, F3·F4 는 설계가 실측으로 찾아낸
@@ -178,6 +197,29 @@ class ContrastAxisTest(unittest.TestCase):
                 # 요점은 판정이 아니라 **안 찍는 것**이다 — 링이 없는데 링의 대비를
                 # 화면에 내놓으면 사람이 그 숫자를 근거로 다음 판단을 한다.
                 self.assertNotIn("--focus", out)
+
+    def test_transparent_pseudo_classes_still_draw_the_ring(self):
+        """조건 5 의 **넓어지는 쪽** 표다 — 아래 넷은 링을 포커스받은 요소에 그대로
+        그리는 정상 CSS 라 종료 0 이어야 한다.
+
+        위 변이 표가 「링이 딴 데 그려지면 죽는다」를 붙들고, 이 표가 「그 가름이
+        정상 CSS 를 안 잡아먹는다」를 붙든다. `:is()`·`:where()` 는 **투명하다** —
+        안의 `:focus-visible` 은 여전히 이 요소가 받는다. 그래서 「괄호가 보이면
+        지운다」로 넓히면 앞 둘이 먼저 빨개진다. 셋째는 괄호 **밖**에 남은 포커스가
+        살아남는지를 본다(`:not(…)` 을 지우다 뒤까지 먹으면 여기서 걸린다).
+        넷째는 CSS 가 셀렉터 이름의 대소문자를 안 가린다는 것이다 — ⓖ 와 짝이라,
+        대문자를 그냥 거절하는 쪽으로 닫으면 이 줄이 오탐을 잡아낸다.
+        """
+        for name, new in (
+            (":is(…) 는 투명하다", ":is(:focus-visible)"),
+            (":where(…) 도 투명하다", ":where(:focus-visible)"),
+            ("괄호 밖의 포커스는 남는다", ":not(.no-ring):focus-visible"),
+            ("대문자도 같은 셀렉터다", ":FOCUS-VISIBLE"),
+        ):
+            with self.subTest(name):
+                fail, unmeasurable, out = run(self.twist(":focus-visible", new))
+                self.assertEqual((fail, unmeasurable), ([], []), out)
+                self.assertIn("포커스 링 규칙 1개", out)
 
     def test_brace_counting_is_not_fooled_by_comments_or_strings(self):
         """조건 6 은 **중괄호를 세서** 링 규칙이 at-rule 밖인지를 본다 — 그 세기의
