@@ -492,6 +492,21 @@ class TestPassages(unittest.TestCase):
         self._seed_and_index([("http://a.test/", html)])
         self.assertEqual(indexer.passages(self.db_path, "김치")[0][3], "김치찌개")
 
+    def test_cut_inside_a_tag_does_not_leak_markup_into_the_passage(self):
+        # 갭 탐색 — HTML 모양 축. 위 두 캡 테스트는 잘린 자리가 **평문 한가운데**
+        # (`"봄" * cap`)라 「마크업 한가운데서 잘린다」를 아무도 안 밟았다.
+        # `html.parser` 는 EOF 에 남은 미완성 태그를 **데이터로 흘린다** — 긴 속성값
+        # (위키·CMS 의 `href`)이 캡에 걸리면 근거 문단이 `... <a href="xxx` 로 끝난다.
+        # 소비자는 기계다: 출처가 붙은 텍스트를 달라고 했는데 마크업 조각을 받는다
+        cap = indexer.MAX_PASSAGE_HTML
+        filler = "<p>" + "봄" * (cap - 40) + "</p>"
+        html = filler + '<p>김치찌개 <a href="' + "x" * 200 + '">링크</a></p>'
+        self.assertEqual(html[cap - 1], "x")  # 캡이 속성값 한가운데 떨어진다
+        self._seed_and_index([("http://a.test/", html)])
+        text = indexer.passages(self.db_path, "김치")[0][3]
+        self.assertNotIn("<", text)
+        self.assertEqual(text, "김치찌개")
+
     def test_cap_and_passage_limit_together_stay_inside_the_budget(self):
         # **값** 가드다 — 위 둘은 fixture 를 상수에서 만들어 값과 함께 늘어나므로
         # "10만 → 100만" 변이를 못 잡는다(실측: 안 죽었다). 여기서 죽는다.

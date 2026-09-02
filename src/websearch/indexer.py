@@ -287,9 +287,16 @@ def passages(db_path, query, limit=10):
             row = db.execute("SELECT html FROM pages WHERE url = ?", (url,)).fetchone()
             if not row or not row[0]:
                 continue  # 원본이 사라진 문서 — 지어내지 않고 뺀다
+            html = row[0][:MAX_PASSAGE_HTML]
+            if len(row[0]) > MAX_PASSAGE_HTML and "<" in html:
+                # 캡이 태그 한가운데 떨어지면 `html.parser` 가 남은 조각을 **데이터로
+                # 흘린다** — 근거 문단이 `... <a href="xxx` 로 끝난다(긴 속성값·URL).
+                # 마지막 `<` 앞에서 끊는다: 잃는 것은 많아야 온전한 태그 하나고
+                # (닫는 태그면 `close()` 의 flush 가 대신 낸다), 엔티티가 잘린 자리
+                # (`A&am`)도 같은 `<` 뒤에 있어 함께 사라진다
+                html = html[:html.rfind("<")]
             best = None
-            for pos, block in enumerate(
-                    extract.extract_blocks(row[0][:MAX_PASSAGE_HTML])):
+            for pos, block in enumerate(extract.extract_blocks(html)):
                 low = block.lower()
                 score = sum(low.count(n) for n in needles)
                 # 등호가 아니라 부등호다 — 동점이면 먼저 나온 블록이 남는다
