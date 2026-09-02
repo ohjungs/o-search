@@ -1,6 +1,6 @@
 import unittest
 
-from websearch.extract import extract_text, is_noindex
+from websearch.extract import extract_blocks, extract_text, is_noindex
 
 
 class TestExtractText(unittest.TestCase):
@@ -52,6 +52,54 @@ class TestExtractText(unittest.TestCase):
     def test_broken_html_no_raise(self):
         title, text = extract_text("<title>t<p>글<<<div")
         self.assertIn("글", text)
+
+
+class TestExtractBlocks(unittest.TestCase):
+    """본문을 문단 단위로 끊는다. 색인 경로(`extract_text`)는 지나가지 않는다."""
+
+    def test_block_boundaries(self):
+        blocks = extract_blocks("<title>제목</title><p>첫 문단</p><p>둘째 문단</p>")
+        self.assertEqual(blocks, ["첫 문단", "둘째 문단"])
+
+    def test_join_equals_body(self):
+        # 불변식 — 이것이 깨지면 색인 본문과 문단이 다른 텍스트가 된다.
+        # 변이 M1(버퍼 비우기 삭제)이 여기서 죽는다: 블록이 누적돼 조인이 길어진다
+        html = ("<title>요리</title><h2>김치</h2><p>어제 김치를 담갔다</p>"
+                "<ul><li>배추</li><li>고춧가루</li></ul><div>끝</div>")
+        self.assertEqual(" ".join(extract_blocks(html)), extract_text(html)[1])
+
+    def test_last_block_survives_broken_html(self):
+        # 변이 M2(마지막 flush 삭제)가 여기서 죽는다. 정상 HTML 은 닫는 태그가
+        # flush 를 대신해 주므로 **닫히지 않은** 태그로 재야 한다
+        self.assertEqual(extract_blocks("<p>가<p>나<div>다"), ["가", "나", "다"])
+
+    def test_empty_blocks_are_not_returned(self):
+        self.assertEqual(extract_blocks("<p>가</p><p></p><p>   </p><p>나</p>"), ["가", "나"])
+
+    def test_inline_markup_does_not_split_a_block(self):
+        # `extract_text` 와 같은 계약 — 인라인 태그는 단어 안에 끼어든다
+        self.assertEqual(extract_blocks("<p>Kim<b>chi</b> 와 H<sub>2</sub>O</p>"),
+                         ["Kimchi 와 H2O"])
+
+    def test_script_and_style_are_not_blocks(self):
+        self.assertEqual(
+            extract_blocks("<p>보이는 글</p><script>var x=1;</script><style>.a{}</style>"),
+            ["보이는 글"])
+
+    def test_title_is_not_a_block(self):
+        self.assertEqual(extract_blocks("<title>제목</title><p>본문</p>"), ["본문"])
+
+    def test_no_body_is_an_empty_list(self):
+        self.assertEqual(extract_blocks(""), [])
+        self.assertEqual(extract_blocks("<title>제목만</title>"), [])
+
+    def test_control_only_block_is_dropped_and_that_breaks_the_join(self):
+        # 불변식의 **유일한 알려진 위반**을 현 동작 그대로 고정한다. 통짜 정규화는
+        # 제어문자 블록 자리에 겹공백을 남기고(`'가  나'`), 블록 쪽은 빈 블록을 버린다.
+        # 고치려면 `_normalize` 를 바꿔야 하고 그것이 **색인 본문을 바꾼다** — 안 고친다
+        html = "<p>가</p><p>\x01</p><p>나</p>"
+        self.assertEqual(extract_blocks(html), ["가", "나"])
+        self.assertEqual(extract_text(html)[1], "가  나")
 
 
 class TestIsNoindex(unittest.TestCase):

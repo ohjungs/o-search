@@ -97,3 +97,48 @@ def extract_text(html_text):
     parser.feed(html_text)
     parser.close()
     return _normalize(parser.title_parts), _normalize(parser.text_parts)
+
+
+class _BlockParser(_TextParser):
+    """`_TextParser` 가 **이미 부르고 있는** `_separate()` 자리에서 본문을 끊는다.
+
+    문단 경계는 새로 계산할 것이 없다 — 부모가 블록 태그마다 그 자리를 이미 안다.
+    버리는 것은 `_normalize` 의 통짜 `split()` 뿐이라, 부모를 한 줄도 안 고치고
+    하위 클래스로 가져간다. **색인 경로(`extract_text`)는 지나가지 않는다.**
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.blocks = []
+
+    def _flush(self):
+        block = _normalize(self.text_parts)
+        if block:
+            self.blocks.append(block)
+        del self.text_parts[:]
+
+    def _separate(self):
+        if self._in_title:
+            super()._separate()  # 제목은 부모 그대로 — 블록이 아니다
+        else:
+            self._flush()
+
+    def close(self):
+        super().close()
+        # 닫히지 않은 마지막 블록(`<p>가<p>나<div>다`)은 여기서만 나온다
+        self._flush()
+
+
+def extract_blocks(html_text):
+    """본문을 블록(문단) 단위로 끊어 돌려준다. 빈 블록은 안 낸다.
+
+    불변식: `" ".join(extract_blocks(h)) == extract_text(h)[1]`
+    # ponytail: 통짜 정규화와 블록별 정규화가 갈리는 자리가 하나 남아 있다 —
+    # **블록 전체가 제어문자**면 통짜 쪽은 겹공백(`'가  나'`)을 남기고 블록 쪽은
+    # 그 블록을 버린다. 천장을 여기 적고 고치지 않는다: 맞추려면 `_normalize` 를
+    # 바꿔야 하고 그것이 **색인 본문을 바꾼다**. 현 동작은 테스트에 고정돼 있다
+    """
+    parser = _BlockParser()
+    parser.feed(html_text)
+    parser.close()
+    return parser.blocks

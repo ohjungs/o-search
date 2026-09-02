@@ -371,6 +371,132 @@ class TestSearch(unittest.TestCase):
             search(self.db_path, "\x01")
 
 
+class TestPassages(unittest.TestCase):
+    """근거 문단 — `search()` 의 문서 순 그대로, 문서당 최대 1문단.
+
+    문단 경계는 색인에 없고 `pages.html` 에만 있다. 그래서 색인 경로는 지나가지
+    않는다 — DB 상태 판정(503·500·옛 색인)은 `search()` 것을 그대로 물려받는다.
+    """
+
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.dir.cleanup)
+        self.db_path = os.path.join(self.dir.name, "crawl.db")
+
+    def _seed_and_index(self, rows):
+        store = Store(self.db_path)
+        for url, html in rows:
+            store.upsert(url, html, 200)
+        index_pages(self.db_path)
+
+    def test_result_shape_is_url_title_position_text(self):
+        self._seed_and_index([
+            ("http://a.test/", "<title>요리</title><p>봄나물 무침</p><p>김치찌개 만드는 법</p>"),
+        ])
+        self.assertEqual(indexer.passages(self.db_path, "김치"),
+                         [("http://a.test/", "요리", 1, "김치찌개 만드는 법")])
+
+    def test_document_with_no_matching_block_is_not_returned(self):
+        # 변이 M4(매치 없는 문서에 첫 블록을 대신 낸다)가 여기서 죽는다. 제목만
+        # 매치된 문서는 `search()` 에 나오지만 **근거 문단이 없다** — 없는 근거를
+        # 지어내면 사양 기능 8(정확도)이 첫 줄에서 무너진다
+        self._seed_and_index([
+            ("http://a.test/", "<title>김치 백과</title><p>봄에는 나물이 좋다</p>"),
+            ("http://b.test/", "<title>요리</title><p>김치를 담갔다</p>"),
+        ])
+        hits = indexer.passages(self.db_path, "김치")
+        self.assertEqual([h[0] for h in hits], ["http://b.test/"])  # 긍정 짝 — 빈 목록도 아니다
+
+    def test_bigram_match_that_only_crosses_a_block_boundary_is_not_a_passage(self):
+        # 색인의 2-gram 은 공백을 전부 지워 문단 경계도 넘는다(`먹는다 물을` → `다물`).
+        # 문서는 나오지만 그 이웃을 담은 **블록은 없다** — 그러면 안 낸다
+        self._seed_and_index([("http://a.test/", "<p>먹는다</p><p>물을</p>")])
+        self.assertEqual([h[0] for h in search(self.db_path, "다물")], ["http://a.test/"])
+        self.assertEqual(indexer.passages(self.db_path, "다물"), [])
+
+    def test_picks_the_block_with_the_most_hits(self):
+        self._seed_and_index([
+            ("http://a.test/", "<p>김치 이야기</p><p>김치 담그기와 김치 보관</p><p>끝</p>"),
+        ])
+        self.assertEqual(indexer.passages(self.db_path, "김치")[0][2:],
+                         (1, "김치 담그기와 김치 보관"))
+
+    def test_a_tie_goes_to_the_earlier_block(self):
+        self._seed_and_index([("http://a.test/", "<p>김치 하나</p><p>김치 둘</p>")])
+        self.assertEqual(indexer.passages(self.db_path, "김치")[0][2:], (0, "김치 하나"))
+
+    def test_position_counts_only_non_empty_blocks(self):
+        # 변이 M5(빈 블록 포함으로 센다)가 여기서 죽는다. `position` 은
+        # `extract_blocks()` 결과의 순번이어야 소비자가 같은 문단을 다시 찾는다
+        self._seed_and_index([
+            ("http://a.test/", "<p>가</p><p></p><p>   </p><p>김치찌개</p>"),
+        ])
+        self.assertEqual(indexer.passages(self.db_path, "김치")[0][2], 1)
+
+    def test_document_order_follows_search(self):
+        self._seed_and_index([
+            ("http://a.test/", "<title>가</title><p>김치 한 번</p>"),
+            ("http://b.test/", "<title>나</title><p>김치 김치 김치 세 번</p>"),
+        ])
+        self.assertEqual([h[0] for h in indexer.passages(self.db_path, "김치")],
+                         [h[0] for h in search(self.db_path, "김치")])
+
+    def test_english_match_is_case_insensitive(self):
+        self._seed_and_index([("http://a.test/", "<p>intro</p><p>Python Tutorial</p>")])
+        self.assertEqual(indexer.passages(self.db_path, "python")[0][3], "Python Tutorial")
+
+    def test_limit_is_respected(self):
+        self._seed_and_index([
+            ("http://%d.test/" % i, "<p>머리말</p><p>김치 %d</p>" % i) for i in range(5)
+        ])
+        self.assertEqual(len(indexer.passages(self.db_path, "김치", limit=2)), 2)
+
+    def test_no_match_returns_empty_list(self):
+        self._seed_and_index([("http://a.test/", "<p>봄나물</p>")])
+        self.assertEqual(indexer.passages(self.db_path, "김치"), [])
+
+    def test_page_whose_html_vanished_is_skipped_not_a_traceback(self):
+        # `docs` 는 `pages` 에서 파생된다 — 원본이 없어진 문서는 근거를 못 만든다
+        self._seed_and_index([
+            ("http://a.test/", "<p>김치 하나</p>"),
+            ("http://b.test/", "<p>김치 둘</p>"),
+        ])
+        db = sqlite3.connect(self.db_path)
+        self.addCleanup(db.close)
+        db.execute("DELETE FROM pages WHERE url = 'http://a.test/'")
+        db.commit()
+        self.assertEqual([h[0] for h in indexer.passages(self.db_path, "김치")],
+                         ["http://b.test/"])
+
+    def test_missing_db_raises(self):
+        with self.assertRaises(FileNotFoundError):
+            indexer.passages(os.path.join(self.dir.name, "없는.db"), "김치")
+
+    def test_stale_index_raises(self):
+        # 503 경로 — 조용한 빈 목록은 "결과 0건" 과 구분되지 않는다.
+        # `search()` 를 부르는 한 공짜로 물려받는다(자체 질의를 짜면 잃는다)
+        store = Store(self.db_path)
+        store.upsert("http://a.test/", "<title>김치</title><p>김치찌개</p>", 200)
+        db = sqlite3.connect(self.db_path)
+        self.addCleanup(db.close)
+        db.execute(TestSchemaDrift.OLD_SCHEMA)
+        db.execute("INSERT INTO docs(title, body, url) VALUES ('김치', '김치찌개', 'http://a.test/')")
+        db.commit()
+        with self.assertRaises(indexer.StaleIndexError):
+            indexer.passages(self.db_path, "김치")
+
+    def test_corrupt_db_is_loud(self):
+        self._seed_and_index([("http://a.test/", "<p>김치</p>")])
+        with open(self.db_path, "wb") as fh:
+            fh.write(b"NOT a sqlite file\n" * 64)
+        with self.assertRaises(sqlite3.DatabaseError):
+            indexer.passages(self.db_path, "김치")
+
+    def test_unindexed_db_returns_empty(self):
+        Store(self.db_path).upsert("http://a.test/", "<p>김치</p>", 200)
+        self.assertEqual(indexer.passages(self.db_path, "김치"), [])
+
+
 class TestDbOpenIsAtomic(unittest.TestCase):
     """DB 를 여는 자리 하나 — `exists` 와 `connect` 사이에 창이 있으면 안 된다.
 

@@ -241,6 +241,48 @@ def search(db_path, query, limit=10, offset=0):
         db.close()
 
 
+def passages(db_path, query, limit=10):
+    """(url, title, position, text) 목록 — `search()` 문서 순 그대로, 문서당 최대 1문단.
+
+    문단 경계는 색인에 없다(`docs.body` 는 통짜 텍스트다). `pages.html` 을 다시
+    파싱해 얻는다 — 색인·스키마·`docs` 는 한 글자도 안 건드린다.
+
+    **`search()` 를 부르는 것이 핵심이다.** 자체 질의를 짜면 503(없는 DB·옛 색인)·
+    500(손상) 판정을 한 벌 더 갖게 되고, 계획 47 이 한곳에 모은 것이 다시 흩어진다.
+    `pages` 를 읽으려 연결을 하나 더 여는 값(0.04ms)이 그보다 싸다.
+
+    **매치된 블록이 없는 문서는 안 낸다** — 제목만 매치됐거나 2-gram 이 문단 경계를
+    넘어 매치된 문서가 그렇다. 첫 블록으로 대신하면 사양 기능 8(근거 정확도)이
+    첫 줄에서 무너진다. `position` 은 `extract_blocks()` 결과의 순번(0부터)이다.
+    """
+    hits = search(db_path, query, limit=limit)
+    # 고르는 규칙 — 질의어와 그 2-gram(`_bigrams`)을 가장 많이 담은 블록. 색인이
+    # 매치에 쓰는 것과 같은 재료라 "왜 이 문서가 나왔나" 와 근거가 갈리지 않는다
+    needles = []
+    for term in query.lower().translate(extract._CONTROL).split():
+        needles.append(term)
+        needles += _bigrams(term).split()
+    found = []
+    db = _connect(db_path)
+    try:
+        for url, title, _snippet in hits:
+            row = db.execute("SELECT html FROM pages WHERE url = ?", (url,)).fetchone()
+            if not row or not row[0]:
+                continue  # 원본이 사라진 문서 — 지어내지 않고 뺀다
+            best = None
+            for pos, block in enumerate(extract.extract_blocks(row[0])):
+                low = block.lower()
+                score = sum(low.count(n) for n in needles)
+                # 등호가 아니라 부등호다 — 동점이면 먼저 나온 블록이 남는다
+                if score and (best is None or score > best[0]):
+                    best = (score, pos, block)
+            if best:
+                found.append((url, title, best[1], best[2]))
+    finally:
+        db.close()
+    return found
+
+
 def main(argv):
     args = list(argv[1:])
     query = None

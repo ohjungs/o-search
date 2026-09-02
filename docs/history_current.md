@@ -213,3 +213,43 @@ DONE 이라 경계가 깨끗하다** — 남은 것은 계획 48 의 항목 하�
   닫는 태그가 flush 를 대신하기 때문이라, 깨진 HTML 케이스를 테스트에 넣으라고 적었다.
 - 러너 호출 **0회**(코드 0줄) · 출력 조작 0 · 명령 잇기 0.
 - 다음: **개발 스텝 1** — `extract_blocks` + `indexer.passages`, TDD.
+
+## 2026-09-02 12:20 | passage-api | 개발 1 | 시도0
+- 한 일: **설계 48 의 스텝 1 을 그대로 냈다 — 문단을 돌려주는 함수 하나.**
+  `src/websearch/extract.py` 에 `_BlockParser`(`_TextParser` 하위 클래스) + `extract_blocks()`,
+  `src/websearch/indexer.py` 에 `passages(db_path, query, limit=10)`.
+  TDD 로 갔다: `tests/test_extract.py` 에 `TestExtractBlocks` 9건,
+  `tests/test_indexer.py` 에 `TestPassages` 15건을 **먼저 쓰고 RED 를 눈으로 봤다**
+  (`ImportError: cannot import name 'extract_blocks'` + `AttributeError: no attribute 'passages'`).
+- **`_TextParser` 를 한 줄도 안 고쳤다** — 부모가 블록 경계마다 이미 부르는 `_separate()`
+  를 하위 클래스가 가로채 `_normalize` 한 뒤 버퍼를 비운다. 마지막 블록은 `close()` 가
+  낸다. 색인 경로(`extract_text`)는 **호출조차 안 지나간다** — 회귀 위험이 구조적으로 0이다.
+- **`passages()` 는 `search()` 를 부른다.** 자체 질의를 짜면 503(없는 DB·옛 색인)·500(손상)
+  판정을 한 벌 더 갖게 되고 계획 47 이 한곳에 모은 것이 다시 흩어진다. 대신 `pages.html`
+  을 읽으려 연결을 하나 더 연다. 고르는 규칙은 설계대로 **질의어 + 그 2-gram(`_bigrams`)을
+  가장 많이 담은 블록**이고, 동점은 `>` 부등호가 먼저 나온 블록을 남긴다.
+- 결과: **단위 506 → 530건 OK(12.509초)**. 새 24건 전부 초록. README 카운트 가드가
+  예고대로 울어 `README.md` 67행을 `506 → 530` 으로 갱신했다.
+- **변이 M1~M5 다섯 전부 RED 를 눈으로 봤다**(`.mutation-lock` 걸고 매번 되돌린 뒤 초록
+  확인 · `git status` 로 `src/` 무변경 확인 · **커밋된 변이 0**):
+  M1(버퍼 비우기 삭제) 8건 · M2(마지막 flush 삭제) **딱 1건**(깨진 HTML `<p>가<p>나<div>다`)
+  · M3(블록 마커를 `_normalize` 에) 10건(**대조군 `TestExtractText` 7건 포함**)
+  · M4(매치 없는 문서에 첫 블록) 2건 · M5(빈 블록도 센다) 4건.
+  **M2 가 설계의 예고를 실물로 확인해 줬다** — 정상 HTML 만 썼으면 이 변이는 살아남는다.
+  M6~M8 은 `serve` 것이라 스텝 2 로 미뤘다(한 스텝을 안 넘긴다).
+- **설계 탐침 숫자가 실제 코드에서 전부 재현됐다**(스크래치패드 탐침 1회, 저장소 밖):
+  불변식 `" ".join(blocks) == extract_text(h)[1]` **64/64** · 문서당 블록 min 3·avg 4.0·max 4
+  · 파싱 20.4KB 1.62→**1.83ms(+13%)**, 설계는 +12% 였다 · `passages()` p50 **0.59ms** ·
+  p95 **0.68ms**(예산 500ms 의 0.14%) · 채택률 **398/400 = 99.5%** · 정확도 100%(기본값) ·
+  문단이 본문 통째인 경우 **0건**. 문장 `<p>` 포장과 통짜 포장의 색인 본문 **64/64 동일** —
+  스텝 3 `passage_eval` 의 전제가 함께 섰다.
+- **불변식이 깨지는 유일한 자리를 테스트로 고정했다** — 블록 전체가 제어문자면 통짜
+  정규화가 겹공백(`'가  나'`)을 남기고 블록 쪽은 그 블록을 버린다.
+  `test_control_only_block_is_dropped_and_that_breaks_the_join` 이 **양쪽 현 동작을 둘 다**
+  단언한다. 천장은 `extract_blocks` docstring 의 `ponytail:` 주석에 있다.
+- `data/crawl.db` **무변경**(`85c96744…`) · 스키마·`docs` 무변경 · 의존성 0(stdlib) ·
+  새 파일 0개 · `docs/specs/` 무변경 · PR 안 열었다.
+- 러너 호출 **8회**(전수 3 + 변이용 단일 모듈 5) · **출력 조작 0 · 명령 잇기 0** —
+  세 반복 연속 깨끗하다.
+- 다음: **개발 스텝 2** — `serve.do_GET` 에 `/passages` 갈래 하나(`_send`·`_parse` 재사용 ·
+  `PASSAGE_LIMIT = 10` · `page != 1` 이면 400 · `MAX_PASSAGE = 2000`), 변이 M6~M8.
