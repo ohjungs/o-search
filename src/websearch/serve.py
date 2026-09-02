@@ -24,6 +24,12 @@ MAX_QUERY = 200
 # 성능이 아니라 자원 고갈 방어다 — OFFSET 이 깊어질수록 정렬 결과에서 뽑아 버리는 행이
 # 선형으로 는다(설계 탐침: offset 0 에서 1.1ms, 990 에서 7.2ms).
 MAX_PAGE = 100
+# 문단 수는 **서버 상수**다 — 사양 성능 5 가 *"못 지키면 문단 수를 줄이지, 예산을 늘리지
+# 않는다"* 라고 서버 손잡이로 못박았다. 클라이언트가 돌리면 예산이 클라이언트 손에 있는 것이 된다.
+PASSAGE_LIMIT = 10
+# 문단 하나가 응답을 통째로 채우는 것을 막는다 — MAX_QUERY·MAX_PAGE 와 같은 자리의 자원
+# 상한이다. 자르면서 질의어가 잘려 나가면 정확도가 떨어지는 것이 정직하다(안 보정한다).
+MAX_PASSAGE = 2000
 # 요청 라인을 끝내지 않는 연결은 스레드를 무기한 점유한다(슬로로리스). 깊은 OFFSET 을
 # 막으면서 이쪽을 열어두면 균형이 안 맞는다 — 이게 훨씬 싼 고갈 경로다.
 REQUEST_TIMEOUT = 10
@@ -246,14 +252,25 @@ def make_server(db_path, port=8000):
             if parts.path == "/":
                 self._do_html(urllib.parse.parse_qs(parts.query))
                 return
-            if parts.path != "/search":
+            if parts.path not in ("/search", "/passages"):
                 self._send(404, {"error": "없는 경로: %s" % parts.path})
                 return
+            # 두 JSON 경로가 **같은 사다리 한 벌**을 쓴다 — 갈래마다 try 를 두면
+            # 400·500·503 판정이 세 벌이 되고, 계획 47 이 한곳에 모은 것이 다시 흩어진다
+            # (indexer.passages 가 search 를 부르는 것과 같은 이유다).
+            passages = parts.path == "/passages"
             try:
                 query, page = _parse(urllib.parse.parse_qs(parts.query))
-                # 탐침 한 줄로 has_next 를 판정한다 — 개수 질의는 두 번째 전수 질의라
-                # p95 에 그대로 얹힌다 (design_search-api.md 계약)
-                hits = _page_hits(db_path, query, page)
+                if passages:
+                    # 페이지네이션을 안 연다(설계 갈림길 2) — 조용히 무시하면 page 를
+                    # 올리는 소비자가 같은 문단을 영원히 받는다. 그쪽이 400 보다 나쁘다.
+                    if page != 1:
+                        raise ValueError("page 는 1 이어야 한다 — /passages 는 페이지를 나누지 않는다")
+                    found = indexer.passages(db_path, query, limit=PASSAGE_LIMIT)
+                else:
+                    # 탐침 한 줄로 has_next 를 판정한다 — 개수 질의는 두 번째 전수 질의라
+                    # p95 에 그대로 얹힌다 (design_search-api.md 계약)
+                    hits = _page_hits(db_path, query, page)
             except ValueError as exc:
                 self._send(400, {"error": str(exc)})
             # **`except Exception` 앞이어야 한다** — 뒤면 영영 안 닿는다. 색인을 다시
@@ -267,6 +284,16 @@ def make_server(db_path, port=8000):
                 self.log_error("search 실패: %r", exc)
                 self._send(500, {"error": "검색 중 오류가 났다"})
             else:
+                if passages:
+                    # has_next·page 는 **응답에 없다** — 페이지네이션을 안 열었으므로
+                    # 소비자에게 따라갈 손잡이를 주지 않는다 (design_passage-api.md 계약).
+                    self._send(200, {
+                        "query": query,
+                        "passages": [{"url": url, "title": title, "position": pos,
+                                      "text": text[:MAX_PASSAGE]}
+                                     for url, title, pos, text in found],
+                    })
+                    return
                 self._send(200, {
                     "query": query,
                     "page": page,

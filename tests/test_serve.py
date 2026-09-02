@@ -177,6 +177,150 @@ class TestSchemaVersion(ServeTestCase):
                 self.assertNotIn("version", body.lower())
 
 
+PASSAGE_Q = "/passages?q=%EA%B9%80%EC%B9%98"  # /passages?q=김치
+
+
+class TestPassagesEndpoint(ServeTestCase):
+    """GET /passages — 근거 문단(계획 48). 계약은 `/search` 와 **한 벌**이다."""
+
+    def test_200_lists_url_title_position_text(self):
+        status, body, headers = self.get(PASSAGE_Q)
+        self.assertEqual(status, 200, body)
+        self.assertIn("application/json", headers["Content-Type"])
+        self.assertTrue(body["passages"], "매치가 있는 코퍼스인데 문단이 0건이다")
+        for passage in body["passages"]:
+            self.assertEqual(set(passage), {"url", "title", "position", "text"})
+            # 순번은 정수다 — 문자열이면 소비자의 비교가 조용히 문자열 비교가 된다
+            self.assertIsInstance(passage["position"], int)
+            self.assertTrue(passage["text"].strip(), "빈 문단은 근거가 아니다")
+
+    def test_response_carries_no_pagination_fields(self):
+        """`has_next`·`page` 는 **응답에 없다**(설계 계약) — 없는 것도 계약이다.
+
+        페이지네이션을 안 열었으므로 필드를 두면 소비자가 따라갈 손잡이가 생긴다.
+        최상위 키 집합으로 잰다 — 한 필드만 보면 다른 필드가 새는 것을 못 본다.
+        """
+        _, body, _ = self.get(PASSAGE_Q)
+        self.assertEqual(set(body), {"version", "query", "passages"})
+
+    def test_server_does_not_pick_passages_of_its_own(self):
+        """문단 로직은 `indexer.passages()` 한 벌이다 — 서버가 다시 고르면 여기서 죽는다."""
+        _, body, _ = self.get(PASSAGE_Q)
+        self.assertEqual(
+            [(p["url"], p["position"], p["text"]) for p in body["passages"]],
+            [(url, pos, text) for url, _title, pos, text
+             in indexer.passages(self.db, "김치", limit=serve.PASSAGE_LIMIT)])
+
+    def test_query_echoed_in_response(self):
+        _, body, _ = self.get(PASSAGE_Q)
+        self.assertEqual(body["query"], "김치")
+
+    def test_no_match_is_empty_list_not_error(self):
+        status, body, _ = self.get("/passages?q=zzzznotfound")
+        self.assertEqual((status, body["passages"]), (200, []))
+
+    def test_missing_query_is_400_not_traceback(self):
+        status, body, _ = self.get("/passages")
+        self.assertEqual(status, 400, body)
+        self.assertNotIn("Traceback", json.dumps(body, ensure_ascii=False))
+
+    def test_long_query_is_400_here_too(self):
+        """`_parse` 를 재사용하면 공짜로 참이다 — 안 쓰고 직접 읽는 변이가 여기서 죽는다."""
+        status, _, _ = self.get(
+            "/passages?q=" + urllib.parse.quote("가" * (serve.MAX_QUERY + 1)))
+        self.assertEqual(status, 400)
+
+    def test_page_two_is_400_not_the_same_passages_again(self):
+        """페이지를 안 나누므로 **받되 거절한다**(설계 갈림길 2 · 변이 M6).
+
+        조용히 무시하면 `page` 를 올리는 소비자가 같은 문단을 영원히 받는다 —
+        그쪽이 400 보다 나쁘다. 200 이 나오면 그 침묵이 계약이 된 것이다.
+        """
+        status, body, _ = self.get(PASSAGE_Q + "&page=2")
+        self.assertEqual(status, 400, body)
+        self.assertIn("page", body["error"])
+
+    def test_page_one_is_accepted(self):
+        # 거절이 `page` 자체를 막는 것이 되면 안 된다 — 1 은 기본값이자 유일한 유효값이다
+        status, _, _ = self.get(PASSAGE_Q + "&page=1")
+        self.assertEqual(status, 200)
+
+
+class TestPassageLimitIsServerSide(ServeTestCase):
+    """문단 수는 **서버 상수**다(설계 갈림길 2) — 예산이 클라이언트 손에 있으면 안 된다."""
+
+    pages = MANY_PAGES
+
+    def test_client_cannot_turn_the_knob(self):
+        _, body, _ = self.get(PASSAGE_Q)
+        self.assertEqual(len(body["passages"]), serve.PASSAGE_LIMIT)
+        _, wider, _ = self.get(PASSAGE_Q + "&limit=50")
+        self.assertEqual(len(wider["passages"]), serve.PASSAGE_LIMIT)
+
+
+class TestLongPassageIsTruncated(ServeTestCase):
+    """문단 하나가 응답을 통째로 채우지 못한다 — MAX_QUERY·MAX_PAGE 와 같은 자원 상한(변이 M8)."""
+
+    pages = {"http://long.test/1": "<html><title>김치</title><body><p>%s</p></body></html>"
+                                   % ("김치 " * 2000)}
+
+    def test_passage_is_cut_at_max(self):
+        _, body, _ = self.get(PASSAGE_Q)
+        self.assertEqual(len(body["passages"][0]["text"]), serve.MAX_PASSAGE)
+
+
+class TestPassagesMissingDb(ServeTestCase):
+    """없는 DB 는 여기서도 503 이다 — 색인을 다시 돌리면 낫는 상태다(사양 디자인 5)."""
+
+    pages = None
+
+    def test_missing_db_is_503_without_internals(self):
+        with mock.patch("sys.stderr", new_callable=io.StringIO):
+            status, body, headers = self.get(PASSAGE_Q)
+        self.assertEqual(status, 503, body)
+        self.assertIn("application/json", headers["Content-Type"])
+        self.assertEqual(body["error"], "색인이 아직 준비되지 않았다")
+        self.assertNotIn(self.db, json.dumps(body, ensure_ascii=False), "DB 경로가 응답으로 샜다")
+
+
+class TestPassagesBrokenDb(ServeTestCase):
+    """손상 DB 는 503 이 아니라 500 이다 — 기다린다고 낫지 않는다."""
+
+    def test_corrupt_db_is_500_not_503(self):
+        with open(self.db, "wb") as fh:
+            fh.write(b"NOT a sqlite file\n" * 64)
+        with mock.patch("sys.stderr", new_callable=io.StringIO) as err:
+            status, body, _ = self.get(PASSAGE_Q)
+            logged = err.getvalue()
+        self.assertEqual(status, 500, body)
+        self.assertEqual(body["error"], "검색 중 오류가 났다")
+        self.assertNotIn(self.db, json.dumps(body, ensure_ascii=False), "DB 경로가 샜다")
+        self.assertIn("DatabaseError", logged, "500 의 원인이 로그에 안 남았다")
+
+
+class TestPassagesSchemaVersion(ServeTestCase):
+    """`_send` 를 안 쓰고 직접 JSON 을 쓰는 변이(M7)가 여기서 죽는다.
+
+    `/search` 의 다섯을 재는 자리(`TestSchemaVersion`)와 같은 이유로 **오류 응답까지**
+    잰다 — 200 만 재면 계약을 호출부로 흩어 놓는 변이가 안 죽는다.
+    """
+
+    def test_every_passages_response_carries_version(self):
+        for path, expected in ((PASSAGE_Q, 200), ("/passages", 400),
+                               (PASSAGE_Q + "&page=2", 400)):
+            with self.subTest(path=path):
+                status, body, _ = self.get(path)
+                self.assertEqual((status, body["version"]), (expected, 1))
+        for exc, expected in ((FileNotFoundError("db"), 503),
+                              (indexer.StaleIndexError("old"), 503),
+                              (AttributeError("boom"), 500)):
+            with self.subTest(status=expected, exc=type(exc).__name__), \
+                    mock.patch("websearch.indexer.passages", side_effect=exc), \
+                    mock.patch("sys.stderr", new_callable=io.StringIO):
+                status, body, _ = self.get(PASSAGE_Q)
+            self.assertEqual((status, body["version"]), (expected, 1))
+
+
 class TestPagination(ServeTestCase):
     """20건 색인 = 2페이지. 페이지 경계와 has_next 를 못박는다."""
 
@@ -676,7 +820,8 @@ class TestResultsPage(ServeTestCase):
         """이스케이프가 이 계획에서 가장 공들인 자리다. 두 헤더가 그 뒤를 받친다 —
         한 줄이 뚫렸을 때 CSP 가 인라인 스크립트 실행을 막고, nosniff 는 브라우저가
         JSON 을 HTML 로 재해석하는 경로를 닫는다. JS 0KB 라 CSP 가 잃을 것이 없다."""
-        for path in ("/", "/?q=" + urllib.parse.quote("김치"), "/search?q=" + urllib.parse.quote("김치")):
+        for path in ("/", "/?q=" + urllib.parse.quote("김치"),
+                     "/search?q=" + urllib.parse.quote("김치"), PASSAGE_Q):
             with self.subTest(path=path):
                 _, _, headers = self.raw(path)
                 self.assertEqual(headers.get("X-Content-Type-Options"), "nosniff", path)

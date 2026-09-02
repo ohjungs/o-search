@@ -253,3 +253,34 @@ DONE 이라 경계가 깨끗하다** — 남은 것은 계획 48 의 항목 하�
   세 반복 연속 깨끗하다.
 - 다음: **개발 스텝 2** — `serve.do_GET` 에 `/passages` 갈래 하나(`_send`·`_parse` 재사용 ·
   `PASSAGE_LIMIT = 10` · `page != 1` 이면 400 · `MAX_PASSAGE = 2000`), 변이 M6~M8.
+
+## 2026-09-02 12:36 | passage-api | 개발 2 | 시도0
+- 한 일: **설계 48 의 스텝 2 — `GET /passages` 배선.** `src/websearch/serve.py` 에
+  상수 둘(`PASSAGE_LIMIT = 10` · `MAX_PASSAGE = 2000`)과 `do_GET` 갈래 하나.
+  `tests/test_serve.py` 에 6개 클래스 14건을 **먼저 쓰고 RED 18건을 눈으로 봤다**
+  (전부 `404 없는 경로: /passages`). 제품 순증 **24줄**(주석 포함, 설계 추정 16).
+- **404 줄을 `not in ("/search", "/passages")` 로 넓히고 try 사다리는 한 벌로 뒀다.**
+  갈래마다 `try` 를 두면 400·500·503 판정이 **세 벌**이 되고 계획 47 이 한곳에 모은
+  것이 다시 흩어진다 — `passages()` 가 `search()` 를 부른 것과 같은 이유다. 그래서
+  `/search` 의 200 조립은 `else` 안에 **그대로 있고**(경로별 분기만 앞에 섰다) 화면 경로는
+  손도 안 댔다. 계약 셋을 못박았다: 키는 `{"version","query","passages"}` 뿐(`has_next`·
+  `page` **없다**) · 문단 수는 서버 상수라 `&limit=50` 이 안 먹는다 · `page != 1` 은 400.
+- 결과: **단위 530 → 544건 OK(12.749초)** · README 카운트 가드가 예고대로 울어
+  `README.md` 67행을 `530 → 544` 로 갱신 · `e2e/search_api_e2e.py` rc 0
+  (p95 **2.09ms** — `/search` 계약 무변경을 프로세스 밖에서 확인).
+- **변이 M6~M8 셋 전부 RED 를 눈으로 봤다**(`.mutation-lock` 걸고, 원복은 **초록이 아니라
+  `git diff` 로** 확인 — 기준 패치를 떠 놓고 매번 diff-of-diffs 로 잔여물 0 확인 ·
+  커밋된 변이 0): **M6**(`page != 1` 거절 삭제) 2건 — 실패 출력이 *"page=2 에 1페이지와
+  똑같은 문단 목록"* 을 그대로 찍어 «조용히 무시하면 소비자가 같은 문단을 영원히 받는다»
+  는 설계의 문장이 실물이 됐다 · **M8**(자르기 삭제) 1건(`5999 != 2000`) ·
+  **M7**(`_send` 안 쓰고 직접 JSON) 2건.
+- **M7 이 단언 하나를 더 낳았다 — 변이가 `version` 만이 아니라 `nosniff` 도 같이 잃었다.**
+  기존 `test_responses_carry_nosniff_and_html_carries_a_csp` 가 경로 **셋만** 돌아서
+  새 진입점의 보안 헤더를 아무도 안 재고 있었다. `/passages` 를 목록에 더하고 **변이가
+  살아 있는 동안 RED 를 본 뒤** 원복했다(사다리 적용 제외 — 신뢰 경계).
+- `data/crawl.db`·스키마·`docs.body`·`extract.py`·`indexer.py` **무변경** · 의존성 0(stdlib)
+  · 새 파일 0개 · `docs/specs/` 무변경 · PR 안 열었다.
+- 러너 호출 **6회**(전수 5 + e2e 1) · **출력 조작 0 · 명령 잇기 0** — 네 반복 연속 깨끗하다.
+- 다음: **개발 스텝 3** — 새 파일 `e2e/passage_eval.py`(정확도 ≥90% + 채택률, 종료 코드
+  0/1/2)와 README·`project.md` 갱신. e2e 19 → 20종이라 README 카운트가 또 움직인다.
+  **집안일 예고**: 이 항목으로 `history_current.md` 가 286줄(상한 300) — 다음 반복은 회전이다.
