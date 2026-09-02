@@ -75,6 +75,12 @@ def _connect(db_path):
     프래그먼트로 잘려 `a b` 라는 **다른 파일**이 열리고, 함께 잘린 `?mode=rw` 가
     기본값 `rwc` 로 떨어져 고치려던 버그가 그대로 부활한다.
     """
+    # **빈 경로는 URI 의 특례라 먼저 거른다.** SQLite 는 `file:?mode=rw` 를 "없는 파일" 이
+    # 아니라 **이름 없는 임시 DB** 로 읽어 조용히 성공한다 — `mode` 도 안 본다. 그러면
+    # `DB_PATH` 가 안 채워진 서버가 503 대신 **200 + 결과 0건**을 낸다(리뷰 실측).
+    # `os.path.exists("")` 가 거짓이던 예전 코드에는 이 구멍이 없었다.
+    if not db_path:
+        raise FileNotFoundError(db_path)
     uri = "file:" + urllib.request.pathname2url(db_path) + "?mode=rw"
     try:
         return sqlite3.connect(uri, timeout=30, uri=True)

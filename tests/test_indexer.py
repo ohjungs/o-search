@@ -445,6 +445,20 @@ class TestDbOpenIsAtomic(unittest.TestCase):
         self.assertFalse(os.path.exists(os.path.join(self.dir.name, "a b")),
                          "`#` 앞에서 잘린 경로에 다른 DB 가 생겼다")
 
+    def test_an_empty_db_path_is_missing_not_a_silent_temp_db(self):
+        """리뷰 실측: `file:?mode=rw` 는 «없는 파일» 이 아니라 **이름 없는 임시 DB** 다.
+
+        SQLite 가 빈 경로를 특례로 받아 조용히 성공하므로 `docs` 가 없는 새 DB 가 열리고
+        `search` 는 `[]` 를 낸다 — `DB_PATH` 가 안 채워진 서버가 **503 대신 200 + 결과
+        0건**을 내는 자리다. `os.path.exists("")` 로 먼저 보던 예전 코드에는 없던 구멍이라
+        `_connect` 가 URI 를 지으면서 새로 생겼다. 세 호출부가 다 이 자리를 지난다.
+        """
+        with self.assertRaises(FileNotFoundError):
+            search("", "김치")
+        with self.assertRaises(FileNotFoundError):
+            index_pages("")
+        self.assertEqual(indexer._doc_count(""), 0)
+
     def test_a_relative_db_path_still_opens(self):
         """README 의 세 명령이 전부 `data/crawl.db` — **상대 경로**다(README.md:16-18,25).
 
