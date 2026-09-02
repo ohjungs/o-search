@@ -496,10 +496,16 @@ class TestPassages(unittest.TestCase):
         # **값** 가드다 — 위 둘은 fixture 를 상수에서 만들어 값과 함께 늘어나므로
         # "10만 → 100만" 변이를 못 잡는다(실측: 안 죽었다). 여기서 죽는다.
         # 손잡이는 둘이고 다른 파일에 산다 — 캡을 그대로 두고 `PASSAGE_LIMIT` 만
-        # 올려도 예산이 깨지므로 곱해서 본다. 계수는 실측 최악(태그가 촘촘한 한글,
-        # 2026-09-02 탐침: 2.5M자 302ms → 1,000자당 0.118ms). 사양 성능 5 예산 500ms.
+        # 올려도 예산이 깨지므로 곱해서 본다. 사양 성능 5 예산 500ms 의 25%.
+        # **계수 옆에 그 숫자를 낸 입력의 모양을 적는다** — 앞의 0.118 은 «한글·태그
+        # 촘촘» 한 벌에서만 재서 3배 틀렸다(계획 48 리뷰 2). 0.352 는 낱말마다
+        # `<b>`/`<i>`/`<em>` 이 낀 위키·CMS 출력 모양의 1,000자당 값이다(리뷰 2 실측
+        # 0.352 · 개발 5 재측 0.327 — 낮은 쪽으로 안 내린다).
+        # **이것도 최악의 상한은 아니다**: `<p>가</p>` 만 반복하는 합성 문서가 0.489
+        # (35,000자 ×10건 = 171ms). 골라 만든 모양이라 계수로 안 썼다 — 실물 크롤에서
+        # 이 축이 보이면 계수가 아니라 파서를 고친다(`design_passage-api.md` 갈림길 5).
         from websearch import serve
-        worst_ms = indexer.MAX_PASSAGE_HTML / 1000 * 0.118 * serve.PASSAGE_LIMIT
+        worst_ms = indexer.MAX_PASSAGE_HTML / 1000 * 0.352 * serve.PASSAGE_LIMIT
         self.assertLessEqual(worst_ms, 500 * 0.25, "%.0fms" % worst_ms)
 
     def test_missing_db_raises(self):
