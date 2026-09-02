@@ -538,6 +538,41 @@ class TestPassages(unittest.TestCase):
         self._seed_and_index([("http://a.test/", "김치찌개 만드는 법")])
         self.assertEqual(indexer.passages(self.db_path, "김치")[0][3], "김치찌개 만드는 법")
 
+    def test_an_unclosed_comment_holding_a_bracket_does_not_become_the_passage(self):
+        # 갭 탐색(테스트 4) — 위 세 단언이 쓰는 입력의 모양이 **하나뿐이었다**:
+        # 안 닫힌 `<` 뒤에 `>` 가 한 개도 없다. 그래서 되감기를 「마지막 `<` 가
+        # 마지막 `>` 보다 뒤냐」로 물어도 다 걸렸다. 안 닫힌 것이 **자기 안에 `>` 를
+        # 담을 수 있는 구성물**(주석)이면 비교가 뒤집혀 되감기가 아예 안 걸리고,
+        # `html.parser` 는 EOF 의 미완성 주석을 데이터로 흘린다 — 화면에 안 보이는
+        # 주석 내용이 근거 문단이 된다(사양 기능 8: 문단은 원문에서 읽히는 텍스트다)
+        html = "<p>김치찌개 <!-- TODO: <a href=x> 옛 링크"
+        self.assertLess(html.rfind("<"), html.rfind(">"))  # 되감기 조건을 안 지난다
+        self._seed_and_index([("http://a.test/", html)])
+        text = indexer.passages(self.db_path, "김치")[0][3]
+        self.assertNotIn("<", text)
+        self.assertEqual(text, "김치찌개")
+
+    def test_an_unclosed_tag_whose_attribute_holds_a_bracket_does_not_leak(self):
+        # 같은 뒤집힘을 **태그**로 밟는다. 위 주석 단언과 갈라 두는 이유는 고칠 자리가
+        # 갈리기 때문이다 — 주석만 아는 수리(`<!--` 를 따로 찾는다)는 이쪽을 안 닫는다.
+        # `title="a > b"`·`onclick="if(a>b)"` 는 위키·CMS 출력에 그대로 있다
+        html = '<p>김치찌개 <a title="a > b" href="' + "x" * 200
+        self.assertLess(html.rfind("<"), html.rfind(">"))  # 되감기 조건을 안 지난다
+        self._seed_and_index([("http://a.test/", html)])
+        text = indexer.passages(self.db_path, "김치")[0][3]
+        self.assertNotIn("<", text)
+        self.assertEqual(text, "김치찌개")
+
+    def test_a_document_ending_in_a_truncated_entity_keeps_its_passage(self):
+        # 위 둘을 닫는 가장 짧은 수리는 **파서에 묻는 것**이다(`feed()` 가 못 삼키고
+        # 남긴 꼬리를 `close()` 전에 버린다). 그 수리는 잘린 엔티티도 함께 버리는데,
+        # `convert_charrefs` 는 엔티티가 끝날 때까지 **앞의 텍스트까지** 붙들고 있어
+        # 문단이 통째로 사라진다(실측: `<p>김치찌개 &am` → `[]`). 리뷰 3 이 잡은
+        # «문서가 통째로 사라진다» 가 수리를 타고 되돌아오는 문이라 여기서 막는다 —
+        # 잘린 엔티티는 평문이고, 평문은 마크업으로 안 샌다(`indexer.py` 주석의 계약)
+        self._seed_and_index([("http://a.test/", "<p>김치찌개 &am")])
+        self.assertEqual(indexer.passages(self.db_path, "김치")[0][3], "김치찌개 &am")
+
     def test_cap_and_passage_limit_together_stay_inside_the_budget(self):
         # **값** 가드다 — 위 둘은 fixture 를 상수에서 만들어 값과 함께 늘어나므로
         # "10만 → 100만" 변이를 못 잡는다(실측: 안 죽었다). 여기서 죽는다.

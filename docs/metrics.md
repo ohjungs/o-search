@@ -11,10 +11,10 @@
 
 | | 값 |
 |---|---|
-| 반복 | 263 |
+| 반복 | 264 |
 | 계획 (완료/폐기/보류) | 32 / 0 / 0 (진행 1 — 48 `passage-api`) |
 | 재시도 | 0 |
-| RED | 0 |
+| RED | 1 |
 
 ## phase 분포
 
@@ -25,7 +25,7 @@
 | 계획 | 29 |
 | 설계 | 16 (생략 5) |
 | 개발 | 62 |
-| 테스트 | 29 |
+| 테스트 | 30 |
 | 리뷰 | 28 |
 | e2e | 24 |
 
@@ -37,6 +37,12 @@
 | 80점 미만으로 버림 | 49 (기보류 중복 4 + search-api 2 + crawl-delay 3 + quality-eval 3 + non-ascii-url 2 + cooldown-burn 3 + crawl-politeness 1 + graceful-interrupt 2 + deadline-stop 3 + indexer-interrupt 5 + indexer-lock 2 + docs-citation-guard 2 + focus-contrast 2 + focus-ring-presence 3 + passage-api 12) |
 | 보고함 | 99 |
 | **그중 실제로 고친 것** | 67 |
+
+**첫 RED 다 — 누적 263 반복 만에 (2026-09-02 passage-api, 반복 264).** 테스트 phase 가
+직전 개발의 수리에서 **같은 결함의 남은 절반**을 찾아 고치지 않고 RED 로 넘겼다
+(`rules/recovery.md` 3절 — 수리의 자리가 스텝 범위 밖의 갈림길이다). RED 가 0 이던 것은
+결함이 없어서가 아니라 **테스트 phase 가 늘 같은 반복 안에서 닫아 왔기 때문**이고,
+이번엔 닫는 값이 성능·재색인 축을 건드려 다음 스텝의 판단이 필요했다.
 
 **보고 3건이 전부 «단위 558건이 통과하는 결함» 이었다 (2026-09-02 passage-api, 반복 262).**
 계획 48 의 세 번째 반려이고 앞 둘과 유형이 다르다 — 앞 둘은 «성능 초록불이 예산을 안
