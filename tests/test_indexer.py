@@ -226,6 +226,13 @@ class TestSchemaDrift(unittest.TestCase):
         with self.assertRaises(indexer.StaleIndexError):
             search(self.db_path, "김치")
 
+    def test_drifted_index_is_loud_for_a_tokenless_query_too(self):
+        # DB 상태 판정이 **질의 내용**에 달리면 안 된다. 조기 반환이 `_connect` 앞에
+        # 있으면 `%01` 같은 무토큰 질의만 옛 색인을 그대로 지나쳐 `[]`→200 으로 샌다
+        self._seed_old_index([("http://a.test/", "<title>김치</title><p>김치찌개</p>")])
+        with self.assertRaises(indexer.StaleIndexError):
+            search(self.db_path, "\x01")
+
     def test_cli_query_on_drifted_index_is_an_error_not_a_traceback(self):
         # 리뷰 발견: 바로 옆에서 FileNotFoundError 는 정성껏 처리하는데 이쪽만
         # 트레이스백 + rc=1 로 나간다. 복구법(색인 다시 돌리기)이 화면에 안 보인다
@@ -352,6 +359,120 @@ class TestSearch(unittest.TestCase):
     def test_missing_db_raises(self):
         with self.assertRaises(FileNotFoundError):
             search(os.path.join(self.dir.name, "없는.db"), "김치")
+
+    def test_corrupt_db_is_loud_for_a_tokenless_query_too(self):
+        # 짝: 위 무토큰 단언들(`\x00` → `[]`)은 **정상** 색인에서만 참이다. 고장난 DB 를
+        # 무토큰 질의로 물으면 조용한 `[]` 가 아니라 소리가 나야 한다 — 안 그러면
+        # 「고장은 500」이라는 계약이 질의어 하나로 우회된다
+        self._seed_and_index([("http://a.test/", "<p>김치</p>")])
+        with open(self.db_path, "wb") as fh:
+            fh.write(b"NOT a sqlite file\n" * 64)
+        with self.assertRaises(sqlite3.DatabaseError):
+            search(self.db_path, "\x01")
+
+
+class TestDbOpenIsAtomic(unittest.TestCase):
+    """DB 를 여는 자리 하나 — `exists` 와 `connect` 사이에 창이 있으면 안 된다.
+
+    창에 지면 나오는 것은 오답 하나가 아니라 **크기 0 의 빈 DB 파일**이다. 그것이
+    남으면 그 뒤로 `os.path.exists` 가 참이라 503 이 영영 안 난다 — 흔적이 영구적이다.
+    """
+
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.dir.cleanup)
+        self.db_path = os.path.join(self.dir.name, "crawl.db")
+        Store(self.db_path).upsert("http://a.test/", "<title>요리</title><p>김치</p>", 200)
+
+    def _race(self):
+        """`connect` 직전에 파일을 지운다 — 창이 열려 있으면 여기서 실제로 진다.
+
+        WAL 사이드카까지 지우는 것은 `rm crawl.db*` 와 같다. 본 파일만 지우면 남은
+        `-wal` 이 무슨 일을 하는지가 변수로 끼어들어 재는 것이 흐려진다.
+        """
+        real = sqlite3.connect
+
+        def hook(path, **kw):
+            for suffix in ("", "-wal", "-shm"):
+                if os.path.exists(self.db_path + suffix):
+                    os.remove(self.db_path + suffix)
+            return real(path, **kw)
+
+        return mock.patch.object(indexer.sqlite3, "connect", hook)
+
+    def test_search_losing_the_race_raises_instead_of_returning_empty(self):
+        index_pages(self.db_path)
+        with self._race():
+            with self.assertRaises(FileNotFoundError):
+                search(self.db_path, "김치")
+        self.assertFalse(os.path.exists(self.db_path), "빈 DB 파일이 남았다")
+
+    def test_doc_count_losing_the_race_makes_no_file(self):
+        index_pages(self.db_path)
+        with self._race():
+            self.assertEqual(indexer._doc_count(self.db_path), 0)
+        self.assertFalse(os.path.exists(self.db_path), "빈 DB 파일이 남았다")
+
+    def test_index_pages_losing_the_race_raises_instead_of_making_a_db(self):
+        with self._race():
+            with self.assertRaises(FileNotFoundError):
+                index_pages(self.db_path)
+        self.assertFalse(os.path.exists(self.db_path), "빈 DB 파일이 남았다")
+
+    def test_doc_count_on_a_missing_db_is_zero_and_makes_no_file(self):
+        # `_doc_count` 독스트링의 "DB 파일을 만들지 않는다" 를 재는 유일한 단언이다
+        missing = os.path.join(self.dir.name, "없는.db")
+        self.assertEqual(indexer._doc_count(missing), 0)
+        self.assertFalse(os.path.exists(missing))
+
+    def test_present_but_unopenable_path_is_not_reported_as_missing(self):
+        # 권한·디렉터리는 기다린다고 낫지 않는다 — 503(FileNotFoundError)이 아니라
+        # 원문 그대로의 OperationalError 여야 `serve` 가 500 으로 옮긴다 (계획 46 의 표)
+        blocked = os.path.join(self.dir.name, "dir.db")
+        os.mkdir(blocked)
+        with self.assertRaises(sqlite3.OperationalError):
+            search(blocked, "김치")
+        with self.assertRaises(sqlite3.OperationalError):
+            indexer._doc_count(blocked)
+
+    def test_uri_metacharacters_in_path_open_the_real_file(self):
+        # 경로를 URI 에 날것으로 끼우면 `#` 뒤가 잘려 **다른 파일**이 조용히 열린다.
+        # 게다가 `?mode=rw` 도 함께 잘려나가 고치려던 버그가 그대로 부활한다.
+        odd = os.path.join(self.dir.name, "a b#c?d.db")
+        Store(odd).upsert("http://b.test/", "<title>요리</title><p>김치</p>", 200)
+        index_pages(odd)
+        self.assertEqual(len(search(odd, "김치")), 1)
+        self.assertFalse(os.path.exists(os.path.join(self.dir.name, "a b")),
+                         "`#` 앞에서 잘린 경로에 다른 DB 가 생겼다")
+
+    def test_an_empty_db_path_is_missing_not_a_silent_temp_db(self):
+        """리뷰 실측: `file:?mode=rw` 는 «없는 파일» 이 아니라 **이름 없는 임시 DB** 다.
+
+        SQLite 가 빈 경로를 특례로 받아 조용히 성공하므로 `docs` 가 없는 새 DB 가 열리고
+        `search` 는 `[]` 를 낸다 — `DB_PATH` 가 안 채워진 서버가 **503 대신 200 + 결과
+        0건**을 내는 자리다. `os.path.exists("")` 로 먼저 보던 예전 코드에는 없던 구멍이라
+        `_connect` 가 URI 를 지으면서 새로 생겼다. 세 호출부가 다 이 자리를 지난다.
+        """
+        with self.assertRaises(FileNotFoundError):
+            search("", "김치")
+        with self.assertRaises(FileNotFoundError):
+            index_pages("")
+        self.assertEqual(indexer._doc_count(""), 0)
+
+    def test_a_relative_db_path_still_opens(self):
+        """README 의 세 명령이 전부 `data/crawl.db` — **상대 경로**다(README.md:16-18,25).
+
+        그런데 `_connect` 를 재는 단언은 위 여섯을 포함해 전부 `tempfile` 의 **절대 경로**
+        하나에 걸려 있었다 — 재는 입력이 한 축뿐이라 다른 축이 통째로 우회한다.
+        URI 를 `file:` 가 아니라 `file://` + 경로로 적는 변이(가장 자연스러운 형태다)는
+        절대 경로에서는 멀쩡히 돌고 상대 경로에서만 죽는다. 실측: 단위 **504건 전부 초록**
+        인 채 `python3 -m websearch.indexer data/crawl.db --query 김치` 가
+        `invalid uri authority: data` 로 rc 1 을 냈다.
+        """
+        index_pages(self.db_path)
+        self.addCleanup(os.chdir, os.getcwd())
+        os.chdir(self.dir.name)
+        self.assertEqual(len(search("crawl.db", "김치")), 1)
 
 
 class TestHangulBigrams(unittest.TestCase):

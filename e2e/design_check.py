@@ -50,8 +50,10 @@ PAIRS = [
     ("--fg-button", "--bg-button"),
 ]
 
-# 비텍스트 UI 지시자는 다른 자로 잰다(3:1). 포커스 링은 outline-offset:2px 라
-# 링의 이웃은 언제나 페이지 배경이다 — 둘이 갈라지는 날 짝을 하나 더 적는다.
+# 비텍스트 UI 지시자는 다른 자로 잰다(3:1). 링의 이웃이 페이지 배경인 것은
+# **outline-offset 이 0 보다 클 때뿐**이고, 그 전제는 이제 단언이 아니라 `focus_rule` 이
+# 매 실행 확인하는 조건이다 — 0 이 되는 날 여기서 재는 대신 측정 불능으로 멈춘다.
+# 그때 --bg-button 짝을 적을지가 열린다(status.md `## 사람이 정할 것` 2번).
 NONTEXT_PAIRS = [("--focus", "--bg-page")]
 
 # 짝이 없어도 되는 토큰과 **그 사유**. 아래 커버리지 강제가 이름을 안 보므로,
@@ -59,7 +61,7 @@ NONTEXT_PAIRS = [("--focus", "--bg-page")]
 # 사유가 곧 그때까지의 기록이다(설계 `## 계약`) — 틀린 사유를 적으면 문이 거짓으로 열린다.
 NO_PAIR = {"--line": "구분선(header·pager)은 순수 장식이다. 입력창 테두리는 판단 보류 — "
                      "라이트에서 --bg-input 이 --bg-page 와 같은 #ffffff 라 이 1.34:1 선이 "
-                     "입력창의 유일한 경계다(다크도 1.08:1). SC 1.4.11 대상일지는 계획 43 범위 밖"}
+                     "입력창의 유일한 경계다(다크도 1.27:1). SC 1.4.11 대상일지는 계획 43 범위 밖"}
 
 PAGES = {
     "http://a.test/%d" % i: ("<html><head><title>김치찌개 만드는 법 %d</title></head>"
@@ -175,6 +177,58 @@ def token_maps(css):
     return light, dark
 
 
+# 선택자와 본문으로 규칙을 쪼갠다. 중첩 at-rule 안쪽 규칙도 이 안쪽 짝에 걸린다.
+# ponytail: 중괄호 없는 선언만 있는 평평한 CSS 를 전제하는 순진한 쪼개기다 — 중첩
+# 선택자(CSS Nesting)나 주석 안의 `outline:` 은 못 읽는다. 그런 CSS 가 생기면
+# 규칙 수가 틀리고 아래 첫 갈래가 측정 불능으로 멈춘다(조용히 통과하지는 않는다).
+RULE_RE = re.compile(r"([^{}]*)\{([^{}]*)\}")
+# 링이 그려지는지를 정하는 속성들. outline-offset 은 링을 없애지 못하므로 뺀다.
+OUTLINE_RE = re.compile(r"outline(?:-width|-style|-color)?\s*:")
+
+
+def focus_rule(css):
+    """링을 그리는 규칙 하나를 읽어 (색 토큰, outline-offset 문자열). 안 그려지면 ValueError.
+
+    **색을 재기 전에 잴 것이 살아 있는지를 본다.** 규칙을 지워도 --focus 의 대비는
+    그대로 나오고, 그러면 아무에게도 안 보이는 링이 8일째 초록으로 재진다(계획 44).
+
+    자국은 문자열이 아니라 **규칙**이다 — `"var(--focus)" in css` 는 그 문자열이
+    *어디에* 있는지 안 보므로 `body{color:var(--focus)}` 만 남아도 통과한다.
+    규칙 수를 :focus 아래에서만 세지 않고 **CSS 전체에서** 세는 것이 요점이다:
+    뒤에 오는 규칙이 링을 덮는 갈래(outline:none · outline-width:0 · 다크 블록 안의
+    덮어쓰기)가 캐스케이드를 흉내내지 않고 조건 하나로 닫힌다. 둘이면 어느 쪽이
+    이기는지는 브라우저 일이지 바이트가 답할 것이 아니다.
+
+    ponytail: `:focus-visible` 리터럴은 요구하지 않는다 — `:focus` 도 키보드 포커스에
+    링을 그리므로 이 축이 재는 것(키보드 사용자에게 링이 보이나)이 안 깨진다.
+    한 규칙 **안에서** `outline-width:0` 으로 자기를 뒤엎는 형태도 못 잡는다(지금 0곳,
+    잡으려면 한 규칙 안의 선언 순서를 해석해야 한다).
+    """
+    rules = [(sel, body) for sel, body in RULE_RE.findall(css) if OUTLINE_RE.search(body)]
+    if len(rules) != 1:
+        raise ValueError("outline 을 정하는 규칙이 %d개 — 캐스케이드를 바이트로 못 정한다"
+                         % len(rules))
+    selector, body = rules[0]
+    if ":focus" not in selector:
+        raise ValueError("outline 을 정하는 유일한 규칙이 포커스용이 아니다: %s"
+                         % " ".join(selector.split()))
+    decl = re.search(r"outline\s*:\s*([^;}]+)", body)
+    value = decl.group(1).strip() if decl else "없음"
+    token = re.search(r"var\(\s*(--[a-z0-9-]+)\s*\)", value)
+    if not token:
+        raise ValueError("outline 이 색 토큰을 안 쓴다 (%s)" % value)
+    measured = [fg for fg, _ in NONTEXT_PAIRS]
+    if token.group(1) not in measured:
+        raise ValueError("그려지는 색 %s ≠ 재는 색 %s"
+                         % (token.group(1), ", ".join(measured)))
+    off = re.search(r"outline-offset\s*:\s*([^;}]+)", body)
+    offset = (off.group(1).strip() if off else "0")
+    # 없는 것과 0 과 음수는 같은 결과다 — 링이 요소에 붙어 이웃이 페이지 배경이 아니게 된다.
+    if float(re.match(r"[\d.]*", offset).group() or 0) <= 0:
+        raise ValueError("outline-offset 이 0 이다 — 링의 이웃이 페이지 배경이 아니다")
+    return token.group(1), offset
+
+
 # ---------- 축별 검사 ----------
 
 def check_contrast(css, fail, unmeasurable):
@@ -196,9 +250,20 @@ def check_contrast(css, fail, unmeasurable):
     if missing:
         unmeasurable.append("짝도 제외도 없는 색 토큰: %s" % ", ".join(sorted(missing)))
         return
+    # 비텍스트 짝은 **링이 실제로 그려질 때만** 잰다. 안 그려지면 그 비율은 무효라
+    # 종료 1(기준 위반)이 아니라 2(측정 불능)다 — 고장의 크기가 아니라 "찍은 숫자가
+    # 아직 참인가" 가 둘을 가른다(설계 `## 갈림길 A`). 텍스트 7짝은 어느 쪽이든 잰다.
+    scales = [(PAIRS, MIN_CONTRAST)]
+    try:
+        ring_token, ring_offset = focus_rule(css)
+    except ValueError as exc:
+        unmeasurable.append(str(exc))
+    else:
+        print("    포커스 링 규칙 1개 · outline var(%s) · offset %s" % (ring_token, ring_offset))
+        scales.append((NONTEXT_PAIRS, MIN_CONTRAST_NONTEXT))
     # 두 자(텍스트 4.5 · 비텍스트 3.0)가 한 절에 섞이므로 **출력 행에 기준값을 적는다** —
     # 화면만 보고 어느 자로 잰 행인지 알 수 있어야 한다.
-    for pairs, floor in ((PAIRS, MIN_CONTRAST), (NONTEXT_PAIRS, MIN_CONTRAST_NONTEXT)):
+    for pairs, floor in scales:
         for label, tokens in (("라이트", light), ("다크", dark)):
             for fg, bg in pairs:
                 if fg not in tokens or bg not in tokens:

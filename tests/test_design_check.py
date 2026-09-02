@@ -37,6 +37,12 @@ def run(css):
     return fail, unmeasurable, out.getvalue()
 
 
+# 링을 그리는 제품 규칙 그대로. **색값이 아니라 규칙의 모양**이라 드리프트 대상이 아니다 —
+# 자리가 사라지면 `twist` 가 먼저 빨개진다.
+RING_RULE = (".sb input:focus-visible,.sb button:focus-visible,a:focus-visible{"
+             "outline:3px solid var(--focus);\noutline-offset:2px}")
+
+
 class ContrastAxisTest(unittest.TestCase):
     def twist(self, old, new):
         """제품 CSS 를 한 곳만 비튼다. 비틀 자리가 실재하는지 먼저 단언한다."""
@@ -51,7 +57,8 @@ class ContrastAxisTest(unittest.TestCase):
         """
         fail, unmeasurable, out = run(CSS)
         self.assertEqual((fail, unmeasurable), ([], []), out)
-        lines = [ln for ln in out.splitlines() if "--focus" in ln]
+        # 규칙 요약 줄에도 --focus 가 있으므로 **재는 행만** 센다(`on` 이 있는 행).
+        lines = [ln for ln in out.splitlines() if "--focus" in ln and " on " in ln]
         self.assertEqual(len(lines), 2, "라이트·다크 두 행이어야 한다:\n%s" % out)
         for line in lines:
             self.assertIn("기준 3.0", line)
@@ -91,6 +98,63 @@ class ContrastAxisTest(unittest.TestCase):
         self.assertEqual(len(fail), 1, out)
         self.assertIn("--fg-muted/--bg-page", fail[0])
         self.assertIn("< 4.5", fail[0])
+
+    def test_product_css_reports_the_ring_rule(self):
+        """제품 CSS 에서 링을 그리는 규칙이 **읽혀서 화면에 찍힌다.**
+
+        이 줄이 안 찍히면 아래 아홉 변이가 전부 "우연히" 통과하는 상태로 돌아간 것이다.
+        값(2px)은 안 붙든다 — 붙들면 검사기 옆에 옛 값을 하나 더 두는 꼴이 된다.
+        """
+        fail, unmeasurable, out = run(CSS)
+        self.assertEqual((fail, unmeasurable), ([], []), out)
+        self.assertIn("포커스 링 규칙 1개 · outline var(--focus) · offset ", out)
+
+    def test_ring_that_is_not_drawn_is_unmeasurable(self):
+        """링을 죽이는 변이는 **측정 불능**이다 — 무효가 된 3.56:1 을 안 찍는다.
+
+        계획 44 착수 탐침이 심은 여섯(V1·V2·V3·**V4**·V5·V6)이 **전부 종료 0 으로
+        살아남았다**. 그중 V4 는 설계가 천장으로 빼서 여기 없고, **V7 은 탐침이 아니라
+        설계가 따로 심어 본 셋(V7·V8·V10) 중 하나다.** 색만 재는 검사기는 그 색이
+        아무 데도 안 그려지는 것을 못 본다. 기준 위반(1)이 아니라 측정 불능(2)인
+        이유는 설계서 `## 갈림길 A` — 찍은 숫자 자체가 무효가 된다.
+
+        **뒤 셋은 테스트 phase 가 더했다.** 설계는 *"규칙 수 세기 하나에 V7·V8·V10
+        셋이 걸린다"* 고 적었는데 개발이 붙든 것은 V7 하나였고, `:focus` 셀렉터 조건은
+        설계 첫 문단의 네 조건 중 하나면서 계약의 메시지 갈래에는 없어 개발이 계약
+        밖에서 만든 가드다(`history_current.md` 개발 1/1 의 ⓐ) — 셋 다 지워도 나머지
+        단언은 전부 초록이었다.
+        """
+        for name, old, new, expect in (
+            ("V1 규칙 통째 삭제", RING_RULE, "", "규칙이 0개"),
+            ("V2 outline:none", "outline:3px solid var(--focus)", "outline:none",
+             "색 토큰을 안 쓴다"),
+            ("V3 다른 토큰을 그린다", "solid var(--focus)", "solid var(--line)",
+             "그려지는 색 --line"),
+            ("V5 offset 제거", ";\noutline-offset:2px}", "}", "outline-offset"),
+            ("V6 offset 0", "outline-offset:2px", "outline-offset:0", "outline-offset"),
+            ("V7 뒤 규칙이 덮는다", ".hits{list-style:none",
+             "a:focus{outline:none}\n.hits{list-style:none", "규칙이 2개"),
+            # 뒤 규칙이 `outline:none` 이 아니라 **폭만** 0 으로 덮는 갈래. OUTLINE_RE 가
+            # `outline-width` 를 세는 것이 여기 걸려 있다 — 축약형만 세면 살아남는다.
+            ("V8 뒤 규칙이 폭을 0 으로 덮는다", ".hits{list-style:none",
+             "a:focus{outline-width:0}\n.hits{list-style:none", "규칙이 2개"),
+            # 덮어쓰기가 **at-rule 안**에 있는 갈래. RULE_RE 가 다크 블록 안쪽 규칙을
+            # 따로 세지 못하면(바깥 `@media…{` 짝에 먹히면) 규칙은 1개로 보이고 통과한다.
+            ("V10 다크 블록 안에서 덮는다", "--focus:#fdba74}}",
+             "--focus:#fdba74}\na:focus{outline:none}}", "규칙이 2개"),
+            # 규칙도 색도 offset 도 멀쩡한데 **포커스가 아닐 때만** 그린다. 마우스에는
+            # 링이 보이고 키보드에는 안 보이므로 색 넷을 다 봐도 안 걸린다.
+            ("V11 셀렉터가 포커스용이 아니다", ":focus-visible", ":hover",
+             "포커스용이 아니다"),
+        ):
+            with self.subTest(name):
+                fail, unmeasurable, out = run(self.twist(old, new))
+                self.assertEqual(fail, [], out)
+                self.assertEqual(len(unmeasurable), 1, out)
+                self.assertIn(expect, unmeasurable[0])
+                # 요점은 판정이 아니라 **안 찍는 것**이다 — 링이 없는데 링의 대비를
+                # 화면에 내놓으면 사람이 그 숫자를 근거로 다음 판단을 한다.
+                self.assertNotIn("--focus", out)
 
 
 if __name__ == "__main__":

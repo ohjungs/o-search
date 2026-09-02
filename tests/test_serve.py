@@ -130,6 +130,53 @@ class TestSearchEndpoint(ServeTestCase):
         self.assertNotIn("Traceback", json.dumps(body))
 
 
+class TestSchemaVersion(ServeTestCase):
+    """응답 스키마의 버전(사양 기능 9). **JSON 다섯 응답 전부**가 갖는다.
+
+    다섯을 따로 재는 이유: 버전은 `_send` 한 곳에서 붙는데, 200 만 재면 그것을
+    호출부로 흩어 놓는 변이(오류 응답만 버전을 잃는다)가 안 죽는다.
+    값이 **정수**인 것도 계약이다 — 사양이 *"새 버전에서만"* 이라 단조 증가고
+    소비자가 `>=` 로 비교한다. `"1"` 이면 그 비교가 조용히 문자열 비교가 된다.
+    """
+
+    def q(self, path="/search?q=%EA%B9%80%EC%B9%98"):
+        status, body, _ = self.get(path)
+        return status, body
+
+    def test_ok_response_carries_version_one(self):
+        status, body = self.q()
+        self.assertEqual((status, body["version"]), (200, 1))
+
+    def test_bad_request_and_unknown_path_carry_it_too(self):
+        # 최상위 키 집합까지 본다 — 버전이 error 를 덮거나 밀어내면 여기서 죽는다
+        self.assertEqual(self.q("/search"),
+                         (400, {"version": 1, "error": "q 파라미터에 질의 문자열이 필요하다"}))
+        status, body = self.q("/no-such-path")
+        self.assertEqual((status, body["version"]), (404, 1))
+
+    def test_503_and_500_carry_it_too(self):
+        """오류 응답이야말로 기계가 파싱하는 자리다 — 여기서 빠지면 계약이 아니다."""
+        for exc, expected in ((FileNotFoundError("db"), 503), (AttributeError("boom"), 500)):
+            with self.subTest(status=expected), \
+                    mock.patch("websearch.serve._page_hits", side_effect=exc), \
+                    mock.patch("sys.stderr", new_callable=io.StringIO):
+                status, body = self.q()
+            self.assertEqual((status, body["version"]), (expected, 1))
+
+    def test_version_is_an_int_not_a_string(self):
+        _, body = self.q()
+        self.assertIsInstance(body["version"], int)
+
+    def test_the_html_screen_does_not_carry_it(self):
+        """화면에는 안 붙는다 — 계약은 기계가 읽고 화면은 사람이 읽는다.
+        `_send_html` 이 `_send` 와 다른 함수라 구조로 성립하지만, 단언이 없으면
+        다음 사람이 "일관성" 을 이유로 붙여도 아무도 안 막는다."""
+        for path in ("/", "/?q=%EA%B9%80%EC%B9%98"):
+            with self.subTest(path=path):
+                _, body, _ = self.raw(path)
+                self.assertNotIn("version", body.lower())
+
+
 class TestPagination(ServeTestCase):
     """20건 색인 = 2페이지. 페이지 경계와 has_next 를 못박는다."""
 
@@ -180,6 +227,43 @@ class TestPagination(ServeTestCase):
             _, body, _ = self.get(self.Q)
         self.assertEqual(len(body["results"]), 10, "뒤에 10건이 더 있는 상황이어야 한다")
         self.assertFalse(body["has_next"], "상한이 1인데 2페이지가 있다고 답했다")
+
+
+class TestScreenMatchesJson(ServeTestCase):
+    """사양 기능 6 — 같은 질의·같은 페이지에서 화면의 결과 순서와 JSON 순서가 완전히 일치한다.
+
+    두 경로가 `_page_hits` 한 벌을 나눠 쓰므로 오늘 **구조상** 참이다. 그런데 그 구조가
+    계약인데 재는 단언이 0건이었다 — 화면 쪽만 페이지를 어긋내거나(`page + 1`) 순서를
+    뒤집는 변이가 스위트를 하나도 못 죽였다(design_json-contract.md 변이 M13·M14).
+
+    **리스트로 비교한다** — 집합이면 순서를 뒤집는 변이가 안 죽어 "일치"를 안 재게 된다.
+    화면에서 URL 을 뽑는 자리는 `<div class="url">` 이다. 링크(`<a href>`)로 뽑으면
+    `_safe_href` 가 거른 URL 이 빠져 길이부터 달라진다. 값은 `html.escape` 를 지났으므로
+    `html.unescape` 로 되돌려 비교한다.
+    **1·2페이지 둘 다** 잰다 — 한 페이지만 재면 페이지를 어긋내는 변이가 안 죽는다.
+    """
+
+    pages = MANY_PAGES
+    Q = "q=%EA%B9%80%EC%B9%98"  # q=김치
+
+    def screen_urls(self, page):
+        status, body, _ = self.raw("/?%s&page=%d" % (self.Q, page))
+        self.assertEqual(status, 200)
+        return [html_unescape(u) for u in re.findall(r'<div class="url">(.*?)</div>', body)]
+
+    def json_urls(self, page):
+        status, body, _ = self.get("/search?%s&page=%d" % (self.Q, page))
+        self.assertEqual(status, 200, body)
+        return [r["url"] for r in body["results"]]
+
+    def test_screen_and_json_list_the_same_urls_in_the_same_order(self):
+        for page in (1, 2):
+            with self.subTest(page=page):
+                screen = self.screen_urls(page)
+                # 빈 목록끼리는 무엇과도 같다 — 실제로 잴 것이 있는 상태인지 먼저 못박는다.
+                # 탐침 한 줄(PAGE_SIZE + 1 번째)이 화면에 새는 것도 여기서 죽는다.
+                self.assertEqual(len(screen), serve.PAGE_SIZE)
+                self.assertEqual(screen, self.json_urls(page))
 
 
 class TestTiedRanking(ServeTestCase):
@@ -303,7 +387,14 @@ class TestConcurrency(ServeTestCase):
 
 
 class TestUnindexedDb(ServeTestCase):
-    """수집만 하고 색인을 안 돌린 DB. docs 테이블이 아직 없다."""
+    """수집만 하고 색인을 안 돌린 DB. docs 테이블이 아직 없다.
+
+    **이 200 은 일부러 남긴 것이다**(`docs/design_json-contract.md` 갈림길 D). 사양
+    디자인 5 는 *"503 = 색인이 없다"* 라 적었지 *"결과 0건"* 이라 안 적었다.
+    crawl → index → serve 순서상 이 상태는 **정상적으로 존재하는 창**이지 고장이 아니다.
+    `indexer.search` 는 `indexer.py:183-185` 에서 «docs 가 없다» 를 이미 판별하고서
+    빈 목록으로 «매치 0건» 과 합친다 — 503 으로 가르려면 그 자리를 먼저 갈라야 하고,
+    그것은 `indexer` 의 모든 호출부를 여는 일이라 계획 47 이 열 때 연다."""
 
     pages = {}
     index = False
@@ -314,34 +405,41 @@ class TestUnindexedDb(ServeTestCase):
 
 
 class TestMissingDb(ServeTestCase):
-    """DB 파일 자체가 없다 — 운영 실수다. 500 이 맞지만 내부를 흘리면 안 된다."""
+    """DB 파일 자체가 없다 — 색인을 아직 안 돌렸거나 운영 실수다.
+
+    상태 코드를 읽는 것은 사람이 아니라 **인프라**다. 색인을 다시 돌리면 낫는 상태에
+    500(재시도 안 함)은 틀린 신호라 **503** 을 낸다(사양 디자인 5).
+    본문은 고정 문구다 — `str(exc)` 는 `FileNotFoundError(db_path)`, 곧 DB 경로 그 자체다.
+    """
 
     pages = None
 
-    def test_missing_db_is_500_without_internals(self):
-        status, body, _ = self.get("/search?q=%EA%B9%80%EC%B9%98")
-        self.assertEqual(status, 500)
+    def test_missing_db_is_503_without_internals(self):
+        status, body, headers = self.get("/search?q=%EA%B9%80%EC%B9%98")
+        self.assertEqual(status, 503, body)
+        # 오류도 JSON 이다(사양 디자인 5) — 503 을 _send_html 로 내면 여기서 죽는다
+        self.assertIn("application/json", headers["Content-Type"])
+        self.assertEqual(body["error"], "색인이 아직 준비되지 않았다")
         raw = json.dumps(body, ensure_ascii=False)
         self.assertNotIn("Traceback", raw)
         self.assertNotIn(self.db, raw, "DB 경로가 응답으로 샜다")
 
-    def test_500_is_logged_even_though_access_log_is_off(self):
+    def test_503_is_logged_even_though_access_log_is_off(self):
         """응답에서 뺀 원인은 운영자가 볼 수 있는 곳에 남아야 한다.
 
         접근 로그를 끄려고 log_message 를 덮으면 log_error 도 같이 죽는다
         (stdlib 의 log_error 가 log_message 로 넘긴다). 그러면 클라이언트는
-        "오류가 났다", 운영자는 아무것도 못 본다 — 고칠 수 없는 500 이 된다.
+        "색인이 없다", 운영자는 **어느 DB 가** 없는지 아무것도 못 본다.
         """
         with mock.patch("sys.stderr", new_callable=io.StringIO) as err:
             status, _, _ = self.get("/search?q=%EA%B9%80%EC%B9%98")
             logged = err.getvalue()
-        self.assertEqual(status, 500)
-        self.assertIn("search 실패", logged, "500 이 stderr 에 한 줄도 안 남았다")
-        # 한 줄이 남은 것으로는 부족하다. `except Exception` 은 프로그래밍 오류
-        # (AttributeError·TypeError)까지 같은 500 으로 접는데, 응답 본문은 고정
-        # 문구라 원인이 로그에만 있다. `%r` 을 고정 문자열로 바꿔도 위 단언은
-        # 초록이고 그 순간 이 500 은 못 고치는 500 이 된다.
-        self.assertIn("FileNotFoundError", logged, "500 의 원인이 로그에 안 남았다")
+        self.assertEqual(status, 503)
+        self.assertIn("색인 없음", logged, "503 이 stderr 에 한 줄도 안 남았다")
+        # 한 줄이 남은 것으로는 부족하다. 본문이 고정 문구라 원인은 로그에만 있다.
+        # `%r` 을 고정 문자열로 바꿔도 위 단언은 초록이고, 그 순간 이 503 은
+        # 어느 DB 를 가리키는지 아무도 모르는 503 이 된다.
+        self.assertIn("FileNotFoundError", logged, "503 의 원인이 로그에 안 남았다")
 
     def test_normal_request_stays_out_of_the_log(self):
         # 접근 로그는 계속 꺼져 있어야 한다 — 위 수정이 stdlib 기본 로그를 되살리면 안 된다
@@ -349,6 +447,128 @@ class TestMissingDb(ServeTestCase):
         with mock.patch("sys.stderr", new_callable=io.StringIO) as err:
             self.get("/search?q=%EA%B9%80%EC%B9%98")
         self.assertEqual(err.getvalue(), "")
+
+
+class TestDriftedIndex(ServeTestCase):
+    """옛 정의로 만든 docs 가 남아 있다 — `indexer.search` 가 StaleIndexError 를 던진다.
+
+    DB 없음과 원인은 다르지만 운영자가 할 일은 같다(색인을 다시 돌린다). 그래서 같은 503 이다.
+    이 상태를 HTTP 로 재는 단언은 여기가 처음이다 — 그전에는 `serve` 가
+    `StaleIndexError` 라는 이름을 아예 모른 채 500 에 접어 넣고 있었다.
+    """
+
+    OLD_SCHEMA = ("CREATE VIRTUAL TABLE docs "
+                  "USING fts5(title, body, url UNINDEXED, tokenize='unicode61')")
+
+    def setUp(self):
+        super().setUp()
+        db = sqlite3.connect(self.db)
+        db.execute("DROP TABLE docs")
+        db.execute(self.OLD_SCHEMA)  # 코드만 새것으로 갈아탄 상황
+        db.commit()
+        db.close()
+
+    def test_drifted_index_is_503(self):
+        status, body, headers = self.get("/search?q=%EA%B9%80%EC%B9%98")
+        self.assertEqual(status, 503, body)
+        self.assertIn("application/json", headers["Content-Type"])
+        self.assertEqual(body["error"], "색인이 아직 준비되지 않았다")
+        self.assertNotIn(self.db, json.dumps(body, ensure_ascii=False), "DB 경로가 샜다")
+
+    def test_drifted_index_is_503_on_the_html_path(self):
+        status, body, _ = self.raw("/?q=%EA%B9%80%EC%B9%98")
+        self.assertEqual(status, 503)
+        self.assertNotIn(self.db, body, "DB 경로가 화면으로 샜다")
+
+
+class TestProgrammingErrorStays500(ServeTestCase):
+    """503 은 «색인이 없다» 만의 값이다 — 넓히면 프로그래밍 오류가 재시도 대상이 된다.
+
+    503 절이 생기는 순간 두 경로의 500 을 재는 단언이 **0건**이 된다. `except Exception`
+    을 통째로 503 으로 바꿔도 스위트가 전부 초록인 상태였다(설계 변이표 M5).
+    500 은 "고쳐야 한다", 503 은 "기다렸다 다시 걸어라" 다 — 인프라가 그 둘로 갈린다.
+    """
+
+    def test_programming_error_is_500_not_503(self):
+        with mock.patch("websearch.serve._page_hits", side_effect=AttributeError("boom")), \
+                mock.patch("sys.stderr", new_callable=io.StringIO) as err:
+            status, body, _ = self.get("/search?q=%EA%B9%80%EC%B9%98")
+            logged = err.getvalue()
+        self.assertEqual(status, 500, body)
+        self.assertEqual(body["error"], "검색 중 오류가 났다")
+        self.assertIn("search 실패", logged, "500 이 stderr 에 한 줄도 안 남았다")
+        self.assertIn("AttributeError", logged, "500 의 원인이 로그에 안 남았다")
+
+    def test_programming_error_is_500_on_the_html_path(self):
+        with mock.patch("websearch.serve._page_hits", side_effect=AttributeError("boom")), \
+                mock.patch("sys.stderr", new_callable=io.StringIO) as err:
+            status, body, _ = self.raw("/?q=%EA%B9%80%EC%B9%98")
+            logged = err.getvalue()
+        self.assertEqual(status, 500)
+        self.assertIn("검색 화면 실패", logged, "화면 500 이 stderr 에 한 줄도 안 남았다")
+        self.assertNotIn("Traceback", body)
+
+
+class TestBrokenDbStays500(ServeTestCase):
+    """DB 파일이 **깨졌거나 못 읽는다** — 503 이 아니라 500 이다.
+
+    위 두 단언은 `_page_hits` 를 mock 으로 갈아 `AttributeError` 를 던지게 한다. 그래서
+    못박힌 것은 *"코드가 틀렸을 때 500"* 뿐이고 **실물 DB 상태로 500 을 재는 단언은
+    0건**이었다 — 503 튜플에 `sqlite3.DatabaseError` 를 더하는 변이(*"DB 오류도 인프라니
+    재시도"*)가 스위트를 하나도 못 죽인다. 손상은 기다린다고 낫지 않는다. 503 은
+    *"색인을 다시 돌리면 낫는다"* 는 약속이라 거기 넣으면 인프라가 영영 재시도한다.
+
+    설계서 §1 은 이 자리를 `PermissionError` 라 적었는데 **실물은 아니다**(탐침으로 측정):
+    `sqlite3.connect` 가 `OperationalError('unable to open database file')` 로 바꿔 던진다.
+    `DatabaseError` 의 하위라 잡히는 자리는 같지만, 예외 **이름**으로 짜는 단언은 빗나간다.
+    """
+
+    def corrupt(self):
+        with open(self.db, "wb") as fh:
+            fh.write(b"NOT a sqlite file\n" * 64)
+
+    def test_corrupt_db_is_500_not_503(self):
+        self.corrupt()
+        with mock.patch("sys.stderr", new_callable=io.StringIO) as err:
+            status, body, _ = self.get("/search?q=%EA%B9%80%EC%B9%98")
+            logged = err.getvalue()
+        self.assertEqual(status, 500, body)
+        self.assertEqual(body["error"], "검색 중 오류가 났다")
+        self.assertNotIn(self.db, json.dumps(body, ensure_ascii=False), "DB 경로가 샜다")
+        self.assertIn("DatabaseError", logged, "500 의 원인이 로그에 안 남았다")
+
+    def test_corrupt_db_is_500_for_a_tokenless_query_too(self):
+        """위 단언은 **`q=김치` 한 갈래에만** 걸려 있었다 — 계약의 두 번째 구멍이다.
+
+        `indexer.search` 의 조기 반환(`if not match`)이 DB 를 여는 자리 **앞**에 있으면
+        `%01` 처럼 토큰이 안 나오는 질의는 DB 를 아예 안 본 채 `[]`→**200** 으로 나간다.
+        같은 파일, 같은 고장인데 질의어에 따라 500 과 200 이 갈리면 계약이 아니다.
+        """
+        self.corrupt()
+        with mock.patch("sys.stderr", new_callable=io.StringIO):
+            status, body, _ = self.get("/search?q=%01")
+        self.assertEqual(status, 500, body)
+        self.assertEqual(body["error"], "검색 중 오류가 났다")
+        self.assertNotIn(self.db, json.dumps(body, ensure_ascii=False), "DB 경로가 샜다")
+
+    def test_corrupt_db_screen_is_500_too(self):
+        """두 경로의 튜플은 한 벌이어야 한다(설계 갈림길 C) — 한쪽만 넓히는 변이가 있다."""
+        self.corrupt()
+        with mock.patch("sys.stderr", new_callable=io.StringIO):
+            status, body, _ = self.raw("/?q=%EA%B9%80%EC%B9%98")
+        self.assertEqual(status, 500)
+        self.assertIn("검색 중 오류가 났다", body)
+        self.assertNotIn(self.db, body, "DB 경로가 화면으로 샜다")
+
+    @unittest.skipIf(os.geteuid() == 0, "root 는 파일 권한을 무시한다")
+    def test_unreadable_db_is_500_not_503(self):
+        """읽을 수 없는 DB 는 사람이 `chmod` 를 해야 낫는다 — 재시도가 아니라 고칠 일이다."""
+        os.chmod(self.db, 0o000)
+        self.addCleanup(os.chmod, self.db, 0o600)
+        with mock.patch("sys.stderr", new_callable=io.StringIO):
+            status, body, _ = self.get("/search?q=%EA%B9%80%EC%B9%98")
+        self.assertEqual(status, 500, body)
+        self.assertEqual(body["error"], "검색 중 오류가 났다")
 
 
 class TestSlowClient(ServeTestCase):
@@ -559,24 +779,27 @@ class TestHtmlEscaping(ServeTestCase):
 
 
 class TestHtmlPathFailsSafely(ServeTestCase):
-    """DB 가 없다 — 운영 실수다. JSON 쪽은 TestMissingDb 가 이미 못박았는데
+    """DB 가 없다 — JSON 쪽은 TestMissingDb 가 이미 못박았는데
     화면 경로는 오류 문구를 **사람에게 보여주는** 자리라 새기 더 쉽다.
 
+    화면도 같은 503 을 낸다(설계 갈림길 C) — 원인이 같은데 상태가 다르면
+    운영자가 한 사고를 두 값으로 본다. 사람이 읽는 문구가 달라질 뿐이다.
     지금은 고정 문자열을 쓰지만, 단언이 없으면 다음 사람이 `str(exc)` 로 바꿔도
     아무도 못 잡는다. 흘리면 안 되는 것을 흘리지 않는다고 여기서 고정한다.
     """
 
     pages = None
 
-    def test_500_page_leaks_neither_traceback_nor_db_path(self):
+    def test_503_page_leaks_neither_traceback_nor_db_path(self):
         status, body, headers = self.raw("/?q=%EA%B9%80%EC%B9%98")
-        self.assertEqual(status, 500)
+        self.assertEqual(status, 503)
         self.assertIn("text/html", headers["Content-Type"])
+        self.assertIn("색인이 아직 준비되지 않았다", body)
         self.assertNotIn("Traceback", body)
         self.assertNotIn("sqlite3", body.lower())
         self.assertNotIn(self.db, body, "DB 경로가 화면으로 샜다")
 
-    def test_500_page_still_lets_you_search_again(self):
+    def test_503_page_still_lets_you_search_again(self):
         """막다른 화면을 주지 않는다 — 오류 페이지에도 검색창이 남는다."""
         _, body, _ = self.raw("/?q=%EA%B9%80%EC%B9%98")
         self.assertIn('name="q"', body)
@@ -590,7 +813,7 @@ class TestHtmlPathFailsSafely(ServeTestCase):
         self.assertIn('value="김치"', body, "오류 페이지가 입력한 질의어를 버렸다")
         self.assertNotIn("autofocus", body, "오류 문구를 지나쳐 입력창으로 끌려간다")
 
-    def test_500_page_logs_its_cause(self):
+    def test_503_page_logs_its_cause(self):
         """화면 경로에도 같은 넓은 `try` 가 있는데 로그 단언은 JSON 쪽에만 있었다.
 
         사람에게 보여줄 수 없어서 뺀 원인이 로그에도 없으면 아무 데도 없다.
@@ -599,9 +822,9 @@ class TestHtmlPathFailsSafely(ServeTestCase):
         with mock.patch("sys.stderr", new_callable=io.StringIO) as err:
             status, _, _ = self.raw("/?q=%EA%B9%80%EC%B9%98")
             logged = err.getvalue()
-        self.assertEqual(status, 500)
-        self.assertIn("검색 화면 실패", logged, "화면 500 이 stderr 에 한 줄도 안 남았다")
-        self.assertIn("FileNotFoundError", logged, "500 의 원인이 로그에 안 남았다")
+        self.assertEqual(status, 503)
+        self.assertIn("색인 없음", logged, "화면 503 이 stderr 에 한 줄도 안 남았다")
+        self.assertIn("FileNotFoundError", logged, "503 의 원인이 로그에 안 남았다")
 
     def test_home_still_renders_without_a_db(self):
         """홈은 색인을 읽지 않는다 — DB 가 죽어도 첫 화면은 떠야 한다."""

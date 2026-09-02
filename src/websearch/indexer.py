@@ -7,6 +7,7 @@ import os
 import re
 import sqlite3
 import sys
+import urllib.request
 
 from . import extract
 
@@ -62,6 +63,37 @@ class NoCrawlDataError(RuntimeError):
     """
 
 
+def _connect(db_path):
+    """있는 DB 만 연다. 없으면 FileNotFoundError — 빈 파일을 절대 만들지 않는다.
+
+    `sqlite3.connect(path)` 의 기본값은 `rwc` 라 없는 파일을 만든다. 그래서 예전에는
+    `os.path.exists` 로 먼저 보고 열었는데, 그 둘 사이의 창에서 파일이 사라지면 크기 0 의
+    빈 DB 가 생겼다 — 그 뒤로는 `exists` 가 참이라 "없다"(503)를 영영 못 낸다.
+    `?mode=rw` URI 는 보는 것과 여는 것을 open(2) 한 번으로 합친다.
+
+    **경로는 `pathname2url` 로 인용한다.** 날것으로 끼우면 `a b#c?d.db` 의 `#` 뒤가
+    프래그먼트로 잘려 `a b` 라는 **다른 파일**이 열리고, 함께 잘린 `?mode=rw` 가
+    기본값 `rwc` 로 떨어져 고치려던 버그가 그대로 부활한다.
+    """
+    # **빈 경로는 URI 의 특례라 먼저 거른다.** SQLite 는 `file:?mode=rw` 를 "없는 파일" 이
+    # 아니라 **이름 없는 임시 DB** 로 읽어 조용히 성공한다 — `mode` 도 안 본다. 그러면
+    # `DB_PATH` 가 안 채워진 서버가 503 대신 **200 + 결과 0건**을 낸다(리뷰 실측).
+    # `os.path.exists("")` 가 거짓이던 예전 코드에는 이 구멍이 없었다.
+    if not db_path:
+        raise FileNotFoundError(db_path)
+    uri = "file:" + urllib.request.pathname2url(db_path) + "?mode=rw"
+    try:
+        return sqlite3.connect(uri, timeout=30, uri=True)
+    except sqlite3.OperationalError:
+        # 없는 파일·권한 거부·디렉터리가 메시지까지 똑같고(`unable to open database file`)
+        # `e.sqlite_errorcode` 는 3.11+ 다 — 여기는 3.9 라 파일이 있나로만 가른다.
+        # 이 `exists` 는 TOCTOU 가 아니다: 열기는 이미 원자적으로 **실패**했고 남은 일은
+        # 그 실패를 어느 칸으로 부를지 분류뿐이다. 오분류해도 파일이 생기지는 않는다.
+        if os.path.exists(db_path):
+            raise  # 권한·디렉터리·락 — 기다린다고 안 낫는다. serve 가 500 으로 옮긴다
+        raise FileNotFoundError(db_path) from None
+
+
 def _docs_sql(db):
     """`docs` 의 정의 원문. 아직 색인 전이면 None."""
     row = db.execute("SELECT sql FROM sqlite_master WHERE name = 'docs'").fetchone()
@@ -73,9 +105,7 @@ def index_pages(db_path):
 
     meta robots 가 noindex·none 인 문서는 넣지 않고, 이미 색인돼 있으면 뺀다.
     """
-    if not os.path.exists(db_path):
-        raise FileNotFoundError(db_path)
-    db = sqlite3.connect(db_path, timeout=30)
+    db = _connect(db_path)
     try:
         # pages 가 없으면 아래 SELECT 가 sqlite3.OperationalError 를 흘려 CLI 가
         # 트레이스백을 낸다. 읽기 직전 한 번만 본다 — 만들지는 않는다(store 몫).
@@ -131,9 +161,10 @@ def _doc_count(db_path):
     세어 두면 재구축이 `before + indexed - after` 에서 제거로 둔갑한다.
     `search()` 도 옛 색인은 쓸 수 없는 것으로 본다(StaleIndexError) — 같은 기준이다.
     """
-    if not os.path.exists(db_path):
-        return 0
-    db = sqlite3.connect(db_path, timeout=30)
+    try:
+        db = _connect(db_path)
+    except FileNotFoundError:
+        return 0  # "아직 크롤 전" 은 이 함수에서 오류가 아니다 — CLI 가 before 로 쓴다
     try:
         if _docs_sql(db) != _CURRENT_SQL:
             return 0
@@ -173,12 +204,8 @@ def search(db_path, query, limit=10, offset=0):
 
     offset 은 앞에서 건너뛸 개수다 — 기본값이 있어 기존 호출부는 그대로 돈다.
     """
-    if not os.path.exists(db_path):
-        raise FileNotFoundError(db_path)
     match = _fts_query(query)
-    if not match:
-        return []
-    db = sqlite3.connect(db_path, timeout=30)
+    db = _connect(db_path)
     try:
         sql = _docs_sql(db)
         if sql is None:
@@ -186,6 +213,12 @@ def search(db_path, query, limit=10, offset=0):
         if sql != _CURRENT_SQL:
             # 빈 목록을 내면 "결과 0건" 과 구분되지 않는다 — 원인이 다르니 소리를 낸다
             raise StaleIndexError(db_path)
+        # 무토큰 질의(제어문자·따옴표만)의 조기 반환은 **DB 상태 판정 뒤**다.
+        # 앞에 두면 판정이 질의 내용에 달린다 — 같은 고장난 DB 가 `q=김치` 면 500,
+        # `q=%01` 이면 200 으로 갈린다. 옛 색인 검사 뒤인 것도 같은 이유다(변이 M6).
+        # 비용은 무토큰 질의가 연결 하나를 여는 것뿐이다(실측 0.066ms/회).
+        if not match:
+            return []
         rows = db.execute(
             # 스니펫은 title(0)·body(1) 에서만 뽑는다. `-1` 은 **매치된 열 중 가장 왼쪽**을
             # 고르는데, 2-gram 으로만 매치된 문서는 title_ng 가 뽑혀 화면에

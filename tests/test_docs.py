@@ -41,6 +41,35 @@ CITATION = re.compile(
     % "|".join(re.escape(n) for n in APPEND_TARGETS))
 # 회전이 닫아 둔 아카이브는 수정·삭제 금지 문서라 검사 대상이 아니다.
 ARCHIVE = re.compile(r"^(?:history|plan_history|design_history)_[0-9]+\.md$")
+# 반복 번호가 사는 두 자리. `| 반복 수 |`·`| 반복 상한 |`·`| 평균 반복 |` 은 이웃이라
+# 정확한 형태만 문다. `night_iterations:` 도 `iteration:` 의 이웃이다.
+# 아래 `IterationPatternTest` 가 이 둘을 합성 표로 고정한다.
+ITER_ROW = re.compile(r"^\| 반복 \| ([0-9]+) \|", re.M)
+ITER_LINE = re.compile(r"^iteration: ([0-9]+)$", re.M)
+
+
+def done_section(digest_text):
+    """`digest.md` 의 `## 완료` 절 본문. 절이 없으면 `None` — 호출부가 실패시킨다.
+
+    범위를 절로 자르는 것이 설계의 결정이다. 파일 전체를 보면 `## 반복 실패` 의
+    **구멍을 신고하는 문장 자신**이 신고 대상을 초록으로 만든다.
+    """
+    lines = digest_text.split("\n")
+    if "## 완료" not in lines:
+        return None
+    head = lines.index("## 완료")
+    tail = next((i for i, ln in enumerate(lines[head + 1:], head + 1)
+                 if ln.startswith("## ")), len(lines))
+    return "\n".join(lines[head:tail])
+
+
+def indexed(name, section):
+    """명부가 이 아카이브를 이름으로 싣고 있나.
+
+    접두어에 가려진 것은 안 친다 — `plan_history_019.md` 는 `history_019.md` 가
+    아니다. 명부가 가리키는 것은 아카이브 원본뿐이다.
+    """
+    return re.search(r"(?<![A-Za-z_])" + re.escape(name), section) is not None
 
 
 class DocHeadTest(unittest.TestCase):
@@ -111,6 +140,144 @@ class DocCitationTest(unittest.TestCase):
             [], hits,
             "append 전용 문서를 줄번호로 가리킨 인용 — 줄이 아니라 항목 이름으로 "
             "가리킨다:\n" + "\n".join(hits))
+
+
+class IterationSyncTest(unittest.TestCase):
+    """`metrics.md` 의 `반복` 과 `status.md` 의 `iteration` 이 같은 수인가.
+
+    사람이 매 반복 끝에 두 곳을 손으로 갱신하는데, 어긋난 채로 간 것이 **4회**
+    재발했다(`digest ## 반복 실패`). 어긋나면 다음 반복이 자기 번호를 잘못 적고
+    기록이 통째로 밀린다. 규율이 아니라 스위트가 붙든다.
+
+    매치가 `None` 이면 비교 전에 실패한다 — 표 형식이 바뀌면 검사가 `None == None`
+    위에서 조용히 통과하는 것이 여기 유일한 눈먼 자리다.
+    """
+
+    def test_metrics_and_status_agree(self):
+        metrics = (DOCS / "metrics.md").read_text(encoding="utf-8")
+        status = (DOCS / "status.md").read_text(encoding="utf-8")
+        a = ITER_ROW.search(metrics)
+        b = ITER_LINE.search(status)
+        self.assertIsNotNone(a, "metrics.md 에서 `| 반복 | <수> |` 행을 못 찾았다")
+        self.assertIsNotNone(b, "status.md 에서 `iteration: <수>` 줄을 못 찾았다")
+        self.assertEqual(
+            a.group(1), b.group(1),
+            "반복 번호가 어긋났다 — metrics.md `반복` %s ≠ status.md `iteration` %s"
+            % (a.group(1), b.group(1)))
+
+
+class ArchiveIndexTest(unittest.TestCase):
+    """아카이브 전부가 `digest.md` 의 `## 완료` 절 명부에 실려 있는가.
+
+    `digest.md` 는 스스로 *"원본은 `history_<NNN>.md` 에 그대로 있다"* 로 아카이브
+    색인을 자처하는데, 오늘 22개 중 다섯이 그 절에 없었다. 색인에 구멍이 나면 그
+    반복들의 판단 재료를 이름으로 못 찾는다 — 회전이 완료 항목을 지울 때마다 는다.
+
+    **범위를 `## 완료` 절로 자른다.** `digest.md` 전체를 보면 `history_001.md` 를
+    초록으로 만드는 것이 **구멍을 신고하는 그 문장 자신**이다(`## 반복 실패`).
+    그리고 경계 매칭이 없으면 `plan_history_019.md` 가 `history_019.md` 를 대신
+    통과시킨다 — 명부가 가리키는 것은 아카이브 원본뿐이다.
+    """
+
+    def test_every_archive_is_in_digest_done_section(self):
+        archives = [p.name for p in sorted(DOCS.glob("history_[0-9]*.md"))]
+        # glob 이 빈손이면 아래 단언이 "구멍 0" 위에서 조용히 통과한다.
+        self.assertTrue(archives, "아카이브를 못 찾았다 — 경로가 틀렸다: %s" % DOCS)
+        digest = DOCS / "digest.md"
+        self.assertTrue(digest.is_file(), "digest 를 못 찾았다: %s" % digest)
+        section = done_section(digest.read_text(encoding="utf-8"))
+        # 절을 못 찾으면 빈 텍스트 위에서 통과하는 것이 아니라 실패한다.
+        self.assertIsNotNone(section, "digest.md 에서 `## 완료` 절을 못 찾았다")
+        missing = [n for n in archives if not indexed(n, section)]
+        self.assertEqual(
+            [], missing,
+            "아카이브가 `digest.md` 의 `## 완료` 명부에 없다 — 이름으로 못 찾는다:\n"
+            + "\n".join("  " + n for n in missing))
+
+
+class IterationPatternTest(unittest.TestCase):
+    """`ITER_ROW`·`ITER_LINE` 자신을 합성 표로 붙든다 — 위 검사는 자기를 못 잰다.
+
+    `IterationSyncTest` 는 실물 문서 위에서만 도는데, 오늘 `metrics.md` 는 정확한
+    행이 이웃들보다 **먼저** 나온다. 그래서 정규식을 넓혀도(`| 반복[^|]*|`) 첫 매치가
+    그대로라 **초록이다**(2026-09-02 변이 실측). 넓어지는 변이가 사는 자리라
+    설계 계약이 적어 둔 *"이웃 세 행은 안 문다"* 를 여기서 잰다.
+
+    아래 표는 이웃을 **일부러 앞에 둔다** — 넓힌 정규식은 엉뚱한 수를 집는다.
+    """
+
+    TABLE = "\n".join([
+        "| phase | 반복 수 |",
+        "| 반복 상한 | 0 |",
+        "| 평균 반복 | 5.3 |",
+        "| 반복 | 232 |",
+    ])
+
+    def test_only_the_exact_row_matches(self):
+        m = ITER_ROW.search(self.TABLE)
+        self.assertIsNotNone(m, "`| 반복 | <수> |` 행을 못 찾았다 — 정규식이 죽었다")
+        self.assertEqual(
+            "232", m.group(1),
+            "이웃 행을 물었다 — `| 반복 수 |`·`| 반복 상한 |`·`| 평균 반복 |` 은 "
+            "반복 번호가 아니다")
+
+    def test_status_line_needs_the_whole_line(self):
+        # `night_iterations:` 는 실제로 같은 프런트매터에 산다.
+        self.assertIsNone(ITER_LINE.search("night_iterations: 90"),
+                          "`night_iterations` 를 `iteration` 으로 읽었다")
+        m = ITER_LINE.search("plan: x\niteration: 232\nctx: 62")
+        self.assertIsNotNone(m, "`iteration: <수>` 줄을 못 찾았다")
+        self.assertEqual("232", m.group(1))
+
+
+class ArchiveMatchTest(unittest.TestCase):
+    """`done_section`·`indexed` 를 합성 `digest` 로 붙든다 — 위 검사는 자기를 못 잰다.
+
+    명부를 넣은 뒤로 실물 `digest.md` 는 **어느 쪽으로 재도 구멍 0** 이다. 범위를
+    파일 전체로 넓혀도, 경계 매칭(`(?<![A-Za-z_])`)을 빼도 초록이다(2026-09-02 변이
+    실측 — 둘 다 살아남았다). 설계가 갈림길 하나씩을 걸어 고른 두 결정인데
+    **아무도 안 재고 있었다.** `CitationPatternTest` 가 `CITATION` 에 하는 일과 같다.
+    """
+
+    DIGEST = "\n".join([
+        "# 다이제스트",
+        "## 반복 실패",
+        "- 아카이브 `history_001.md` 의 압축 줄을 안 남긴다",
+        "## 완료",
+        "- **아카이브 명부** | `history_002.md` `plan_history_003.md`",
+        "## 보류",
+        "- `history_004.md`",
+    ])
+
+    # 명부에 이름으로 실렸다.
+    INDEXED = ["history_002.md"]
+    # 실리지 않았다 — 셋이 각각 다른 이유다.
+    NOT_INDEXED = [
+        # 신고문이 자기 신고 대상을 초록으로 만들면 안 된다(`## 반복 실패`).
+        "history_001.md",
+        # 접두어에 가려졌다 — `plan_history_003.md` 는 원본이 아니다.
+        "history_003.md",
+        # `## 완료` 절 밖이라 명부가 아니다.
+        "history_004.md",
+    ]
+
+    def test_indexed(self):
+        section = done_section(self.DIGEST)
+        for name in self.INDEXED:
+            with self.subTest(name=name):
+                self.assertTrue(indexed(name, section),
+                                "명부에 있는데 못 찾았다: %s" % name)
+
+    def test_not_indexed(self):
+        section = done_section(self.DIGEST)
+        for name in self.NOT_INDEXED:
+            with self.subTest(name=name):
+                self.assertFalse(indexed(name, section),
+                                 "명부 밖인데 색인으로 셌다: %s" % name)
+
+    def test_missing_section_is_not_a_pass(self):
+        # 절 이름이 바뀌면 빈 텍스트 위에서 조용히 통과하는 대신 `None` 이 온다.
+        self.assertIsNone(done_section("# 다이제스트\n## 완료된 것\n- 없다"))
 
 
 if __name__ == "__main__":

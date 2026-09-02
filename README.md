@@ -36,7 +36,8 @@ PYTHONPATH=src python3 -m websearch.indexer data/crawl.db --query 검색어
 | **2** | **명령줄이 틀렸다** | 세 명령: usage·플래그 값 · `crawl`: 가져올 수 없는 시드 | 사람이 명령을 고친다 |
 | **130** | Ctrl-C 중단 | `crawl`·`indexer` | 재개하거나 멈춘다 |
 
-**`serve` 는 DB 오류로 안 죽는다** — DB 가 없거나 깨져 있어도 뜨고, 요청마다 500 을 낸다.
+**`serve` 는 DB 오류로 안 죽는다** — DB 가 없거나 깨져 있어도 뜬다. 색인을 다시 돌리면
+낫는 상태(DB 파일 없음·옛 색인)에는 **503**, 그 밖의 오류에는 500 을 낸다.
 서버는 오래 사는 프로세스라 종료 코드로 알릴 상대가 없다. `serve` 의 rc 1 은 포트를 못
 열었을 때뿐이다.
 
@@ -63,7 +64,7 @@ PYTHONPATH=src python3 -m websearch.indexer data/crawl.db --query 검색어
 ## 검증
 
 ```bash
-PYTHONPATH=src python3 -m unittest discover -s tests   # 단위 473건
+PYTHONPATH=src python3 -m unittest discover -s tests   # 단위 506건
 ls e2e/*.py                                            # e2e 시나리오 19종
 ```
 
