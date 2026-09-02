@@ -11,7 +11,9 @@
 실행"이다). 규율이 아니라 배치 문제라 `status.md ## 한도` 에만 있던 이 문장을
 **명령을 읽는 자리**로 옮겼다.
 
-- **테스트(전체)**: `PYTHONPATH=src python3 -m unittest discover tests` (2026-08-25 실행 확인, 실패 감지도 확인)
+- **테스트(전체)**: `PYTHONPATH=src python3 -m unittest discover -b tests` (2026-09-03 실행 확인, 실패 감지도 확인)
+  `-b` 는 **통과한** 테스트의 출력만 삼킨다 — 실패한 것의 stdout/stderr 는 실패 보고서
+  안에 `Stdout:`/`Stderr:` 로 그대로 나온다. 화면이 짧아지니 위 맨몸 규율을 어길 이유가 없다.
 - **테스트(빠름)**: 전체가 수 초라 구분 없음
 - **린트/타입체크**: 없음 — stdlib만 쓰는 소규모, 필요해지면 추가
 - **변이 검사(테스트가 진짜 잡는지 확인)**: `PYTHONDONTWRITEBYTECODE=1` 를 붙여 돌린다.
