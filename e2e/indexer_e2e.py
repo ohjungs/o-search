@@ -4,6 +4,8 @@
 `python3 -m websearch.indexer <db>` 로 색인하고 `--query` 로 질의한다.
 검증: ① 3문서 색인 ② 한국어 2글자 질의·영어 질의가 각각 정답 URL 을 돌려줌
 ③ 재실행 시 "0 문서 색인" (증분) ④ 무결과 질의가 침묵하지 않음
+⑤ README 그대로의 **상대 경로**(`data/crawl.db`)로도 질의가 되고, 없는 상대 경로는
+   rc 1 + 안내이며 **빈 DB 파일을 만들지 않는다** (계획 47 · db-open-atomic)
 
 실행: PYTHONPATH=src python3 e2e/indexer_e2e.py
 """
@@ -51,8 +53,8 @@ def main():
     base = "http://127.0.0.1:%d" % server.server_address[1]
     env = dict(os.environ, PYTHONPATH=os.path.join(ROOT, "src"))
 
-    def run(*args):
-        proc = subprocess.run([sys.executable] + list(args), env=env,
+    def run(*args, cwd=None):
+        proc = subprocess.run([sys.executable] + list(args), env=env, cwd=cwd,
                               capture_output=True, text=True, timeout=120)
         assert proc.returncode == 0, "exit %d\n%s" % (proc.returncode, proc.stderr)
         return proc.stdout
@@ -80,7 +82,26 @@ def main():
         second = run("-m", "websearch.indexer", db)
         assert "0 문서 색인" in second, "증분 실패 — 2회차 stdout: %r" % second
 
-    print("e2e 통과 — 3문서 색인, 한/영 질의 정답 매치, 재실행 0문서(증분), 무결과 안내 출력")
+        # 여기까지는 전부 절대 경로다. **README 의 세 명령은 상대 경로**(`data/crawl.db`)라
+        # DB 를 여는 `file:` URI 조립이 깨져도(`file://` + 경로면 `data` 가 authority 로
+        # 읽혀 열기 자체가 죽는다) 위 단언은 하나도 안 운다 — 아래가 그 자리를 잰다.
+        os.mkdir(os.path.join(tmp, "data"))
+        os.rename(db, os.path.join(tmp, "data", "crawl.db"))
+        rel = run("-m", "websearch.indexer", "data/crawl.db", "--query", "김치", cwd=tmp)
+        assert base + "/kimchi" in rel, "상대 경로 질의 실패: %r" % rel
+
+        # 없는 상대 경로 — rc 1 · 안내 · **빈 DB 를 만들지 않는다**(계획 47 의 주제).
+        # 만들면 그 뒤로 파일이 있으니 "DB 없음"(서버로는 503)이 영영 안 난다.
+        gone = subprocess.run([sys.executable, "-m", "websearch.indexer", "data/none.db"],
+                              env=env, cwd=tmp, capture_output=True, text=True, timeout=120)
+        assert gone.returncode == 1, "없는 DB 인데 rc %d 다 (기대 1)\n%s" % (gone.returncode,
+                                                                            gone.stderr)
+        assert "DB 파일이 없다" in gone.stderr, "안내가 없다: %r" % gone.stderr
+        assert not os.path.exists(os.path.join(tmp, "data", "none.db")), \
+            "없는 DB 를 열다가 빈 파일을 만들었다"
+
+    print("e2e 통과 — 3문서 색인, 한/영 질의 정답 매치, 재실행 0문서(증분), 무결과 안내 출력, "
+          "README 형태의 상대 경로 질의 성공 · 없는 상대 경로는 rc 1 이고 파일을 안 만든다")
 
 
 if __name__ == "__main__":

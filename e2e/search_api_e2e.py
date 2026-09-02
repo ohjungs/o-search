@@ -9,6 +9,11 @@
 ③ q 없음 400 / 없는 경로 404 / POST 501 ④ 어느 응답에도 트레이스백이 없다
 ⑤ 색인을 치우면 503 이고 되돌리면 200 이다 (계획 46 · 사양 디자인 5)
 ⑥ 성공 응답과 503 이 스키마 버전을 갖는다 (계획 46 · 사양 기능 9)
+⑦ 빈 `DB_PATH` 로 뜬 서버가 200 이 아니라 503 이다 (계획 47 리뷰)
+
+서버는 **README 그대로 상대 경로**(`data/crawl.db`)로 띄운다 — 단위와 다른 e2e 는 전부
+절대 경로라, DB 를 여는 `file:` URI 조립이 상대 경로에서만 깨지는 갈래를 아무도 안 잰다
+(계획 47 · db-open-atomic). 위 ①~⑥ 이 통째로 그 형태 위에서 돈다.
 
 실행: PYTHONPATH=src python3 e2e/search_api_e2e.py
 """
@@ -81,7 +86,8 @@ def main():
         return proc.stdout
 
     with tempfile.TemporaryDirectory() as tmp:
-        db = os.path.join(tmp, "crawl.db")
+        os.mkdir(os.path.join(tmp, "data"))  # README 의 `data/crawl.db` 를 그대로 만든다
+        db = os.path.join(tmp, "data", "crawl.db")
         # crawl CLI 는 db 경로 인자가 없어 -c 로 감싼다 (indexer_e2e.py 와 같은 이유)
         run("-c", "import sys; from websearch.crawl import crawl; "
                   "crawl([sys.argv[1]], %d, db_path=sys.argv[2])" % (DOCS + 1), site + "/", db)
@@ -90,9 +96,11 @@ def main():
         indexed = run("-m", "websearch.indexer", db)
         assert "%d 문서 색인" % (DOCS + 1) in indexed, "색인 stdout: %r" % indexed
 
-        # 사용자가 하는 그대로 — CLI 로 띄우고 stdout 에서 실제 포트를 읽는다
-        server = subprocess.Popen([sys.executable, "-m", "websearch.serve", db, "--port", "0"],
-                                  env=env, stdout=subprocess.PIPE, text=True)
+        # 사용자가 하는 그대로 — CLI 로 띄우고 stdout 에서 실제 포트를 읽는다.
+        # 경로도 사용자가 치는 그대로 **상대 경로**다(cwd 를 옮겨 README 명령과 같게 만든다).
+        server = subprocess.Popen([sys.executable, "-m", "websearch.serve",
+                                   "data/crawl.db", "--port", "0"],
+                                  env=env, cwd=tmp, stdout=subprocess.PIPE, text=True)
         try:
             line = server.stdout.readline().strip()
             assert line.startswith("http://127.0.0.1:"), "포트를 못 읽었다: %r" % line
@@ -141,12 +149,28 @@ def main():
             server.terminate()
             server.wait(timeout=20)
 
+        # 빈 DB 경로로 뜬 서버 — `DB_PATH` 를 안 채운 배포가 이 모양이다. SQLite 는
+        # `file:?mode=rw` 를 «없는 파일» 이 아니라 **이름 없는 임시 DB** 로 읽어 조용히
+        # 성공하므로, 가드가 없으면 503 이 아니라 **200 + 결과 0건**이 나간다(계획 47 리뷰).
+        # 단위는 make_server 를 직접 부르니, 인자가 argv 를 지나오는 것은 여기서만 잰다.
+        blank = subprocess.Popen([sys.executable, "-m", "websearch.serve", "", "--port", "0"],
+                                 env=env, cwd=tmp, stdout=subprocess.PIPE, text=True)
+        try:
+            line = blank.stdout.readline().strip()
+            assert line.startswith("http://127.0.0.1:"), "포트를 못 읽었다: %r" % line
+            status, raw = request("%s/search?q=%s" % (line.split("/search")[0], q))
+            assert status == 503, "빈 DB 경로인데 %d 다 (기대 503)\n%s" % (status, raw[:200])
+        finally:
+            blank.terminate()
+            blank.wait(timeout=20)
+
     perf = run(os.path.join(ROOT, "e2e", "perf_search.py"), "500", "30")
     assert "p95" in perf, "측정이 숫자를 안 냈다: %r" % perf
 
-    print("e2e 통과 — %d문서 색인, CLI 로 띄운 API 가 1페이지 10건(has_next 참)·"
-          "2페이지 5건(거짓)·겹침 0, 400/404/501 이 트레이스백 없이 나온다. "
-          "색인을 치우면 503·되돌리면 200 이고 200 과 503 이 version 1 을 갖는다" % (DOCS + 1))
+    print("e2e 통과 — %d문서 색인, CLI 로 README 형태의 상대 경로로 띄운 API 가 "
+          "1페이지 10건(has_next 참)·2페이지 5건(거짓)·겹침 0, 400/404/501 이 트레이스백 "
+          "없이 나온다. 색인을 치우면 503·되돌리면 200 이고 200 과 503 이 version 1 을 "
+          "가지며, 빈 DB 경로로 뜬 서버는 200 이 아니라 503 이다" % (DOCS + 1))
     print(perf.strip().splitlines()[-1])
 
 
