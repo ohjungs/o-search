@@ -265,8 +265,14 @@ class TestLongPassageIsTruncated(ServeTestCase):
                                    % ("김치 " * 2000)}
 
     def test_passage_is_cut_at_max(self):
+        # **값까지 단언한다** — `serve.MAX_PASSAGE` 로 재면 fixture 가 값을 따라 움직여
+        # 값을 바꾸는 변이가 안 죽는다(실측: 2000→500 · 2000→5000 둘 다 557건 전부 초록).
+        # 잘라 놓고 상한만 넓히면 응답이 소리 없이 부풀고, 좁히면 근거 문단이 문장
+        # 중간에서 끊겨 부르는 쪽 모델에 반 토막이 들어간다 — 둘 다 여기로 와야 한다.
+        # fixture 는 8,000자라 넓히는 변이도 «안 잘린 길이 ≠ 2000» 으로 죽는다.
         _, body, _ = self.get(PASSAGE_Q)
-        self.assertEqual(len(body["passages"][0]["text"]), serve.MAX_PASSAGE)
+        self.assertEqual(len(body["passages"][0]["text"]), 2000,
+                         "MAX_PASSAGE 를 바꿨으면 이 줄도 함께 바꾼다")
 
 
 class TestPassagesMissingDb(ServeTestCase):
@@ -722,8 +728,12 @@ class TestSlowClient(ServeTestCase):
         OFFSET 990 짜리 질의(7ms)를 상한으로 막으면서 이쪽을 열어두면 균형이 안 맞는다.
         """
         handler = self.server.RequestHandlerClass
-        # 실제로 나가는 값을 단언한다 — 아래에서 짧게 갈아끼우고 재는 건 기제가 도는지만 본다
-        self.assertIsNotNone(handler.timeout, "핸들러에 소켓 타임아웃이 없다(stdlib 기본 None)")
+        # 실제로 나가는 값을 단언한다 — 아래에서 짧게 갈아끼우고 재는 건 기제가 도는지만 본다.
+        # **`is not None` 은 값을 안 붙든다** — 10→600 으로 넓히는 변이가 557건 전부
+        # 초록으로 지나갔다(실측). 이 값이 곧 공격자가 스레드 하나를 공짜로 붙잡는 초다.
+        self.assertEqual(handler.timeout, 10,
+                         "핸들러 소켓 타임아웃이 REQUEST_TIMEOUT 10초가 아니다"
+                         "(stdlib 기본은 None — 무한정 붙잡는다)")
         with mock.patch.object(handler, "timeout", 0.3):
             sock = socket.create_connection(self.server.server_address, timeout=10)
             self.addCleanup(sock.close)
