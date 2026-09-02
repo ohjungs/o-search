@@ -136,6 +136,24 @@ class TestConstantDrift(PassageEvalCase):
         self.assertIn("PAGE_SIZE", out, "무엇이 갈렸는지 안 적혀 있다")
 
 
+class TestServerErrorIsNotShortfall(PassageEvalCase):
+    """서버가 비2xx 를 내면 **2** 다 — `measure()` 의 `urlopen` 이 던지는 자리다.
+
+    `--repeat`·G7·상수 드리프트가 이미 같은 이유로 2 를 내는데 **HTTP 경로만
+    빠져 있었다**(계획 48 리뷰 실측: rc 1 + 트레이스백). 이쪽이 더 나쁘다 —
+    사용법 오류는 사람이 곧 알아채지만 서버가 500 을 내서 나온 rc 1 은
+    *"문단 품질이 떨어졌다"* 로 읽혀 엉뚱한 것을 고치러 간다.
+    """
+
+    def test_server_500_is_unmeasurable_not_shortfall(self):
+        rc, out = self.run_eval(prelude=(
+            "def _boom(*a, **k):\n"
+            "    raise RuntimeError('문단 경로가 터졌다')\n"
+            "passage_eval.indexer.passages = _boom\n"))
+        self.assertEqual(rc, UNMEASURABLE, out)
+        self.assertNotIn("Traceback", out, "HTTP 오류가 트레이스백으로 샜다")
+
+
 class TestGuards(PassageEvalCase):
     """가드가 이 도구의 이빨이다 — 거짓 초록을 잡는 것은 정확도가 아니라 종료 2 다."""
 

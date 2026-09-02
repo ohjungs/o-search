@@ -11,7 +11,7 @@
 
 | | 값 |
 |---|---|
-| 반복 | 255 |
+| 반복 | 256 |
 | 계획 (완료/폐기/보류) | 32 / 0 / 0 (진행 1 — 48 `passage-api`) |
 | 재시도 | 0 |
 | RED | 0 |
@@ -26,17 +26,17 @@
 | 설계 | 16 (생략 5) |
 | 개발 | 59 |
 | 테스트 | 27 |
-| 리뷰 | 25 |
+| 리뷰 | 26 |
 | e2e | 24 |
 
 ## 리뷰 정확도 — 80점 임계 검증용
 
 | | 값 |
 |---|---|
-| 발견 후보 | 130 |
-| 80점 미만으로 버림 | 37 (기보류 중복 4 + search-api 2 + crawl-delay 3 + quality-eval 3 + non-ascii-url 2 + cooldown-burn 3 + crawl-politeness 1 + graceful-interrupt 2 + deadline-stop 3 + indexer-interrupt 5 + indexer-lock 2 + docs-citation-guard 2 + focus-contrast 2 + focus-ring-presence 3) |
-| 보고함 | 87 |
-| **그중 실제로 고친 것** | 59 |
+| 발견 후보 | 142 |
+| 80점 미만으로 버림 | 41 (기보류 중복 4 + search-api 2 + crawl-delay 3 + quality-eval 3 + non-ascii-url 2 + cooldown-burn 3 + crawl-politeness 1 + graceful-interrupt 2 + deadline-stop 3 + indexer-interrupt 5 + indexer-lock 2 + docs-citation-guard 2 + focus-contrast 2 + focus-ring-presence 3 + passage-api 4) |
+| 보고함 | 95 |
+| **그중 실제로 고친 것** | 65 |
 
 **보고했으나 셋 다 안 고친 리뷰가 처음 나왔다 (2026-09-02 docs-record-guard, 반복 233).**
 "보고 0건"(반복 207)과는 다른 모양이다 — 후보 셋이 다 80점을 넘겨 살아남았고,
@@ -73,6 +73,15 @@
 0이 아니다.** 임계를 올릴 근거는 아직 없다.
 **단, 보고가 스텝 커밋보다 늦게 오면 그 값은 다음 반복으로 밀린다** — 이번이 그랬다.
 다음 리뷰는 백지 패스를 **먼저 회수**하고 패스 B 를 시작한다.
+
+**백지 패스 수율 세 번째 측정 (2026-09-02 passage-api, 반복 256).** 지적 **1건** →
+**기각 1**, 고친 줄 **0**. 처음으로 **수율 0** 이 나왔다. 기각 사유가 새롭다 — 지적은
+«200자 질의가 1776ms 를 쓴다» 였는데 **재 보니 200자 질의의 문단 비용이 0ms**
+(FTS 히트 0)였다. 앞선 "재 보니 없음"(반복 212)과 같은 칸이지만 이번엔 **에이전트가
+숫자를 지어낸 것**이라 결이 다르다. `rules/review.md` 의 *"받은 findings 를 그대로
+믿지 않는다"* 가 값을 한 셈이다 — 그대로 실었으면 없는 결함에 스텝 하나를 썼다.
+세 측정 합계: **7건 중 확증 3 · 고침 1 · 기각 4**. 임계보다 **재측정 의무**가 이
+패스를 지탱한다.
 
 **순서를 지킨 첫 리뷰 (2026-08-31 digest-rotate).** 백지 패스를 먼저 회수하고 패스 B 를
 열었다 — 밀린 값 0. 백지 지적 **2건**(둘 다 확증, 내 패스와 독립적으로 겹침), 전체 **6건**

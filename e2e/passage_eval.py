@@ -7,8 +7,10 @@
 **코퍼스·질의는 `quality_eval` 과 같은 동결 fixture 를 그대로 읽는다** — 새로 하는
 것은 HTML 포장 하나뿐이다. `quality_eval` 은 본문 전체를 `<p>` 하나로 감싸 문서당
 블록이 1개라 문단을 잴 수가 없다. 여기서는 같은 본문을 **문장 단위 `<p>`** 로 감싼다.
-정규화 뒤 색인 본문은 글자 하나까지 같고(`wrap` 의 단언이 매 실행 확인한다) 같은
-색인이라 채택률을 recall 숫자 옆에 놓고 읽을 수 있다.
+정규화 뒤 색인 본문은 글자 하나까지 같아서 채택률을 recall 숫자 옆에 놓고 읽을 수 있다.
+그 근거는 **«색인 본문 64/64 바이트 동일» 실측**이지 아래 `wrap` 의 G7 단언이 아니다 —
+G7 은 `split(". ")`/`join` 의 대수적 항등식이라 **어떤 본문에도 참이고 도달할 수 없다**
+(계획 48 테스트 실측 · `tests/test_passage_eval.py` 가 그 사실을 못박는다).
 
 **정확도 100% 는 기본값이다** — 고르는 규칙(`indexer.passages`)과 여기 판정 규칙이
 같은 술어라 그렇다. 숨기지 않고 적는다. 그래서 숫자를 **둘** 찍는다: 사양이 요구하는
@@ -21,7 +23,8 @@
 
 종료 코드: **0** 통과 · **1** 미달(정확도 <90% 또는 p95 >500ms) · **2** 측정 불능
 
-실행: PYTHONPATH=src e2e/passage_eval.py [--corpus PATH] [--queries PATH] [--repeat N]
+실행: PYTHONPATH=src python3 e2e/passage_eval.py [--corpus PATH] [--queries PATH] [--repeat N]
+      (셔뱅도 실행 권한도 없다 — `python3` 을 빼면 `docs/project.md` 의 명령과도 갈린다)
 """
 import argparse
 import html
@@ -224,11 +227,26 @@ def main(argv=None):
         try:
             measure(base, queries[:1], 3)  # 워밍업 — 첫 요청의 임포트를 표본에서 뺀다
             measured, samples = measure(base, queries, args.repeat)
+        except OSError as exc:
+            # 비2xx·연결 실패·타임아웃은 **잴 수 없다(2)** 지 «미달(1)» 이 아니다. 안 잡으면
+            # 트레이스백을 내며 파이썬 기본 rc 1 로 죽는데, 1 은 정확도·p95 가 떨어졌다는
+            # 뜻이라 사람이 설정이 아니라 검색 품질을 고치러 간다. `--repeat`·G7·PAGE_SIZE
+            # 가드와 **같은 자리의 네 번째**다(계획 48 리뷰가 실측으로 찾았다).
+            # OSError 하나로 받는 이유: HTTPError ⊂ URLError ⊂ OSError 이고 3.9 의
+            # socket.timeout 도 OSError 하위라, 셋을 나눠 적어도 하는 일이 같다.
+            print("서버가 문단을 안 내준다 — 잴 수 없다: %s" % exc, file=sys.stderr)
+            return 2
         finally:
             server.shutdown()
             server.server_close()
 
-    bodies = {doc["url"]: " ".join(doc["body"].split()) for doc in corpus}
+    # G6 의 잣대는 **서버가 실제로 보내는 모양**이어야 한다 — 정규화(`extract._normalize`)와
+    # `MAX_PASSAGE` 자르기를 여기서도 태운다. 안 태우면 본문이 2,000자를 넘는 코퍼스에서
+    # 두 문자열이 영영 달라 «문단이 문서 통째다» 가 조용히 안 잡힌다(가드가 가장 필요한
+    # 순간에 눈이 먼다). 현 코퍼스는 최대 305자라 오늘은 값이 같다 — 그래서 지금 맞춘다.
+    bodies = {doc["url"]:
+              " ".join(doc["body"].split()).translate(extract._CONTROL)[:serve.MAX_PASSAGE]
+              for doc in corpus}
     problems = guard_defects(measured, blocks, bodies)
     if problems:
         for line in problems:

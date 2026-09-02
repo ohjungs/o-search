@@ -1,7 +1,8 @@
-"""검색 HTTP 서버. 경로 둘이다.
+"""검색 HTTP 서버. 경로 셋이다.
 
-    GET /          검색 홈 (HTML)          GET /?q=…      결과 페이지 (HTML)
-    GET /search?q= 검색 결과 (JSON)
+    GET /            검색 홈 (HTML)        GET /?q=…      결과 페이지 (HTML)
+    GET /search?q=   검색 결과 (JSON, 10건 단위 · page 로 넘긴다)
+    GET /passages?q= 근거 문단 (JSON, 문서당 최대 1개 · 페이지를 나누지 않는다)
 
 요청마다 sqlite 연결을 새로 연다 — 연결 open+close 가 0.04ms 로 질의(1.16ms)의
 3% 라 아낄 것이 없다(docs/design_search-api.md 탐침). 그래서 indexer.search() 를
@@ -281,7 +282,10 @@ def make_server(db_path, port=8000):
                 self.log_error("색인 없음: %r", exc)
                 self._send(503, {"error": "색인이 아직 준비되지 않았다"})
             except Exception as exc:  # 트레이스백을 응답 본문에 싣지 않는다
-                self.log_error("search 실패: %r", exc)
+                # 경로를 찍는다 — 사다리를 두 경로가 나눠 쓴 뒤로 "search 실패" 한 문구는
+                # /passages 가 터진 것도 그렇게 적었다. 500 의 유일한 흔적이라 어느 문이
+                # 열렸는지가 거기 있어야 한다. 값은 위 404 갈래를 지난 둘 중 하나뿐이다.
+                self.log_error("%s 실패: %r", parts.path, exc)
                 self._send(500, {"error": "검색 중 오류가 났다"})
             else:
                 if passages:

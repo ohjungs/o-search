@@ -209,3 +209,40 @@ DONE 이라 경계가 깨끗하다** — 남은 것은 계획 48 의 항목 하�
   fixture·PAGE_SIZE)에 흩어져 있다. 한 벌로 묶을지가 판단거리다.
 
 
+## 2026-09-02 | passage-api | 리뷰 1 | 시도0
+- 한 일: 계획 48 리뷰. **후보 12 → 버림 4 · 보고 8**(자동 수정 6 · 보고만 1 ·
+  **승인 필요 1**). 백지 패스를 **먼저 회수**하고(별도 에이전트에 `git diff 6e99031..HEAD
+  -- src e2e tests` 만 주고 `docs/` 를 못 열게 묶었다) 그 뒤 계획·설계·CLAUDE.md 대조
+  패스 B 를 열었다. Pass 1(critical — 데이터 안전·레이스·주입·열거형 완전성·신뢰 경계)은
+  **0건**이다.
+- **[승인 필요 · medium] 본문 크기 축에 상한이 없다.** `/passages` 는 요청마다 문서
+  10건의 `pages.html` 을 **통째로 다시 파싱**하는데, `serve.py` 의 네 상한
+  (`MAX_QUERY`·`MAX_PAGE`·`REQUEST_TIMEOUT`·`MAX_PASSAGE`) 중 **다시 파싱하는 입력 크기를
+  막는 것이 없다** — `MAX_PASSAGE` 는 응답 바이트를 자를 뿐 CPU 를 안 자른다. 실측:
+  23KB→0.6ms · 257KB→6.0ms(×10 = 59.7ms) · **2.5MB→60.1ms(×10 = 600.7ms)** 로
+  **500ms 예산을 넘는다**. 2.5MB 는 크롤러 자신의 `fetcher.MAX_BYTES` 상한이라 상상이
+  아니다. e2e 코퍼스는 본문 208자라 이 축을 못 밟고, 그래서 `p95 1.76ms(예산의 0.4%)`
+  라는 초록불이 예산을 **보증하지 않는다**. 상한값은 품질 손잡이라
+  `rules/severity.md` 3·4절이 자동 적용을 막는다 → **개발 스텝 4 로 넘겼다.**
+- **[자동 수정 · medium] 종료 코드 1/2 의 네 번째 구멍.** 직전 커밋 제목이 *"러너 rc 1
+  누출 결함 봉함"* 인데 **같은 문이 하나 더 열려 있었다** — `measure()` 의 `urlopen` 이
+  비2xx 에 던지는 `HTTPError` 를 아무도 안 잡아 트레이스백 + 파이썬 기본 **rc 1**.
+  재현(`indexer.passages` 를 500 으로) rc **1** → `except OSError` 로 **rc 2**
+  (`HTTPError ⊂ URLError ⊂ OSError`, 3.9 의 `socket.timeout` 도 그 아래라 한 갈래로 덮는다).
+  TDD RED(`1 != 2`)를 먼저 세우고 고쳤다. `--repeat`·G7·PAGE_SIZE 에 이은 **네 번째**다.
+- **[자동 수정 · low] 다섯**: `serve.py` docstring 이 경로 둘만 적어 `/passages` 가 없던 것 ·
+  500 로그가 `"search 실패"` 로 고정돼 `/passages` 가 터져도 `/search` 로 보이던 것
+  (`parts.path` 로 바꿨다 — 404 갈래를 지난 뒤라 값은 둘 중 하나뿐) · README 단위 건수
+  553→554 · e2e 러너 실행 권한/셔뱅 · G6 잣대를 서버가 실제로 보내는 문자열
+  (`_normalize` + `MAX_PASSAGE`)에 맞춘 것.
+- **버린 넷(80점 미만)**: 백지 패스가 낸 «200자 질의 1776ms» 는 **재 보니 0ms**
+  (FTS 히트 0)였다 — `rules/review.md` 의 *"받은 findings 를 그대로 믿지 않는다"* 가
+  값을 했다. 나머지 셋은 기보류 중복·도달 불가.
+- 결과: **단위 554건 OK(13.374초)** · `e2e/passage_eval.py` rc **0**(정확도 100.0% ·
+  p95 1.76ms) · `e2e/search_api_e2e.py` rc **0**. 맨몸·단독 호출, 파이프·리다이렉션 **0회**.
+- 실측: 제품 `src/` **7줄**(주석 4 · 문서 3 · **동작 변경 0**) · 의존성 0 ·
+  `data/crawl.db`·스키마·`docs/specs/` 무변경.
+- 다음: **개발 4(리뷰 반려분).** 승인 필요 1건이 남아 `rules/review.md` 6절대로 개발로
+  돌아간다 — `indexer.passages` 의 `extract_blocks(row[0])` 에 `MAX_PASSAGE_HTML`
+  (200KB, `serve` 의 세 형제 옆) 을 물리고 천장(«잘린 뒤의 문단은 못 찾는다»)을
+  `ponytail:` 주석에 적는다.
