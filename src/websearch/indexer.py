@@ -287,19 +287,11 @@ def passages(db_path, query, limit=10):
             row = db.execute("SELECT html FROM pages WHERE url = ?", (url,)).fetchone()
             if not row or not row[0]:
                 continue  # 원본이 사라진 문서 — 지어내지 않고 뺀다
+            # 여기서는 **길이만** 정한다. 자른 자리(또는 원문 자체)에 남은 안 닫힌
+            # 마크업은 `extract_blocks()` 가 파서에게 물어 버린다 — 문자열로 그 끝을
+            # 찾으려던 세 판(캡·`<` 유무·`<`/`>` 비교)이 전부 절반만 맞았다.
+            # 안 닫힌 구성물은 자기 안에 `>` 를 담을 수 있다(`<!-- a>`·`title="a > b"`)
             html = row[0][:MAX_PASSAGE_HTML]
-            if html.rfind("<") > html.rfind(">"):
-                # **안 닫힌 마크업이 남았을 때만** 되감는다. `html.parser` 는 EOF 의
-                # 미완성 태그를 버리지 않고 **데이터로 흘려** 근거 문단이
-                # `... <a href="xxx` 로 끝난다(긴 속성값·URL).
-                # 조건이 캡이 아니라 비교인 이유가 둘이다 — ① 원문 자체가 깨진 문서는
-                # 캡보다 짧아도 같은 조각을 흘린다 ② 「`<` 가 있나」로 물으면 문서
-                # 전체가 문단 하나일 때(`<p>` 가 인덱스 0) `html[:0]` 이라 **문서가
-                # 통째로 지워진다**. 잃는 것은 그 안 닫힌 조각 하나뿐이다(닫는
-                # 태그였다면 `close()` 의 flush 가 그 앞의 텍스트를 대신 낸다).
-                # 잘린 엔티티(`A&am`)는 이 줄이 안 건드린다 — 평문이라 마크업으로
-                # 새지 않고, 안 닫힌 `<` 뒤에 있으면 그때 함께 사라진다
-                html = html[:html.rfind("<")]
             best = None
             for pos, block in enumerate(extract.extract_blocks(html)):
                 low = block.lower()
