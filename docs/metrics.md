@@ -11,8 +11,8 @@
 
 | | 값 |
 |---|---|
-| 반복 | 279 |
-| 계획 (완료/폐기/보류) | 33 / 0 / 0 (진행 1 — 49 `focus-rule-scope` 테스트 1 끝) |
+| 반복 | 280 |
+| 계획 (완료/폐기/보류) | 33 / 0 / 0 (진행 1 — 49 `focus-rule-scope` 리뷰 1 끝) |
 | 재시도 | 0 |
 | RED | 1 |
 
@@ -26,17 +26,31 @@
 | 설계 | 17 (생략 5) |
 | 개발 | 67 |
 | 테스트 | 32 |
-| 리뷰 | 32 |
+| 리뷰 | 33 |
 | e2e | 25 |
 
 ## 리뷰 정확도 — 80점 임계 검증용
 
 | | 값 |
 |---|---|
-| 발견 후보 | 171 |
-| 80점 미만으로 버림 | 52 (기보류 중복 4 + search-api 2 + crawl-delay 3 + quality-eval 3 + non-ascii-url 2 + cooldown-burn 3 + crawl-politeness 1 + graceful-interrupt 2 + deadline-stop 3 + indexer-interrupt 5 + indexer-lock 2 + docs-citation-guard 2 + focus-contrast 2 + focus-ring-presence 3 + passage-api 17) |
-| 보고함 | 111 |
-| **그중 실제로 고친 것** | 71 |
+| 발견 후보 | 175 |
+| 80점 미만으로 버림 | 54 (기보류 중복 4 + search-api 2 + crawl-delay 3 + quality-eval 3 + non-ascii-url 2 + cooldown-burn 3 + crawl-politeness 1 + graceful-interrupt 2 + deadline-stop 3 + indexer-interrupt 5 + indexer-lock 2 + docs-citation-guard 2 + focus-contrast 2 + focus-ring-presence 3 + passage-api 17 + focus-rule-scope 2) |
+| 보고함 | 113 |
+| **그중 실제로 고친 것** | 72 |
+
+**리뷰의 산출물이 처음으로 «반려도 수리도 아닌 등재» 하나였다 (2026-09-02 focus-rule-scope, 반복 280).**
+보고 2건 중 하나는 docstring 한 줄(자동 수정)이고, 값이 있는 쪽 `[R1]`(결합자 뒤의 거짓
+초록)은 **실측이 붙었는데도 고치지 않았다** — 계획서 5절·설계서 6절이 «CSS 파서를 안
+만든다» 로 그어 둔 선 안쪽이라 반려하면 리뷰가 계획의 범위 결정을 뒤집는 셈이 된다.
+반복 273 의 «결함 0 인 리뷰의 산출물은 지울 후보다» 와 옆 칸이다: **이번은 실재하는
+거짓 초록을 두고도 «지금 계획이 닫을 축이 아니다» 로 닫았다.** 가른 기준이 눈금이다 —
+직전 테스트 phase 가 닫은 ⓔⓕⓖ 는 **새 가드가 읽는 축을 좁게 읽어서 샌 것**이고,
+결합자는 **어느 가드도 읽은 적 없는 다른 차원**이다. 앞의 것은 스텝 안에서 닫고, 뒤의
+것은 등재한다. **탐침이 먼저 틀린 것도 이번 표본이다** — 첫 배선(셀렉터 목록의 한 조각만
+비틀기)에서 열 케이스가 전부 초록이라 하마터면 없는 구멍 여섯을 보고할 뻔했고,
+다시 배선하니 4/10 만 남았다. digest `[6]`(탐침의 배선을 먼저 의심한다)이 값을 낸
+두 번째 자리이고, 반복 256·259 의 «에이전트가 낸 숫자가 틀렸다» 와 같은 고장을
+**자기 탐침에서** 잡은 첫 사례다.
 
 **첫 RED 다 — 누적 263 반복 만에 (2026-09-02 passage-api, 반복 264).** 테스트 phase 가
 직전 개발의 수리에서 **같은 결함의 남은 절반**을 찾아 고치지 않고 RED 로 넘겼다

@@ -102,7 +102,7 @@ class ContrastAxisTest(unittest.TestCase):
     def test_product_css_reports_the_ring_rule(self):
         """제품 CSS 에서 링을 그리는 규칙이 **읽혀서 화면에 찍힌다.**
 
-        이 줄이 안 찍히면 아래 아홉 변이가 전부 "우연히" 통과하는 상태로 돌아간 것이다.
+        이 줄이 안 찍히면 아래 열아홉 변이가 전부 "우연히" 통과하는 상태로 돌아간 것이다.
         값(2px)은 안 붙든다 — 붙들면 검사기 옆에 옛 값을 하나 더 두는 꼴이 된다.
         """
         fail, unmeasurable, out = run(CSS)
