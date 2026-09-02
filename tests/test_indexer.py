@@ -543,6 +543,21 @@ class TestPassages(unittest.TestCase):
         self.assertEqual([h[0] for h in search(self.db_path, "다물")], ["http://a.test/"])
         self.assertEqual(indexer.passages(self.db_path, "다물"), [])
 
+    def test_a_spacing_variant_document_still_gets_a_passage(self):
+        # 갭 탐색(테스트 5) — 변이 «2-gram 바늘 삭제» 가 573건 전부 초록으로
+        # 살아남았다. 색인은 한글 2-gram 으로 띄어쓰기 변형을 매치하는데
+        # (`김치찌개` ↔ `김치 찌개`), 문단 고르기가 **날 질의어만** 세면 그 문서는
+        # 어느 블록도 점수 0 이라 **근거 없이 통째로 빠진다** — 검색에는 나오는데
+        # 근거는 0건이다(사양 기능 8 · 채택률). 부정 짝(`search` 는 낸다)을 같이 잰다
+        self._seed_and_index([
+            ("http://a.test/", "<title>요리</title><p>다른 이야기다</p>"
+                               "<p>김치 찌개를 끓이는 법을 적는다</p>"),
+        ])
+        self.assertEqual([h[0] for h in search(self.db_path, "김치찌개")],
+                         ["http://a.test/"])
+        self.assertEqual(indexer.passages(self.db_path, "김치찌개")[0][2:],
+                         (1, "김치 찌개를 끓이는 법을 적는다"))
+
     def test_picks_the_block_with_the_most_hits(self):
         self._seed_and_index([
             ("http://a.test/", "<p>김치 이야기</p><p>김치 담그기와 김치 보관</p><p>끝</p>"),

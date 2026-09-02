@@ -211,6 +211,19 @@ class TestPassagesEndpoint(ServeTestCase):
             [(url, pos, text) for url, _title, pos, text
              in indexer.passages(self.db, "김치", limit=serve.PASSAGE_LIMIT)])
 
+    def test_title_is_the_document_title_not_a_placeholder(self):
+        """갭 탐색(테스트 5) — `title` **값**을 아무 데서도 안 쟀다.
+
+        `"title": ""` 로 바꾸는 변이가 573건 전부 초록으로 살아남았다. 위 200 검사는
+        키 **집합**만 보고, `test_server_does_not_pick_passages_of_its_own` 은
+        (url·position·text)만 비교한다. 소비자가 근거를 인용할 때 사람에게 보이는
+        것은 URL 이 아니라 제목이라 빈 값은 조용한 품질 손실이다.
+        """
+        _, body, _ = self.get(PASSAGE_Q)
+        self.assertEqual({p["url"]: p["title"] for p in body["passages"]},
+                         {"http://a.test/1": "김치찌개 만들기",
+                          "http://a.test/2": "김치 담그기"})
+
     def test_query_echoed_in_response(self):
         _, body, _ = self.get(PASSAGE_Q)
         self.assertEqual(body["query"], "김치")

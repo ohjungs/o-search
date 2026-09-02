@@ -98,6 +98,18 @@ class TestExtractBlocks(unittest.TestCase):
         self.assertEqual(extract_blocks("<article><div><div>가</div>나</div>다</article>"),
                          [("div", "가"), ("div", "나"), ("article", "다")])
 
+    def test_closing_an_outer_tag_also_sweeps_the_unclosed_tags_inside_it(self):
+        # 갭 탐색(테스트 5) — 변이 «`del self._open[i:]` → `del self._open[i]`» 가
+        # 573건 전부 초록으로 살아남았다. 안쪽 태그를 **안 닫는 것**은 실물 HTML 의
+        # 기본형이다(`<li>`·`<p>` 는 종료 태그가 선택이다). 바깥이 닫힐 때 함께
+        # 걷지 않으면 그 뒤의 텍스트가 **이미 끝난 태그의 이름표**를 달고 나간다 —
+        # 텍스트는 맞고 이름표만 틀리는 거짓양성이라 눈으로는 안 보인다.
+        # 마지막 블록의 이름표가 `""`(열린 블록 없음)인 것이 이 검사의 전부다
+        self.assertEqual(extract_blocks("<ul><li>가<li>나</ul>다"),
+                         [("li", "가"), ("li", "나"), ("", "다")])
+        self.assertEqual(extract_blocks("<article><p>가</article>나"),
+                         [("p", "가"), ("", "나")])
+
     def test_last_block_survives_broken_html(self):
         # 변이 M2(마지막 flush 삭제)가 여기서 죽는다. 정상 HTML 은 닫는 태그가
         # flush 를 대신해 주므로 **닫히지 않은** 태그로 재야 한다
