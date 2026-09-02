@@ -11,7 +11,7 @@
 
 | | 값 |
 |---|---|
-| 반복 | 267 |
+| 반복 | 268 |
 | 계획 (완료/폐기/보류) | 32 / 0 / 0 (진행 1 — 48 `passage-api`) |
 | 재시도 | 0 |
 | RED | 1 |
@@ -26,16 +26,16 @@
 | 설계 | 16 (생략 5) |
 | 개발 | 64 |
 | 테스트 | 30 |
-| 리뷰 | 29 |
+| 리뷰 | 30 |
 | e2e | 24 |
 
 ## 리뷰 정확도 — 80점 임계 검증용
 
 | | 값 |
 |---|---|
-| 발견 후보 | 164 |
-| 80점 미만으로 버림 | 52 (기보류 중복 4 + search-api 2 + crawl-delay 3 + quality-eval 3 + non-ascii-url 2 + cooldown-burn 3 + crawl-politeness 1 + graceful-interrupt 2 + deadline-stop 3 + indexer-interrupt 5 + indexer-lock 2 + docs-citation-guard 2 + focus-contrast 2 + focus-ring-presence 3 + passage-api 15) |
-| 보고함 | 106 |
+| 발견 후보 | 168 |
+| 80점 미만으로 버림 | 52 (기보류 중복 4 + search-api 2 + crawl-delay 3 + quality-eval 3 + non-ascii-url 2 + cooldown-burn 3 + crawl-politeness 1 + graceful-interrupt 2 + deadline-stop 3 + indexer-interrupt 5 + indexer-lock 2 + docs-citation-guard 2 + focus-contrast 2 + focus-ring-presence 3 + passage-api 17) |
+| 보고함 | 108 |
 | **그중 실제로 고친 것** | 69 |
 
 **첫 RED 다 — 누적 263 반복 만에 (2026-09-02 passage-api, 반복 264).** 테스트 phase 가
@@ -46,6 +46,16 @@
 **한 반복 만에 닫혔다(반복 265) — 연속 RED 0.** 넘긴 갈림길 둘(㉠ 색인 본문 · ㉡ 파싱
 두 번) 중 어느 쪽도 안 골랐다: 세 번째 자리가 있었고 실측이 ㉡ 을 죽였다. RED 를 넘긴
 값이 **판단이었지 미궁이 아니었다**는 첫 표본이다.
+
+**«직전 반복이 만든 자» 를 재는 리뷰가 처음 나왔다 (2026-09-02 passage-api, 반복 268).**
+계획 48 의 다섯 번째 반려이고 앞 넷과 유형이 또 다르다 — 개발 8 이 «손잡이보다 잴 자를
+먼저» 로 골드 표를 만들었고, 리뷰는 손잡이가 아니라 **그 자의 눈금**을 쟀다. 여덟 행이
+보일러플레이트를 **전부 본문 앞에** 두고 있어 「동점이면 긴 쪽」이 이득이 되는 방향만
+재고 있었다. 그 표에서 8/8 을 받은 손잡이가 **방향을 뒤집은 입력에서는 직전 커밋보다
+나빠진다**(기점 대조 실측). **자를 먼저 만드는 규율은 옳고, 자의 대칭성은 그 규율이
+스스로 못 재는 축이다** — 자를 쓴 사람과 만든 사람이 같기 때문이다(`rules/review.md` 0절의
+백지 패스가 겨냥하는 바로 그 구조다). 보고 2건 다 실측이 붙었고 **569건은 둘 다에 눈이
+멀어 있다** — 근거가 스위트가 아니라 탐침인 리뷰가 반복 262 에 이어 두 번째다.
 
 **보고 3건이 전부 «단위 558건이 통과하는 결함» 이었다 (2026-09-02 passage-api, 반복 262).**
 계획 48 의 세 번째 반려이고 앞 둘과 유형이 다르다 — 앞 둘은 «성능 초록불이 예산을 안
