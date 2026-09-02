@@ -155,6 +155,20 @@ class ContrastAxisTest(unittest.TestCase):
             # ⓓ 는 자식이 받은 포커스라 링이 부모 상자에 그려진다 — 낱말 경계로 가른다.
             ("ⓓ 셀렉터 :focus-within", ":focus-visible", ":focus-within",
              "포커스용이 아니다"),
+            # 아래 넷은 계획 49 스텝 2. 규칙 하나 · 셀렉터 · 색 · offset 이 **전부
+            # 멀쩡한데** 링이 at-rule 안에 있어 라이트 화면에 늘 그려지지는 않는다.
+            # ⓐⓑ 가 계획서가 죽이러 온 둘이고, F3·F4 는 설계가 실측으로 찾아낸
+            # 나머지 둘이다(설계서 1절 표) — **at-rule 의 prelude 를 안 읽는 것**이
+            # 후보 C 를 고른 이유라, 「이 조건은 괜찮다」는 화이트리스트가 생기면
+            # F3·F4 가 먼저 빨개진다.
+            ("ⓐ 다크 @media 안에서만 그린다", RING_RULE,
+             "@media(prefers-color-scheme:dark){" + RING_RULE + "}", "at-rule 안에 있다"),
+            ("ⓑ @media print 안", RING_RULE,
+             "@media print{" + RING_RULE + "}", "at-rule 안에 있다"),
+            ("F3 @media (forced-colors:active) 안", RING_RULE,
+             "@media (forced-colors:active){" + RING_RULE + "}", "at-rule 안에 있다"),
+            ("F4 @layer 안", RING_RULE,
+             "@layer base{" + RING_RULE + "}", "at-rule 안에 있다"),
         ):
             with self.subTest(name):
                 fail, unmeasurable, out = run(self.twist(old, new))
@@ -164,6 +178,31 @@ class ContrastAxisTest(unittest.TestCase):
                 # 요점은 판정이 아니라 **안 찍는 것**이다 — 링이 없는데 링의 대비를
                 # 화면에 내놓으면 사람이 그 숫자를 근거로 다음 판단을 한다.
                 self.assertNotIn("--focus", out)
+
+    def test_brace_counting_is_not_fooled_by_comments_or_strings(self):
+        """조건 6 은 **중괄호를 세서** 링 규칙이 at-rule 밖인지를 본다 — 그 세기의
+        함정이 주석과 문자열이다. 정상 CSS 의 아래 다섯 모양은 전부 종료 0 이어야 한다.
+
+        여는 중괄호 하나가 주석 안에 있으면(둘째 줄) 세기가 어긋나 「at-rule 안」이라는
+        **거짓 판정**이 난다. `content:"}"` 도 같다. 오탐이 종료 2 라 조용하지는 않지만,
+        멈추는 검사기는 안 도는 검사기다 — 진짜 CSS 에 주석 하나 못 적게 된다.
+
+        위 변이 표가 「at-rule 안이면 죽는다」를 붙들고, 이 표가 「그 세기가 CSS 를
+        읽을 줄 안다」를 붙든다. 둘 중 하나만 있으면 조건 6 은 반쪽이다.
+        """
+        for name, old, new in (
+            ("주석 안의 중괄호 짝", RING_RULE, "/* 예: a{color:red} */\n" + RING_RULE),
+            ("주석 안의 여는 중괄호 하나", RING_RULE, "/* 여는 것 { 하나 */\n" + RING_RULE),
+            ("content 문자열 안의 닫는 중괄호", RING_RULE,
+             '.hit h2::after{content:"}"}\n' + RING_RULE),
+            ("줄바꿈·공백", RING_RULE, "\n\n  " + RING_RULE.replace("{", " {\n  ", 1)),
+            ("@media 블록이 링 규칙 뒤에 온다", RING_RULE,
+             RING_RULE + "\n@media print{.pager{display:none}}"),
+        ):
+            with self.subTest(name):
+                fail, unmeasurable, out = run(self.twist(old, new))
+                self.assertEqual((fail, unmeasurable), ([], []), out)
+                self.assertIn("포커스 링 규칙 1개", out)
 
 
 if __name__ == "__main__":

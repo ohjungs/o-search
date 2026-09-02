@@ -179,8 +179,9 @@ def token_maps(css):
 
 # 선택자와 본문으로 규칙을 쪼갠다. 중첩 at-rule 안쪽 규칙도 이 안쪽 짝에 걸린다.
 # ponytail: 중괄호 없는 선언만 있는 평평한 CSS 를 전제하는 순진한 쪼개기다 — 중첩
-# 선택자(CSS Nesting)나 주석 안의 `outline:` 은 못 읽는다. 그런 CSS 가 생기면
-# 규칙 수가 틀리고 아래 첫 갈래가 측정 불능으로 멈춘다(조용히 통과하지는 않는다).
+# 선택자(CSS Nesting)는 못 읽는다. 그런 CSS 가 생기면 규칙 수가 틀리고 아래 첫
+# 갈래가 측정 불능으로 멈춘다(조용히 통과하지는 않는다). 주석·문자열은 `focus_rule`
+# 이 먹이기 전에 지우므로 여기까지 안 온다.
 RULE_RE = re.compile(r"([^{}]*)\{([^{}]*)\}")
 # 링이 그려지는지를 정하는 속성들. outline-offset 은 링을 없애지 못하므로 뺀다.
 OUTLINE_RE = re.compile(r"outline(?:-width|-style|-color)?\s*:")
@@ -189,6 +190,10 @@ OUTLINE_RE = re.compile(r"outline(?:-width|-style|-color)?\s*:")
 # 그리고, `:focus-within` 은 자식이 받은 포커스라 링이 부모 상자에 그려진다.
 NOT_RE = re.compile(r":not\([^()]*\)")
 FOCUS_RE = re.compile(r":focus(?:-visible)?(?![\w-])")
+# 링 규칙이 at-rule **밖**인가는 그 앞의 중괄호를 세서 본다(조건 6). 세기의 함정은
+# 블록을 안 여는 중괄호 — 주석 안의 `{` 와 `content:"}"` 는 짝이 없어도 CSS 로는
+# 정상이다. 세기 전에 지운다. 주석을 먼저 지우는 순서라 주석 안의 따옴표는 안 문다.
+COMMENT_OR_STRING_RE = re.compile(r"/\*.*?\*/|\"[^\"\n]*\"|'[^'\n]*'", re.S)
 
 
 def focus_rule(css):
@@ -209,17 +214,25 @@ def focus_rule(css):
     한 규칙 **안에서** `outline-width:0` 으로 자기를 뒤엎는 형태도 못 잡는다(지금 0곳,
     잡으려면 한 규칙 안의 선언 순서를 해석해야 한다).
     """
-    rules = [(sel, body) for sel, body in RULE_RE.findall(css) if OUTLINE_RE.search(body)]
+    css = COMMENT_OR_STRING_RE.sub("", css)
+    rules = [m for m in RULE_RE.finditer(css) if OUTLINE_RE.search(m.group(2))]
     if len(rules) != 1:
         raise ValueError("outline 을 정하는 규칙이 %d개 — 캐스케이드를 바이트로 못 정한다"
                          % len(rules))
-    selector, body = rules[0]
+    selector, body = rules[0].group(1), rules[0].group(2)
     # `:not(…)` 안은 링을 그릴 조건이 아니라 그리지 **않을** 조건이라 먼저 지운다.
     # 남은 자리에서 `:focus`/`:focus-visible` 이 **낱말로** 있어야 한다 — `:focus-within`
     # 은 뒤에 `-` 가 붙어 안 남는다. `:not(.foo):focus-visible` 은 그대로 통과한다.
     if not FOCUS_RE.search(NOT_RE.sub("", selector)):
         raise ValueError("outline 을 정하는 유일한 규칙이 키보드 포커스용이 아니다: %s"
                          % " ".join(selector.split()))
+    # 규칙 앞의 중괄호가 안 닫혀 있으면 링은 어떤 at-rule 안이다(조건 6). **prelude 를
+    # 안 읽는다** — 「이 조건은 늘 참」을 고르기 시작하면 `@layer`·`@supports`·
+    # `forced-colors` 처럼 모르는 것이 안전으로 분류돼 새 나간다(설계서 1절 F1~F4).
+    before = css[:rules[0].start()]
+    if before.count("{") != before.count("}"):
+        raise ValueError("outline 을 정하는 유일한 규칙이 at-rule 안에 있다 "
+                         "— 라이트 화면에 늘 그려지지 않는다")
     decl = re.search(r"outline\s*:\s*([^;}]+)", body)
     value = decl.group(1).strip() if decl else "없음"
     token = re.search(r"var\(\s*(--[a-z0-9-]+)\s*\)", value)
