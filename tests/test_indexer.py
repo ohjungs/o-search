@@ -507,6 +507,37 @@ class TestPassages(unittest.TestCase):
         self.assertNotIn("<", text)
         self.assertEqual(text, "김치찌개")
 
+    def test_a_cut_whose_last_bracket_is_the_first_character_keeps_the_document(self):
+        # 되감기의 뿌리 — 「`<` 가 있나」가 아니라 「그 `<` 가 안 닫혔나」다.
+        # 문서 전체가 문단 하나면 캡 안의 마지막 `<` 는 **맨 앞의 `<p>`** 이고,
+        # `html[:0]` 은 문서를 통째로 지운다 — 근거를 못 내는 게 아니라 문서가
+        # `/passages` 에서 사라진다(잃는 원문 최대 캡 전부).
+        # `<` 의 위치 축(맨앞·중간·없음) 중 «맨앞» 이다
+        html = "<p>김치찌개 " + "가" * (indexer.MAX_PASSAGE_HTML + 5000) + "</p>"
+        self._seed_and_index([("http://a.test/", html)])
+        hits = indexer.passages(self.db_path, "김치")
+        self.assertEqual([h[0] for h in hits], ["http://a.test/"])
+        self.assertTrue(hits[0][3].startswith("김치찌개 가"), hits[0][3][:20])
+
+    def test_markup_broken_in_the_source_leaks_even_under_the_cap(self):
+        # 형제 경로 — 컷은 되감기가 필요한 **한 가지 원인일 뿐**이다. 원문 자체가
+        # 안 닫힌 채로 크롤된 문서(잘린 응답·손으로 쓴 HTML)는 캡보다 짧아서
+        # 캡 조건에 걸린 되감기를 지나지 않고, `html.parser` 는 EOF 의 미완성
+        # 태그를 그대로 데이터로 흘린다. 소비자는 다시 마크업 조각을 받는다
+        html = '<p>김치찌개 <a href="' + "x" * 200
+        self.assertLess(len(html), indexer.MAX_PASSAGE_HTML)  # 캡 경로를 안 지난다
+        self._seed_and_index([("http://a.test/", html)])
+        text = indexer.passages(self.db_path, "김치")[0][3]
+        self.assertNotIn("<", text)
+        self.assertEqual(text, "김치찌개")
+
+    def test_a_document_without_any_tag_keeps_its_last_character(self):
+        # `<` 위치 축의 «없음». 되감기를 «`<` 가 `>` 보다 앞서지 않으면» 처럼
+        # 등호를 넣어 쓰면 태그 0개 문서에서 둘 다 -1 이라 `html[:-1]` 이 되고
+        # 마지막 글자가 조용히 사라진다 — 무조건 되감는 변이도 여기서 죽는다
+        self._seed_and_index([("http://a.test/", "김치찌개 만드는 법")])
+        self.assertEqual(indexer.passages(self.db_path, "김치")[0][3], "김치찌개 만드는 법")
+
     def test_cap_and_passage_limit_together_stay_inside_the_budget(self):
         # **값** 가드다 — 위 둘은 fixture 를 상수에서 만들어 값과 함께 늘어나므로
         # "10만 → 100만" 변이를 못 잡는다(실측: 안 죽었다). 여기서 죽는다.

@@ -288,12 +288,17 @@ def passages(db_path, query, limit=10):
             if not row or not row[0]:
                 continue  # 원본이 사라진 문서 — 지어내지 않고 뺀다
             html = row[0][:MAX_PASSAGE_HTML]
-            if len(row[0]) > MAX_PASSAGE_HTML and "<" in html:
-                # 캡이 태그 한가운데 떨어지면 `html.parser` 가 남은 조각을 **데이터로
-                # 흘린다** — 근거 문단이 `... <a href="xxx` 로 끝난다(긴 속성값·URL).
-                # 마지막 `<` 앞에서 끊는다: 잃는 것은 많아야 온전한 태그 하나고
-                # (닫는 태그면 `close()` 의 flush 가 대신 낸다), 엔티티가 잘린 자리
-                # (`A&am`)도 같은 `<` 뒤에 있어 함께 사라진다
+            if html.rfind("<") > html.rfind(">"):
+                # **안 닫힌 마크업이 남았을 때만** 되감는다. `html.parser` 는 EOF 의
+                # 미완성 태그를 버리지 않고 **데이터로 흘려** 근거 문단이
+                # `... <a href="xxx` 로 끝난다(긴 속성값·URL).
+                # 조건이 캡이 아니라 비교인 이유가 둘이다 — ① 원문 자체가 깨진 문서는
+                # 캡보다 짧아도 같은 조각을 흘린다 ② 「`<` 가 있나」로 물으면 문서
+                # 전체가 문단 하나일 때(`<p>` 가 인덱스 0) `html[:0]` 이라 **문서가
+                # 통째로 지워진다**. 잃는 것은 그 안 닫힌 조각 하나뿐이다(닫는
+                # 태그였다면 `close()` 의 flush 가 그 앞의 텍스트를 대신 낸다).
+                # 잘린 엔티티(`A&am`)는 이 줄이 안 건드린다 — 평문이라 마크업으로
+                # 새지 않고, 안 닫힌 `<` 뒤에 있으면 그때 함께 사라진다
                 html = html[:html.rfind("<")]
             best = None
             for pos, block in enumerate(extract.extract_blocks(html)):

@@ -11,7 +11,7 @@
 
 | | 값 |
 |---|---|
-| 반복 | 262 |
+| 반복 | 263 |
 | 계획 (완료/폐기/보류) | 32 / 0 / 0 (진행 1 — 48 `passage-api`) |
 | 재시도 | 0 |
 | RED | 0 |
@@ -24,7 +24,7 @@
 |---|---|
 | 계획 | 29 |
 | 설계 | 16 (생략 5) |
-| 개발 | 61 |
+| 개발 | 62 |
 | 테스트 | 29 |
 | 리뷰 | 28 |
 | e2e | 24 |
@@ -36,7 +36,7 @@
 | 발견 후보 | 154 |
 | 80점 미만으로 버림 | 49 (기보류 중복 4 + search-api 2 + crawl-delay 3 + quality-eval 3 + non-ascii-url 2 + cooldown-burn 3 + crawl-politeness 1 + graceful-interrupt 2 + deadline-stop 3 + indexer-interrupt 5 + indexer-lock 2 + docs-citation-guard 2 + focus-contrast 2 + focus-ring-presence 3 + passage-api 12) |
 | 보고함 | 99 |
-| **그중 실제로 고친 것** | 65 |
+| **그중 실제로 고친 것** | 67 |
 
 **보고 3건이 전부 «단위 558건이 통과하는 결함» 이었다 (2026-09-02 passage-api, 반복 262).**
 계획 48 의 세 번째 반려이고 앞 둘과 유형이 다르다 — 앞 둘은 «성능 초록불이 예산을 안
