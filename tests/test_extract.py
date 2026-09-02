@@ -76,6 +76,24 @@ class TestExtractBlocks(unittest.TestCase):
     def test_empty_blocks_are_not_returned(self):
         self.assertEqual(extract_blocks("<p>가</p><p></p><p>   </p><p>나</p>"), ["가", "나"])
 
+    def test_a_line_break_is_not_a_paragraph_boundary(self):
+        # 갈림길 6 — `<br>` 은 **줄바꿈**이지 문단이 아니다. `extract.py:7` 이 그것을
+        # `_INLINE_TAGS` 에서 뺀 것은 색인에 공백 한 칸을 넣기 위해서인데, 블록 쪽이
+        # 같은 자리를 경계로 읽어 한 문단이 낱말 조각으로 흩어졌다 — 그러면 4자짜리
+        # 조각이 근거 자리를 이긴다(리뷰 4 실측)
+        self.assertEqual(extract_blocks("<p>오늘은<br>김치찌개<br>내일은 된장찌개</p>"),
+                         ["오늘은 김치찌개 내일은 된장찌개"])
+        # 색인 쪽은 한 글자도 안 바뀐다 — 불변식이 그것을 못박는다
+        html = "<p>가<br>나</p><p>다</p>"
+        self.assertEqual(extract_blocks(html), ["가 나", "다"])
+        self.assertEqual(" ".join(extract_blocks(html)), extract_text(html)[1])
+
+    def test_the_other_two_spellings_of_a_line_break_are_not_boundaries_either(self):
+        # `<br/>` 은 `handle_startendtag`, `</br>` 는 `handle_endtag` 로 들어온다 —
+        # 시작 태그만 고치면 나머지 둘에서 같은 결함이 그대로 산다
+        self.assertEqual(extract_blocks("<p>가<br/>나<br />다</p>"), ["가 나 다"])
+        self.assertEqual(extract_blocks("<p>가</br>나</p>"), ["가 나"])
+
     def test_inline_markup_does_not_split_a_block(self):
         # `extract_text` 와 같은 계약 — 인라인 태그는 단어 안에 끼어든다
         self.assertEqual(extract_blocks("<p>Kim<b>chi</b> 와 H<sub>2</sub>O</p>"),

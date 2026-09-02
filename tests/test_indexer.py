@@ -389,6 +389,55 @@ class TestPassages(unittest.TestCase):
             store.upsert(url, html, 200)
         index_pages(self.db_path)
 
+    # 갈림길 6 의 **잴 자** — 마크업 모양마다 «사람이 인용할 문단» 을 적어 둔다.
+    # 이 표가 없어서 계획 48 이 네 반복 동안 결함을 못 봤다: 코퍼스
+    # (`e2e/quality/corpus.json` 64건)가 평문이라 `passage_eval.build_index` 가
+    # 문장마다 `<p>` 하나로 감싸고, 그 위에서 잰 정확도 100%·채택률 99.5% 는
+    # **한 문장짜리 `<p>` 축만** 잰 값이다(`<br>` 0건 · `nav`/`ul`/`h*` 0건).
+    # 세 안을 이 표로 재서 골랐다 (2026-09-02 개발 8 실측):
+    #   현행 3/8 · 동점에 길이 6/8 · `br` 만 경계에서 빼기 5/8 ·
+    #   블록 최소 길이 20자 4/8(**한 문장 `<p>` 를 통째로 버린다**) · 고른 둘 **8/8**
+    _SHAPES = [
+        ("문장 <p> — 코퍼스가 아는 유일한 모양",
+         "<p>김치찌개는 한국의 대표적인 찌개다.</p><p>배추와 고춧가루를 넣는다.</p>",
+         "김치찌개는 한국의 대표적인 찌개다."),
+        ("nav 보일러플레이트",
+         "<nav><a href=/>김치찌개</a></nav>"
+         "<article><p>김치찌개 만드는 순서를 아래에 적는다.</p></article>",
+         "김치찌개 만드는 순서를 아래에 적는다."),
+        ("제목이 질의어 그 자체",
+         "<h2>김치찌개</h2><p>배추를 절이고 양념을 버무려 김치찌개를 끓인다.</p>",
+         "배추를 절이고 양념을 버무려 김치찌개를 끓인다."),
+        ("<br> 로 줄만 나눈 문단",
+         "<p>오늘은<br>김치찌개<br>내일은 된장찌개를 끓인다</p>",
+         "오늘은 김치찌개 내일은 된장찌개를 끓인다"),
+        ("<br> 문단이 둘 중 하나",
+         "<p>재료를 준비한다<br>김치찌개 육수는 멸치로 낸다<br>끝</p><p>다른 요리 이야기</p>",
+         "재료를 준비한다 김치찌개 육수는 멸치로 낸다 끝"),
+        ("목록 항목이 진짜 답인 문서",  # 짧은 블록을 하한으로 막으면 이것이 죽는다
+         "<p>오늘 만들 것을 적어 둔다.</p>"
+         "<ul><li>된장찌개</li><li>김치찌개</li><li>계란말이</li></ul>",
+         "김치찌개"),
+        ("낱말마다 인라인 마크업",
+         "<p>다른 이야기</p><p><b>김치</b><i>찌개</i>는 <em>겨울</em>에 특히 잘 어울린다.</p>",
+         "김치찌개는 겨울에 특히 잘 어울린다."),
+        ("표 칸이 질의어 그 자체",
+         "<table><tr><td>메뉴</td><td>김치찌개</td></tr></table>"
+         "<p>김치찌개 한 그릇은 오천원이다.</p>",
+         "김치찌개 한 그릇은 오천원이다."),
+    ]
+
+    def test_markup_shapes_yield_the_paragraph_a_reader_would_cite(self):
+        self._seed_and_index([("http://t.test/%d" % i, html)
+                              for i, (_, html, _) in enumerate(self._SHAPES)])
+        # limit 을 표 길이에 묶는다 — 행을 더했는데 기본값 10 에 잘리면 그 행은
+        # 재지 않은 채 조용히 통과한다
+        got = {url: text for url, _t, _p, text
+               in indexer.passages(self.db_path, "김치찌개", limit=len(self._SHAPES))}
+        for i, (name, _html, want) in enumerate(self._SHAPES):
+            with self.subTest(shape=name):
+                self.assertEqual(got.get("http://t.test/%d" % i), want)
+
     def test_result_shape_is_url_title_position_text(self):
         self._seed_and_index([
             ("http://a.test/", "<title>요리</title><p>봄나물 무침</p><p>김치찌개 만드는 법</p>"),
@@ -421,8 +470,21 @@ class TestPassages(unittest.TestCase):
         self.assertEqual(indexer.passages(self.db_path, "김치")[0][2:],
                          (1, "김치 담그기와 김치 보관"))
 
-    def test_a_tie_goes_to_the_earlier_block(self):
-        self._seed_and_index([("http://a.test/", "<p>김치 하나</p><p>김치 둘</p>")])
+    def test_a_tie_goes_to_the_longer_block(self):
+        # 갈림길 6 — 짧은 블록(내비 링크·제목·표 칸)이 **질의어만 담고 문맥은 없는**
+        # 근거로 이기던 자리다. 점수가 같으면 긴 쪽이 근거로 낫다
+        self._seed_and_index([
+            ("http://a.test/", "<nav><a>김치찌개</a></nav>"
+                               "<article><p>김치찌개 만드는 순서를 적는다</p></article>"),
+        ])
+        self.assertEqual(indexer.passages(self.db_path, "김치찌개")[0][2:],
+                         (1, "김치찌개 만드는 순서를 적는다"))
+
+    def test_a_tie_of_equal_length_still_goes_to_the_earlier_block(self):
+        # 길이까지 같을 때만 앞이 이긴다 — 부등호가 등호로 바뀌면 뒤가 이긴다.
+        # 두 블록의 길이를 **같게** 맞춰야 이 단언이 «앞» 만 재는 것이 된다
+        # (예전 입력 `김치 하나`/`김치 둘` 은 앞이면서 동시에 길어 둘을 못 갈랐다)
+        self._seed_and_index([("http://a.test/", "<p>김치 하나</p><p>김치 둘다</p>")])
         self.assertEqual(indexer.passages(self.db_path, "김치")[0][2:], (0, "김치 하나"))
 
     def test_position_counts_only_non_empty_blocks(self):

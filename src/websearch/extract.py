@@ -24,7 +24,10 @@ class _TextParser(html.parser.HTMLParser):
         self._in_title = False
         self._skip_depth = 0
 
-    def _separate(self):
+    def _separate(self, block=True):
+        # `block` 은 «이 자리가 **문단** 경계인가» 다 — `<br>` 은 줄바꿈이라 아니다.
+        # 색인 경로는 둘을 똑같이 공백 한 칸으로 보므로 여기서는 안 읽는다.
+        # 읽는 것은 `_BlockParser` 뿐이고, 그것이 `<br>` 을 문단으로 끊던 자리다
         target = self.title_parts if self._in_title else self.text_parts
         target.append(" ")
 
@@ -36,7 +39,7 @@ class _TextParser(html.parser.HTMLParser):
             return
         # 인라인이 아닌 태그가 나왔으면 닫히지 않은 <title> 이 끝난 것으로 본다 (깨진 HTML)
         self._in_title = False
-        self._separate()
+        self._separate(tag != "br")
         if tag in _SKIP_TAGS:
             self._skip_depth += 1
 
@@ -47,7 +50,7 @@ class _TextParser(html.parser.HTMLParser):
             self._in_title = False
         elif tag in _SKIP_TAGS and self._skip_depth:
             self._skip_depth -= 1
-        self._separate()
+        self._separate(tag != "br")
 
     def handle_data(self, data):
         if self._skip_depth:
@@ -102,9 +105,11 @@ def extract_text(html_text):
 class _BlockParser(_TextParser):
     """`_TextParser` 가 **이미 부르고 있는** `_separate()` 자리에서 본문을 끊는다.
 
-    문단 경계는 새로 계산할 것이 없다 — 부모가 블록 태그마다 그 자리를 이미 안다.
-    버리는 것은 `_normalize` 의 통짜 `split()` 뿐이라, 부모를 한 줄도 안 고치고
-    하위 클래스로 가져간다. **색인 경로(`extract_text`)는 지나가지 않는다.**
+    **부모가 부르는 자리가 전부 문단 경계인 것은 아니다** — `<br>` 은 줄바꿈이라
+    `_INLINE_TAGS` 에서 일부러 빠져 있고(위 주석), 색인엔 공백 한 칸이지만 여기서는
+    문단 경계로 읽혔다. 한 문단이 낱말 조각으로 흩어지면 4자짜리 조각이 근거 자리를
+    이긴다(계획 48 리뷰 4 실측). 그래서 부모가 `block` 으로 그 하나를 갈라 준다.
+    **색인 경로(`extract_text`)는 여전히 지나가지 않는다.**
     """
 
     def __init__(self):
@@ -117,9 +122,11 @@ class _BlockParser(_TextParser):
             self.blocks.append(block)
         del self.text_parts[:]
 
-    def _separate(self):
-        if self._in_title:
-            super()._separate()  # 제목은 부모 그대로 — 블록이 아니다
+    def _separate(self, block=True):
+        if self._in_title or not block:
+            # 제목은 블록이 아니고, `<br>` 은 **줄바꿈이지 문단이 아니다**. 둘 다
+            # 부모 그대로 공백 한 칸이라 색인과 같은 텍스트가 나온다 — 불변식이 산다
+            super()._separate()
         else:
             self._flush()
 

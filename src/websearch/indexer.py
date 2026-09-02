@@ -296,9 +296,14 @@ def passages(db_path, query, limit=10):
             for pos, block in enumerate(extract.extract_blocks(html)):
                 low = block.lower()
                 score = sum(low.count(n) for n in needles)
-                # 등호가 아니라 부등호다 — 동점이면 먼저 나온 블록이 남는다
-                if score and (best is None or score > best[0]):
-                    best = (score, pos, block)
+                # **동점이면 긴 블록이다.** 내비 링크·제목·표 칸은 질의어 그 자체인
+                # 경우가 많아 점수가 본문 문단과 같아지는데, 그때 «먼저 나온 것» 을
+                # 고르면 4자짜리 조각이 근거가 된다 — 문맥이 없어 인용이 안 된다
+                # (갈림길 6 · `tests` 의 모양 표가 이 규칙을 잰다).
+                # 등호가 아니라 부등호다 — 길이까지 같으면 먼저 나온 블록이 남는다
+                key = (score, len(block))
+                if score and (best is None or key > best[0]):
+                    best = (key, pos, block)
             if best:
                 found.append((url, title, best[1], best[2]))
     finally:
