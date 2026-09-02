@@ -33,6 +33,18 @@ _HANGUL_GAP = re.compile(r"(?<=[가-힣])\s+(?=[가-힣])")
 # 오탐이 보이면 `extract` 가 블록 경계에 한글 아닌 표식을 넣는 쪽으로 올린다
 _MARK = "\x02"  # 스니펫이 어느 열에서 왔는지 표시. extract._normalize 가 제어문자를
 #                 지우므로 색인 텍스트에는 절대 들어 있지 않다 (extract.py:16,60)
+# passages() 가 다시 파싱하는 원문의 상한. serve 의 MAX_QUERY·MAX_PAGE·MAX_PASSAGE 와
+# 같은 종류의 자원 상한인데 **자르는 쪽이 여기**라 여기 산다 — serve 는 indexer 를
+# import 하므로 반대는 순환이고, `-m websearch.indexer --query` 는 serve 를 안 지난다.
+# 단위는 **문자**다: 이 문자열은 sqlite 에서 str 로 나오고, 바이트로 재려면 encode 가
+# 한 벌 더 드는 데다(막으려던 그 비용) 코드포인트 중간에서 잘린다. 형제 MAX_PASSAGE
+# 도 문자다. 값의 근거 — 실측 최악(태그가 촘촘한 한글) 1,000자당 0.118ms 이고 한
+# 요청이 문서 PASSAGE_LIMIT(10)건을 재파싱하니 10만자면 118ms, 500ms 예산의 24%다
+# (20만자는 47%라 안 쓴다). 영문·성긴 마크업은 이 절반이다.
+# ponytail: 앞에서부터 자른다 — 천장은 «잘린 뒤의 문단은 근거로 못 나온다» 이고,
+# 색인은 통짜 본문을 보므로 그 문서는 검색에는 그대로 나온다. 실물에서 긴 문서의
+# 뒷부분 근거가 아쉬우면 블록 단위 스트리밍 파서로 올린다(그때 이 값은 지운다).
+MAX_PASSAGE_HTML = 100_000
 
 
 def _bigrams(text):
@@ -254,6 +266,9 @@ def passages(db_path, query, limit=10):
     **매치된 블록이 없는 문서는 안 낸다** — 제목만 매치됐거나 2-gram 이 문단 경계를
     넘어 매치된 문서가 그렇다. 첫 블록으로 대신하면 사양 기능 8(근거 정확도)이
     첫 줄에서 무너진다. `position` 은 `extract_blocks()` 결과의 순번(0부터)이다.
+
+    문서당 앞 `MAX_PASSAGE_HTML` 자만 다시 파싱한다 — **그 뒤의 문단은 근거로 안
+    나온다**(검색 결과에는 그대로 나온다. 색인은 통짜 본문을 본다).
     """
     hits = search(db_path, query, limit=limit)
     # 고르는 규칙 — 질의어와 그 2-gram(`_bigrams`)을 가장 많이 담은 블록. 색인이
@@ -270,7 +285,8 @@ def passages(db_path, query, limit=10):
             if not row or not row[0]:
                 continue  # 원본이 사라진 문서 — 지어내지 않고 뺀다
             best = None
-            for pos, block in enumerate(extract.extract_blocks(row[0])):
+            for pos, block in enumerate(
+                    extract.extract_blocks(row[0][:MAX_PASSAGE_HTML])):
                 low = block.lower()
                 score = sum(low.count(n) for n in needles)
                 # 등호가 아니라 부등호다 — 동점이면 먼저 나온 블록이 남는다

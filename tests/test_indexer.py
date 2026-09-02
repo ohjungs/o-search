@@ -468,6 +468,40 @@ class TestPassages(unittest.TestCase):
         self.assertEqual([h[0] for h in indexer.passages(self.db_path, "김치")],
                          ["http://b.test/"])
 
+    def test_html_beyond_the_cap_is_not_reparsed(self):
+        # 자원 상한 — 요청 하나가 문서 10건을 **통째로 다시 파싱**한다. 안 자르면
+        # 큰 문서 열 건이 500ms 예산을 넘긴다(실측: 2.5M자 302ms ×10 = 3.0초).
+        # **천장은 «잘린 뒤의 문단은 못 찾는다»** 다 — 색인은 찾는데 근거는 못 낸다.
+        # 여기 고정해 두지 않으면 상한을 지우거나 넓히는 변이가 안 죽는다
+        self._seed_and_index([
+            ("http://a.test/",
+             "<title>요리</title><p>" + "봄" * indexer.MAX_PASSAGE_HTML
+             + "</p><p>김치찌개</p>"),
+        ])
+        self.assertEqual([h[0] for h in search(self.db_path, "김치")],
+                         ["http://a.test/"])  # 색인은 통짜 본문을 보므로 문서는 나온다
+        self.assertEqual(indexer.passages(self.db_path, "김치"), [])
+
+    def test_block_ending_exactly_at_the_cap_is_still_a_passage(self):
+        # 경계 — 캡 **직전까지는 온전히** 읽는다. 한 글자 좁히는 변이가 여기서 죽는다
+        # (마지막 글자가 정확히 캡의 끝자리라 `[:cap - 1]` 이면 '김치찌' 가 된다)
+        tail = "<p>김치찌개"  # 닫는 태그가 없다 — 캡의 끝이 곧 문자열의 끝이다
+        head = "<p>" + "봄" * (indexer.MAX_PASSAGE_HTML - len(tail) - 7) + "</p>"
+        html = head + tail
+        self.assertEqual(len(html), indexer.MAX_PASSAGE_HTML)  # 자를 것이 한 글자도 없다
+        self._seed_and_index([("http://a.test/", html)])
+        self.assertEqual(indexer.passages(self.db_path, "김치")[0][3], "김치찌개")
+
+    def test_cap_and_passage_limit_together_stay_inside_the_budget(self):
+        # **값** 가드다 — 위 둘은 fixture 를 상수에서 만들어 값과 함께 늘어나므로
+        # "10만 → 100만" 변이를 못 잡는다(실측: 안 죽었다). 여기서 죽는다.
+        # 손잡이는 둘이고 다른 파일에 산다 — 캡을 그대로 두고 `PASSAGE_LIMIT` 만
+        # 올려도 예산이 깨지므로 곱해서 본다. 계수는 실측 최악(태그가 촘촘한 한글,
+        # 2026-09-02 탐침: 2.5M자 302ms → 1,000자당 0.118ms). 사양 성능 5 예산 500ms.
+        from websearch import serve
+        worst_ms = indexer.MAX_PASSAGE_HTML / 1000 * 0.118 * serve.PASSAGE_LIMIT
+        self.assertLessEqual(worst_ms, 500 * 0.25, "%.0fms" % worst_ms)
+
     def test_missing_db_raises(self):
         with self.assertRaises(FileNotFoundError):
             indexer.passages(os.path.join(self.dir.name, "없는.db"), "김치")
