@@ -184,6 +184,11 @@ def token_maps(css):
 RULE_RE = re.compile(r"([^{}]*)\{([^{}]*)\}")
 # 링이 그려지는지를 정하는 속성들. outline-offset 은 링을 없애지 못하므로 뺀다.
 OUTLINE_RE = re.compile(r"outline(?:-width|-style|-color)?\s*:")
+# 링을 **키보드 포커스에** 그리는 셀렉터인가(조건 5). 부분 문자열 `":focus"` 로는
+# 두 갈래가 새 나갔다 — `:not(:focus-visible)` 은 극성이 뒤집혀 포커스가 아닐 때만
+# 그리고, `:focus-within` 은 자식이 받은 포커스라 링이 부모 상자에 그려진다.
+NOT_RE = re.compile(r":not\([^()]*\)")
+FOCUS_RE = re.compile(r":focus(?:-visible)?(?![\w-])")
 
 
 def focus_rule(css):
@@ -209,8 +214,11 @@ def focus_rule(css):
         raise ValueError("outline 을 정하는 규칙이 %d개 — 캐스케이드를 바이트로 못 정한다"
                          % len(rules))
     selector, body = rules[0]
-    if ":focus" not in selector:
-        raise ValueError("outline 을 정하는 유일한 규칙이 포커스용이 아니다: %s"
+    # `:not(…)` 안은 링을 그릴 조건이 아니라 그리지 **않을** 조건이라 먼저 지운다.
+    # 남은 자리에서 `:focus`/`:focus-visible` 이 **낱말로** 있어야 한다 — `:focus-within`
+    # 은 뒤에 `-` 가 붙어 안 남는다. `:not(.foo):focus-visible` 은 그대로 통과한다.
+    if not FOCUS_RE.search(NOT_RE.sub("", selector)):
+        raise ValueError("outline 을 정하는 유일한 규칙이 키보드 포커스용이 아니다: %s"
                          % " ".join(selector.split()))
     decl = re.search(r"outline\s*:\s*([^;}]+)", body)
     value = decl.group(1).strip() if decl else "없음"

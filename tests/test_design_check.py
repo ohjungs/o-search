@@ -146,6 +146,15 @@ class ContrastAxisTest(unittest.TestCase):
             # 링이 보이고 키보드에는 안 보이므로 색 넷을 다 봐도 안 걸린다.
             ("V11 셀렉터가 포커스용이 아니다", ":focus-visible", ":hover",
              "포커스용이 아니다"),
+            # 아래 둘은 계획 49 스텝 1. 셀렉터에 `:focus` 라는 **문자열**은 남는데
+            # 링이 그려지는 조건은 키보드 포커스가 아닌 갈래다 — 부분 문자열 가드가
+            # 둘 다 통과시켰다(설계서 1절 표 ⓒⓓ, 후보 C 만 종료 2).
+            # ⓒ 는 극성이 뒤집혔다: 포커스가 **아닐 때만** 그린다.
+            ("ⓒ 셀렉터 :not(:focus-visible)", ":focus-visible",
+             ":not(:focus-visible)", "포커스용이 아니다"),
+            # ⓓ 는 자식이 받은 포커스라 링이 부모 상자에 그려진다 — 낱말 경계로 가른다.
+            ("ⓓ 셀렉터 :focus-within", ":focus-visible", ":focus-within",
+             "포커스용이 아니다"),
         ):
             with self.subTest(name):
                 fail, unmeasurable, out = run(self.twist(old, new))
