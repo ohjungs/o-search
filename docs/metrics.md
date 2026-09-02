@@ -11,8 +11,8 @@
 
 | | 값 |
 |---|---|
-| 반복 | 284 |
-| 계획 (완료/폐기/보류) | 34 / 0 / 0 (진행 1 — 50 `runner-quiet` 리뷰) |
+| 반복 | 285 |
+| 계획 (완료/폐기/보류) | 34 / 0 / 0 (진행 1 — 50 `runner-quiet` e2e) |
 | 재시도 | 0 |
 | RED | 1 |
 
@@ -26,16 +26,16 @@
 | 설계 | 17 (생략 5) |
 | 개발 | 68 |
 | 테스트 | 33 |
-| 리뷰 | 33 |
+| 리뷰 | 34 |
 | e2e | 26 |
 
 ## 리뷰 정확도 — 80점 임계 검증용
 
 | | 값 |
 |---|---|
-| 발견 후보 | 175 |
-| 80점 미만으로 버림 | 54 (기보류 중복 4 + search-api 2 + crawl-delay 3 + quality-eval 3 + non-ascii-url 2 + cooldown-burn 3 + crawl-politeness 1 + graceful-interrupt 2 + deadline-stop 3 + indexer-interrupt 5 + indexer-lock 2 + docs-citation-guard 2 + focus-contrast 2 + focus-ring-presence 3 + passage-api 17 + focus-rule-scope 2) |
-| 보고함 | 113 |
+| 발견 후보 | 178 |
+| 80점 미만으로 버림 | 56 (기보류 중복 4 + search-api 2 + crawl-delay 3 + quality-eval 3 + non-ascii-url 2 + cooldown-burn 3 + crawl-politeness 1 + graceful-interrupt 2 + deadline-stop 3 + indexer-interrupt 5 + indexer-lock 2 + docs-citation-guard 2 + focus-contrast 2 + focus-ring-presence 3 + passage-api 17 + focus-rule-scope 2 + runner-quiet 2) |
+| 보고함 | 114 |
 | **그중 실제로 고친 것** | 72 |
 
 **리뷰의 산출물이 처음으로 «반려도 수리도 아닌 등재» 하나였다 (2026-09-02 focus-rule-scope, 반복 280).**
