@@ -646,8 +646,25 @@ class TestProgrammingErrorStays500(ServeTestCase):
             logged = err.getvalue()
         self.assertEqual(status, 500, body)
         self.assertEqual(body["error"], "검색 중 오류가 났다")
-        self.assertIn("search 실패", logged, "500 이 stderr 에 한 줄도 안 남았다")
+        # 앞의 `/` 까지 단언한다 — `"search 실패"` 로만 재면 경로를 안 찍는 옛 문구가
+        # 부분문자열로 통과한다(리뷰 4 변이 Y4 가 564건 전부 초록이었다)
+        self.assertIn("/search 실패", logged, "500 이 stderr 에 한 줄도 안 남았다")
         self.assertIn("AttributeError", logged, "500 의 원인이 로그에 안 남았다")
+
+    def test_the_500_log_names_which_of_the_two_json_paths_broke(self):
+        """500 의 유일한 흔적이 로그라, 두 경로가 사다리를 나눠 쓰면 **구별돼야** 한다.
+
+        `/search` 쪽 단언만으로는 안 된다 — 경로를 안 찍어도 그 문구는 남는다.
+        갈라지는 것을 재는 자리는 여기다.
+        """
+        with mock.patch("websearch.indexer.passages", side_effect=AttributeError("boom")), \
+                mock.patch("sys.stderr", new_callable=io.StringIO) as err:
+            status, body, _ = self.get("/passages?q=%EA%B9%80%EC%B9%98")
+            logged = err.getvalue()
+        self.assertEqual(status, 500, body)
+        self.assertEqual(body["error"], "검색 중 오류가 났다")
+        self.assertIn("/passages 실패", logged, "/passages 의 500 이 어느 경로인지 안 남겼다")
+        self.assertNotIn("/search 실패", logged, "터진 것은 /passages 인데 /search 라고 적었다")
 
     def test_programming_error_is_500_on_the_html_path(self):
         with mock.patch("websearch.serve._page_hits", side_effect=AttributeError("boom")), \
