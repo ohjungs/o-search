@@ -15,6 +15,17 @@ _INLINE_TAGS = {
 # 공백류 제어문자는 아래 split() 이 이미 처리하므로 정규화 뒤에 태운다.
 _CONTROL = dict.fromkeys(list(range(0x20)) + [0x7F] + list(range(0x80, 0xA0)))
 
+# `_INLINE_TAGS` 밖이지만 **문단 경계도 아닌** 태그 — 한 문단 *안에* 끼어든다.
+# `_INLINE_TAGS` 로 옮기면 낱말이 붙어(`김치찌개된장찌개`) 색인 본문이 바뀌므로
+# 재색인이지만, 여기는 `_separate(block=...)` 의 인자라 **`_BlockParser` 만 읽는다**
+# — 색인 경로(`extract_text`)는 한 글자도 안 바뀐다(계획 48 리뷰 5).
+_NON_BLOCK_TAGS = _SKIP_TAGS | {
+    "br", "img", "picture", "source", "map", "area", "svg", "math",
+    "del", "ins", "label", "font", "big", "strike", "tt",
+    "button", "input", "select", "textarea", "output", "progress", "meter",
+    "audio", "video", "canvas", "embed", "object", "iframe",
+}
+
 
 class _TextParser(html.parser.HTMLParser):
     def __init__(self):
@@ -25,7 +36,7 @@ class _TextParser(html.parser.HTMLParser):
         self._skip_depth = 0
 
     def _separate(self, block=True):
-        # `block` 은 «이 자리가 **문단** 경계인가» 다 — `<br>` 은 줄바꿈이라 아니다.
+        # `block` 은 «이 자리가 **문단** 경계인가» 다 — `_NON_BLOCK_TAGS` 는 아니다.
         # 색인 경로는 둘을 똑같이 공백 한 칸으로 보므로 여기서는 안 읽는다.
         # 읽는 것은 `_BlockParser` 뿐이고, 그것이 `<br>` 을 문단으로 끊던 자리다
         target = self.title_parts if self._in_title else self.text_parts
@@ -39,7 +50,7 @@ class _TextParser(html.parser.HTMLParser):
             return
         # 인라인이 아닌 태그가 나왔으면 닫히지 않은 <title> 이 끝난 것으로 본다 (깨진 HTML)
         self._in_title = False
-        self._separate(tag != "br")
+        self._separate(tag not in _NON_BLOCK_TAGS)
         if tag in _SKIP_TAGS:
             self._skip_depth += 1
 
@@ -50,7 +61,7 @@ class _TextParser(html.parser.HTMLParser):
             self._in_title = False
         elif tag in _SKIP_TAGS and self._skip_depth:
             self._skip_depth -= 1
-        self._separate(tag != "br")
+        self._separate(tag not in _NON_BLOCK_TAGS)
 
     def handle_data(self, data):
         if self._skip_depth:
@@ -115,12 +126,21 @@ class _BlockParser(_TextParser):
     def __init__(self):
         super().__init__()
         self.blocks = []
+        self._tag = ""
 
     def _flush(self):
         block = _normalize(self.text_parts)
         if block:
-            self.blocks.append(block)
+            self.blocks.append((self._tag, block))
         del self.text_parts[:]
+
+    def handle_starttag(self, tag, attrs):
+        # 블록에 **자기를 낸 태그**를 붙여 준다. 부모가 먼저 이전 블록을 끊으므로
+        # 이름표는 그 뒤에 갈아 끼운다 — 끊기는 블록의 주인은 아직 앞 태그다.
+        # 문단 안에 끼어드는 태그(`<img>`·`<script>`)는 주인이 아니라 지나간다
+        super().handle_starttag(tag, attrs)
+        if tag not in _INLINE_TAGS and tag not in _NON_BLOCK_TAGS:
+            self._tag = tag
 
     def _separate(self, block=True):
         if self._in_title or not block:
@@ -145,9 +165,14 @@ class _BlockParser(_TextParser):
 
 
 def extract_blocks(html_text):
-    """본문을 블록(문단) 단위로 끊어 돌려준다. 빈 블록은 안 낸다.
+    """본문을 블록(문단) 단위로 끊어 `(태그, 텍스트)` 로 돌려준다. 빈 블록은 안 낸다.
 
-    불변식: `" ".join(extract_blocks(h)) == extract_text(h)[1]`
+    태그를 같이 내는 이유는 «어느 블록이 근거인가» 를 **텍스트만으로는 못 가르기
+    때문이다**(계획 48 갈림길 6). 길이도 순서도 방향이 하나뿐이라 내비(앞·짧다)와
+    푸터(뒤·길다)와 사이드바(앞·길다)를 동시에 못 진다 — 셋을 가르는 것은
+    «이 텍스트가 문단(`<p>`)이었나» 다. HTML 이 이미 그 이름표를 갖고 있다.
+
+    불변식: `" ".join(t for _tag, t in extract_blocks(h)) == extract_text(h)[1]`
     # 예외 둘 — 둘 다 **깨진 입력에서만** 갈리고 정상 HTML 에서는 같다.
     # ① EOF 에 남은 안 닫힌 마크업: 색인 경로는 그것을 데이터로 흘리고
     #    (색인은 통짜 본문이라 상관없다) 블록 쪽은 버린다. 문단은 사람이 읽는

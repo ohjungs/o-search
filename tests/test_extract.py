@@ -54,58 +54,95 @@ class TestExtractText(unittest.TestCase):
         self.assertIn("글", text)
 
 
+def texts(html):
+    """블록 텍스트만 — 태그가 논점이 아닌 단언에서 쓴다."""
+    return [text for _tag, text in extract_blocks(html)]
+
+
 class TestExtractBlocks(unittest.TestCase):
     """본문을 문단 단위로 끊는다. 색인 경로(`extract_text`)는 지나가지 않는다."""
 
     def test_block_boundaries(self):
         blocks = extract_blocks("<title>제목</title><p>첫 문단</p><p>둘째 문단</p>")
-        self.assertEqual(blocks, ["첫 문단", "둘째 문단"])
+        self.assertEqual(blocks, [("p", "첫 문단"), ("p", "둘째 문단")])
 
     def test_join_equals_body(self):
         # 불변식 — 이것이 깨지면 색인 본문과 문단이 다른 텍스트가 된다.
         # 변이 M1(버퍼 비우기 삭제)이 여기서 죽는다: 블록이 누적돼 조인이 길어진다
         html = ("<title>요리</title><h2>김치</h2><p>어제 김치를 담갔다</p>"
                 "<ul><li>배추</li><li>고춧가루</li></ul><div>끝</div>")
-        self.assertEqual(" ".join(extract_blocks(html)), extract_text(html)[1])
+        self.assertEqual(" ".join(texts(html)), extract_text(html)[1])
+
+    def test_each_block_carries_the_tag_that_made_it(self):
+        # 갈림길 6 — 근거를 고르는 자가 읽는 **유일한 비텍스트 신호**다. 길이도
+        # 순서도 방향이 하나뿐이라 내비(앞·짧다)와 푸터(뒤·길다)를 동시에 못 진다.
+        # 이름표를 «직전 시작 태그» 로 붙이는 변이는 여기서 죽는다 — `</p>` 로
+        # 끊기는 블록의 주인은 `<footer>` 가 아니라 `<p>` 다
+        html = ("<nav><a href=/>김치</a></nav><article><p>본문 문단</p></article>"
+                "<footer>맨 끝</footer>")
+        self.assertEqual(extract_blocks(html),
+                         [("nav", "김치"), ("p", "본문 문단"), ("footer", "맨 끝")])
 
     def test_last_block_survives_broken_html(self):
         # 변이 M2(마지막 flush 삭제)가 여기서 죽는다. 정상 HTML 은 닫는 태그가
         # flush 를 대신해 주므로 **닫히지 않은** 태그로 재야 한다
-        self.assertEqual(extract_blocks("<p>가<p>나<div>다"), ["가", "나", "다"])
+        self.assertEqual(extract_blocks("<p>가<p>나<div>다"),
+                         [("p", "가"), ("p", "나"), ("div", "다")])
 
     def test_empty_blocks_are_not_returned(self):
-        self.assertEqual(extract_blocks("<p>가</p><p></p><p>   </p><p>나</p>"), ["가", "나"])
+        self.assertEqual(texts("<p>가</p><p></p><p>   </p><p>나</p>"), ["가", "나"])
 
     def test_a_line_break_is_not_a_paragraph_boundary(self):
         # 갈림길 6 — `<br>` 은 **줄바꿈**이지 문단이 아니다. `extract.py:7` 이 그것을
         # `_INLINE_TAGS` 에서 뺀 것은 색인에 공백 한 칸을 넣기 위해서인데, 블록 쪽이
         # 같은 자리를 경계로 읽어 한 문단이 낱말 조각으로 흩어졌다 — 그러면 4자짜리
         # 조각이 근거 자리를 이긴다(리뷰 4 실측)
-        self.assertEqual(extract_blocks("<p>오늘은<br>김치찌개<br>내일은 된장찌개</p>"),
+        self.assertEqual(texts("<p>오늘은<br>김치찌개<br>내일은 된장찌개</p>"),
                          ["오늘은 김치찌개 내일은 된장찌개"])
         # 색인 쪽은 한 글자도 안 바뀐다 — 불변식이 그것을 못박는다
         html = "<p>가<br>나</p><p>다</p>"
-        self.assertEqual(extract_blocks(html), ["가 나", "다"])
-        self.assertEqual(" ".join(extract_blocks(html)), extract_text(html)[1])
+        self.assertEqual(texts(html), ["가 나", "다"])
+        self.assertEqual(" ".join(texts(html)), extract_text(html)[1])
 
     def test_the_other_two_spellings_of_a_line_break_are_not_boundaries_either(self):
         # `<br/>` 은 `handle_startendtag`, `</br>` 는 `handle_endtag` 로 들어온다 —
         # 시작 태그만 고치면 나머지 둘에서 같은 결함이 그대로 산다
-        self.assertEqual(extract_blocks("<p>가<br/>나<br />다</p>"), ["가 나 다"])
-        self.assertEqual(extract_blocks("<p>가</br>나</p>"), ["가 나"])
+        self.assertEqual(texts("<p>가<br/>나<br />다</p>"), ["가 나 다"])
+        self.assertEqual(texts("<p>가</br>나</p>"), ["가 나"])
+
+    def test_a_tag_that_sits_inside_a_paragraph_is_not_a_boundary_either(self):
+        # 리뷰 5 — `<br>` **하나만** 경계에서 뺐더니 같은 성질의 형제가 그대로 남아
+        # 한 문단을 조각냈다. `_INLINE_TAGS` 에서 빠진 phrasing 태그와 `_SKIP_TAGS`
+        # 셋이 그 형제이고, 문단 안에 낀 광고·트래킹 `<script>`·`<img>` 는 실물
+        # HTML 에서 `<br>` 보다 흔하다. 조각나면 4자짜리 조각이 근거 자리를 이긴다.
+        # 단언은 «한 블록 + 그 블록이 곧 색인 본문» 이라 태그 하나를 집합에서 빼는
+        # 변이가 전부 여기서 죽는다(블록이 둘로 갈린다)
+        for name, html in [
+            ("br", "<p>김치찌개는 한국의 대표 음식이다<br>배추로 만든다</p>"),
+            ("script", "<p>김치찌개는 한국의 대표 음식이다<script>ad()</script>배추로 만든다</p>"),
+            ("style", "<p>김치찌개는 한국의 대표 음식이다<style>.x{}</style>배추로 만든다</p>"),
+            ("img", "<p>김치찌개는 한국의 대표 음식이다<img src=k.jpg>배추로 만든다</p>"),
+            ("del/ins", "<p>김치찌개는 <del>일본</del><ins>한국</ins>의 대표 음식이다</p>"),
+            ("label", "<p>김치찌개 <label>이름</label> 한국의 대표 음식이다</p>"),
+            ("font", "<p>김치찌개는 <font color=red>매운</font> 한국 음식이다</p>"),
+        ]:
+            with self.subTest(shape=name):
+                # 낱말이 붙는가(`김치찌개된장찌개`)는 **여기서 안 묻는다** — 그것은
+                # `_INLINE_TAGS` 를 넓히는 일이라 색인 본문이 바뀌고 재색인이다
+                self.assertEqual(texts(html), [extract_text(html)[1]])
 
     def test_inline_markup_does_not_split_a_block(self):
         # `extract_text` 와 같은 계약 — 인라인 태그는 단어 안에 끼어든다
-        self.assertEqual(extract_blocks("<p>Kim<b>chi</b> 와 H<sub>2</sub>O</p>"),
+        self.assertEqual(texts("<p>Kim<b>chi</b> 와 H<sub>2</sub>O</p>"),
                          ["Kimchi 와 H2O"])
 
     def test_script_and_style_are_not_blocks(self):
         self.assertEqual(
-            extract_blocks("<p>보이는 글</p><script>var x=1;</script><style>.a{}</style>"),
+            texts("<p>보이는 글</p><script>var x=1;</script><style>.a{}</style>"),
             ["보이는 글"])
 
     def test_title_is_not_a_block(self):
-        self.assertEqual(extract_blocks("<title>제목</title><p>본문</p>"), ["본문"])
+        self.assertEqual(texts("<title>제목</title><p>본문</p>"), ["본문"])
 
     def test_no_body_is_an_empty_list(self):
         self.assertEqual(extract_blocks(""), [])
@@ -116,7 +153,7 @@ class TestExtractBlocks(unittest.TestCase):
         # 제어문자 블록 자리에 겹공백을 남기고(`'가  나'`), 블록 쪽은 빈 블록을 버린다.
         # 고치려면 `_normalize` 를 바꿔야 하고 그것이 **색인 본문을 바꾼다** — 안 고친다
         html = "<p>가</p><p>\x01</p><p>나</p>"
-        self.assertEqual(extract_blocks(html), ["가", "나"])
+        self.assertEqual(texts(html), ["가", "나"])
         self.assertEqual(extract_text(html)[1], "가  나")
 
 

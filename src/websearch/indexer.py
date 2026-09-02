@@ -293,15 +293,16 @@ def passages(db_path, query, limit=10):
             # 안 닫힌 구성물은 자기 안에 `>` 를 담을 수 있다(`<!-- a>`·`title="a > b"`)
             html = row[0][:MAX_PASSAGE_HTML]
             best = None
-            for pos, block in enumerate(extract.extract_blocks(html)):
+            for pos, (tag, block) in enumerate(extract.extract_blocks(html)):
                 low = block.lower()
                 score = sum(low.count(n) for n in needles)
-                # **동점이면 긴 블록이다.** 내비 링크·제목·표 칸은 질의어 그 자체인
-                # 경우가 많아 점수가 본문 문단과 같아지는데, 그때 «먼저 나온 것» 을
-                # 고르면 4자짜리 조각이 근거가 된다 — 문맥이 없어 인용이 안 된다
-                # (갈림길 6 · `tests` 의 모양 표가 이 규칙을 잰다).
-                # 등호가 아니라 부등호다 — 길이까지 같으면 먼저 나온 블록이 남는다
-                key = (score, len(block))
+                # **동점이면 문단(`<p>`)이다.** 내비·제목·표 칸·푸터·사이드바는
+                # 질의어를 한 번만 담아 점수가 본문과 같아지는데, 그때 길이로 가르면
+                # 방향이 하나뿐이라 **반대쪽에서 그대로 틀린다** — 짧은 내비를 이기는
+                # 규칙(긴 쪽)이 긴 푸터·사이드바에게 진다(갈림길 6 · 리뷰 5 실측).
+                # 길이도 순서도 못 가르는 것을 마크업은 이름으로 갖고 있다.
+                # 등호가 아니라 부등호다 — 문단끼리면 먼저 나온 블록이 남는다
+                key = (score, tag == "p")
                 if score and (best is None or key > best[0]):
                     best = (key, pos, block)
             if best:

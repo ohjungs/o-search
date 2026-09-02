@@ -425,6 +425,21 @@ class TestPassages(unittest.TestCase):
          "<table><tr><td>메뉴</td><td>김치찌개</td></tr></table>"
          "<p>김치찌개 한 그릇은 오천원이다.</p>",
          "김치찌개 한 그릇은 오천원이다."),
+        # 리뷰 5 — 위 여덟 행은 보일러플레이트를 **전부 본문 앞에, 본문보다 짧게** 뒀다.
+        # 「길이」가 이득이 되는 방향만 표에 있으면 자가 한쪽으로만 눈금이 있는 것이고,
+        # 그 자는 무엇을 재도 「길이」에 8/8 을 준다. 아래 셋이 방향을 짝짓는다
+        ("본문 뒤에 오는 긴 푸터",  # 뒤 + 김
+         "<article><p>김치찌개 만드는 순서를 아래에 적는다.</p></article>"
+         "<footer>ⓒ 2026 김치찌개 백과 — 모든 권리 보유. 무단 전재와 재배포를 금합니다.</footer>",
+         "김치찌개 만드는 순서를 아래에 적는다."),
+        ("본문 앞에 오는 긴 사이드바",  # 앞 + 긴 · 태그는 `<div>` 라 보일러플레이트 이름표도 없다
+         "<div>김치찌개 관련 글 모음과 인기 검색어 목록을 여기 모아 둔다</div>"
+         "<article><p>김치찌개는 배추로 만든다.</p></article>",
+         "김치찌개는 배추로 만든다."),
+        ("긴 내비 링크 + 문단 안에 낀 <script>",  # 리뷰 5 가 든 합성 — 앞 + 긴
+         "<nav><a href=/>김치찌개 레시피 모음 페이지 바로가기</a></nav>"
+         "<article><p>김치찌개는<script>ad()</script>배추로 만든다.</p></article>",
+         "김치찌개는 배추로 만든다."),
     ]
 
     def test_markup_shapes_yield_the_paragraph_a_reader_would_cite(self):
@@ -470,9 +485,10 @@ class TestPassages(unittest.TestCase):
         self.assertEqual(indexer.passages(self.db_path, "김치")[0][2:],
                          (1, "김치 담그기와 김치 보관"))
 
-    def test_a_tie_goes_to_the_longer_block(self):
-        # 갈림길 6 — 짧은 블록(내비 링크·제목·표 칸)이 **질의어만 담고 문맥은 없는**
-        # 근거로 이기던 자리다. 점수가 같으면 긴 쪽이 근거로 낫다
+    def test_a_tie_goes_to_the_body_paragraph(self):
+        # 갈림길 6 — 보일러플레이트 블록(내비·제목·표 칸·푸터)이 **질의어만 담고
+        # 문맥은 없는** 근거로 이기던 자리다. 점수가 같으면 `<p>` 가 근거로 낫다.
+        # 길이로 갈랐더니 **짧은 내비는 이기고 긴 푸터·사이드바에는 졌다**(리뷰 5)
         self._seed_and_index([
             ("http://a.test/", "<nav><a>김치찌개</a></nav>"
                                "<article><p>김치찌개 만드는 순서를 적는다</p></article>"),
@@ -480,10 +496,9 @@ class TestPassages(unittest.TestCase):
         self.assertEqual(indexer.passages(self.db_path, "김치찌개")[0][2:],
                          (1, "김치찌개 만드는 순서를 적는다"))
 
-    def test_a_tie_of_equal_length_still_goes_to_the_earlier_block(self):
-        # 길이까지 같을 때만 앞이 이긴다 — 부등호가 등호로 바뀌면 뒤가 이긴다.
-        # 두 블록의 길이를 **같게** 맞춰야 이 단언이 «앞» 만 재는 것이 된다
-        # (예전 입력 `김치 하나`/`김치 둘` 은 앞이면서 동시에 길어 둘을 못 갈랐다)
+    def test_a_tie_between_two_paragraphs_goes_to_the_earlier_one(self):
+        # 이름표까지 같을 때만 앞이 이긴다 — 부등호가 등호로 바뀌면 뒤가 이긴다.
+        # 두 블록을 **같은 태그로** 맞춰야 이 단언이 «앞» 만 재는 것이 된다
         self._seed_and_index([("http://a.test/", "<p>김치 하나</p><p>김치 둘다</p>")])
         self.assertEqual(indexer.passages(self.db_path, "김치")[0][2:], (0, "김치 하나"))
 
