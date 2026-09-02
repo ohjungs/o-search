@@ -199,10 +199,14 @@ def main(argv=None):
             print(line, file=sys.stderr)
         return 2
     # 분모가 성립하는 전제다 — 두 상수가 갈리면 `/search` 결과와 문단이 다른 문서집합이
-    # 되고 채택률이 조용히 거짓말한다
-    assert serve.PAGE_SIZE == serve.PASSAGE_LIMIT, (
-        "PAGE_SIZE %d ≠ PASSAGE_LIMIT %d — 채택률의 분모가 분자와 다른 집합이다"
-        % (serve.PAGE_SIZE, serve.PASSAGE_LIMIT))
+    # 되고 채택률이 조용히 거짓말한다. **`assert` 로 두면 안 된다** — 파이썬 기본 종료
+    # 코드 1 로 죽는데 1 은 "미달" 에 예약돼 있고, 이건 설정이 틀려 잴 수 없다는 뜻이라
+    # 2 다 (`--repeat` 가드·G7 이 같은 이유로 2 를 낸다. W 변이가 그때 드러낸 구멍이
+    # 이 형제 자리에 그대로 남아 있었다 — 계획 48 테스트)
+    if serve.PAGE_SIZE != serve.PASSAGE_LIMIT:
+        print("PAGE_SIZE %d ≠ PASSAGE_LIMIT %d — 채택률의 분모가 분자와 다른 집합이다"
+              % (serve.PAGE_SIZE, serve.PASSAGE_LIMIT), file=sys.stderr)
+        return 2
 
     with tempfile.TemporaryDirectory() as tmp:
         db_path = os.path.join(tmp, "crawl.db")
