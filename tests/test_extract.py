@@ -175,8 +175,80 @@ class TestExtractBlocks(unittest.TestCase):
         self.assertEqual(extract_blocks(""), [])
         self.assertEqual(extract_blocks("<title>제목만</title>"), [])
 
+    # ── 숨은 텍스트 (계획 51 `hidden-passage`) ───────────────────────────────
+    # 화면에 안 보이는 블록이 근거 문단으로 나가면 «문서 내 위치» 가 뜻을 잃는다 —
+    # 사람이 그 URL 을 열어 찾을 수 없다. 판정은 `_BlockParser` 안에만 산다:
+    # 색인 본문(`extract_text`)은 다섯 모양 전부에서 문자 단위로 그대로다
+
+    _HIDDEN_SHAPES = [
+        ("template", "<template><p>숨은 김치찌개</p></template>"),
+        ("hidden 속성", "<div hidden><p>숨은 김치찌개</p></div>"),
+        ("aria-hidden", '<div aria-hidden="true"><p>숨은 김치찌개</p></div>'),
+        ("display:none", '<div style="display:none"><p>숨은 김치찌개</p></div>'),
+        ("font-size:0", '<div style="font-size:0"><p>숨은 김치찌개</p></div>'),
+    ]
+
+    def test_five_shapes_of_hidden_text_never_become_blocks(self):
+        # 다섯을 각각 지우는 변이가 여기서 하나씩 죽는다. 컨테이너 중첩이 실물의
+        # 기본형이라 **자식 `<p>` 까지** 따라 죽는 것이 이 단언의 절반이다 —
+        # 블록 단위로 «숨김» 을 표시하면 자식이 새 블록을 열어 그대로 빠져나간다
+        for name, hidden in self._HIDDEN_SHAPES:
+            with self.subTest(shape=name):
+                self.assertEqual(texts(hidden + "<p>보이는 김치찌개</p>"),
+                                 ["보이는 김치찌개"])
+                # 색인 경로는 한 글자도 안 바뀐다 — 재색인이 필요 없다는 근거
+                self.assertIn("숨은 김치찌개", extract_text(hidden)[1])
+
+    def test_a_void_element_does_not_swallow_the_rest_of_the_document(self):
+        # 설계 2절에서 깬 가정 — 종료 태그가 없는 요소로 숨김을 열면 그것을 닫을
+        # 태그가 영영 안 와서 **문서의 나머지가 통째로** 사라진다(3블록 → 1블록).
+        # `aria-hidden="true"` 를 단 장식 아이콘은 실물에서 가장 흔한 모양이다.
+        # `_VOID_TAGS` 가드를 지우는 변이가 여기서 죽는다
+        for name, void in [
+            ("img", '<img src=k.jpg aria-hidden="true">'),
+            ("hr", "<hr hidden>"),
+            ("input", "<input hidden>"),
+            ("br", '<br style="display:none">'),
+        ]:
+            with self.subTest(shape=name):
+                self.assertEqual(texts("<p>앞 문단</p>" + void + "<p>뒤 문단</p>"),
+                                 ["앞 문단", "뒤 문단"])
+
+    def test_text_that_only_looks_hidden_is_kept(self):
+        # 오탐이 이 계획의 제일 위험이다 — 정상 문단을 숨김으로 읽으면 근거가
+        # **조용히** 사라진다. `font-size:0.9em` 은 보이는 작은 글씨인데
+        # `"font-size:0" in style` 이 문다(변이 ⓑ 가 여기서 죽는다).
+        # `aria-hidden="false"` 는 명시적으로 «보인다» 는 선언이다
+        for name, visible in [
+            ('aria-hidden="false"', '<div aria-hidden="false">보이는 글</div>'),
+            ("font-size:0.9em", '<div style="font-size:0.9em">보이는 글</div>'),
+            ("font-size:10px", '<div style="font-size:10px">보이는 글</div>'),
+            ("class=hidden-md", '<div class="hidden-md">보이는 글</div>'),
+            ("display:block", '<div style="display:block">보이는 글</div>'),
+            ("hidden 아닌 속성", '<div data-hidden="true">보이는 글</div>'),
+        ]:
+            with self.subTest(shape=name):
+                self.assertEqual(texts(visible), ["보이는 글"])
+
+    def test_hidden_markup_inside_a_paragraph_only_drops_that_fragment(self):
+        # 문단이 통째로 죽지 않고 그 조각만 빠진다. 낱말이 붙지도 않는다 —
+        # `<span>` 은 인라인이지만 숨김 영역은 인라인 여부와 무관하게 먹는다
+        self.assertEqual(
+            extract_blocks('<p>보이는 <span style="display:none">숨은</span> 텍스트</p>'),
+            [("p", "보이는 텍스트")])
+
+    def test_hidden_text_is_the_third_exception_to_the_join_invariant(self):
+        # 불변식 `" ".join(blocks) == extract_text()[1]` 의 **세 번째** 예외.
+        # 앞의 둘과 달리 이것은 «깨진 입력» 이 아니라 정상 HTML 에서 갈린다 —
+        # 색인 본문은 숨은 텍스트를 그대로 담고(그 문서는 검색에 계속 나온다)
+        # 블록 쪽만 뺀다. 바뀌는 것은 **근거 후보**뿐이라는 계약이 이 줄이다
+        html = '<p>보이는 글</p><div hidden><p>숨은 글</p></div>'
+        self.assertEqual(texts(html), ["보이는 글"])
+        self.assertEqual(extract_text(html)[1], "보이는 글 숨은 글")
+        self.assertNotEqual(" ".join(texts(html)), extract_text(html)[1])
+
     def test_control_only_block_is_dropped_and_that_breaks_the_join(self):
-        # 불변식의 **유일한 알려진 위반**을 현 동작 그대로 고정한다. 통짜 정규화는
+        # 불변식의 **깨진 입력 쪽 위반**을 현 동작 그대로 고정한다. 통짜 정규화는
         # 제어문자 블록 자리에 겹공백을 남기고(`'가  나'`), 블록 쪽은 빈 블록을 버린다.
         # 고치려면 `_normalize` 를 바꿔야 하고 그것이 **색인 본문을 바꾼다** — 안 고친다
         html = "<p>가</p><p>\x01</p><p>나</p>"

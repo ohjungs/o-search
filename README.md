@@ -63,10 +63,15 @@ PYTHONPATH=src python3 -m websearch.indexer data/crawl.db --query 검색어
 | UI 무게 | JS ≤ 50KB gzip | `e2e/design_check.py` |
 | 명암비 | 텍스트 ≥ 4.5:1 · 비텍스트 ≥ 3:1 | 〃 |
 
+`/passages` 는 **화면에 안 보이는 텍스트를 근거로 내지 않는다** — `<template>`·
+`hidden`·`aria-hidden="true"`·`display:none`·`font-size:0` 다섯 모양은 후보에서
+빠진다(HTML 한 장만 보므로 외부 CSS·클래스로 감춘 것은 못 본다). 응답 스키마
+`{url,title,position,text}` 는 그대로다.
+
 ## 검증
 
 ```bash
-PYTHONPATH=src python3 -m unittest discover -b -s tests   # 단위 579건
+PYTHONPATH=src python3 -m unittest discover -b -s tests   # 단위 585건
 ls e2e/*.py                                               # e2e 시나리오 20종
 ```
 

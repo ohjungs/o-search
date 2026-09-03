@@ -136,3 +136,31 @@ append 전용이고 수정·삭제 금지다. 각 회전의 사유는 `digest.md
 - 다음: **개발 1/1** — `src/websearch/extract.py` 에 `_VOID_TAGS`·`_ZERO_FONT`·`_is_hidden`
   과 `_BlockParser` 의 메서드 셋, `tests/test_extract.py` 에 새 단언(설계 6절 목록).
   TDD 로 RED 를 먼저 보고, 변이는 좁아지는 쪽 5 · 넓어지는 쪽 3 을 양방향으로 심는다.
+
+## 2026-09-03 18:20 | hidden-passage | 개발 1 | 시도0
+
+- 한 일: **설계 A 를 그대로 심었다** — `extract.py` 에 `_VOID_TAGS`(HTML void 14개) ·
+  `_ZERO_FONT` · `_is_hidden(tag, attrs)` 와 `_BlockParser` 의 메서드 셋(`handle_starttag`
+  에서 열고 `handle_endtag` 에서 `_open` 과 **같은 관용구**로 닫고, `handle_data` 에서
+  **애초에 안 담는다**). **TDD — RED 를 먼저 봤다**: 새 단언만 `FAILED (failures=14)`,
+  구현 뒤 `Ran 585 tests / OK` rc 0(맨몸·단독). 제품 순증 **약 45줄**, 파일 1개.
+- **설계가 지목한 무변경 지점을 지켰다** — `_SKIP_TAGS`·`_INLINE_TAGS`·`_NON_BLOCK_TAGS`·
+  `_normalize`·`_TextParser` 는 `git diff` 에 **한 줄도 안 나온다.** 그래서 색인 본문·
+  스키마·`data/crawl.db` 가 구조적으로 안 움직이고 재색인이 0 이다.
+- **변이 8건을 양방향으로 심어 전부 RED 를 눈으로 봤다**(`.mutation-lock` 걸고 매번 원복,
+  마지막에 `git diff -- src/` 로 확인 · 커밋된 변이 0). 좁아지는 쪽 5 는 다섯 모양을
+  각각 지우니 **그 모양의 단언만** 빨개졌다(각 2~4건, 전부 새 단언). 넓어지는 쪽 셋 —
+  ⓐ `_is_hidden` 이 늘 True → **기존 `TestExtractBlocks` 가 무너진다**(오탐이 이 계획의
+  제일 위험이라는 것을 스위트가 증명한다) · ⓑ `_ZERO_FONT` → `"font-size:0" in style`
+  → 음성 단언 `font-size:0.9em` **하나만** 죽는다 · ⓒ `_VOID_TAGS` 가드 제거 → void
+  4모양 전부 «앞 문단만 남는다». 설계가 예고한 자리와 죽은 자리가 정확히 같다.
+- **계약이던 문서 두 줄도 같은 커밋이다** — `README.md ## 품질 기준` 아래에 «`/passages` 는
+  화면에 안 보이는 텍스트를 근거로 내지 않는다» 를 적고(`VERSION` 을 안 올리는 대신 조용한
+  변경이 안 되게 한 것 · 설계 5절), 단위 건수를 **579 → 585** 로 고쳤다(`test_readme.py`
+  자신이 그 숫자를 잰다 — 안 고치면 첫 실행이 RED 다).
+- 결과: 단위 **585건 OK**(13.476초) rc 0 · 새 단언 **6건**(extract 5 · indexer 1) ·
+  `e2e/`·`docs/specs/`·`data/crawl.db` 무변경 · 새 의존성 0(`re` 는 stdlib) ·
+  러너 호출 **11회 전부 맨몸·단독**(변이 8회는 `python3 -B` — 선례 `history_042`).
+- 다음: **테스트 1/1** — 완료 기준의 「그대로여야 할 것」 중 스위트 밖 축(코퍼스 64문서
+  블록 목록 차이 0 · `passage_eval` 정확도·p95 · `quality_eval` ko/en)을 실제로 재고,
+  갭 탐색으로 새 단언이 못 잡는 자리를 찾는다.

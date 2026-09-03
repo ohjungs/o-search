@@ -536,6 +536,36 @@ class TestPassages(unittest.TestCase):
         hits = indexer.passages(self.db_path, "김치")
         self.assertEqual([h[0] for h in hits], ["http://b.test/"])  # 긍정 짝 — 빈 목록도 아니다
 
+    def test_hidden_text_never_becomes_the_passage(self):
+        # 계획 51 — 숨은 블록은 질의어를 본문보다 촘촘히 담아 밀도 규칙을
+        # **확정적으로** 이겼다. 다섯 모양 전부에서 본문 문단이 나와야 하고,
+        # 숨은 블록**만** 질의어를 담은 문서는 문단이 **0개**다 — 첫 블록이나
+        # 본문 앞부분으로 대신하면 사양 기능 8(근거 정확도)이 첫 줄에서 무너진다.
+        # 감점(갈림길 C)으로 바꾸는 변이가 여기서 죽는다: 밀도가 높으면 여전히 이긴다
+        shapes = [
+            ("template", "<template>%s</template>"),
+            ("hidden 속성", "<div hidden>%s</div>"),
+            ("aria-hidden", '<div aria-hidden="true">%s</div>'),
+            ("display:none", '<div style="display:none">%s</div>'),
+            ("font-size:0", '<div style="font-size:0">%s</div>'),
+        ]
+        hidden = "<p>김치찌개 김치찌개 김치찌개</p>"
+        self._seed_and_index(
+            [("http://t.test/%d" % i, wrap % hidden + "<p>김치찌개는 배추로 만든다.</p>")
+             for i, (_, wrap) in enumerate(shapes)]
+            + [("http://only.test/", "<title>요리</title>"
+                + shapes[1][1] % hidden + "<p>봄나물 무침</p>")])
+        got = {url: text for url, _t, _p, text
+               in indexer.passages(self.db_path, "김치찌개", limit=len(shapes) + 1)}
+        for i, (name, _wrap) in enumerate(shapes):
+            with self.subTest(shape=name):
+                self.assertEqual(got.get("http://t.test/%d" % i),
+                                 "김치찌개는 배추로 만든다.")
+        self.assertNotIn("http://only.test/", got)
+        # 색인은 안 건드렸다 — 그 문서는 검색 결과에 **계속 나온다**
+        self.assertIn("http://only.test/",
+                      [h[0] for h in search(self.db_path, "김치찌개")])
+
     def test_bigram_match_that_only_crosses_a_block_boundary_is_not_a_passage(self):
         # 색인의 2-gram 은 공백을 전부 지워 문단 경계도 넘는다(`먹는다 물을` → `다물`).
         # 문서는 나오지만 그 이웃을 담은 **블록은 없다** — 그러면 안 낸다
