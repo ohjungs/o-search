@@ -184,11 +184,12 @@ ko/en · `passage_eval` 정확도·p95)을 다시 재고, **갭 탐색은 살아
 
 ## 원격 — `origin/main` 은 계획 47 까지다
 
-- **커밋·푸시 뒤에 `git ls-remote origin` 을 다시 읽는다**(digest 의 「원격을 바꾸는 동작을
-  «명령을 보냈다» 로 기록하지 않는다」 항목). 직전 반복 확인값:
-  `refs/heads/loop/hidden-passage` = `5b7b670` · `refs/heads/main` = **`687a159` 무변** ·
-  `refs/pull/7/head` = **`d5367fa` 무변**. 이번 반복의 확인값은 `history_current.md` 의
-  개발 3 항목과 다음 반복이 적는다.
+- **커밋·푸시 뒤에 `git ls-remote origin` 을 다시 읽었다**(digest 의 「원격을 바꾸는 동작을
+  «명령을 보냈다» 로 기록하지 않는다」 항목): `refs/heads/loop/hidden-passage` =
+  **`03e78b9`**(개발 3 커밋, `3fcb921` → **fast-forward · force 아님**) ·
+  `refs/heads/main` = **`687a159` 무변** · `refs/pull/7/head` = **`d5367fa` 무변** ·
+  `refs/pull/7/merge` = `e3a70d0`(GitHub 이 만드는 것이고 내가 안 건드린다).
+  이 절을 고치는 커밋이 하나 더 나가므로 그 커밋은 다음 반복이 확인한다.
 - **PR #7** — `loop/merge-48-50` → `main`, 계획 48·49·50. **OPEN·미병합.** 병합은
   **사용자가 처리한다** — 이 반복은 PR 을 열지도 닫지도 않았고 그 브랜치를 건드리지도,
   `main` 으로 리베이스하지도 않았다.
