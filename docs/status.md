@@ -160,6 +160,9 @@ TDD 로 여섯 모양의 RED 를 먼저 보고, 키 여덟을 명세 삽입 모�
 
 - **커밋·푸시 뒤에 `git ls-remote origin` 을 다시 읽었다**(digest 의 「원격을 바꾸는 동작을
   «명령을 보냈다» 로 기록하지 않는다」 항목). 아래 SHA 는 이 반복이 실제로 읽은 값이다.
+- **`loop/hidden-passage` = `c1f516b`** (리뷰 3 커밋 · `146c8c4` → `c1f516b`).
+  `git ls-remote origin loop/hidden-passage` 의 `c1f516ba…11ce1` 와 로컬 `HEAD` 가 같다.
+  `--no-verify`·`--force` 0회 · 훅 우회 0.
 - **PR #7** — `loop/merge-48-50` → `main`, 계획 48·49·50. **OPEN·미병합.** 병합은
   **사용자가 처리한다** — 이 반복은 PR 을 열지도 닫지도 않았고 그 브랜치를 건드리지도,
   `main` 으로 리베이스하지도 않았다.
