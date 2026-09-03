@@ -286,6 +286,20 @@ class TestSearch(unittest.TestCase):
         self.assertEqual(title, "요리")
         self.assertIn("김치찌개", snippet)
 
+    def test_one_page_with_an_unknown_marked_section_does_not_abort_the_run(self):
+        # 갭 탐색(테스트 3) — 단언 자리는 **가장 깊은 모양**이다. `extract` 단위가
+        # 예외를 막아도, 값이 걸린 곳은 여기다: `index_pages()` 는 문서마다 try 가
+        # 없고 `commit()` 이 루프 **끝**에 있어, 페이지 한 장이 터지면 그 실행이 넣던
+        # 색인이 통째로 사라진다. 크롤 HTML 은 신뢰 경계라 «남이 쓴 여덟 글자»다
+        self._seed_and_index([
+            ("http://bad.test/", "<title>깨진 선언</title><p>배추김치를 담근다<![foo]>"),
+            ("http://ok.test/", "<title>정상</title><p>김치찌개는 배추로 만든다.</p>"),
+        ])
+        self.assertEqual(sorted(h[0] for h in search(self.db_path, "김치")),
+                         ["http://bad.test/", "http://ok.test/"])
+        # 근거 문단 경로도 같은 파서를 지난다 — `/passages` 가 500 이 되던 자리
+        self.assertEqual(indexer.passages(self.db_path, "배추김치")[0][3], "배추김치를 담근다")
+
     def test_english_is_case_insensitive(self):
         self._seed_and_index([("http://a.test/", "<title>Guide</title><p>Python Tutorial</p>")])
         self.assertEqual(len(search(self.db_path, "python")), 1)
@@ -784,9 +798,16 @@ class TestPassages(unittest.TestCase):
         # 도 안 건드렸다. 이 선을 25% 로 도로 조이려면 캡을 28,000 으로 내려야 하고
         # 그것은 «긴 문서의 뒷부분 근거» 를 더 자르는 별개 판단이다. 실물 코퍼스 p95 는
         # 1.51 → 1.54ms(예산의 0.3%)라 이 154ms 는 **캡 최악 모양의 상한**이지 실측이 아니다.
-        # **이것도 최악의 상한은 아니다**: `<p>가</p>` 만 반복하는 합성 문서가 0.489
-        # (35,000자 ×10건 = 171ms). 골라 만든 모양이라 계수로 안 썼다 — 실물 크롤에서
-        # 이 축이 보이면 계수가 아니라 파서를 고친다(`design_passage-api.md` 갈림길 5).
+        # **«모양» 으로는 재현이 안 돼 이 숫자가 세 번 낡았다 — 축은 태그 밀도다**
+        # (테스트 3 재측정): ms/1000자 ≈ 0.0025 × 태그/1000자. 0.44 는 **태그
+        # 169개/1000자** 한 점이고 오늘 0.436 이라 여전히 참인데, 같은 말로 태그
+        # 200개/1000자 벌을 만들면 0.502(176ms)라 이 배정치를 넘는다. **캡 안 최악은
+        # 이 축의 끝**이다 — `<li>가</li>` 0.535 · `<p>가</p>` 0.665 · 안 닫은
+        # `<p>가` **0.901**(10건 **315ms · 예산의 63%**)로 위 154ms 의 **2.1배**.
+        # 그래서 이 단언의 1/3 은 «여유» 가 아니라 그 **모양 배수를 흡수하는 자리**다 —
+        # 1/3 을 지키면 최악 모양이 500ms 안에 든다(154 × 2.1 = 323ms). 계수를 최악
+        # 모양으로 갈아 끼우면 캡을 18,000 으로 내려야 초록인데, 그것은 «긴 문서의
+        # 뒷부분 근거» 를 반으로 자르는 계획 몫이다(`design_passage-api.md` 갈림길 5).
         from websearch import serve
         worst_ms = indexer.MAX_PASSAGE_HTML / 1000 * 0.44 * serve.PASSAGE_LIMIT
         self.assertLessEqual(worst_ms, 500 / 3, "%.0fms" % worst_ms)

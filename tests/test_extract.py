@@ -53,6 +53,31 @@ class TestExtractText(unittest.TestCase):
         title, text = extract_text("<title>t<p>글<<<div")
         self.assertIn("글", text)
 
+    def test_an_unknown_marked_section_does_not_raise(self):
+        # 갭 탐색(테스트 3) — **신뢰 경계에서 터진다.** `_markupbase` 는 아는 키워드
+        # (`cdata`·`include`·`if`…) 가 아닌 `<![foo]>` 를 만나면 `error()` 로 보내고,
+        # `HTMLParser` 는 그것을 안 덮어 `NotImplementedError` 가 **feed 밖으로 나간다**.
+        # 크롤 HTML 은 남이 쓴 입력이라 페이지 한 장이 `index_pages()` 전체를 세우고
+        # (커밋이 끝에 있어 그 실행의 색인이 통째로 날아간다) `/passages` 는 500 이 된다.
+        # 위 `test_broken_html_no_raise` 가 못 밟은 자리다 — 저기서 깨진 것은 태그고
+        # 여기서 깨진 것은 **선언**이라 파서의 다른 가지로 간다.
+        # 명세는 이것을 bogus comment 로 읽어 다음 `>` 까지 버린다 — 브라우저와 같게 한다
+        for html_text in ("<p>김치찌개는 배추로 만든다<![foo]>",
+                          "<p>앞 문단이다<![sqlserver]>뒤 문단이다</p>",
+                          "<![unknown]><p>선언이 맨 앞이다</p>"):
+            with self.subTest(html_text):
+                title, text = extract_text(html_text)
+                self.assertNotIn("<", text)
+                self.assertNotIn("foo", text)
+        # 주석과 **같이** 붙는다 — 경계 공백을 넣지 않는다. `<!--c-->` 가 이미 그렇고,
+        # 낱말 안에 낀 선언(`김치<![x]>찌개`)을 쪼개면 색인이 검색을 놓친다
+        self.assertEqual(extract_text("<p>앞 문단이다<![sqlserver]>뒤 문단이다</p>")[1],
+                         "앞 문단이다뒤 문단이다")
+        self.assertEqual(extract_text("<p>가<!--c-->나</p>")[1], "가나")
+        # 아는 키워드는 지금도 통과한다 — 회귀 방향을 함께 못박는다
+        self.assertEqual(extract_text("<p>가<![if !supportLists]>나</p>")[1], "가나")
+        self.assertEqual(extract_text("<![CDATA[x]]><p>가</p>")[1], "가")
+
 
 def texts(html):
     """블록 텍스트만 — 태그가 논점이 아닌 단언에서 쓴다."""
@@ -109,6 +134,24 @@ class TestExtractBlocks(unittest.TestCase):
                          [("li", "가"), ("li", "나"), ("", "다")])
         self.assertEqual(extract_blocks("<article><p>가</article>나"),
                          [("p", "가"), ("", "나")])
+
+    def test_an_implied_end_also_sweeps_the_label_stack(self):
+        # 갭 탐색(테스트 3) — 위 테스트는 **닫는 태그**로 그 계약을 못박았는데, 계획 51 이
+        # 넣은 **암묵적 닫기**는 같은 사건인데도 `_els` 만 걷고 `_open` 은 놔뒀다.
+        # `<p>` 를 끝낸 것은 `<div>` 인데 그 뒤 꼬리가 아직 `p` 이름표를 달고 나온다 —
+        # 위 주석이 적은 그 거짓양성이고, 이번에는 **닫는 태그가 아예 없는 문서**라
+        # 위 테스트가 못 밟는다(⑥ 「바뀐 함수의 기존 테스트가 옛 동작만 덮는다」).
+        # **값도 여기 붙어 있다** — 안 걷으면 `_open` 이 «안 닫힌 `<p>` 수» 만큼 쌓이고,
+        # 닫는 태그마다 리스트를 떠서 뒤집는 관용구가 그 길이에 붙어 비용이 깊이²다
+        # ([R51-2] 가 `_els` 에서 지운 그 관용구가 `_open` 에 남아 있다). 캡 35,000자를
+        # `<p>가` 로 채우고 한꺼번에 닫는 모양 실측 **1.10 → 0.65 ms/1,000자**
+        self.assertEqual(extract_blocks("<p>첫 문단<div>둘째 문단</div>꼬리 텍스트"),
+                         [("p", "첫 문단"), ("div", "둘째 문단"), ("", "꼬리 텍스트")])
+        # `<li>`·`<td>` 가지도 같다 — 표·목록은 종료 태그를 생략하는 실물의 기본형이다
+        self.assertEqual(extract_blocks("<ul><li>가<li>나</ul>다음 문단"),
+                         [("li", "가"), ("li", "나"), ("", "다음 문단")])
+        self.assertEqual(extract_blocks("<p>가<h2>제목</h2>꼬리"),
+                         [("p", "가"), ("h2", "제목"), ("", "꼬리")])
 
     def test_last_block_survives_broken_html(self):
         # 변이 M2(마지막 flush 삭제)가 여기서 죽는다. 정상 HTML 은 닫는 태그가
@@ -421,3 +464,14 @@ class TestIsNoindex(unittest.TestCase):
     def test_empty_or_missing_content(self):
         self.assertFalse(is_noindex('<meta name="robots" content="">'))
         self.assertFalse(is_noindex('<meta name="robots">'))
+
+    def test_an_unknown_marked_section_does_not_raise_here_either(self):
+        # 갭 탐색(테스트 3) — 변이 「`_MetaRobotsParser` 는 안 고친다」가 **초록으로
+        # 살아 있었다**. 파서가 둘이라 수리도 둘인데 단언은 하나였다. 이 경로가 더
+        # 이른 자리다: `index_pages()` 는 `is_noindex()` 를 **먼저** 부르므로 여기서
+        # 터지면 `extract_text` 쪽 수리는 닿지도 못하고 그 실행의 색인이 통째로 날아간다.
+        # 게이트(`"robots" in html`)를 지나야 파싱하므로 두 단어가 같이 있어야 재진다
+        self.assertTrue(is_noindex('<![foo]><meta name="robots" content="noindex">'))
+        self.assertTrue(is_noindex('<meta name="robots" content="noindex"><![sqlserver]>'))
+        # 오탐 방향도 본다 — 깨진 선언이 지시를 **만들어 내지도** 않는다
+        self.assertFalse(is_noindex('<p>robots.txt 를 설명한다<![foo]></p>'))

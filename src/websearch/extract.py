@@ -95,7 +95,29 @@ def _is_hidden(tag, attrs):
     return "display:none" in style or _ZERO_FONT.search(style) is not None
 
 
-class _TextParser(html.parser.HTMLParser):
+class _Parser(html.parser.HTMLParser):
+    """`html.parser` 가 크롤 HTML 에서 **예외로 나가는** 자리 하나를 막는다.
+
+    `_markupbase` 는 `<![cdata[`·`<![if` 처럼 아는 키워드가 아닌 marked section
+    (`<![foo]>`)을 만나면 `error()` 를 부르고, `HTMLParser` 는 그것을 안 덮어
+    **`NotImplementedError` 가 `feed()` 밖으로 나간다.** 크롤 HTML 은 남이 쓴
+    입력이라 페이지 한 장이 `index_pages()` 전체를 세우고(커밋이 루프 끝에 있어
+    그 실행의 색인이 통째로 날아간다) `/passages` 는 500 이 된다 — 아무나 만들 수
+    있는 여덟 글자다. HTML 명세는 아는 선언이 아닌 `<!` 를 **bogus comment** 로
+    읽어 다음 `>` 까지 버리므로 브라우저와 같은 쪽으로 떨어뜨린다.
+    ponytail: 키워드 목록을 여기 베끼지 않는다 — stdlib 이 아는 것은 stdlib 이
+    처리하게 두고 **터지는 가지만** 받는다. 버전이 예외 종류를 바꿔도(3.13 은
+    `AssertionError`) 같은 자리로 떨어지도록 둘 다 받는다
+    """
+
+    def parse_marked_section(self, i, report=1):
+        try:
+            return super().parse_marked_section(i, report)
+        except (NotImplementedError, AssertionError):
+            return self.parse_bogus_comment(i)
+
+
+class _TextParser(_Parser):
     def __init__(self):
         super().__init__()
         self.title_parts = []
@@ -142,7 +164,7 @@ def _normalize(parts):
     return " ".join("".join(parts).split()).translate(_CONTROL)
 
 
-class _MetaRobotsParser(html.parser.HTMLParser):
+class _MetaRobotsParser(_Parser):
     """<meta name="robots"> 의 content 만 모은다. 태그명·속성명은 HTMLParser 가 소문자로 준다."""
 
     def __init__(self):
@@ -216,8 +238,15 @@ class _BlockParser(_TextParser):
         super().handle_starttag(tag, attrs)
         # 브라우저처럼 **암묵적으로 닫는다** — `html.parser` 는 안 닫아서 `<li hidden>`
         # 의 숨김이 **다음 형제로 샜다**(리뷰 51 [R51-1]: 보이는 문단이 조용히 사라진다).
-        # 꼭대기만 본다 — 닫히는 것은 형제뿐이고 숨긴 요소의 **자식**은 숨김 그대로다
+        # 꼭대기만 본다 — 닫히는 것은 형제뿐이고 숨긴 요소의 **자식**은 숨김 그대로다.
+        # **이름표 스택도 함께 걷는다** — 암묵적 닫기는 `</p>` 와 같은 사건이라 여기서
+        # 안 걷으면 그 뒤 텍스트가 이미 끝난 태그의 이름표를 달고 나가고(테스트 3),
+        # `_open` 이 «안 닫힌 `<p>` 수» 만큼 쌓여 아래 닫기 비용이 깊이²로 간다
+        # (실측 `<p>가<span>나</span>` × 1,250 · 캡 35,000자: `_open` 최대 **1250 → 1**
+        # · 0.422 → **0.304ms/1000자**. 이름표는 제품이 아직 안 읽지만 비용은 실물이다)
         while self._els and tag in _IMPLIED_END.get(self._els[-1][0], ()):
+            if self._open and self._open[-1] == self._els[-1][0]:
+                self._open.pop()
             self._els.pop()
         # 숨김은 **부모가 앞 블록을 끊은 뒤에** 연다 — 먼저 열면 직전 블록의 꼬리가
         # 사라진다. 인라인·비블록 태그도 숨길 수 있어 아래 early-return 보다 앞이다
