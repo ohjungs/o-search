@@ -304,6 +304,21 @@ class TestExtractBlocks(unittest.TestCase):
             # 아니라 `<p>` 를 **안 닫는다**. 닫으면 그 뒤 숨은 텍스트가 근거로 샌다
             ("숨은 p 안의 비블록",
              "<p hidden>숨은<br>여전히 숨은<img src=k.jpg>또 숨은 김치찌개"),
+            # 리뷰 2 `[R51-3]`. 위 `p` 가지를 «인라인도 비블록도 아닌 것 전부» 로
+            # 쓰면 술어가 **열린 집합**이라, 명세가 `<p>` 를 안 닫는다고 적은 태그가
+            # 전부 닫아 버린다 — 표준 태그 전수 대조로 과잉 29 · 미달 0 이었고
+            # **대시가 든 커스텀 요소는 전부** 과잉이라 그쪽은 무한 집합이다.
+            # 닫히면 뒤의 숨은 텍스트가 근거 문단으로 샌다(임시 DB 실측 5/6).
+            # 아래 다섯이 그 다섯 부류다 — 커스텀 요소 둘 · 웹컴포넌트(`slot`) ·
+            # 폼 부속(`datalist`) · 폐기된 인라인(`nobr`)
+            ("숨은 p 안의 커스텀 요소",
+             "<p hidden>숨은<my-widget>속</my-widget>또 숨은 김치찌개"),
+            ("숨은 p 안의 자기 닫는 커스텀 요소",
+             "<p hidden>숨은<amp-img src=k.jpg></amp-img>또 숨은 김치찌개"),
+            ("숨은 p 안의 slot", "<p hidden>숨은<slot>또 숨은 김치찌개</slot>"),
+            ("숨은 p 안의 datalist",
+             "<p hidden>숨은<datalist><option>x</datalist>또 숨은 김치찌개"),
+            ("숨은 p 안의 nobr", "<p hidden>숨은<nobr>또 숨은 김치찌개</nobr>"),
             ("숨은 td 안의 중첩 표",
              "<table><tr><td hidden><table><tr><td>속 김치찌개</table></table>"),
         ]:

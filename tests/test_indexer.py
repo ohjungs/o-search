@@ -554,9 +554,18 @@ class TestPassages(unittest.TestCase):
             [("http://t.test/%d" % i, wrap % hidden + "<p>김치찌개는 배추로 만든다.</p>")
              for i, (_, wrap) in enumerate(shapes)]
             + [("http://only.test/", "<title>요리</title>"
-                + shapes[1][1] % hidden + "<p>봄나물 무침</p>")])
+                + shapes[1][1] % hidden + "<p>봄나물 무침</p>"),
+               # 리뷰 2 `[R51-3]` 이 **실제 임시 DB 로** 잡은 자리 — 종료 태그가
+               # 생략된 `<p hidden>` 안에 커스텀 요소가 끼면 암묵적 닫기가 숨김을
+               # 풀어 숨은 텍스트가 **근거 문단이 됐다**. 밀도 규칙은 질의어를 채운
+               # 숨은 블록을 확정적으로 고르므로 계약이 바로 깨진다
+               ("http://custom.test/",
+                "<title>요리</title><p hidden>김치찌개 김치찌개"
+                "<my-widget>김치찌개 김치찌개</my-widget>"
+                "<p>김치찌개는 배추로 만든다.</p>")])
         got = {url: text for url, _t, _p, text
-               in indexer.passages(self.db_path, "김치찌개", limit=len(shapes) + 1)}
+               in indexer.passages(self.db_path, "김치찌개", limit=len(shapes) + 2)}
+        self.assertEqual(got.get("http://custom.test/"), "김치찌개는 배추로 만든다.")
         for i, (name, _wrap) in enumerate(shapes):
             with self.subTest(shape=name):
                 self.assertEqual(got.get("http://t.test/%d" % i),
@@ -764,17 +773,23 @@ class TestPassages(unittest.TestCase):
         # **값** 가드다 — 위 둘은 fixture 를 상수에서 만들어 값과 함께 늘어나므로
         # "10만 → 100만" 변이를 못 잡는다(실측: 안 죽었다). 여기서 죽는다.
         # 손잡이는 둘이고 다른 파일에 산다 — 캡을 그대로 두고 `PASSAGE_LIMIT` 만
-        # 올려도 예산이 깨지므로 곱해서 본다. 사양 성능 5 예산 500ms 의 25%.
+        # 올려도 예산이 깨지므로 곱해서 본다. 사양 성능 5 예산 500ms 의 **1/3**.
         # **계수 옆에 그 숫자를 낸 입력의 모양을 적는다** — 앞의 0.118 은 «한글·태그
-        # 촘촘» 한 벌에서만 재서 3배 틀렸다(계획 48 리뷰 2). 0.352 는 낱말마다
-        # `<b>`/`<i>`/`<em>` 이 낀 위키·CMS 출력 모양의 1,000자당 값이다(리뷰 2 실측
-        # 0.352 · 개발 5 재측 0.327 — 낮은 쪽으로 안 내린다).
+        # 촘촘» 한 벌에서만 재서 3배 틀렸다(계획 48 리뷰 2). 0.44 는 낱말마다
+        # `<b>`/`<i>`/`<em>` 이 낀 위키·CMS 출력 모양의 1,000자당 값이다(계획 48 리뷰
+        # 2 실측 0.352 · 개발 5 재측 0.327 · **계획 51 리뷰 2 재측 0.439 · 개발 3
+        # 재측 0.413** — 낮은 쪽으로 안 내린다).
+        # **배정치가 25% → 1/3 로 움직였다**(계획 51 리뷰 2 [R51-4]). 계획 51 이 숨김
+        # 판정과 암묵적 닫기를 넣어 계수가 0.352 → 0.44 로 올랐고, 캡도 `PASSAGE_LIMIT`
+        # 도 안 건드렸다. 이 선을 25% 로 도로 조이려면 캡을 28,000 으로 내려야 하고
+        # 그것은 «긴 문서의 뒷부분 근거» 를 더 자르는 별개 판단이다. 실물 코퍼스 p95 는
+        # 1.51 → 1.54ms(예산의 0.3%)라 이 154ms 는 **캡 최악 모양의 상한**이지 실측이 아니다.
         # **이것도 최악의 상한은 아니다**: `<p>가</p>` 만 반복하는 합성 문서가 0.489
         # (35,000자 ×10건 = 171ms). 골라 만든 모양이라 계수로 안 썼다 — 실물 크롤에서
         # 이 축이 보이면 계수가 아니라 파서를 고친다(`design_passage-api.md` 갈림길 5).
         from websearch import serve
-        worst_ms = indexer.MAX_PASSAGE_HTML / 1000 * 0.352 * serve.PASSAGE_LIMIT
-        self.assertLessEqual(worst_ms, 500 * 0.25, "%.0fms" % worst_ms)
+        worst_ms = indexer.MAX_PASSAGE_HTML / 1000 * 0.44 * serve.PASSAGE_LIMIT
+        self.assertLessEqual(worst_ms, 500 / 3, "%.0fms" % worst_ms)
 
     def test_missing_db_raises(self):
         with self.assertRaises(FileNotFoundError):

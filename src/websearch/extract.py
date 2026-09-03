@@ -38,12 +38,33 @@ _VOID_TAGS = {
 
 # **종료 태그 생략이 허용된** 요소 — 「어떤 시작 태그가 이것을 암묵적으로 닫는가」.
 # 명세가 허용하는 정상 HTML 이라 «안 닫힌 컨테이너» 천장이 안 덮는다(리뷰 51 [R51-1]).
-# `p` 는 같은 이름뿐 아니라 **아무 블록 시작 태그**로나 닫혀 값이 아니라 아래 판정이다.
+#
+# **전부 닫힌 집합이다 — `p` 도 그렇다.** `p` 를 «인라인도 비블록도 아닌 것 전부» 로
+# 쓰면(리뷰 2 [R51-3]) 술어가 열린 집합이 되고, 명세가 `<p>` 를 닫지 않는다고 적은
+# 태그까지 닫아 그 뒤의 **숨은 텍스트가 근거 문단으로 샌다**(표준 태그 전수 대조에서
+# 과잉 29 · 미달 0, 그리고 대시가 든 **커스텀 요소는 전부** 과잉이라 그쪽은 무한
+# 집합이다). 여집합으로는 못 적는 이유가 그것이라 명세 목록을 그대로 옮겼다.
+# 아래 `p` 목록은 파싱 알고리즘이 "close a p element" 를 부르는 시작 태그 전부다
+# — 종료 태그 생략 목록(`address`…`ul`)보다 넓어 `li`·`dd`·`dt`·`summary`·`dialog`
+# 도 든다 — 더하기 표 문맥에서 셀·행을 닫으며 `<p>` 를 함께 걷는 표 구조 태그.
+# ponytail: 표 구조 태그(`tr`·`td`…)는 **표 밖에서도** 닫는다. 브라우저는 표 밖의
+# 그것을 무시하므로 그 자리에서만 넓게 닫지만, 표 밖 `<td>` 는 깨진 입력이고
+# 표 안의 안 닫힌 `<p>` 는 실물의 기본형이다(리뷰 51 [R51-1] 이 넣은 그 행).
 _IMPLIED_END = {
     "li": {"li"},
     "dt": {"dt", "dd"}, "dd": {"dt", "dd"},
     "tr": {"tr"}, "td": {"td", "th", "tr"}, "th": {"td", "th", "tr"},
     "option": {"option", "optgroup"},
+    "p": {
+        "address", "article", "aside", "blockquote", "center", "details",
+        "dialog", "dir", "div", "dl", "fieldset", "figcaption", "figure",
+        "footer", "form", "header", "hgroup", "hr", "listing", "main", "menu",
+        "nav", "ol", "p", "plaintext", "pre", "search", "section", "summary",
+        "table", "ul", "xmp",
+        "h1", "h2", "h3", "h4", "h5", "h6",
+        "li", "dd", "dt",
+        "caption", "colgroup", "tbody", "tfoot", "thead", "tr", "td", "th",
+    },
 }
 
 # `font-size:0` 은 **부분문자열로 보면 안 된다** — `font-size:0.9em` 은 보이는 작은
@@ -196,7 +217,7 @@ class _BlockParser(_TextParser):
         # 브라우저처럼 **암묵적으로 닫는다** — `html.parser` 는 안 닫아서 `<li hidden>`
         # 의 숨김이 **다음 형제로 샜다**(리뷰 51 [R51-1]: 보이는 문단이 조용히 사라진다).
         # 꼭대기만 본다 — 닫히는 것은 형제뿐이고 숨긴 요소의 **자식**은 숨김 그대로다
-        while self._els and self._implied_end(self._els[-1][0], tag):
+        while self._els and tag in _IMPLIED_END.get(self._els[-1][0], ()):
             self._els.pop()
         # 숨김은 **부모가 앞 블록을 끊은 뒤에** 연다 — 먼저 열면 직전 블록의 꼬리가
         # 사라진다. 인라인·비블록 태그도 숨길 수 있어 아래 early-return 보다 앞이다
@@ -208,14 +229,6 @@ class _BlockParser(_TextParser):
         if self._in_title or tag in _INLINE_TAGS or tag in _NON_BLOCK_TAGS:
             return
         self._open.append(tag)
-
-    @staticmethod
-    def _implied_end(open_tag, tag):
-        """열려 있는 `open_tag` 가 `tag` 의 **시작**으로 닫히는가 (종료 태그 생략)."""
-        if open_tag == "p":
-            # 「블록 경계인 시작 태그」는 부모가 이미 쓰는 술어다 — 같은 것을 읽는다
-            return tag not in _INLINE_TAGS and tag not in _NON_BLOCK_TAGS
-        return tag in _IMPLIED_END.get(open_tag, ())
 
     def handle_endtag(self, tag):
         # 닫는 태그는 주인을 **바깥 태그로 되돌린다** — `</p>` 뒤의 꼬리 텍스트는
