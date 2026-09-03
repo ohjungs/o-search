@@ -11,7 +11,7 @@
 
 | | 값 |
 |---|---|
-| 반복 | 294 |
+| 반복 | 295 |
 | 계획 (완료/폐기/보류) | 35 / 0 / 0 (진행 1) |
 | 재시도 | 0 |
 | RED | 1 |
@@ -26,16 +26,16 @@
 | 설계 | 18 (생략 5) |
 | 개발 | 70 |
 | 테스트 | 35 |
-| 리뷰 | 35 |
+| 리뷰 | 36 |
 | e2e | 27 |
 
 ## 리뷰 정확도 — 80점 임계 검증용
 
 | | 값 |
 |---|---|
-| 발견 후보 | 182 |
-| 80점 미만으로 버림 | 58 (기보류 중복 4 + search-api 2 + crawl-delay 3 + quality-eval 3 + non-ascii-url 2 + cooldown-burn 3 + crawl-politeness 1 + graceful-interrupt 2 + deadline-stop 3 + indexer-interrupt 5 + indexer-lock 2 + docs-citation-guard 2 + focus-contrast 2 + focus-ring-presence 3 + passage-api 17 + focus-rule-scope 2 + runner-quiet 2 + hidden-passage 2) |
-| 보고함 | 116 |
+| 발견 후보 | 187 |
+| 80점 미만으로 버림 | 61 (기보류 중복 4 + search-api 2 + crawl-delay 3 + quality-eval 3 + non-ascii-url 2 + cooldown-burn 3 + crawl-politeness 1 + graceful-interrupt 2 + deadline-stop 3 + indexer-interrupt 5 + indexer-lock 2 + docs-citation-guard 2 + focus-contrast 2 + focus-ring-presence 3 + passage-api 17 + focus-rule-scope 2 + runner-quiet 2 + hidden-passage 5) |
+| 보고함 | 118 |
 | **그중 실제로 고친 것** | 74 (hidden-passage 2건은 개발 2 가 닫았다) |
 
 **성능 축을 백지 패스에 붙이라던 자기 지시가 처음으로 값을 냈다 (2026-09-03 hidden-passage, 반복 292).**
@@ -50,6 +50,10 @@
 **둘 다 다음 반복(개발 2, 293)이 닫았고 실측이 리뷰의 예측과 붙었다** — 제자리 역방향
 탐색 169.0 → 18.1ms(리뷰의 예측 17.8ms). 되돌리는 변이에서 단위 588건이 **전부 초록**이라
 성능 축의 눈멂도 실측으로 확인됐다.
+**그 수리가 다음 리뷰(2026-09-03, 반복 295)에서 [R51-3] 을 낳았다** — 수리가 재사용한
+술어가 여집합이라 커스텀 요소에서 숨김이 풀린다(실제 DB 로 3/4 유출). 그리고 이번에
+**패스 B 가 처음 지적을 냈다**([R51-4] 낡은 성능 계수 — 코드 주석의 배정치와 대조해서만
+보이는 자리다). 지금까지 값은 전부 패스 A 에서 나왔었다.
 
 **리뷰의 산출물이 처음으로 «반려도 수리도 아닌 등재» 하나였다 (2026-09-02 focus-rule-scope, 반복 280).**
 보고 2건 중 하나는 docstring 한 줄(자동 수정)이고, 값이 있는 쪽 `[R1]`(결합자 뒤의 거짓
