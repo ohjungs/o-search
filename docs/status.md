@@ -139,8 +139,14 @@ heredoc **1회**(`history_current.md` append). 탐침 넷(`bench51.py`·`regress
 
 ## 원격 — `origin/main` 은 계획 47 까지다
 
-- 이 반복이 직접 다시 읽었다 — `git ls-remote origin` 은 `main` = `687a1598…`(계획 47) ·
-  `loop/merge-48-50` = `d5367fa…` · `loop/hidden-passage` = 개발 2 커밋 직전 `ef2794a…`.
+- 이 반복이 커밋·푸시 **뒤에** 다시 읽었다 — `git ls-remote origin` 은 `main` =
+  `687a1598…`(계획 47) · `loop/merge-48-50` = `d5367fa…`(둘 다 **무변**) ·
+  `loop/hidden-passage` = **`4763d0e`**(이 반복의 개발 2 커밋).
+- **커밋이 둘로 갈렸다** — 자동 스냅샷(`280ed30` 2026-09-03 18:11 「미커밋 작업 보존」)이
+  작업 도중 `extract.py`·`test_extract.py`·`README.md`·`status.md` 를 먼저 담아 이미
+  푸시돼 있었고, 이 반복의 커밋(`4763d0e`)은 남은 문서 넷을 담았다. 「한 스텝 = 한 커밋」이
+  깨진 것이지만 되돌리려면 `push --force` 가 필요하고 `rules/git.md` 가 그것을 deny 한다 —
+  **합치지 않고 여기 적는다.** 스텝의 내용은 두 커밋을 합친 것이다.
 - **PR #7** — `loop/merge-48-50` → `main`, 계획 48·49·50 을 한 PR 로 담았다. **OPEN·미병합.**
   병합은 **사용자가 처리한다** — 이 반복도 PR 을 열지도 닫지도 않았고 그 브랜치에 커밋하지도
   않았다. `main` 으로 리베이스도 안 했다.
