@@ -142,6 +142,16 @@ def _is_hidden(tag, attrs):          # `_BlockParser` 만 읽는다
 - 건드릴 파일: `src/websearch/extract.py`(모듈 상수 둘 + `_BlockParser` 메서드 셋) ·
   `tests/test_extract.py` · 문서 단위 단언이 필요하면 `tests/test_indexer.py`.
   **`_SKIP_TAGS`·`_INLINE_TAGS`·`_NON_BLOCK_TAGS`·`_normalize`·`_TextParser` 는 무변경.**
+- **예외 하나 — 테스트 3 이 열었고 리뷰 3 이 여기 적는다**(2026-09-04 · 반복 298).
+  `_TextParser` 와 `_MetaRobotsParser` 의 **부모**가 `html.parser.HTMLParser` → 새
+  `_Parser` 로 바뀌었다([T3-1]): `<![foo]>` 가 `feed()` 밖으로 `NotImplementedError` 를
+  던져 크롤 페이지 한 장이 `index_pages()` 한 실행의 색인을 통째로 날리는 자리라
+  **신뢰 경계**이고, 사다리 위쪽(「안 만든다」)으로는 못 닫는다. 그래서 위 문장의
+  「`_TextParser` 무변경」과 이 문서 머리·7절의 「색인 경로 무변경 · 제품 파일 하나」는
+  **오늘 거짓이다** — 색인 경로가 예외로 죽던 동작이 명세대로 bogus comment 로 바뀌었고
+  제품 파일은 둘이다(`extract.py` · `indexer.py` — 후자는 주석만). **바뀐 것은 죽는
+  가지뿐**이라 정상 HTML 의 `docs.body` 는 문자 단위로 무변이고(표본 343개 대조 0건 ·
+  `data/crawl.db` sha256 무변) 재색인·스키마·`VERSION` 은 그대로다.
 - `_BlockParser.handle_starttag` 는 **`super()` 를 부른 뒤에** 숨김을 연다(끊기는 블록의
   주인이 아직 앞 태그인 것과 같은 이유 — 먼저 열면 직전 블록의 꼬리가 사라진다).
 - 새 단언(각각 변이 하나씩만 죽인다): 다섯 모양 5건 · void 4모양 1건 · 음성 6종 2건

@@ -11,7 +11,7 @@
 
 | | 값 |
 |---|---|
-| 반복 | 297 |
+| 반복 | 298 |
 | 계획 (완료/폐기/보류) | 35 / 0 / 0 (진행 1) |
 | 재시도 | 0 |
 | RED | 1 |
@@ -26,17 +26,17 @@
 | 설계 | 18 (생략 5) |
 | 개발 | 71 |
 | 테스트 | 36 |
-| 리뷰 | 36 |
+| 리뷰 | 37 |
 | e2e | 27 |
 
 ## 리뷰 정확도 — 80점 임계 검증용
 
 | | 값 |
 |---|---|
-| 발견 후보 | 187 |
-| 80점 미만으로 버림 | 61 (기보류 중복 4 + search-api 2 + crawl-delay 3 + quality-eval 3 + non-ascii-url 2 + cooldown-burn 3 + crawl-politeness 1 + graceful-interrupt 2 + deadline-stop 3 + indexer-interrupt 5 + indexer-lock 2 + docs-citation-guard 2 + focus-contrast 2 + focus-ring-presence 3 + passage-api 17 + focus-rule-scope 2 + runner-quiet 2 + hidden-passage 5) |
-| 보고함 | 118 |
-| **그중 실제로 고친 것** | 76 (hidden-passage 4건 — 개발 2 가 2건, 개발 3 이 [R51-3]·[R51-4] 2건) |
+| 발견 후보 | 192 |
+| 80점 미만으로 버림 | 61 (기보류 중복 4 + search-api 2 + crawl-delay 3 + quality-eval 3 + non-ascii-url 2 + cooldown-burn 3 + crawl-politeness 1 + graceful-interrupt 2 + deadline-stop 3 + indexer-interrupt 5 + indexer-lock 2 + docs-citation-guard 2 + focus-contrast 2 + focus-ring-presence 3 + passage-api 17 + focus-rule-scope 2 + runner-quiet 2 + hidden-passage 8) |
+| 보고함 | 120 |
+| **그중 실제로 고친 것** | 77 (hidden-passage 5건 — 개발 2 가 2건, 개발 3 이 [R51-3]·[R51-4] 2건, 리뷰 3 이 설계 문서 모순 1건 자동 수정. [R51-5] 는 개발 4 몫이라 아직 안 셌다) |
 
 **성능 축을 백지 패스에 붙이라던 자기 지시가 처음으로 값을 냈다 (2026-09-03 hidden-passage, 반복 292).**
 반복 267·270 이 «성능 숫자는 세 번 중 두 번 틀렸다 · 다음 리뷰는 백지 패스에 성능 축을
@@ -59,6 +59,17 @@
 «서술이라 스위트가 안 잡는다» 고 적은 계수 0.352 는 `tests/test_indexer.py` 의 단언에도
 박혀 있었다(`500 * 0.25` 배정치와 함께). 주석만 고쳤으면 **거짓 초록이 남는다** —
 「스위트가 안 잡는다」는 판정도 실제로 찾아서 확인할 것이라는 표본이다.
+
+**전수 대조가 한 축에만 걸려 있었다 (2026-09-04 hidden-passage, 반복 298).** 리뷰 3 은
+[R51-1]~[R51-4] 가 넷 다 닫힌 것을 판정 줄로 확인하고도 **[R51-1] 과 같은 결함**을
+집합의 다른 부분집합에서 찾았다([R51-5] · 종료 태그 생략이 허용된 요소 여덟이
+`_IMPLIED_END` **키**에 없다). 개발 3 이 «표준 태그 135개 전수» 로 과잉 29 → 0 을 냈는데
+그 자는 **값 축**(무엇이 `<p>` 를 닫는가)만 쟀고 **키 축**(무엇이 암묵적으로 닫히는가)은
+한 번도 안 쟀다. 267·269·270 의 «안 쟀다 → 한쪽만 쟀다» 사슬이 **전수 대조에서 되풀이된
+첫 표본**이다 — 「전수」라는 말이 자의 대칭성을 보증하지 않는다. 규칙으로 굳힌다:
+**«전수를 돌렸다» 는 «어느 축의 전수인가» 를 함께 적어야 증거다.** 리뷰는 이번에
+누출 방향을 **키·값 양축 75,076 조합**으로 재 누출 0 을 확인했고, 그 전수가 개발 4 의
+관문이 된다(키를 늘리는 것은 과잉 방향이다).
 
 **리뷰의 산출물이 처음으로 «반려도 수리도 아닌 등재» 하나였다 (2026-09-02 focus-rule-scope, 반복 280).**
 보고 2건 중 하나는 docstring 한 줄(자동 수정)이고, 값이 있는 쪽 `[R1]`(결합자 뒤의 거짓
