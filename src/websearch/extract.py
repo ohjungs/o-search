@@ -36,6 +36,16 @@ _VOID_TAGS = {
     "link", "meta", "param", "source", "track", "wbr",
 }
 
+# **종료 태그 생략이 허용된** 요소 — 「어떤 시작 태그가 이것을 암묵적으로 닫는가」.
+# 명세가 허용하는 정상 HTML 이라 «안 닫힌 컨테이너» 천장이 안 덮는다(리뷰 51 [R51-1]).
+# `p` 는 같은 이름뿐 아니라 **아무 블록 시작 태그**로나 닫혀 값이 아니라 아래 판정이다.
+_IMPLIED_END = {
+    "li": {"li"},
+    "dt": {"dt", "dd"}, "dd": {"dt", "dd"},
+    "tr": {"tr"}, "td": {"td", "th", "tr"}, "th": {"td", "th", "tr"},
+    "option": {"option", "optgroup"},
+}
+
 # `font-size:0` 은 **부분문자열로 보면 안 된다** — `font-size:0.9em` 은 보이는 작은
 # 글씨인데 그것이 문다. 이 판정에서 오탐이 가장 가까운 자리다
 _ZERO_FONT = re.compile(r"font-size:0(?![.0-9])")
@@ -183,6 +193,11 @@ class _BlockParser(_TextParser):
         # 스택은 그 뒤에 쌓는다 — 끊기는 블록의 주인은 아직 앞 태그다.
         # 문단 안에 끼어드는 태그(`<img>`·`<script>`)는 주인이 아니라 지나간다
         super().handle_starttag(tag, attrs)
+        # 브라우저처럼 **암묵적으로 닫는다** — `html.parser` 는 안 닫아서 `<li hidden>`
+        # 의 숨김이 **다음 형제로 샜다**(리뷰 51 [R51-1]: 보이는 문단이 조용히 사라진다).
+        # 꼭대기만 본다 — 닫히는 것은 형제뿐이고 숨긴 요소의 **자식**은 숨김 그대로다
+        while self._els and self._implied_end(self._els[-1][0], tag):
+            self._els.pop()
         # 숨김은 **부모가 앞 블록을 끊은 뒤에** 연다 — 먼저 열면 직전 블록의 꼬리가
         # 사라진다. 인라인·비블록 태그도 숨길 수 있어 아래 early-return 보다 앞이다
         if tag not in _VOID_TAGS:
@@ -194,6 +209,14 @@ class _BlockParser(_TextParser):
             return
         self._open.append(tag)
 
+    @staticmethod
+    def _implied_end(open_tag, tag):
+        """열려 있는 `open_tag` 가 `tag` 의 **시작**으로 닫히는가 (종료 태그 생략)."""
+        if open_tag == "p":
+            # 「블록 경계인 시작 태그」는 부모가 이미 쓰는 술어다 — 같은 것을 읽는다
+            return tag not in _INLINE_TAGS and tag not in _NON_BLOCK_TAGS
+        return tag in _IMPLIED_END.get(open_tag, ())
+
     def handle_endtag(self, tag):
         # 닫는 태그는 주인을 **바깥 태그로 되돌린다** — `</p>` 뒤의 꼬리 텍스트는
         # `<p>` 가 아니라 그것을 감싼 `<article>` 것이다(리뷰 6 [R6-2]).
@@ -201,12 +224,16 @@ class _BlockParser(_TextParser):
         super().handle_endtag(tag)
         if tag in self._open:
             del self._open[len(self._open) - self._open[::-1].index(tag) - 1:]
-        # 요소 스택도 `_open` 과 **같은 관용구**로 닫는다 — 깊이 카운터는 짝이 안 맞는
-        # 닫는 태그에서 어긋나고, 그러면 그 뒤의 본문이 통째로 사라진다.
-        # 이쪽은 빈틈이 없으므로 이름으로 찾아도 바깥 숨김이 안 풀린다
-        names = [t for t, _h in self._els]
-        if tag in names:
-            del self._els[len(names) - names[::-1].index(tag) - 1:]
+        # 요소 스택도 **뒤에서 찾아 자른다** — 깊이 카운터는 짝이 안 맞는 닫는 태그에서
+        # 어긋나고, 그러면 그 뒤의 본문이 통째로 사라진다. 이쪽은 빈틈이 없으므로
+        # 이름으로 찾아도 바깥 숨김이 안 풀린다. 다만 `_open` 의 관용구(이름 리스트를
+        # 떠서 뒤집는다)를 그대로 쓰면 안 된다 — `_els` 는 **모든 비-void 요소**를
+        # 담아 닫는 태그마다 리스트를 새로 만들면 비용이 깊이²다(리뷰 51 [R51-2]:
+        # 캡 35,000자 안 최악 11.5배). 제자리에서 뒤에서부터 훑으면 같은 답이 싸다
+        for i in range(len(self._els) - 1, -1, -1):
+            if self._els[i][0] == tag:
+                del self._els[i:]
+                break
 
     def handle_data(self, data):
         # 숨김 영역 안의 텍스트는 **애초에 안 담는다** — 블록을 사후에 버리면

@@ -254,6 +254,47 @@ class TestExtractBlocks(unittest.TestCase):
             with self.subTest(shape=name):
                 self.assertEqual(texts(html), ["보이는 김치찌개"])
 
+    def test_an_optional_end_tag_does_not_hide_the_next_sibling(self):
+        # 리뷰 51 `[R51-1]`. `</li>`·`</p>`·`</td>` 는 명세가 생략을 허용하므로 아래는
+        # **깨진 입력이 아니라 유효한 HTML** 이다. 브라우저는 다음 형제 시작 태그에서
+        # 앞 요소를 닫는데 `html.parser` 는 안 닫아, 숨김이 **형제로 새어** 보이는
+        # 문단이 조용히 사라졌다 — 이 계획의 제일 큰 위험(계획서 8절) 그 방향이다.
+        # `<li hidden>` 은 필터·탭·드롭다운의 실물 기본형이다
+        for name, html, want in [
+            ("li", "<ul><li hidden>숨은<li>보이는 김치찌개</ul><p>뒤 문단</p>",
+             ["보이는 김치찌개", "뒤 문단"]),
+            ("p 뒤 p", "<p hidden>숨은<p>보이는 김치찌개</p>", ["보이는 김치찌개"]),
+            # `<p>` 는 **다른 블록 시작 태그**로도 닫힌다 — 같은 이름만 보면 못 잡는다
+            ("p 뒤 div", "<p hidden>숨은<div>보이는 김치찌개</div>",
+             ["보이는 김치찌개"]),
+            ("td", "<table><tr><td hidden>숨은<td>보이는</table>", ["보이는"]),
+            # 걸러진 표의 행 — `<tr hidden>` 은 다음 `<tr>` 이 닫는다
+            ("tr", "<table><tr hidden><td>숨은<tr><td>보이는</table>", ["보이는"]),
+            ("option",
+             "<select><option hidden>숨은<option>보이는 김치찌개</select>",
+             ["보이는 김치찌개"]),
+            ("dt/dd", "<dl><dt hidden>숨은<dd>보이는 김치찌개</dl>",
+             ["보이는 김치찌개"]),
+            # 한 시작 태그가 **둘을 겹쳐 닫는다** — 안 닫힌 `<p>` 위의 `<li>` 다.
+            # 한 번만 닫으면 바깥 `<li hidden>` 이 남아 뒤가 통째로 사라진다
+            ("li 안의 안 닫힌 p",
+             "<ul><li hidden>숨은<p>여전히 숨은<li>보이는 김치찌개</ul>",
+             ["보이는 김치찌개"]),
+        ]:
+            with self.subTest(shape=name):
+                self.assertEqual(texts(html), want)
+        # **넓어지는 쪽 가드** — 암묵적 닫기는 «다음 형제» 에만 걸린다. 숨긴 요소의
+        # **자식**은 여전히 숨김이어야 한다(중첩 목록·표는 실물에서 흔하다)
+        for name, html in [
+            ("숨은 li 안의 중첩 목록",
+             "<ul><li hidden>숨은<ul><li>속 김치찌개</ul></ul>"),
+            ("숨은 p 안의 인라인", "<p hidden>숨은<b>여전히 숨은 김치찌개</b></p>"),
+            ("숨은 td 안의 중첩 표",
+             "<table><tr><td hidden><table><tr><td>속 김치찌개</table></table>"),
+        ]:
+            with self.subTest(shape=name):
+                self.assertEqual(texts(html), [])
+
     def test_text_that_only_looks_hidden_is_kept(self):
         # 오탐이 이 계획의 제일 위험이다 — 정상 문단을 숨김으로 읽으면 근거가
         # **조용히** 사라진다. `font-size:0.9em` 은 보이는 작은 글씨인데
