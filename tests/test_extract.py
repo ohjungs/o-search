@@ -214,6 +214,46 @@ class TestExtractBlocks(unittest.TestCase):
                 self.assertEqual(texts("<p>앞 문단</p>" + void + "<p>뒤 문단</p>"),
                                  ["앞 문단", "뒤 문단"])
 
+    def test_a_same_named_child_does_not_reopen_a_hidden_region(self):
+        # 테스트 51 이 찾은 결함. `_hidden` 이 **숨긴 태그만** 담는 성긴 스택인데
+        # 닫을 때는 이름으로 찾으니, 숨김 컨테이너 **안**의 같은 이름 자식이 닫히면
+        # 바깥 숨김이 함께 풀려 그 뒤가 새어 나왔다 — 실측
+        # `<div hidden><p>숨은</p><div>속</div><p>숨은</p></div>` → 뒤 문단이 나왔다.
+        # `<div hidden>` 안에 `<div>` 는 모달·드롭다운·탭 패널의 기본형이라 실물에서
+        # 가장 흔한 중첩이고, 새는 방향이 «숨은 텍스트가 근거로 나간다» 쪽이다.
+        # (`_open` 은 모든 블록 태그를 담는 **빈틈없는** 스택이라 같은 관용구가 맞다 —
+        # 성긴 스택에 그 관용구를 그대로 옮긴 것이 원인이다)
+        for name, hidden in self._HIDDEN_SHAPES:
+            with self.subTest(shape=name):
+                tag = "template" if name == "template" else "div"
+                inner = "<%s>속</%s>" % (tag, tag)
+                # 여는 태그와 그 자식 사이에 같은 이름을 하나 끼운다
+                leaky = hidden.replace("<p>숨은", inner + "<p>숨은", 1)
+                self.assertEqual(texts(leaky + "<p>보이는 김치찌개</p>"),
+                                 ["보이는 김치찌개"])
+        # 인라인도 같다 — `<span hidden>` 안의 `<span>` 이 바깥을 풀면 안 된다
+        self.assertEqual(
+            texts("<p>보임 <span hidden>숨김<span>속</span>또 숨김</span> 끝</p>"),
+            ["보임 끝"])
+        # 그래도 **닫히기는 한다** — 이 단언이 없으면 「늘 숨김」이 통과한다
+        self.assertEqual(texts("<div hidden><div>속</div></div><p>보이는 문단</p>"),
+                         ["보이는 문단"])
+
+    def test_an_unclosed_child_does_not_pin_a_hidden_region_open(self):
+        # `_open` 의 관용구가 「꼭대기가 맞을 때만 pop」이 아니라 **뒤에서 찾아 자른다**
+        # 인 이유. `<p>`·`<li>` 는 실물에서 안 닫힌 채로 오는 것이 정상이고(브라우저가
+        # `</div>` 에서 대신 닫는다), 꼭대기만 보면 그 `</div>` 가 아무것도 못 닫아
+        # **숨김이 문서 끝까지 고정된다** — 뒤의 본문 문단이 조용히 사라진다.
+        # 오탐(근거가 소리 없이 없어지는 것)이 이 계획의 제일 큰 위험이다(계획서 8절)
+        for name, html in [
+            ("안 닫힌 p", "<div hidden><p>숨은</div><p>보이는 김치찌개</p>"),
+            ("안 닫힌 li", "<div hidden><li>숨은</div><p>보이는 김치찌개</p>"),
+            ("다른 컨테이너",
+             '<section aria-hidden="true"><p>숨은</section><p>보이는 김치찌개</p>'),
+        ]:
+            with self.subTest(shape=name):
+                self.assertEqual(texts(html), ["보이는 김치찌개"])
+
     def test_text_that_only_looks_hidden_is_kept(self):
         # 오탐이 이 계획의 제일 위험이다 — 정상 문단을 숨김으로 읽으면 근거가
         # **조용히** 사라진다. `font-size:0.9em` 은 보이는 작은 글씨인데

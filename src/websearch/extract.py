@@ -164,7 +164,13 @@ class _BlockParser(_TextParser):
         super().__init__()
         self.blocks = []
         self._open = []  # 열려 있는 블록 태그 — 꼭대기가 이름표다
-        self._hidden = []  # 열려 있는 «숨김» 태그 — 비어 있지 않으면 텍스트를 안 담는다
+        # 열려 있는 **모든** 비-void 요소 — `(태그, 조상 중 하나라도 숨김인가)`.
+        # 꼭대기의 두 번째 칸이 「지금 숨김 안인가」다(전파해 두므로 O(1)).
+        # **숨긴 태그만 담으면 안 된다** — 닫을 때 이름으로 찾는데 성긴 스택이면
+        # 숨김 컨테이너 안의 **같은 이름 자식**이 바깥 숨김을 함께 풀어 버린다
+        # (테스트 51 실측: `<div hidden><div>속</div><p>숨은</p></div>` 가 샜다).
+        # `_open` 이 같은 관용구로 안전한 것은 그쪽이 빈틈없는 스택이기 때문이다.
+        self._els = []
 
     def _flush(self):
         block = _normalize(self.text_parts)
@@ -179,8 +185,9 @@ class _BlockParser(_TextParser):
         super().handle_starttag(tag, attrs)
         # 숨김은 **부모가 앞 블록을 끊은 뒤에** 연다 — 먼저 열면 직전 블록의 꼬리가
         # 사라진다. 인라인·비블록 태그도 숨길 수 있어 아래 early-return 보다 앞이다
-        if tag not in _VOID_TAGS and _is_hidden(tag, attrs):
-            self._hidden.append(tag)
+        if tag not in _VOID_TAGS:
+            self._els.append((tag, (self._els and self._els[-1][1])
+                              or _is_hidden(tag, attrs)))
         # `<title>` 은 부모가 블록을 **안 끊고** 돌아간다 — 안 끊었으면 주인도 안 바뀐다
         # (리뷰 6 [R6-2]: `<p>김치<title>제목</title>` 의 이름표가 `title` 로 샜다)
         if self._in_title or tag in _INLINE_TAGS or tag in _NON_BLOCK_TAGS:
@@ -194,10 +201,12 @@ class _BlockParser(_TextParser):
         super().handle_endtag(tag)
         if tag in self._open:
             del self._open[len(self._open) - self._open[::-1].index(tag) - 1:]
-        # 숨김도 `_open` 과 **같은 관용구**로 닫는다 — 깊이 카운터는 짝이 안 맞는
-        # 닫는 태그에서 어긋나고, 그러면 그 뒤의 본문이 통째로 사라진다
-        if tag in self._hidden:
-            del self._hidden[len(self._hidden) - self._hidden[::-1].index(tag) - 1:]
+        # 요소 스택도 `_open` 과 **같은 관용구**로 닫는다 — 깊이 카운터는 짝이 안 맞는
+        # 닫는 태그에서 어긋나고, 그러면 그 뒤의 본문이 통째로 사라진다.
+        # 이쪽은 빈틈이 없으므로 이름으로 찾아도 바깥 숨김이 안 풀린다
+        names = [t for t, _h in self._els]
+        if tag in names:
+            del self._els[len(names) - names[::-1].index(tag) - 1:]
 
     def handle_data(self, data):
         # 숨김 영역 안의 텍스트는 **애초에 안 담는다** — 블록을 사후에 버리면
@@ -205,7 +214,7 @@ class _BlockParser(_TextParser):
         # 열어 그대로 빠져나가고, 문단 안 인라인 숨김은 문단을 통째로 죽인다.
         # ponytail: 안 닫힌 숨김 컨테이너는 그 뒤를 전부 삼킨다(`MAX_PASSAGE_HTML`
         # 로 잘린 자리 포함) — 방향이 «문단을 덜 낸다» 라 계약을 어기지 않는다
-        if self._hidden:
+        if self._els and self._els[-1][1]:
             return
         super().handle_data(data)
 
