@@ -280,6 +280,15 @@ class TestExtractBlocks(unittest.TestCase):
             ("li 안의 안 닫힌 p",
              "<ul><li hidden>숨은<p>여전히 숨은<li>보이는 김치찌개</ul>",
              ["보이는 김치찌개"]),
+            # 테스트 2 가 찾은 갭. 위까지는 전부 **두 번 이하** pop 이라 「최대 두 번만
+            # 닫는다」 변이가 588건 전부 초록이었다 — 개발이 죽인 ⑤(`while`→`if`)의
+            # 한 칸 아래다. 셋을 겹쳐 닫는 자리는 숨긴 행 안의 셀 안에 안 닫힌 `<p>`
+            # 가 있을 때이고(`p`→`th`→`tr`), 걸러진 표의 행은 실물의 기본형이다.
+            # `th` 는 `_IMPLIED_END` 에 있으면서 아무 케이스도 안 쓰던 값이라
+            # 「`th` 줄 삭제」 변이도 같이 죽는다(둘 다 실측으로 확인)
+            ("th 안의 안 닫힌 p — 셋을 겹쳐 닫는다",
+             "<table><tr hidden><th>숨은<p>여전히 숨은<tr><td>보이는</table>",
+             ["보이는"]),
         ]:
             with self.subTest(shape=name):
                 self.assertEqual(texts(html), want)
@@ -289,6 +298,12 @@ class TestExtractBlocks(unittest.TestCase):
             ("숨은 li 안의 중첩 목록",
              "<ul><li hidden>숨은<ul><li>속 김치찌개</ul></ul>"),
             ("숨은 p 안의 인라인", "<p hidden>숨은<b>여전히 숨은 김치찌개</b></p>"),
+            # 테스트 2 가 찾은 갭. `p` 가지는 술어 **둘**(`_INLINE_TAGS` 와
+            # `_NON_BLOCK_TAGS`)을 읽는데 앞줄이 첫째만 잰다 — 뒤 절을 지우는 변이가
+            # 588건 전부 초록이었다. `<br>`·`<img>` 는 인라인이 아니지만 문단 경계도
+            # 아니라 `<p>` 를 **안 닫는다**. 닫으면 그 뒤 숨은 텍스트가 근거로 샌다
+            ("숨은 p 안의 비블록",
+             "<p hidden>숨은<br>여전히 숨은<img src=k.jpg>또 숨은 김치찌개"),
             ("숨은 td 안의 중첩 표",
              "<table><tr><td hidden><table><tr><td>속 김치찌개</table></table>"),
         ]:
