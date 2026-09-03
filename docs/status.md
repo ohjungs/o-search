@@ -111,9 +111,9 @@ tag not in _NON_BLOCK_TAGS`)를 그대로 읽는다. **새 집합을 만들지 �
 러너 호출 **15회 전부 맨몸·단독**(전체 스위트 14회 — RED 1 · 초록 3 · 변이 10 · 그중
 변이 10회는 `python3 -B` · 선례 `history_042` — 와 `e2e/passage_eval.py` 1회).
 **러너 출력 조작 0회.** 러너 아닌 곳(`git`·`grep`·`awk`·`sed`·`ls`·`cat`·`mkdir`·
-`shasum`·`python3` 탐침)은 **마감 시점 수치**로 적는다 — 파이프 **11회** · `;` **30회** ·
-`&&` **5회** · 리다이렉션 **5회**(직전 커밋의 `extract.py` 를 대조군으로 뽑은 것 포함) ·
-heredoc 0회. 탐침 셋(`bench51.py`·`regress51.py`·기존 `corpus_diff.py`·`probe_hidden.py`)은
+`shasum`·`python3` 탐침)은 **마감 시점 수치**로 적는다 — 파이프 **18회** · `;` **45회** ·
+`&&` **5회** · 리다이렉션 **8회**(직전 커밋의 `extract.py` 를 대조군으로 뽑은 것 포함) ·
+heredoc **1회**(`history_current.md` append). 탐침 넷(`bench51.py`·`regress51.py`·기존 `corpus_diff.py`·`probe_hidden.py`)은
 저장소 밖 scratchpad 에 있고 커밋하지 않는다. **커밋 명령이 이 줄 뒤에 나가므로 이 절은
 늘 낡는다** — 다음 반복이 정정한다.
 
@@ -124,8 +124,10 @@ heredoc 0회. 탐침 셋(`bench51.py`·`regress51.py`·기존 `corpus_diff.py`·
 `history_current.md` append(개발 2 항목) · `README.md`(단위 **587 → 588** — `test_readme.py`
 자신이 그 숫자를 잰다). `digest.md` 는 안 고쳤다 — 8점 미만 갭 셋은 이미 등재돼 있고
 새로 등재할 항목이 없다(위 천장은 기존 천장 안이다).
-`history_current.md` **281줄**(상한 300줄/20회 안 — 다음 반복이 회전 판단) ·
-`digest.md` **196줄**(상한 200 안 — 네 줄 남았다).
+`history_current.md` **299줄 / 7회**(상한 300줄·20회 — **다음 append 가 넘긴다**) ·
+`digest.md` **196줄**(상한 200 안 — 네 줄 남았다). **다음 반복이 회전한다** — 가장 오래된
+항목을 `history_047.md` 로 옮기면서 `digest.md ## 완료` 에 압축해 싣고, 그 자리를 만들려면
+`digest` 의 가장 오래된 완료 항목도 같이 민다(`rules/docs.md` 3절).
 
 ## 다음 — 테스트 2
 
