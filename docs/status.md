@@ -160,9 +160,10 @@ e2e/<이름>.py` 그대로. `for`·`env`·`timeout`·`> /dev/null` **0회**.
 
 - **커밋·푸시 뒤에 `git ls-remote origin` 을 다시 읽었다**(digest 의 「원격을 바꾸는 동작을
   «명령을 보냈다» 로 기록하지 않는다」 항목): `refs/heads/loop/hidden-passage` =
-  **`0d24b1f`**(테스트 3 커밋, `03e78b9` → **fast-forward · force 아님**) ·
+  **`8cea553`**(테스트 3 커밋, `769a5b8` → **fast-forward · force 아님**) ·
   `refs/heads/main` = **`687a159` 무변** · `refs/pull/7/head` = **`d5367fa` 무변** ·
   `refs/pull/7/merge` = `e3a70d0`(GitHub 이 만드는 것이고 내가 안 건드린다).
+  이 절을 고치는 커밋이 하나 더 나가므로 그 커밋은 다음 반복이 확인한다.
 - **PR #7** — `loop/merge-48-50` → `main`, 계획 48·49·50. **OPEN·미병합.** 병합은
   **사용자가 처리한다** — 이 반복은 PR 을 열지도 닫지도 않았고 그 브랜치를 건드리지도,
   `main` 으로 리베이스하지도 않았다.
