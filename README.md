@@ -37,7 +37,7 @@ PYTHONPATH=src python3 -m websearch.indexer data/crawl.db --query 검색어
 | **130** | Ctrl-C 중단 | `crawl`·`indexer` | 재개하거나 멈춘다 |
 
 **`serve` 는 DB 오류로 안 죽는다** — DB 가 없거나 깨져 있어도 뜬다. 색인을 다시 돌리면
-낫는 상태(DB 파일 없음·옛 색인)에는 **503**, 그 밖의 오류에는 500 을 낸다.
+낫는 상태(DB 파일 없음·옛 색인·`pages` 없음)에는 **503**, 그 밖의 오류에는 500 을 낸다.
 서버는 오래 사는 프로세스라 종료 코드로 알릴 상대가 없다. `serve` 의 rc 1 은 포트를 못
 열었을 때뿐이다.
 
@@ -56,16 +56,23 @@ PYTHONPATH=src python3 -m websearch.indexer data/crawl.db --query 검색어
 | 축 | 기준 | 측정 |
 |---|---|---|
 | 검색 정확도 | recall@10 ≥ 80% | `e2e/quality_eval.py` |
+| 근거 정확도 | 문단의 ≥ 90% 가 질의어·2-gram 포함 | `e2e/passage_eval.py` |
 | 검색 지연 | p95 ≤ 300ms | `e2e/perf_search.py` |
+| 문단 지연 | `/passages` p95 ≤ 500ms | `e2e/passage_eval.py` |
 | 수집 속도 | ≥ 5 docs/s | `e2e/perf_crawl.py` |
 | UI 무게 | JS ≤ 50KB gzip | `e2e/design_check.py` |
 | 명암비 | 텍스트 ≥ 4.5:1 · 비텍스트 ≥ 3:1 | 〃 |
 
+`/passages` 는 **화면에 안 보이는 텍스트를 근거로 내지 않는다** — `<template>`·
+`hidden`·`aria-hidden="true"`·`display:none`·`font-size:0` 다섯 모양은 후보에서
+빠진다(HTML 한 장만 보므로 외부 CSS·클래스로 감춘 것은 못 본다). 응답 스키마
+`{url,title,position,text}` 는 그대로다.
+
 ## 검증
 
 ```bash
-PYTHONPATH=src python3 -m unittest discover -s tests   # 단위 506건
-ls e2e/*.py                                            # e2e 시나리오 19종
+PYTHONPATH=src python3 -m unittest discover -b -s tests   # 단위 599건
+ls e2e/*.py                                               # e2e 시나리오 21종
 ```
 
 e2e 는 각각 따로 돌린다 — `PYTHONPATH=src python3 e2e/<이름>.py`.

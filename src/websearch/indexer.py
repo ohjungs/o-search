@@ -33,6 +33,36 @@ _HANGUL_GAP = re.compile(r"(?<=[가-힣])\s+(?=[가-힣])")
 # 오탐이 보이면 `extract` 가 블록 경계에 한글 아닌 표식을 넣는 쪽으로 올린다
 _MARK = "\x02"  # 스니펫이 어느 열에서 왔는지 표시. extract._normalize 가 제어문자를
 #                 지우므로 색인 텍스트에는 절대 들어 있지 않다 (extract.py:16,60)
+# passages() 가 다시 파싱하는 원문의 상한. serve 의 MAX_QUERY·MAX_PAGE·MAX_PASSAGE 와
+# 같은 종류의 자원 상한인데 **자르는 쪽이 여기**라 여기 산다 — serve 는 indexer 를
+# import 하므로 반대는 순환이고, `-m websearch.indexer --query` 는 serve 를 안 지난다.
+# 단위는 **문자**다: 이 문자열은 sqlite 에서 str 로 나오고, 바이트로 재려면 encode 가
+# 한 벌 더 드는 데다(막으려던 그 비용) 코드포인트 중간에서 잘린다. 형제 MAX_PASSAGE
+# 도 문자다. 값의 근거 — **숫자 옆에 그 숫자를 낸 입력의 모양을 적는다**(계획 48
+# 리뷰 2: 앞의 10만자는 «한글·태그 촘촘» 한 벌에서만 재서 3배 틀렸다). 1,000자당
+# 파싱 비용은 모양에 붙는다 — 캡 35,000자 · 30회 중앙값 · 세 모양을 같은 판에서:
+# 문단만 0.18ms · 기사 모양(제목·문단·목록·표·중첩) 0.40ms · 낱말마다 <b>/<i>/<em>
+# 이 낀 위키·CMS 출력 0.41ms(리뷰 2 는 같은 모양을 0.439 로 쟀다 — **낮은 쪽으로
+# 안 내린다**). 최악을 0.44 로 잡고 한 요청이 문서 PASSAGE_LIMIT(10)건을 재파싱하니
+# 35,000자면 154ms, 500ms 예산의 **31%**다 (10만자는 440ms, 88%라 안 쓴다 —
+# 프로세스 밖 HTTP p95 가 실제로 790ms 였다).
+# **«모양» 은 재현이 안 돼 이 숫자가 세 번 낡았다 — 계수가 붙는 축은 태그 밀도다**
+# (계획 51 테스트 3 재측정): ms/1000자 ≈ 0.0025 × 태그/1000자. 0.44 는 **태그
+# 169개/1000자** 한 점이고 오늘 다시 재도 0.436 이라 여전히 참인데, 같은 «위키·CMS»
+# 라는 말에 태그 200개/1000자 벌이 들어오면 0.502 다. **캡 안 최악은 모양 이름이
+# 아니라 이 축의 끝이다** — 안 닫은 `<p>가` 반복이 0.901(10건 315ms · 예산의 63%)로
+# 위 154ms 의 **2.1배**. 그래서 배정치 1/3 은 «여유» 가 아니라 그 **모양 배수를
+# 흡수하는 자리**다: 1/3 을 지키면 최악 모양이 500ms 안에 든다(154 × 2.1 = 323ms).
+# **계수는 계획 51 뒤의 값이다**(리뷰 2 [R51-4]: 앞의 0.352 는 숨김 판정과 암묵적
+# 닫기가 들어오기 전 것이라 배정치의 125% 로 낡아 있었다). 배정치를 25% → **1/3**
+# 로 다시 그었다 — 캡도 PASSAGE_LIMIT 도 안 건드렸고 움직인 것은 계수뿐이다.
+# 실물 코퍼스 p95 는 1.51 → 1.54ms, 늘어난 몫이 **예산의 0.006%** — 이 +25% 는
+# 캡을 채운 위키·CMS 모양에서만 난다. 배정치를 도로 25% 로 조이려면 캡을 28,000 으로 내리면
+# 되고, 그것은 «긴 문서의 뒷부분 근거» 를 더 자르는 판단이라 이 스텝의 범위 밖이다.
+# ponytail: 앞에서부터 자른다 — 천장은 «잘린 뒤의 문단은 근거로 못 나온다» 이고,
+# 색인은 통짜 본문을 보므로 그 문서는 검색에는 그대로 나온다. 실물에서 긴 문서의
+# 뒷부분 근거가 아쉬우면 블록 단위 스트리밍 파서로 올린다(그때 이 값은 지운다).
+MAX_PASSAGE_HTML = 35_000
 
 
 def _bigrams(text):
@@ -239,6 +269,78 @@ def search(db_path, query, limit=10, offset=0):
                 for url, title, t_sn, b_sn in rows]
     finally:
         db.close()
+
+
+def passages(db_path, query, limit=10):
+    """(url, title, position, text) 목록 — `search()` 문서 순 그대로, 문서당 최대 1문단.
+
+    문단 경계는 색인에 없다(`docs.body` 는 통짜 텍스트다). `pages.html` 을 다시
+    파싱해 얻는다 — 색인·스키마·`docs` 는 한 글자도 안 건드린다.
+
+    **`search()` 를 부르는 것이 핵심이다.** 자체 질의를 짜면 503(없는 DB·옛 색인)·
+    500(손상) 판정을 한 벌 더 갖게 되고, 계획 47 이 한곳에 모은 것이 다시 흩어진다.
+    `pages` 를 읽으려 연결을 하나 더 여는 값(0.04ms)이 그보다 싸다.
+
+    **매치된 블록이 없는 문서는 안 낸다** — 제목만 매치됐거나 2-gram 이 문단 경계를
+    넘어 매치된 문서가 그렇다. 첫 블록으로 대신하면 사양 기능 8(근거 정확도)이
+    첫 줄에서 무너진다. `position` 은 `extract_blocks()` 결과의 순번(0부터)이다.
+
+    문서당 앞 `MAX_PASSAGE_HTML` 자만 다시 파싱한다 — **그 뒤의 문단은 근거로 안
+    나온다**(검색 결과에는 그대로 나온다. 색인은 통짜 본문을 본다).
+    """
+    hits = search(db_path, query, limit=limit)
+    # 고르는 규칙 — 질의어와 그 2-gram(`_bigrams`)을 가장 많이 담은 블록. 색인이
+    # 매치에 쓰는 것과 같은 재료라 "왜 이 문서가 나왔나" 와 근거가 갈리지 않는다
+    needles = []
+    for term in query.lower().translate(extract._CONTROL).split():
+        needles.append(term)
+        needles += _bigrams(term).split()
+    found = []
+    db = _connect(db_path)
+    try:
+        # **루프 앞이다.** 안이나 뒤에 두면 `hits` 가 빈 질의는 판정에 못 닿아 같은
+        # 고장난 DB 가 `q=김치` 면 503, `q=%01` 이면 200 으로 갈린다 — `search()` 안의
+        # 무토큰 조기 반환을 판정 뒤로 민 것과 같은 이유다(계획 47).
+        # ponytail: `index_pages` 와 같은 질의가 두 곳. 셋째 호출자가 생기면 뽑는다
+        if not db.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'pages'"
+        ).fetchone():
+            # 테이블의 **유무만** 본다. `pages` 는 있는데 `html` 열이 없거나 권한이
+            # 막힌 DB 는 기다린다고 안 낫는 상태라 500 이 맞는 이름이다.
+            raise NoCrawlDataError(db_path)
+        for url, title, _snippet in hits:
+            row = db.execute("SELECT html FROM pages WHERE url = ?", (url,)).fetchone()
+            if not row or not row[0]:
+                continue  # 원본이 사라진 문서 — 지어내지 않고 뺀다
+            # 여기서는 **길이만** 정한다. 자른 자리(또는 원문 자체)에 남은 안 닫힌
+            # 마크업은 `extract_blocks()` 가 파서에게 물어 버린다 — 문자열로 그 끝을
+            # 찾으려던 세 판(캡·`<` 유무·`<`/`>` 비교)이 전부 절반만 맞았다.
+            # 안 닫힌 구성물은 자기 안에 `>` 를 담을 수 있다(`<!-- a>`·`title="a > b"`)
+            html = row[0][:MAX_PASSAGE_HTML]
+            best = None
+            for pos, (_tag, block) in enumerate(extract.extract_blocks(html)):
+                low = block.lower()
+                score = sum(low.count(n) for n in needles)
+                # **동점이면 긴 블록이다.** 이름표(`tag == "p"`)로 갈랐더니 더 나빴다 —
+                # 이름표는 **컨테이너를 못 본다**. `<footer><p>ⓒ…</p></footer>` 의
+                # 이름표가 `p` 라 보일러플레이트가 문단으로 위장하고, 실물에서 가장
+                # 흔한 `<p>` 대 `<p>` 동점은 아예 못 가른다(리뷰 6 재측 · 19행 표에서
+                # 이름표 12/19 · 길이 15/19 · 점수만 11/19).
+                # **길이도 방향이 하나뿐이다** — 짧은 내비는 이기고 긴 푸터·사이드바에는
+                # 진다. 못 맞추는 네 행은 `_UNMATCHED_SHAPES` 에 그대로 적어 뒀다.
+                # 셋 중 무엇도 19행을 못 맞춘다. **겹쳐도 안 맞는다** — 리뷰 7 이 잰
+                # `(점수, p인가, 길이)` 는 13/19, `(점수, 길이, p인가)` 는 15/19 로
+                # 이름표가 3순위로는 한 번도 안 걸린다. 갈림길 6 은 손잡이로 안 닫히고,
+                # 닫는 조건은 갈림길 5 의 캡과 같은 **실물 크롤 코퍼스**다.
+                # 등호가 아니라 부등호다 — 길이까지 같으면 먼저 나온 블록이 남는다
+                key = (score, len(block))
+                if score and (best is None or key > best[0]):
+                    best = (key, pos, block)
+            if best:
+                found.append((url, title, best[1], best[2]))
+    finally:
+        db.close()
+    return found
 
 
 def main(argv):

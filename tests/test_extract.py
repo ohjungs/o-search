@@ -1,6 +1,6 @@
 import unittest
 
-from websearch.extract import extract_text, is_noindex
+from websearch.extract import extract_blocks, extract_text, is_noindex
 
 
 class TestExtractText(unittest.TestCase):
@@ -52,6 +52,420 @@ class TestExtractText(unittest.TestCase):
     def test_broken_html_no_raise(self):
         title, text = extract_text("<title>t<p>글<<<div")
         self.assertIn("글", text)
+
+    def test_an_unknown_marked_section_does_not_raise(self):
+        # 갭 탐색(테스트 3) — **신뢰 경계에서 터진다.** `_markupbase` 는 아는 키워드
+        # (`cdata`·`include`·`if`…) 가 아닌 `<![foo]>` 를 만나면 `error()` 로 보내고,
+        # `HTMLParser` 는 그것을 안 덮어 `NotImplementedError` 가 **feed 밖으로 나간다**.
+        # 크롤 HTML 은 남이 쓴 입력이라 페이지 한 장이 `index_pages()` 전체를 세우고
+        # (커밋이 끝에 있어 그 실행의 색인이 통째로 날아간다) `/passages` 는 500 이 된다.
+        # 위 `test_broken_html_no_raise` 가 못 밟은 자리다 — 저기서 깨진 것은 태그고
+        # 여기서 깨진 것은 **선언**이라 파서의 다른 가지로 간다.
+        # 명세는 이것을 bogus comment 로 읽어 다음 `>` 까지 버린다 — 브라우저와 같게 한다
+        for html_text in ("<p>김치찌개는 배추로 만든다<![foo]>",
+                          "<p>앞 문단이다<![sqlserver]>뒤 문단이다</p>",
+                          "<![unknown]><p>선언이 맨 앞이다</p>"):
+            with self.subTest(html_text):
+                title, text = extract_text(html_text)
+                self.assertNotIn("<", text)
+                self.assertNotIn("foo", text)
+        # 주석과 **같이** 붙는다 — 경계 공백을 넣지 않는다. `<!--c-->` 가 이미 그렇고,
+        # 낱말 안에 낀 선언(`김치<![x]>찌개`)을 쪼개면 색인이 검색을 놓친다
+        self.assertEqual(extract_text("<p>앞 문단이다<![sqlserver]>뒤 문단이다</p>")[1],
+                         "앞 문단이다뒤 문단이다")
+        self.assertEqual(extract_text("<p>가<!--c-->나</p>")[1], "가나")
+        # 아는 키워드는 지금도 통과한다 — 회귀 방향을 함께 못박는다
+        self.assertEqual(extract_text("<p>가<![if !supportLists]>나</p>")[1], "가나")
+        self.assertEqual(extract_text("<![CDATA[x]]><p>가</p>")[1], "가")
+
+
+def texts(html):
+    """블록 텍스트만 — 태그가 논점이 아닌 단언에서 쓴다."""
+    return [text for _tag, text in extract_blocks(html)]
+
+
+class TestExtractBlocks(unittest.TestCase):
+    """본문을 문단 단위로 끊는다. 색인 경로(`extract_text`)는 지나가지 않는다."""
+
+    def test_block_boundaries(self):
+        blocks = extract_blocks("<title>제목</title><p>첫 문단</p><p>둘째 문단</p>")
+        self.assertEqual(blocks, [("p", "첫 문단"), ("p", "둘째 문단")])
+
+    def test_join_equals_body(self):
+        # 불변식 — 이것이 깨지면 색인 본문과 문단이 다른 텍스트가 된다.
+        # 변이 M1(버퍼 비우기 삭제)이 여기서 죽는다: 블록이 누적돼 조인이 길어진다
+        html = ("<title>요리</title><h2>김치</h2><p>어제 김치를 담갔다</p>"
+                "<ul><li>배추</li><li>고춧가루</li></ul><div>끝</div>")
+        self.assertEqual(" ".join(texts(html)), extract_text(html)[1])
+
+    def test_each_block_carries_the_tag_that_made_it(self):
+        # 이름표는 «열려 있는 가장 안쪽 블록 태그» 다. 소비자에게 내는 값이라
+        # 맞아야 하지만 **근거를 고르는 자는 안 읽는다** — 이름표로 동점을 가르면
+        # `<footer><p>` 를 문단으로 보고 더 틀린다(리뷰 6 · 12/19 대 15/19).
+        # 이름표를 «직전 시작 태그» 로 붙이는 변이는 여기서 죽는다 — `</p>` 로
+        # 끊기는 블록의 주인은 `<footer>` 가 아니라 `<p>` 다
+        html = ("<nav><a href=/>김치</a></nav><article><p>본문 문단</p></article>"
+                "<footer>맨 끝</footer>")
+        self.assertEqual(extract_blocks(html),
+                         [("nav", "김치"), ("p", "본문 문단"), ("footer", "맨 끝")])
+
+    def test_the_label_survives_a_title_and_a_closing_tag(self):
+        # 리뷰 6 [R6-2] — 이름표가 새는 자리 둘. ① `<title>` 은 부모가 블록을 **안 끊고**
+        # early-return 하는데 이름표만 갈아 끼워져, 앞 문단이 `title` 로 나왔다.
+        # ② 이름표가 닫는 태그에서 복원되지 않아 `</p>` 뒤의 꼬리 텍스트가 `p` 로
+        # 나왔다 — 텍스트는 맞고 이름표만 틀리는 **거짓양성**이라 눈으로는 안 보인다
+        self.assertEqual(extract_blocks("<p>김치찌개 하나<title>제목</title>"),
+                         [("p", "김치찌개 하나")])
+        self.assertEqual(extract_blocks("<article><p>본문</p>꼬리 텍스트</article>"),
+                         [("p", "본문"), ("article", "꼬리 텍스트")])
+        # 같은 이름이 겹치면 **안쪽부터** 닫는다 — `<div>` 중첩은 실물 HTML 의 기본형이라
+        # 바깥부터 닫으면 한 번의 `</div>` 로 주인이 통째로 날아간다(변이 D 가 여기서 죽는다)
+        self.assertEqual(extract_blocks("<article><div><div>가</div>나</div>다</article>"),
+                         [("div", "가"), ("div", "나"), ("article", "다")])
+
+    def test_closing_an_outer_tag_also_sweeps_the_unclosed_tags_inside_it(self):
+        # 갭 탐색(테스트 5) — 변이 «`del self._open[i:]` → `del self._open[i]`» 가
+        # 573건 전부 초록으로 살아남았다. 안쪽 태그를 **안 닫는 것**은 실물 HTML 의
+        # 기본형이다(`<li>`·`<p>` 는 종료 태그가 선택이다). 바깥이 닫힐 때 함께
+        # 걷지 않으면 그 뒤의 텍스트가 **이미 끝난 태그의 이름표**를 달고 나간다 —
+        # 텍스트는 맞고 이름표만 틀리는 거짓양성이라 눈으로는 안 보인다.
+        # 마지막 블록의 이름표가 `""`(열린 블록 없음)인 것이 이 검사의 전부다
+        self.assertEqual(extract_blocks("<ul><li>가<li>나</ul>다"),
+                         [("li", "가"), ("li", "나"), ("", "다")])
+        self.assertEqual(extract_blocks("<article><p>가</article>나"),
+                         [("p", "가"), ("", "나")])
+
+    def test_an_implied_end_also_sweeps_the_label_stack(self):
+        # 갭 탐색(테스트 3) — 위 테스트는 **닫는 태그**로 그 계약을 못박았는데, 계획 51 이
+        # 넣은 **암묵적 닫기**는 같은 사건인데도 `_els` 만 걷고 `_open` 은 놔뒀다.
+        # `<p>` 를 끝낸 것은 `<div>` 인데 그 뒤 꼬리가 아직 `p` 이름표를 달고 나온다 —
+        # 위 주석이 적은 그 거짓양성이고, 이번에는 **닫는 태그가 아예 없는 문서**라
+        # 위 테스트가 못 밟는다(⑥ 「바뀐 함수의 기존 테스트가 옛 동작만 덮는다」).
+        # **값도 여기 붙어 있다** — 안 걷으면 `_open` 이 «안 닫힌 `<p>` 수» 만큼 쌓이고,
+        # 닫는 태그마다 리스트를 떠서 뒤집는 관용구가 그 길이에 붙어 비용이 깊이²다
+        # ([R51-2] 가 `_els` 에서 지운 그 관용구가 `_open` 에 남아 있다). 캡 35,000자를
+        # `<p>가` 로 채우고 한꺼번에 닫는 모양 실측 **1.10 → 0.65 ms/1,000자**
+        self.assertEqual(extract_blocks("<p>첫 문단<div>둘째 문단</div>꼬리 텍스트"),
+                         [("p", "첫 문단"), ("div", "둘째 문단"), ("", "꼬리 텍스트")])
+        # `<li>`·`<td>` 가지도 같다 — 표·목록은 종료 태그를 생략하는 실물의 기본형이다
+        self.assertEqual(extract_blocks("<ul><li>가<li>나</ul>다음 문단"),
+                         [("li", "가"), ("li", "나"), ("", "다음 문단")])
+        self.assertEqual(extract_blocks("<p>가<h2>제목</h2>꼬리"),
+                         [("p", "가"), ("h2", "제목"), ("", "꼬리")])
+
+    def test_last_block_survives_broken_html(self):
+        # 변이 M2(마지막 flush 삭제)가 여기서 죽는다. 정상 HTML 은 닫는 태그가
+        # flush 를 대신해 주므로 **닫히지 않은** 태그로 재야 한다
+        self.assertEqual(extract_blocks("<p>가<p>나<div>다"),
+                         [("p", "가"), ("p", "나"), ("div", "다")])
+
+    def test_empty_blocks_are_not_returned(self):
+        self.assertEqual(texts("<p>가</p><p></p><p>   </p><p>나</p>"), ["가", "나"])
+
+    def test_a_line_break_is_not_a_paragraph_boundary(self):
+        # 갈림길 6 — `<br>` 은 **줄바꿈**이지 문단이 아니다. `extract.py:7` 이 그것을
+        # `_INLINE_TAGS` 에서 뺀 것은 색인에 공백 한 칸을 넣기 위해서인데, 블록 쪽이
+        # 같은 자리를 경계로 읽어 한 문단이 낱말 조각으로 흩어졌다 — 그러면 4자짜리
+        # 조각이 근거 자리를 이긴다(리뷰 4 실측)
+        self.assertEqual(texts("<p>오늘은<br>김치찌개<br>내일은 된장찌개</p>"),
+                         ["오늘은 김치찌개 내일은 된장찌개"])
+        # 색인 쪽은 한 글자도 안 바뀐다 — 불변식이 그것을 못박는다
+        html = "<p>가<br>나</p><p>다</p>"
+        self.assertEqual(texts(html), ["가 나", "다"])
+        self.assertEqual(" ".join(texts(html)), extract_text(html)[1])
+
+    def test_the_other_two_spellings_of_a_line_break_are_not_boundaries_either(self):
+        # `<br/>` 은 `handle_startendtag`, `</br>` 는 `handle_endtag` 로 들어온다 —
+        # 시작 태그만 고치면 나머지 둘에서 같은 결함이 그대로 산다
+        self.assertEqual(texts("<p>가<br/>나<br />다</p>"), ["가 나 다"])
+        self.assertEqual(texts("<p>가</br>나</p>"), ["가 나"])
+
+    def test_a_tag_that_sits_inside_a_paragraph_is_not_a_boundary_either(self):
+        # 리뷰 5 — `<br>` **하나만** 경계에서 뺐더니 같은 성질의 형제가 그대로 남아
+        # 한 문단을 조각냈다. `_INLINE_TAGS` 에서 빠진 phrasing 태그와 `_SKIP_TAGS`
+        # 셋이 그 형제이고, 문단 안에 낀 광고·트래킹 `<script>`·`<img>` 는 실물
+        # HTML 에서 `<br>` 보다 흔하다. 조각나면 4자짜리 조각이 근거 자리를 이긴다.
+        # 단언은 «한 블록 + 그 블록이 곧 색인 본문» 이라 태그 하나를 집합에서 빼는
+        # 변이가 전부 여기서 죽는다(블록이 둘로 갈린다)
+        for name, html in [
+            ("br", "<p>김치찌개는 한국의 대표 음식이다<br>배추로 만든다</p>"),
+            ("script", "<p>김치찌개는 한국의 대표 음식이다<script>ad()</script>배추로 만든다</p>"),
+            ("style", "<p>김치찌개는 한국의 대표 음식이다<style>.x{}</style>배추로 만든다</p>"),
+            ("img", "<p>김치찌개는 한국의 대표 음식이다<img src=k.jpg>배추로 만든다</p>"),
+            ("del/ins", "<p>김치찌개는 <del>일본</del><ins>한국</ins>의 대표 음식이다</p>"),
+            ("label", "<p>김치찌개 <label>이름</label> 한국의 대표 음식이다</p>"),
+            ("font", "<p>김치찌개는 <font color=red>매운</font> 한국 음식이다</p>"),
+        ]:
+            with self.subTest(shape=name):
+                # 낱말이 붙는가(`김치찌개된장찌개`)는 **여기서 안 묻는다** — 그것은
+                # `_INLINE_TAGS` 를 넓히는 일이라 색인 본문이 바뀌고 재색인이다
+                self.assertEqual(texts(html), [extract_text(html)[1]])
+
+    def test_inline_markup_does_not_split_a_block(self):
+        # `extract_text` 와 같은 계약 — 인라인 태그는 단어 안에 끼어든다
+        self.assertEqual(texts("<p>Kim<b>chi</b> 와 H<sub>2</sub>O</p>"),
+                         ["Kimchi 와 H2O"])
+
+    def test_script_and_style_are_not_blocks(self):
+        self.assertEqual(
+            texts("<p>보이는 글</p><script>var x=1;</script><style>.a{}</style>"),
+            ["보이는 글"])
+
+    def test_title_is_not_a_block(self):
+        self.assertEqual(texts("<title>제목</title><p>본문</p>"), ["본문"])
+
+    def test_no_body_is_an_empty_list(self):
+        self.assertEqual(extract_blocks(""), [])
+        self.assertEqual(extract_blocks("<title>제목만</title>"), [])
+
+    # ── 숨은 텍스트 (계획 51 `hidden-passage`) ───────────────────────────────
+    # 화면에 안 보이는 블록이 근거 문단으로 나가면 «문서 내 위치» 가 뜻을 잃는다 —
+    # 사람이 그 URL 을 열어 찾을 수 없다. 판정은 `_BlockParser` 안에만 산다:
+    # 색인 본문(`extract_text`)은 다섯 모양 전부에서 문자 단위로 그대로다
+
+    _HIDDEN_SHAPES = [
+        ("template", "<template><p>숨은 김치찌개</p></template>"),
+        ("hidden 속성", "<div hidden><p>숨은 김치찌개</p></div>"),
+        ("aria-hidden", '<div aria-hidden="true"><p>숨은 김치찌개</p></div>'),
+        ("display:none", '<div style="display:none"><p>숨은 김치찌개</p></div>'),
+        ("font-size:0", '<div style="font-size:0"><p>숨은 김치찌개</p></div>'),
+    ]
+
+    def test_five_shapes_of_hidden_text_never_become_blocks(self):
+        # 다섯을 각각 지우는 변이가 여기서 하나씩 죽는다. 컨테이너 중첩이 실물의
+        # 기본형이라 **자식 `<p>` 까지** 따라 죽는 것이 이 단언의 절반이다 —
+        # 블록 단위로 «숨김» 을 표시하면 자식이 새 블록을 열어 그대로 빠져나간다
+        for name, hidden in self._HIDDEN_SHAPES:
+            with self.subTest(shape=name):
+                self.assertEqual(texts(hidden + "<p>보이는 김치찌개</p>"),
+                                 ["보이는 김치찌개"])
+                # 색인 경로는 한 글자도 안 바뀐다 — 재색인이 필요 없다는 근거
+                self.assertIn("숨은 김치찌개", extract_text(hidden)[1])
+
+    def test_a_void_element_does_not_swallow_the_rest_of_the_document(self):
+        # 설계 2절에서 깬 가정 — 종료 태그가 없는 요소로 숨김을 열면 그것을 닫을
+        # 태그가 영영 안 와서 **문서의 나머지가 통째로** 사라진다(3블록 → 1블록).
+        # `aria-hidden="true"` 를 단 장식 아이콘은 실물에서 가장 흔한 모양이다.
+        # `_VOID_TAGS` 가드를 지우는 변이가 여기서 죽는다
+        for name, void in [
+            ("img", '<img src=k.jpg aria-hidden="true">'),
+            ("hr", "<hr hidden>"),
+            ("input", "<input hidden>"),
+            ("br", '<br style="display:none">'),
+        ]:
+            with self.subTest(shape=name):
+                self.assertEqual(texts("<p>앞 문단</p>" + void + "<p>뒤 문단</p>"),
+                                 ["앞 문단", "뒤 문단"])
+
+    def test_a_same_named_child_does_not_reopen_a_hidden_region(self):
+        # 테스트 51 이 찾은 결함. `_hidden` 이 **숨긴 태그만** 담는 성긴 스택인데
+        # 닫을 때는 이름으로 찾으니, 숨김 컨테이너 **안**의 같은 이름 자식이 닫히면
+        # 바깥 숨김이 함께 풀려 그 뒤가 새어 나왔다 — 실측
+        # `<div hidden><p>숨은</p><div>속</div><p>숨은</p></div>` → 뒤 문단이 나왔다.
+        # `<div hidden>` 안에 `<div>` 는 모달·드롭다운·탭 패널의 기본형이라 실물에서
+        # 가장 흔한 중첩이고, 새는 방향이 «숨은 텍스트가 근거로 나간다» 쪽이다.
+        # (`_open` 은 모든 블록 태그를 담는 **빈틈없는** 스택이라 같은 관용구가 맞다 —
+        # 성긴 스택에 그 관용구를 그대로 옮긴 것이 원인이다)
+        for name, hidden in self._HIDDEN_SHAPES:
+            with self.subTest(shape=name):
+                tag = "template" if name == "template" else "div"
+                inner = "<%s>속</%s>" % (tag, tag)
+                # 여는 태그와 그 자식 사이에 같은 이름을 하나 끼운다
+                leaky = hidden.replace("<p>숨은", inner + "<p>숨은", 1)
+                self.assertEqual(texts(leaky + "<p>보이는 김치찌개</p>"),
+                                 ["보이는 김치찌개"])
+        # 인라인도 같다 — `<span hidden>` 안의 `<span>` 이 바깥을 풀면 안 된다
+        self.assertEqual(
+            texts("<p>보임 <span hidden>숨김<span>속</span>또 숨김</span> 끝</p>"),
+            ["보임 끝"])
+        # 그래도 **닫히기는 한다** — 이 단언이 없으면 「늘 숨김」이 통과한다
+        self.assertEqual(texts("<div hidden><div>속</div></div><p>보이는 문단</p>"),
+                         ["보이는 문단"])
+
+    def test_an_unclosed_child_does_not_pin_a_hidden_region_open(self):
+        # `_open` 의 관용구가 「꼭대기가 맞을 때만 pop」이 아니라 **뒤에서 찾아 자른다**
+        # 인 이유. `<p>`·`<li>` 는 실물에서 안 닫힌 채로 오는 것이 정상이고(브라우저가
+        # `</div>` 에서 대신 닫는다), 꼭대기만 보면 그 `</div>` 가 아무것도 못 닫아
+        # **숨김이 문서 끝까지 고정된다** — 뒤의 본문 문단이 조용히 사라진다.
+        # 오탐(근거가 소리 없이 없어지는 것)이 이 계획의 제일 큰 위험이다(계획서 8절)
+        for name, html in [
+            ("안 닫힌 p", "<div hidden><p>숨은</div><p>보이는 김치찌개</p>"),
+            ("안 닫힌 li", "<div hidden><li>숨은</div><p>보이는 김치찌개</p>"),
+            ("다른 컨테이너",
+             '<section aria-hidden="true"><p>숨은</section><p>보이는 김치찌개</p>'),
+        ]:
+            with self.subTest(shape=name):
+                self.assertEqual(texts(html), ["보이는 김치찌개"])
+
+    def test_an_optional_end_tag_does_not_hide_the_next_sibling(self):
+        # 리뷰 51 `[R51-1]`. `</li>`·`</p>`·`</td>` 는 명세가 생략을 허용하므로 아래는
+        # **깨진 입력이 아니라 유효한 HTML** 이다. 브라우저는 다음 형제 시작 태그에서
+        # 앞 요소를 닫는데 `html.parser` 는 안 닫아, 숨김이 **형제로 새어** 보이는
+        # 문단이 조용히 사라졌다 — 이 계획의 제일 큰 위험(계획서 8절) 그 방향이다.
+        # `<li hidden>` 은 필터·탭·드롭다운의 실물 기본형이다
+        for name, html, want in [
+            ("li", "<ul><li hidden>숨은<li>보이는 김치찌개</ul><p>뒤 문단</p>",
+             ["보이는 김치찌개", "뒤 문단"]),
+            ("p 뒤 p", "<p hidden>숨은<p>보이는 김치찌개</p>", ["보이는 김치찌개"]),
+            # `<p>` 는 **다른 블록 시작 태그**로도 닫힌다 — 같은 이름만 보면 못 잡는다
+            ("p 뒤 div", "<p hidden>숨은<div>보이는 김치찌개</div>",
+             ["보이는 김치찌개"]),
+            ("td", "<table><tr><td hidden>숨은<td>보이는</table>", ["보이는"]),
+            # 걸러진 표의 행 — `<tr hidden>` 은 다음 `<tr>` 이 닫는다
+            ("tr", "<table><tr hidden><td>숨은<tr><td>보이는</table>", ["보이는"]),
+            ("option",
+             "<select><option hidden>숨은<option>보이는 김치찌개</select>",
+             ["보이는 김치찌개"]),
+            ("dt/dd", "<dl><dt hidden>숨은<dd>보이는 김치찌개</dl>",
+             ["보이는 김치찌개"]),
+            # 테스트 4 가 찾은 갭 — 위 줄은 **`dt` 키만** 쓴다. `dd` 도 키인데
+            # 아무 케이스도 안 밟아 「`dd` 줄 삭제」 변이가 살아 있었다(실측).
+            # `<dd hidden>` 은 접히는 FAQ 의 실물 기본형이고, 못 닫으면 다음 답이
+            # 통째로 사라지는 **오탐** 방향이다(계획서 8절)
+            ("dd", "<dl><dt>질문<dd hidden>숨은 답<dd>보이는 김치찌개</dl>",
+             ["질문", "보이는 김치찌개"]),
+            # 한 시작 태그가 **둘을 겹쳐 닫는다** — 안 닫힌 `<p>` 위의 `<li>` 다.
+            # 한 번만 닫으면 바깥 `<li hidden>` 이 남아 뒤가 통째로 사라진다
+            ("li 안의 안 닫힌 p",
+             "<ul><li hidden>숨은<p>여전히 숨은<li>보이는 김치찌개</ul>",
+             ["보이는 김치찌개"]),
+            # 테스트 2 가 찾은 갭. 위까지는 전부 **두 번 이하** pop 이라 「최대 두 번만
+            # 닫는다」 변이가 588건 전부 초록이었다 — 개발이 죽인 ⑤(`while`→`if`)의
+            # 한 칸 아래다. 셋을 겹쳐 닫는 자리는 숨긴 행 안의 셀 안에 안 닫힌 `<p>`
+            # 가 있을 때이고(`p`→`th`→`tr`), 걸러진 표의 행은 실물의 기본형이다.
+            # `th` 는 `_IMPLIED_END` 에 있으면서 아무 케이스도 안 쓰던 값이라
+            # 「`th` 줄 삭제」 변이도 같이 죽는다(둘 다 실측으로 확인)
+            ("th 안의 안 닫힌 p — 셋을 겹쳐 닫는다",
+             "<table><tr hidden><th>숨은<p>여전히 숨은<tr><td>보이는</table>",
+             ["보이는"]),
+        ]:
+            with self.subTest(shape=name):
+                self.assertEqual(texts(html), want)
+        # **넓어지는 쪽 가드** — 암묵적 닫기는 «다음 형제» 에만 걸린다. 숨긴 요소의
+        # **자식**은 여전히 숨김이어야 한다(중첩 목록·표는 실물에서 흔하다)
+        for name, html in [
+            ("숨은 li 안의 중첩 목록",
+             "<ul><li hidden>숨은<ul><li>속 김치찌개</ul></ul>"),
+            ("숨은 p 안의 인라인", "<p hidden>숨은<b>여전히 숨은 김치찌개</b></p>"),
+            # 테스트 2 가 찾은 갭. `p` 가지는 술어 **둘**(`_INLINE_TAGS` 와
+            # `_NON_BLOCK_TAGS`)을 읽는데 앞줄이 첫째만 잰다 — 뒤 절을 지우는 변이가
+            # 588건 전부 초록이었다. `<br>`·`<img>` 는 인라인이 아니지만 문단 경계도
+            # 아니라 `<p>` 를 **안 닫는다**. 닫으면 그 뒤 숨은 텍스트가 근거로 샌다
+            ("숨은 p 안의 비블록",
+             "<p hidden>숨은<br>여전히 숨은<img src=k.jpg>또 숨은 김치찌개"),
+            # 리뷰 2 `[R51-3]`. 위 `p` 가지를 «인라인도 비블록도 아닌 것 전부» 로
+            # 쓰면 술어가 **열린 집합**이라, 명세가 `<p>` 를 안 닫는다고 적은 태그가
+            # 전부 닫아 버린다 — 표준 태그 전수 대조로 과잉 29 · 미달 0 이었고
+            # **대시가 든 커스텀 요소는 전부** 과잉이라 그쪽은 무한 집합이다.
+            # 닫히면 뒤의 숨은 텍스트가 근거 문단으로 샌다(임시 DB 실측 5/6).
+            # 아래 다섯이 그 다섯 부류다 — 커스텀 요소 둘 · 웹컴포넌트(`slot`) ·
+            # 폼 부속(`datalist`) · 폐기된 인라인(`nobr`)
+            ("숨은 p 안의 커스텀 요소",
+             "<p hidden>숨은<my-widget>속</my-widget>또 숨은 김치찌개"),
+            ("숨은 p 안의 자기 닫는 커스텀 요소",
+             "<p hidden>숨은<amp-img src=k.jpg></amp-img>또 숨은 김치찌개"),
+            ("숨은 p 안의 slot", "<p hidden>숨은<slot>또 숨은 김치찌개</slot>"),
+            ("숨은 p 안의 datalist",
+             "<p hidden>숨은<datalist><option>x</datalist>또 숨은 김치찌개"),
+            ("숨은 p 안의 nobr", "<p hidden>숨은<nobr>또 숨은 김치찌개</nobr>"),
+            ("숨은 td 안의 중첩 표",
+             "<table><tr><td hidden><table><tr><td>속 김치찌개</table></table>"),
+        ]:
+            with self.subTest(shape=name):
+                self.assertEqual(texts(html), [])
+
+    def test_every_element_with_an_optional_end_tag_is_closed_by_its_sibling(self):
+        # 리뷰 51 `[R51-5]`. 위 테스트는 **여덟 키**만 덮었고, 명세가 종료 태그 생략을
+        # 허용하는 나머지 여덟(`thead`·`tbody`·`tfoot`·`caption`·`colgroup`·
+        # `optgroup`·`rt`·`rp`)은 키에 없어 숨김이 형제로 새었다 — 아래 여섯은 전부
+        # **명세가 허용하는 정상 HTML** 인데 HEAD 에서 보이는 문단이 통째로 사라졌다.
+        # 표 구조는 실물의 기본형이고(`<thead hidden>` 은 접히는 헤더), 방향은 계획
+        # 8절이 「제일 위험」이라 적은 **오탐**이다
+        for name, html, want in [
+            ("thead", "<table><thead hidden><tr><th>숨은 헤더"
+                      "<tbody><tr><td>보이는 셀</table>", ["보이는 셀"]),
+            ("tbody", "<table><tbody hidden><tr><td>숨은 행"
+                      "<tfoot><tr><td>보이는 꼬리</table>", ["보이는 꼬리"]),
+            # 테스트 4 가 찾은 갭 — 개발 4 가 넣은 여덟 중 `tfoot` 만 **어느 방향으로도**
+            # 안 밟혀 「`tfoot` 줄 삭제」와 「`tfoot` 의 뺄셈 제거」 두 변이가 살아
+            # 있었다(실측). `<tfoot>` 은 명세가 `<tbody>` 보다 **앞**에 오는 것을
+            # 허용하므로 이 모양은 깨진 입력이 아니다
+            ("tfoot", "<table><tfoot hidden><tr><td>숨은 꼬리"
+                      "<tbody><tr><td>보이는 셀</table>", ["보이는 셀"]),
+            ("caption", "<table><caption hidden>숨은 설명"
+                        "<tbody><tr><td>보이는 셀</table>", ["보이는 셀"]),
+            ("colgroup", "<table><colgroup hidden><col>"
+                         "<tbody><tr><td>보이는 셀</table>", ["보이는 셀"]),
+            ("optgroup", "<select><optgroup hidden><option>숨은"
+                         "<optgroup><option>보이는</select>", ["보이는"]),
+            # 리뷰 4 `[R4-1]` — `optgroup` 을 걷는 것은 형제 `<optgroup>` 만이
+            # 아니다. 「in select」 모드가 `<hr>` 에서도 걷는다(명세가 구분선으로
+            # 허용한 태그다). 안 걷으면 `<hr>` 뒤의 **보이는 항목이 사라진다**
+            ("optgroup + hr", "<select><optgroup hidden><option>숨은"
+                              "<hr><option>보이는</select>", ["보이는"]),
+            # `rt` 는 `_INLINE_TAGS` 라 경계에 공백이 안 들어간다(`Kim<b>chi</b>`
+            # 규칙) — 여기서 재는 것은 띄어쓰기가 아니라 `보이는` 이 나오느냐다
+            ("rt/rp", "<ruby>漢<rt hidden>숨은<rt>보이는</ruby>", ["漢보이는"]),
+        ]:
+            with self.subTest(shape=name):
+                self.assertEqual(texts(html), want)
+        # **넓어지는 쪽 가드** — 키를 늘리는 것은 누출(과잉) 방향이다. 형제가 아니라
+        # **자식**으로 들어가는 태그는 여전히 숨김을 안 걷어야 한다
+        for name, html in [
+            ("숨은 thead 안의 행", "<table><thead hidden><tr><th>숨은 헤더</table>"),
+            # `tfoot` 의 뺄셈(`- {td, th, tr}`)을 붙드는 유일한 자리다 — 빼기를
+            # 지우면 `<tr>` 이 숨은 `<tfoot>` 을 걷어 숨은 텍스트가 근거로 샌다
+            ("숨은 tfoot 안의 행", "<table><tfoot hidden><tr><td>숨은 꼬리</table>"),
+            ("숨은 optgroup 안의 option",
+             "<select><optgroup hidden><option>숨은</select>"),
+            ("숨은 caption 안의 인라인",
+             "<table><caption hidden>숨은<b>여전히 숨은</b></table>"),
+            ("숨은 colgroup 안의 col",
+             "<table><colgroup hidden><col><col>숨은</table>"),
+        ]:
+            with self.subTest(shape=name):
+                self.assertEqual(texts(html), [])
+
+    def test_text_that_only_looks_hidden_is_kept(self):
+        # 오탐이 이 계획의 제일 위험이다 — 정상 문단을 숨김으로 읽으면 근거가
+        # **조용히** 사라진다. `font-size:0.9em` 은 보이는 작은 글씨인데
+        # `"font-size:0" in style` 이 문다(변이 ⓑ 가 여기서 죽는다).
+        # `aria-hidden="false"` 는 명시적으로 «보인다» 는 선언이다
+        for name, visible in [
+            ('aria-hidden="false"', '<div aria-hidden="false">보이는 글</div>'),
+            ("font-size:0.9em", '<div style="font-size:0.9em">보이는 글</div>'),
+            ("font-size:10px", '<div style="font-size:10px">보이는 글</div>'),
+            ("class=hidden-md", '<div class="hidden-md">보이는 글</div>'),
+            ("display:block", '<div style="display:block">보이는 글</div>'),
+            ("hidden 아닌 속성", '<div data-hidden="true">보이는 글</div>'),
+        ]:
+            with self.subTest(shape=name):
+                self.assertEqual(texts(visible), ["보이는 글"])
+
+    def test_hidden_markup_inside_a_paragraph_only_drops_that_fragment(self):
+        # 문단이 통째로 죽지 않고 그 조각만 빠진다. 낱말이 붙지도 않는다 —
+        # `<span>` 은 인라인이지만 숨김 영역은 인라인 여부와 무관하게 먹는다
+        self.assertEqual(
+            extract_blocks('<p>보이는 <span style="display:none">숨은</span> 텍스트</p>'),
+            [("p", "보이는 텍스트")])
+
+    def test_hidden_text_is_the_third_exception_to_the_join_invariant(self):
+        # 불변식 `" ".join(blocks) == extract_text()[1]` 의 **세 번째** 예외.
+        # 앞의 둘과 달리 이것은 «깨진 입력» 이 아니라 정상 HTML 에서 갈린다 —
+        # 색인 본문은 숨은 텍스트를 그대로 담고(그 문서는 검색에 계속 나온다)
+        # 블록 쪽만 뺀다. 바뀌는 것은 **근거 후보**뿐이라는 계약이 이 줄이다
+        html = '<p>보이는 글</p><div hidden><p>숨은 글</p></div>'
+        self.assertEqual(texts(html), ["보이는 글"])
+        self.assertEqual(extract_text(html)[1], "보이는 글 숨은 글")
+        self.assertNotEqual(" ".join(texts(html)), extract_text(html)[1])
+
+    def test_control_only_block_is_dropped_and_that_breaks_the_join(self):
+        # 불변식의 **깨진 입력 쪽 위반**을 현 동작 그대로 고정한다. 통짜 정규화는
+        # 제어문자 블록 자리에 겹공백을 남기고(`'가  나'`), 블록 쪽은 빈 블록을 버린다.
+        # 고치려면 `_normalize` 를 바꿔야 하고 그것이 **색인 본문을 바꾼다** — 안 고친다
+        html = "<p>가</p><p>\x01</p><p>나</p>"
+        self.assertEqual(texts(html), ["가", "나"])
+        self.assertEqual(extract_text(html)[1], "가  나")
 
 
 class TestIsNoindex(unittest.TestCase):
@@ -108,3 +522,14 @@ class TestIsNoindex(unittest.TestCase):
     def test_empty_or_missing_content(self):
         self.assertFalse(is_noindex('<meta name="robots" content="">'))
         self.assertFalse(is_noindex('<meta name="robots">'))
+
+    def test_an_unknown_marked_section_does_not_raise_here_either(self):
+        # 갭 탐색(테스트 3) — 변이 「`_MetaRobotsParser` 는 안 고친다」가 **초록으로
+        # 살아 있었다**. 파서가 둘이라 수리도 둘인데 단언은 하나였다. 이 경로가 더
+        # 이른 자리다: `index_pages()` 는 `is_noindex()` 를 **먼저** 부르므로 여기서
+        # 터지면 `extract_text` 쪽 수리는 닿지도 못하고 그 실행의 색인이 통째로 날아간다.
+        # 게이트(`"robots" in html`)를 지나야 파싱하므로 두 단어가 같이 있어야 재진다
+        self.assertTrue(is_noindex('<![foo]><meta name="robots" content="noindex">'))
+        self.assertTrue(is_noindex('<meta name="robots" content="noindex"><![sqlserver]>'))
+        # 오탐 방향도 본다 — 깨진 선언이 지시를 **만들어 내지도** 않는다
+        self.assertFalse(is_noindex('<p>robots.txt 를 설명한다<![foo]></p>'))

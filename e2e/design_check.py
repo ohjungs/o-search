@@ -179,11 +179,58 @@ def token_maps(css):
 
 # 선택자와 본문으로 규칙을 쪼갠다. 중첩 at-rule 안쪽 규칙도 이 안쪽 짝에 걸린다.
 # ponytail: 중괄호 없는 선언만 있는 평평한 CSS 를 전제하는 순진한 쪼개기다 — 중첩
-# 선택자(CSS Nesting)나 주석 안의 `outline:` 은 못 읽는다. 그런 CSS 가 생기면
-# 규칙 수가 틀리고 아래 첫 갈래가 측정 불능으로 멈춘다(조용히 통과하지는 않는다).
+# 선택자(CSS Nesting)는 못 읽는다. 그런 CSS 가 생기면 규칙 수가 틀리고 아래 첫
+# 갈래가 측정 불능으로 멈춘다(조용히 통과하지는 않는다). 주석·문자열은 `focus_rule`
+# 이 먹이기 전에 지우므로 여기까지 안 온다.
 RULE_RE = re.compile(r"([^{}]*)\{([^{}]*)\}")
 # 링이 그려지는지를 정하는 속성들. outline-offset 은 링을 없애지 못하므로 뺀다.
 OUTLINE_RE = re.compile(r"outline(?:-width|-style|-color)?\s*:")
+# 링을 **키보드 포커스에** 그리는 셀렉터인가(조건 5). 부분 문자열 `":focus"` 로는
+# 두 갈래가 새 나갔다 — `:not(:focus-visible)` 은 극성이 뒤집혀 포커스가 아닐 때만
+# 그리고, `:focus-within` 은 자식이 받은 포커스라 링이 부모 상자에 그려진다.
+# `:has(…:focus-visible)` 은 `:focus-within` 과 의미가 같아 함께 지운다 — 링이
+# 조상 상자로 옮겨간다. **`:is()`·`:where()` 는 안 지운다**: 투명해서 그 안의
+# 포커스는 여전히 이 요소가 받는다(오탐 표가 그 둘을 붙든다).
+# 이름은 대소문자를 안 가린다 — CSS 셀렉터 규정이라 `:NOT(` 도 `:not(` 이고
+# `:FOCUS-VISIBLE` 도 링을 그린다. 소문자만 읽으면 앞쪽은 거짓 초록, 뒤쪽은 오탐이다.
+# ponytail: 괄호 중첩은 **한 겹**까지 읽는다(`:not(:is(:focus-visible))`). 두 겹부터는
+# 못 지워 거짓 초록이 된다 — 그런 셀렉터는 지금 0곳이고 제품 CSS 에는 괄호가 없다.
+INDIRECT_RE = re.compile(r":(?:not|has)\((?:[^()]|\([^()]*\))*\)", re.I)
+FOCUS_RE = re.compile(r":focus(?:-visible)?(?![\w-])", re.I)
+# 링 규칙이 at-rule **밖**인가는 그 앞의 중괄호를 세서 본다(조건 6). 세기의 함정은
+# 블록을 안 여는 중괄호 — 주석 안의 `{` 와 `content:"}"` 는 짝이 없어도 CSS 로는
+# 정상이다. 세기 전에 지운다. 주석을 먼저 지우는 순서라 주석 안의 따옴표는 안 문다.
+COMMENT_OR_STRING_RE = re.compile(r"/\*.*?\*/|\"[^\"\n]*\"|'[^'\n]*'", re.S)
+
+
+def _top_level(text, seps):
+    """괄호 `()`·대괄호 `[]` **밖**의 `seps` 에서만 가른다. 깊이만 세고 문법은 안 읽는다.
+
+    `str.split` 이 아닌 이유는 괄호 안이다 — `:is(.x, .y)` 의 쉼표도 `:not(.x + .y)` 의
+    결합자도 셀렉터를 가르지 않고, `[class~=btn]` 의 `~` 는 결합자가 아니라 속성
+    연산자다. 깊이를 안 세면 그 여섯 모양이 전부 **정상 CSS 를 거절하는 오탐**이 된다
+    (설계서 2절 표가 세 대안을 가른 행이 전부 이쪽이다).
+
+    ponytail: **괄호 안은 세기만 하고 읽지는 않는다.** 그래서 이 계획이 닫은 미탐이
+    괄호 한 겹 안에서는 그대로 산다 — `:is(a:focus-visible > .hint)` 는 링을 `.hint` 에
+    그리는데 마지막 compound 가 `:is(…)` 통째라 **통과한다**(리뷰 1 실측). 안쪽까지
+    보려면 투명 의사클래스의 인자를 다시 갈라 재귀해야 하고 그것은 설계서 6절이 그은
+    「CSS 파서를 안 만든다」 밖이다. 제품 CSS 에 괄호가 0곳이라 여는 조건은
+    `digest` 의 이웃 후보들과 같다 — «제품 CSS 에 괄호 있는 셀렉터가 처음 생길 때».
+    """
+    depth, buf, out = 0, [], []
+    for ch in text:
+        if ch in "([":
+            depth += 1
+        elif ch in ")]":
+            depth = max(0, depth - 1)   # 안 열린 닫기에 음수로 내려가지 않는다
+        elif depth == 0 and ch in seps:
+            out.append("".join(buf))
+            buf = []
+            continue
+        buf.append(ch)
+    out.append("".join(buf))
+    return out
 
 
 def focus_rule(css):
@@ -204,14 +251,34 @@ def focus_rule(css):
     한 규칙 **안에서** `outline-width:0` 으로 자기를 뒤엎는 형태도 못 잡는다(지금 0곳,
     잡으려면 한 규칙 안의 선언 순서를 해석해야 한다).
     """
-    rules = [(sel, body) for sel, body in RULE_RE.findall(css) if OUTLINE_RE.search(body)]
+    css = COMMENT_OR_STRING_RE.sub("", css)
+    rules = [m for m in RULE_RE.finditer(css) if OUTLINE_RE.search(m.group(2))]
     if len(rules) != 1:
         raise ValueError("outline 을 정하는 규칙이 %d개 — 캐스케이드를 바이트로 못 정한다"
                          % len(rules))
-    selector, body = rules[0]
-    if ":focus" not in selector:
-        raise ValueError("outline 을 정하는 유일한 규칙이 포커스용이 아니다: %s"
-                         % " ".join(selector.split()))
+    selector, body = rules[0].group(1), rules[0].group(2)
+    # `:not(…)`·`:has(…)` 안은 링을 **이 요소에** 그릴 조건이 아니라 그리지 않을 조건이거나
+    # 조상에 그릴 조건이라 먼저 지운다. 남은 자리에서 `:focus`/`:focus-visible` 이
+    # **낱말로** 있어야 한다 — `:focus-within` 은 뒤에 `-` 가 붙어 안 남는다.
+    # `:not(.foo):focus-visible` 은 괄호 밖 포커스가 남아 그대로 통과한다.
+    # 보는 자리는 셀렉터 전체가 아니라 **쉼표 조각마다 마지막 compound** 다 — 링은
+    # 셀렉터가 고르는 그 요소에 그려지므로 `a:focus-visible+.hint` 는 포커스받은 요소가
+    # 아니라 **옆 상자**에 그린다. 낱말이 어디에 있든 통과시키면 아무도 못 보는 링
+    # 위에서 대비를 재게 된다(계획 44 가 막으려던 그 자리). 조각 하나라도 어긋나면
+    # 거절한다 — 쉼표 목록은 전부 같은 규칙을 받으므로 한 조각만 딴 데 그려도 틀린 잣대다.
+    # `strip()` 은 꼬리 공백에서 마지막 compound 가 빈 문자열이 되는 것을 막는다.
+    for part in _top_level(selector, ","):
+        if not FOCUS_RE.search(INDIRECT_RE.sub(
+                "", _top_level(part.strip(), " \t\n>+~")[-1])):
+            raise ValueError("outline 을 정하는 유일한 규칙이 키보드 포커스용이 아니다: %s"
+                             % " ".join(selector.split()))
+    # 규칙 앞의 중괄호가 안 닫혀 있으면 링은 어떤 at-rule 안이다(조건 6). **prelude 를
+    # 안 읽는다** — 「이 조건은 늘 참」을 고르기 시작하면 `@layer`·`@supports`·
+    # `forced-colors` 처럼 모르는 것이 안전으로 분류돼 새 나간다(설계서 1절 F1~F4).
+    before = css[:rules[0].start()]
+    if before.count("{") != before.count("}"):
+        raise ValueError("outline 을 정하는 유일한 규칙이 at-rule 안에 있다 "
+                         "— 라이트 화면에 늘 그려지지 않는다")
     decl = re.search(r"outline\s*:\s*([^;}]+)", body)
     value = decl.group(1).strip() if decl else "없음"
     token = re.search(r"var\(\s*(--[a-z0-9-]+)\s*\)", value)

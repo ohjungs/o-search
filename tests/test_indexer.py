@@ -286,6 +286,20 @@ class TestSearch(unittest.TestCase):
         self.assertEqual(title, "요리")
         self.assertIn("김치찌개", snippet)
 
+    def test_one_page_with_an_unknown_marked_section_does_not_abort_the_run(self):
+        # 갭 탐색(테스트 3) — 단언 자리는 **가장 깊은 모양**이다. `extract` 단위가
+        # 예외를 막아도, 값이 걸린 곳은 여기다: `index_pages()` 는 문서마다 try 가
+        # 없고 `commit()` 이 루프 **끝**에 있어, 페이지 한 장이 터지면 그 실행이 넣던
+        # 색인이 통째로 사라진다. 크롤 HTML 은 신뢰 경계라 «남이 쓴 여덟 글자»다
+        self._seed_and_index([
+            ("http://bad.test/", "<title>깨진 선언</title><p>배추김치를 담근다<![foo]>"),
+            ("http://ok.test/", "<title>정상</title><p>김치찌개는 배추로 만든다.</p>"),
+        ])
+        self.assertEqual(sorted(h[0] for h in search(self.db_path, "김치")),
+                         ["http://bad.test/", "http://ok.test/"])
+        # 근거 문단 경로도 같은 파서를 지난다 — `/passages` 가 500 이 되던 자리
+        self.assertEqual(indexer.passages(self.db_path, "배추김치")[0][3], "배추김치를 담근다")
+
     def test_english_is_case_insensitive(self):
         self._seed_and_index([("http://a.test/", "<title>Guide</title><p>Python Tutorial</p>")])
         self.assertEqual(len(search(self.db_path, "python")), 1)
@@ -369,6 +383,476 @@ class TestSearch(unittest.TestCase):
             fh.write(b"NOT a sqlite file\n" * 64)
         with self.assertRaises(sqlite3.DatabaseError):
             search(self.db_path, "\x01")
+
+
+class TestPassages(unittest.TestCase):
+    """근거 문단 — `search()` 의 문서 순 그대로, 문서당 최대 1문단.
+
+    문단 경계는 색인에 없고 `pages.html` 에만 있다. 그래서 색인 경로는 지나가지
+    않는다 — DB 상태 판정(503·500·옛 색인)은 `search()` 것을 그대로 물려받는다.
+    """
+
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.dir.cleanup)
+        self.db_path = os.path.join(self.dir.name, "crawl.db")
+
+    def _seed_and_index(self, rows):
+        store = Store(self.db_path)
+        for url, html in rows:
+            store.upsert(url, html, 200)
+        index_pages(self.db_path)
+
+    # 갈림길 6 의 **잴 자** — 마크업 모양마다 «사람이 인용할 문단» 을 적어 둔다.
+    # 이 표가 없어서 계획 48 이 네 반복 동안 결함을 못 봤다: 코퍼스
+    # (`e2e/quality/corpus.json` 64건)가 평문이라 `passage_eval.build_index` 가
+    # 문장마다 `<p>` 하나로 감싸고, 그 위에서 잰 정확도 100%·채택률 99.5% 는
+    # **한 문장짜리 `<p>` 축만** 잰 값이다(`<br>` 0건 · `nav`/`ul`/`h*` 0건).
+    # 표는 **19행**이고 그중 넷은 지금 규칙이 못 맞춘다 — 아래 `_UNMATCHED_SHAPES`.
+    # 동점 규칙 셋을 이 19행으로 재서 골랐다 (2026-09-02 개발 10 실측):
+    #   점수만 11/19 · **동점에 길이 15/19(고름)** · 동점에 태그가 `p` 인가 12/19
+    # 열한 행만 볼 때는 이름표가 11/11 로 이겼는데(개발 9), 그 열한 행은 정답이 늘
+    # `<p>` 라 눈금이 한 방향뿐이었다. 방향을 짝지은 여덟을 더하니 이름표는 1/8 이다
+    _SHAPES = [
+        ("문장 <p> — 코퍼스가 아는 유일한 모양",
+         "<p>김치찌개는 한국의 대표적인 찌개다.</p><p>배추와 고춧가루를 넣는다.</p>",
+         "김치찌개는 한국의 대표적인 찌개다."),
+        ("nav 보일러플레이트",
+         "<nav><a href=/>김치찌개</a></nav>"
+         "<article><p>김치찌개 만드는 순서를 아래에 적는다.</p></article>",
+         "김치찌개 만드는 순서를 아래에 적는다."),
+        ("제목이 질의어 그 자체",
+         "<h2>김치찌개</h2><p>배추를 절이고 양념을 버무려 김치찌개를 끓인다.</p>",
+         "배추를 절이고 양념을 버무려 김치찌개를 끓인다."),
+        ("<br> 로 줄만 나눈 문단",
+         "<p>오늘은<br>김치찌개<br>내일은 된장찌개를 끓인다</p>",
+         "오늘은 김치찌개 내일은 된장찌개를 끓인다"),
+        ("<br> 문단이 둘 중 하나",
+         "<p>재료를 준비한다<br>김치찌개 육수는 멸치로 낸다<br>끝</p><p>다른 요리 이야기</p>",
+         "재료를 준비한다 김치찌개 육수는 멸치로 낸다 끝"),
+        ("목록 항목이 진짜 답인 문서",  # 짧은 블록을 하한으로 막으면 이것이 죽는다
+         "<p>오늘 만들 것을 적어 둔다.</p>"
+         "<ul><li>된장찌개</li><li>김치찌개</li><li>계란말이</li></ul>",
+         "김치찌개"),
+        ("낱말마다 인라인 마크업",
+         "<p>다른 이야기</p><p><b>김치</b><i>찌개</i>는 <em>겨울</em>에 특히 잘 어울린다.</p>",
+         "김치찌개는 겨울에 특히 잘 어울린다."),
+        ("표 칸이 질의어 그 자체",
+         "<table><tr><td>메뉴</td><td>김치찌개</td></tr></table>"
+         "<p>김치찌개 한 그릇은 오천원이다.</p>",
+         "김치찌개 한 그릇은 오천원이다."),
+        # 리뷰 6 — 위 여덟 행은 **정답이 늘 `<p>` 이고 경쟁자는 한 번도 `<p>` 가 아니다**.
+        # 그 표 위에서는 「태그가 `p` 인가」가 8/8 을 받지만, 그것은 자에 눈금이 한
+        # 방향뿐이라 그렇다. 아래 일곱이 반대쪽이다 — 정답이 `<div>`·`<li>`·`<td>`·
+        # `<section>` 이거나 **보일러플레이트가 `<p>`** 인 모양.
+        # 일곱 전부 **진짜 동점**(두 블록의 점수가 같다)이라 동점 규칙만이 답을 가른다
+        ("본문이 <div> · 푸터가 <p>",  # 뒤 + 짧다 · 이름표는 보일러플레이트 쪽이 `p`
+         "<article><div>김치찌개는 배추와 고춧가루로 끓인다.</div></article>"
+         "<footer><p>ⓒ 2026 김치찌개 백과</p></footer>",
+         "김치찌개는 배추와 고춧가루로 끓인다."),
+        ("본문 앞의 짧은 광고 <p>",  # `<p>` 대 `<p>` — 실물에서 가장 흔한 동점 모양
+         "<p>광고 김치찌개 특가</p>"
+         "<article><p>김치찌개는 배추로 만드는 한국의 대표 음식이다.</p></article>",
+         "김치찌개는 배추로 만드는 한국의 대표 음식이다."),
+        ("빵부스러기 <p> · 답은 <li>",
+         "<p>홈 &gt; 요리 &gt; 김치찌개</p>"
+         "<ul><li>김치찌개 끓이는 순서를 아래에 적는다</li><li>계란말이</li></ul>",
+         "김치찌개 끓이는 순서를 아래에 적는다"),
+        ("표가 본문 · 앞에 짧은 안내 <p>",
+         "<p>김치찌개 안내</p>"
+         "<table><tr><td>김치찌개 한 그릇은 오천원이고 공기밥은 따로다</td></tr></table>",
+         "김치찌개 한 그릇은 오천원이고 공기밥은 따로다"),
+        ("답은 <section> · 뒤에 관련글 <p>",
+         "<section>김치찌개를 끓이려면 먼저 배추를 잘게 썬다</section>"
+         "<p>관련 글: 김치찌개</p>",
+         "김치찌개를 끓이려면 먼저 배추를 잘게 썬다"),
+        ("본문 <p> · 뒤에 짧은 푸터 <p>",  # 짝 — 여기서는 이름표도 순서도 맞는다
+         "<article><p>김치찌개는 배추로 만드는 한국의 대표 음식이다.</p></article>"
+         "<p>ⓒ 김치찌개 백과</p>",
+         "김치찌개는 배추로 만드는 한국의 대표 음식이다."),
+        ("답이 <div> 로 먼저 · 뒤에 관련글 <p>",
+         "<div>김치찌개는 배추로 만든다는 것이 정설이다.</div><p>관련 글: 김치찌개</p>",
+         "김치찌개는 배추로 만든다는 것이 정설이다."),
+    ]
+
+    # **못 맞추는 넷** (name, html, 사람이 인용할 문단, **오늘 나오는 오답**).
+    # 「길이」는 보일러플레이트가 **본문보다 길면** 진다 — 방향이 하나뿐이라 그렇다.
+    # 이름표로 바꾸면 이 넷 중 셋은 살지만 위 열다섯 중 넷이 죽어 12/19 로 더 나쁘다.
+    # 어느 손잡이도 19행을 못 맞춘다 — 그러니 **행을 지우거나 정답을 낮추지 않고**
+    # 오늘의 오답을 적어 둔다. 규칙이 나아지면 여기가 빨개진다
+    _UNMATCHED_SHAPES = [
+        ("본문 뒤에 오는 긴 푸터",  # 뒤 + 길다
+         "<article><p>김치찌개 만드는 순서를 아래에 적는다.</p></article>"
+         "<footer>ⓒ 2026 김치찌개 백과 — 모든 권리 보유. 무단 전재와 재배포를 금합니다.</footer>",
+         "김치찌개 만드는 순서를 아래에 적는다.",
+         "ⓒ 2026 김치찌개 백과 — 모든 권리 보유. 무단 전재와 재배포를 금합니다."),
+        ("본문 앞에 오는 긴 사이드바",  # 앞 + 길다 · 태그는 `<div>` 라 이름표도 안 가른다
+         "<div>김치찌개 관련 글 모음과 인기 검색어 목록을 여기 모아 둔다</div>"
+         "<article><p>김치찌개는 배추로 만든다.</p></article>",
+         "김치찌개는 배추로 만든다.",
+         "김치찌개 관련 글 모음과 인기 검색어 목록을 여기 모아 둔다"),
+        ("긴 내비 링크 + 문단 안에 낀 <script>",  # 리뷰 5 가 든 합성 — 앞 + 길다
+         "<nav><a href=/>김치찌개 레시피 모음 페이지 바로가기</a></nav>"
+         "<article><p>김치찌개는<script>ad()</script>배추로 만든다.</p></article>",
+         "김치찌개는 배추로 만든다.",
+         "김치찌개 레시피 모음 페이지 바로가기"),
+        ("답은 짧은 <blockquote> · 뒤에 긴 저작권 <p>",  # 리뷰 6 의 여덟 중 유일한 실패
+         "<section><blockquote>김치찌개는 겨울의 음식이다</blockquote></section>"
+         "<p>이 글의 무단 전재를 금합니다. 김치찌개 관련 문의는 편집부로 연락 바랍니다.</p>",
+         "김치찌개는 겨울의 음식이다",
+         "이 글의 무단 전재를 금합니다. 김치찌개 관련 문의는 편집부로 연락 바랍니다."),
+    ]
+
+    def test_markup_shapes_yield_the_paragraph_a_reader_would_cite(self):
+        self._seed_and_index([("http://t.test/%d" % i, html)
+                              for i, (_, html, _) in enumerate(self._SHAPES)])
+        # limit 을 표 길이에 묶는다 — 행을 더했는데 기본값 10 에 잘리면 그 행은
+        # 재지 않은 채 조용히 통과한다
+        got = {url: text for url, _t, _p, text
+               in indexer.passages(self.db_path, "김치찌개", limit=len(self._SHAPES))}
+        for i, (name, _html, want) in enumerate(self._SHAPES):
+            with self.subTest(shape=name):
+                self.assertEqual(got.get("http://t.test/%d" % i), want)
+
+    def test_shapes_the_tie_rule_cannot_match_are_recorded_not_hidden(self):
+        # 갈림길 6 의 **천장**을 눈에 보이는 자리에 둔다. 표에서 빼면 「길이」가
+        # 19행 중 15행짜리 규칙이라는 사실이 사라지고, 다음 반복이 15/15 를 보고
+        # 「닫혔다」고 읽는다 — 계획 48 이 네 반복 동안 결함을 못 본 방식 그대로다.
+        # 오늘의 **오답을 그대로** 못박아 둔다: 규칙이 나아지면 여기가 빨개져 행이
+        # 위 표로 옮겨 가고, 조용히 **다른** 오답으로 바뀌어도 걸린다
+        self._seed_and_index([("http://t.test/%d" % i, html)
+                              for i, (_, html, _, _) in enumerate(self._UNMATCHED_SHAPES)])
+        got = {url: text for url, _t, _p, text
+               in indexer.passages(self.db_path, "김치찌개",
+                                   limit=len(self._UNMATCHED_SHAPES))}
+        for i, (name, _html, want, today) in enumerate(self._UNMATCHED_SHAPES):
+            with self.subTest(shape=name):
+                # 적어 둔 것이 **오답**이라는 것 자체가 계약이다 — 여기에 정답을
+                # 적어 넣어 «못 맞춤» 을 조용히 지우는 변이가 이 줄에서 죽는다
+                self.assertNotEqual(want, today)
+                self.assertEqual(got.get("http://t.test/%d" % i), today)
+
+    def test_result_shape_is_url_title_position_text(self):
+        self._seed_and_index([
+            ("http://a.test/", "<title>요리</title><p>봄나물 무침</p><p>김치찌개 만드는 법</p>"),
+        ])
+        self.assertEqual(indexer.passages(self.db_path, "김치"),
+                         [("http://a.test/", "요리", 1, "김치찌개 만드는 법")])
+
+    def test_document_with_no_matching_block_is_not_returned(self):
+        # 변이 M4(매치 없는 문서에 첫 블록을 대신 낸다)가 여기서 죽는다. 제목만
+        # 매치된 문서는 `search()` 에 나오지만 **근거 문단이 없다** — 없는 근거를
+        # 지어내면 사양 기능 8(정확도)이 첫 줄에서 무너진다
+        self._seed_and_index([
+            ("http://a.test/", "<title>김치 백과</title><p>봄에는 나물이 좋다</p>"),
+            ("http://b.test/", "<title>요리</title><p>김치를 담갔다</p>"),
+        ])
+        hits = indexer.passages(self.db_path, "김치")
+        self.assertEqual([h[0] for h in hits], ["http://b.test/"])  # 긍정 짝 — 빈 목록도 아니다
+
+    def test_hidden_text_never_becomes_the_passage(self):
+        # 계획 51 — 숨은 블록은 질의어를 본문보다 촘촘히 담아 밀도 규칙을
+        # **확정적으로** 이겼다. 다섯 모양 전부에서 본문 문단이 나와야 하고,
+        # 숨은 블록**만** 질의어를 담은 문서는 문단이 **0개**다 — 첫 블록이나
+        # 본문 앞부분으로 대신하면 사양 기능 8(근거 정확도)이 첫 줄에서 무너진다.
+        # 감점(갈림길 C)으로 바꾸는 변이가 여기서 죽는다: 밀도가 높으면 여전히 이긴다
+        shapes = [
+            ("template", "<template>%s</template>"),
+            ("hidden 속성", "<div hidden>%s</div>"),
+            ("aria-hidden", '<div aria-hidden="true">%s</div>'),
+            ("display:none", '<div style="display:none">%s</div>'),
+            ("font-size:0", '<div style="font-size:0">%s</div>'),
+        ]
+        hidden = "<p>김치찌개 김치찌개 김치찌개</p>"
+        self._seed_and_index(
+            [("http://t.test/%d" % i, wrap % hidden + "<p>김치찌개는 배추로 만든다.</p>")
+             for i, (_, wrap) in enumerate(shapes)]
+            + [("http://only.test/", "<title>요리</title>"
+                + shapes[1][1] % hidden + "<p>봄나물 무침</p>"),
+               # 리뷰 2 `[R51-3]` 이 **실제 임시 DB 로** 잡은 자리 — 종료 태그가
+               # 생략된 `<p hidden>` 안에 커스텀 요소가 끼면 암묵적 닫기가 숨김을
+               # 풀어 숨은 텍스트가 **근거 문단이 됐다**. 밀도 규칙은 질의어를 채운
+               # 숨은 블록을 확정적으로 고르므로 계약이 바로 깨진다
+               ("http://custom.test/",
+                "<title>요리</title><p hidden>김치찌개 김치찌개"
+                "<my-widget>김치찌개 김치찌개</my-widget>"
+                "<p>김치찌개는 배추로 만든다.</p>")])
+        got = {url: text for url, _t, _p, text
+               in indexer.passages(self.db_path, "김치찌개", limit=len(shapes) + 2)}
+        self.assertEqual(got.get("http://custom.test/"), "김치찌개는 배추로 만든다.")
+        for i, (name, _wrap) in enumerate(shapes):
+            with self.subTest(shape=name):
+                self.assertEqual(got.get("http://t.test/%d" % i),
+                                 "김치찌개는 배추로 만든다.")
+        self.assertNotIn("http://only.test/", got)
+        # 색인은 안 건드렸다 — 그 문서는 검색 결과에 **계속 나온다**
+        self.assertIn("http://only.test/",
+                      [h[0] for h in search(self.db_path, "김치찌개")])
+
+    def test_bigram_match_that_only_crosses_a_block_boundary_is_not_a_passage(self):
+        # 색인의 2-gram 은 공백을 전부 지워 문단 경계도 넘는다(`먹는다 물을` → `다물`).
+        # 문서는 나오지만 그 이웃을 담은 **블록은 없다** — 그러면 안 낸다
+        self._seed_and_index([("http://a.test/", "<p>먹는다</p><p>물을</p>")])
+        self.assertEqual([h[0] for h in search(self.db_path, "다물")], ["http://a.test/"])
+        self.assertEqual(indexer.passages(self.db_path, "다물"), [])
+
+    def test_a_spacing_variant_document_still_gets_a_passage(self):
+        # 갭 탐색(테스트 5) — 변이 «2-gram 바늘 삭제» 가 573건 전부 초록으로
+        # 살아남았다. 색인은 한글 2-gram 으로 띄어쓰기 변형을 매치하는데
+        # (`김치찌개` ↔ `김치 찌개`), 문단 고르기가 **날 질의어만** 세면 그 문서는
+        # 어느 블록도 점수 0 이라 **근거 없이 통째로 빠진다** — 검색에는 나오는데
+        # 근거는 0건이다(사양 기능 8 · 채택률). 부정 짝(`search` 는 낸다)을 같이 잰다
+        self._seed_and_index([
+            ("http://a.test/", "<title>요리</title><p>다른 이야기다</p>"
+                               "<p>김치 찌개를 끓이는 법을 적는다</p>"),
+        ])
+        self.assertEqual([h[0] for h in search(self.db_path, "김치찌개")],
+                         ["http://a.test/"])
+        self.assertEqual(indexer.passages(self.db_path, "김치찌개")[0][2:],
+                         (1, "김치 찌개를 끓이는 법을 적는다"))
+
+    def test_picks_the_block_with_the_most_hits(self):
+        self._seed_and_index([
+            ("http://a.test/", "<p>김치 이야기</p><p>김치 담그기와 김치 보관</p><p>끝</p>"),
+        ])
+        self.assertEqual(indexer.passages(self.db_path, "김치")[0][2:],
+                         (1, "김치 담그기와 김치 보관"))
+
+    def test_a_tie_goes_to_the_body_paragraph(self):
+        # 갈림길 6 — 보일러플레이트 블록(내비·제목·표 칸)이 **질의어만 담고 문맥은
+        # 없는** 근거로 이기던 자리다. 점수가 같으면 **긴 블록**이 근거로 낫다.
+        # 이 방향(앞·짧다)만 맞고 반대(뒤·길다)는 `_UNMATCHED_SHAPES` 에 있다
+        self._seed_and_index([
+            ("http://a.test/", "<nav><a>김치찌개</a></nav>"
+                               "<article><p>김치찌개 만드는 순서를 적는다</p></article>"),
+        ])
+        self.assertEqual(indexer.passages(self.db_path, "김치찌개")[0][2:],
+                         (1, "김치찌개 만드는 순서를 적는다"))
+
+    def test_a_tie_between_two_paragraphs_goes_to_the_earlier_one(self):
+        # 길이까지 같을 때만 앞이 이긴다 — 부등호가 등호로 바뀌면 뒤가 이긴다.
+        # 두 블록을 **같은 길이로** 맞춰야 이 단언이 «앞» 만 재는 것이 된다
+        self._seed_and_index([("http://a.test/", "<p>김치 하나</p><p>김치 둘다</p>")])
+        self.assertEqual(indexer.passages(self.db_path, "김치")[0][2:], (0, "김치 하나"))
+
+    def test_position_counts_only_non_empty_blocks(self):
+        # 변이 M5(빈 블록 포함으로 센다)가 여기서 죽는다. `position` 은
+        # `extract_blocks()` 결과의 순번이어야 소비자가 같은 문단을 다시 찾는다
+        self._seed_and_index([
+            ("http://a.test/", "<p>가</p><p></p><p>   </p><p>김치찌개</p>"),
+        ])
+        self.assertEqual(indexer.passages(self.db_path, "김치")[0][2], 1)
+
+    def test_document_order_follows_search(self):
+        self._seed_and_index([
+            ("http://a.test/", "<title>가</title><p>김치 한 번</p>"),
+            ("http://b.test/", "<title>나</title><p>김치 김치 김치 세 번</p>"),
+        ])
+        self.assertEqual([h[0] for h in indexer.passages(self.db_path, "김치")],
+                         [h[0] for h in search(self.db_path, "김치")])
+
+    def test_english_match_is_case_insensitive(self):
+        self._seed_and_index([("http://a.test/", "<p>intro</p><p>Python Tutorial</p>")])
+        self.assertEqual(indexer.passages(self.db_path, "python")[0][3], "Python Tutorial")
+
+    def test_limit_is_respected(self):
+        self._seed_and_index([
+            ("http://%d.test/" % i, "<p>머리말</p><p>김치 %d</p>" % i) for i in range(5)
+        ])
+        self.assertEqual(len(indexer.passages(self.db_path, "김치", limit=2)), 2)
+
+    def test_no_match_returns_empty_list(self):
+        self._seed_and_index([("http://a.test/", "<p>봄나물</p>")])
+        self.assertEqual(indexer.passages(self.db_path, "김치"), [])
+
+    def test_page_whose_html_vanished_is_skipped_not_a_traceback(self):
+        # `docs` 는 `pages` 에서 파생된다 — 원본이 없어진 문서는 근거를 못 만든다
+        self._seed_and_index([
+            ("http://a.test/", "<p>김치 하나</p>"),
+            ("http://b.test/", "<p>김치 둘</p>"),
+        ])
+        db = sqlite3.connect(self.db_path)
+        self.addCleanup(db.close)
+        db.execute("DELETE FROM pages WHERE url = 'http://a.test/'")
+        db.commit()
+        self.assertEqual([h[0] for h in indexer.passages(self.db_path, "김치")],
+                         ["http://b.test/"])
+
+    def test_html_beyond_the_cap_is_not_reparsed(self):
+        # 자원 상한 — 요청 하나가 문서 10건을 **통째로 다시 파싱**한다. 안 자르면
+        # 큰 문서 열 건이 500ms 예산을 넘긴다(실측: 2.5M자 302ms ×10 = 3.0초).
+        # **천장은 «잘린 뒤의 문단은 못 찾는다»** 다 — 색인은 찾는데 근거는 못 낸다.
+        # 여기 고정해 두지 않으면 상한을 지우거나 넓히는 변이가 안 죽는다
+        self._seed_and_index([
+            ("http://a.test/",
+             "<title>요리</title><p>" + "봄" * indexer.MAX_PASSAGE_HTML
+             + "</p><p>김치찌개</p>"),
+        ])
+        self.assertEqual([h[0] for h in search(self.db_path, "김치")],
+                         ["http://a.test/"])  # 색인은 통짜 본문을 보므로 문서는 나온다
+        self.assertEqual(indexer.passages(self.db_path, "김치"), [])
+
+    def test_block_ending_exactly_at_the_cap_is_still_a_passage(self):
+        # 경계 — 캡 **직전까지는 온전히** 읽는다. 한 글자 좁히는 변이가 여기서 죽는다
+        # (마지막 글자가 정확히 캡의 끝자리라 `[:cap - 1]` 이면 '김치찌' 가 된다)
+        tail = "<p>김치찌개"  # 닫는 태그가 없다 — 캡의 끝이 곧 문자열의 끝이다
+        head = "<p>" + "봄" * (indexer.MAX_PASSAGE_HTML - len(tail) - 7) + "</p>"
+        html = head + tail
+        self.assertEqual(len(html), indexer.MAX_PASSAGE_HTML)  # 자를 것이 한 글자도 없다
+        self._seed_and_index([("http://a.test/", html)])
+        self.assertEqual(indexer.passages(self.db_path, "김치")[0][3], "김치찌개")
+
+    def test_cut_inside_a_tag_does_not_leak_markup_into_the_passage(self):
+        # 갭 탐색 — HTML 모양 축. 위 두 캡 테스트는 잘린 자리가 **평문 한가운데**
+        # (`"봄" * cap`)라 「마크업 한가운데서 잘린다」를 아무도 안 밟았다.
+        # `html.parser` 는 EOF 에 남은 미완성 태그를 **데이터로 흘린다** — 긴 속성값
+        # (위키·CMS 의 `href`)이 캡에 걸리면 근거 문단이 `... <a href="xxx` 로 끝난다.
+        # 소비자는 기계다: 출처가 붙은 텍스트를 달라고 했는데 마크업 조각을 받는다
+        cap = indexer.MAX_PASSAGE_HTML
+        filler = "<p>" + "봄" * (cap - 40) + "</p>"
+        html = filler + '<p>김치찌개 <a href="' + "x" * 200 + '">링크</a></p>'
+        self.assertEqual(html[cap - 1], "x")  # 캡이 속성값 한가운데 떨어진다
+        self._seed_and_index([("http://a.test/", html)])
+        text = indexer.passages(self.db_path, "김치")[0][3]
+        self.assertNotIn("<", text)
+        self.assertEqual(text, "김치찌개")
+
+    def test_a_cut_whose_last_bracket_is_the_first_character_keeps_the_document(self):
+        # 되감기의 뿌리 — 「`<` 가 있나」가 아니라 「그 `<` 가 안 닫혔나」다.
+        # 문서 전체가 문단 하나면 캡 안의 마지막 `<` 는 **맨 앞의 `<p>`** 이고,
+        # `html[:0]` 은 문서를 통째로 지운다 — 근거를 못 내는 게 아니라 문서가
+        # `/passages` 에서 사라진다(잃는 원문 최대 캡 전부).
+        # `<` 의 위치 축(맨앞·중간·없음) 중 «맨앞» 이다
+        html = "<p>김치찌개 " + "가" * (indexer.MAX_PASSAGE_HTML + 5000) + "</p>"
+        self._seed_and_index([("http://a.test/", html)])
+        hits = indexer.passages(self.db_path, "김치")
+        self.assertEqual([h[0] for h in hits], ["http://a.test/"])
+        self.assertTrue(hits[0][3].startswith("김치찌개 가"), hits[0][3][:20])
+
+    def test_markup_broken_in_the_source_leaks_even_under_the_cap(self):
+        # 형제 경로 — 컷은 되감기가 필요한 **한 가지 원인일 뿐**이다. 원문 자체가
+        # 안 닫힌 채로 크롤된 문서(잘린 응답·손으로 쓴 HTML)는 캡보다 짧아서
+        # 캡 조건에 걸린 되감기를 지나지 않고, `html.parser` 는 EOF 의 미완성
+        # 태그를 그대로 데이터로 흘린다. 소비자는 다시 마크업 조각을 받는다
+        html = '<p>김치찌개 <a href="' + "x" * 200
+        self.assertLess(len(html), indexer.MAX_PASSAGE_HTML)  # 캡 경로를 안 지난다
+        self._seed_and_index([("http://a.test/", html)])
+        text = indexer.passages(self.db_path, "김치")[0][3]
+        self.assertNotIn("<", text)
+        self.assertEqual(text, "김치찌개")
+
+    def test_a_document_without_any_tag_keeps_its_last_character(self):
+        # `<` 위치 축의 «없음». 되감기를 «`<` 가 `>` 보다 앞서지 않으면» 처럼
+        # 등호를 넣어 쓰면 태그 0개 문서에서 둘 다 -1 이라 `html[:-1]` 이 되고
+        # 마지막 글자가 조용히 사라진다 — 무조건 되감는 변이도 여기서 죽는다
+        self._seed_and_index([("http://a.test/", "김치찌개 만드는 법")])
+        self.assertEqual(indexer.passages(self.db_path, "김치")[0][3], "김치찌개 만드는 법")
+
+    def test_an_unclosed_comment_holding_a_bracket_does_not_become_the_passage(self):
+        # 갭 탐색(테스트 4) — 위 세 단언이 쓰는 입력의 모양이 **하나뿐이었다**:
+        # 안 닫힌 `<` 뒤에 `>` 가 한 개도 없다. 그래서 되감기를 「마지막 `<` 가
+        # 마지막 `>` 보다 뒤냐」로 물어도 다 걸렸다. 안 닫힌 것이 **자기 안에 `>` 를
+        # 담을 수 있는 구성물**(주석)이면 비교가 뒤집혀 되감기가 아예 안 걸리고,
+        # `html.parser` 는 EOF 의 미완성 주석을 데이터로 흘린다 — 화면에 안 보이는
+        # 주석 내용이 근거 문단이 된다(사양 기능 8: 문단은 원문에서 읽히는 텍스트다)
+        html = "<p>김치찌개 <!-- TODO: <a href=x> 옛 링크"
+        self.assertLess(html.rfind("<"), html.rfind(">"))  # 되감기 조건을 안 지난다
+        self._seed_and_index([("http://a.test/", html)])
+        text = indexer.passages(self.db_path, "김치")[0][3]
+        self.assertNotIn("<", text)
+        self.assertEqual(text, "김치찌개")
+
+    def test_an_unclosed_tag_whose_attribute_holds_a_bracket_does_not_leak(self):
+        # 같은 뒤집힘을 **태그**로 밟는다. 위 주석 단언과 갈라 두는 이유는 고칠 자리가
+        # 갈리기 때문이다 — 주석만 아는 수리(`<!--` 를 따로 찾는다)는 이쪽을 안 닫는다.
+        # `title="a > b"`·`onclick="if(a>b)"` 는 위키·CMS 출력에 그대로 있다
+        html = '<p>김치찌개 <a title="a > b" href="' + "x" * 200
+        self.assertLess(html.rfind("<"), html.rfind(">"))  # 되감기 조건을 안 지난다
+        self._seed_and_index([("http://a.test/", html)])
+        text = indexer.passages(self.db_path, "김치")[0][3]
+        self.assertNotIn("<", text)
+        self.assertEqual(text, "김치찌개")
+
+    def test_a_document_ending_in_a_truncated_entity_keeps_its_passage(self):
+        # 위 둘을 닫는 가장 짧은 수리는 **파서에 묻는 것**이다(`feed()` 가 못 삼키고
+        # 남긴 꼬리를 `close()` 전에 버린다). 그 수리는 잘린 엔티티도 함께 버리는데,
+        # `convert_charrefs` 는 엔티티가 끝날 때까지 **앞의 텍스트까지** 붙들고 있어
+        # 문단이 통째로 사라진다(실측: `<p>김치찌개 &am` → `[]`). 리뷰 3 이 잡은
+        # «문서가 통째로 사라진다» 가 수리를 타고 되돌아오는 문이라 여기서 막는다 —
+        # 잘린 엔티티는 평문이고, 평문은 마크업으로 안 샌다(`indexer.py` 주석의 계약)
+        self._seed_and_index([("http://a.test/", "<p>김치찌개 &am")])
+        self.assertEqual(indexer.passages(self.db_path, "김치")[0][3], "김치찌개 &am")
+
+    def test_cap_and_passage_limit_together_stay_inside_the_budget(self):
+        # **값** 가드다 — 위 둘은 fixture 를 상수에서 만들어 값과 함께 늘어나므로
+        # "10만 → 100만" 변이를 못 잡는다(실측: 안 죽었다). 여기서 죽는다.
+        # 손잡이는 둘이고 다른 파일에 산다 — 캡을 그대로 두고 `PASSAGE_LIMIT` 만
+        # 올려도 예산이 깨지므로 곱해서 본다. 사양 성능 5 예산 500ms 의 **1/3**.
+        # **계수 옆에 그 숫자를 낸 입력의 모양을 적는다** — 앞의 0.118 은 «한글·태그
+        # 촘촘» 한 벌에서만 재서 3배 틀렸다(계획 48 리뷰 2). 0.44 는 낱말마다
+        # `<b>`/`<i>`/`<em>` 이 낀 위키·CMS 출력 모양의 1,000자당 값이다(계획 48 리뷰
+        # 2 실측 0.352 · 개발 5 재측 0.327 · **계획 51 리뷰 2 재측 0.439 · 개발 3
+        # 재측 0.413** — 낮은 쪽으로 안 내린다).
+        # **배정치가 25% → 1/3 로 움직였다**(계획 51 리뷰 2 [R51-4]). 계획 51 이 숨김
+        # 판정과 암묵적 닫기를 넣어 계수가 0.352 → 0.44 로 올랐고, 캡도 `PASSAGE_LIMIT`
+        # 도 안 건드렸다. 이 선을 25% 로 도로 조이려면 캡을 28,000 으로 내려야 하고
+        # 그것은 «긴 문서의 뒷부분 근거» 를 더 자르는 별개 판단이다. 실물 코퍼스 p95 는
+        # 1.51 → 1.54ms(예산의 0.3%)라 이 154ms 는 **캡 최악 모양의 상한**이지 실측이 아니다.
+        # **«모양» 으로는 재현이 안 돼 이 숫자가 세 번 낡았다 — 축은 태그 밀도다**
+        # (테스트 3 재측정): ms/1000자 ≈ 0.0025 × 태그/1000자. 0.44 는 **태그
+        # 169개/1000자** 한 점이고 오늘 0.436 이라 여전히 참인데, 같은 말로 태그
+        # 200개/1000자 벌을 만들면 0.502(176ms)라 이 배정치를 넘는다. **캡 안 최악은
+        # 이 축의 끝**이다 — `<li>가</li>` 0.535 · `<p>가</p>` 0.665 · 안 닫은
+        # `<p>가` **0.901**(10건 **315ms · 예산의 63%**)로 위 154ms 의 **2.1배**.
+        # 그래서 이 단언의 1/3 은 «여유» 가 아니라 그 **모양 배수를 흡수하는 자리**다 —
+        # 1/3 을 지키면 최악 모양이 500ms 안에 든다(154 × 2.1 = 323ms). 계수를 최악
+        # 모양으로 갈아 끼우면 캡을 18,000 으로 내려야 초록인데, 그것은 «긴 문서의
+        # 뒷부분 근거» 를 반으로 자르는 계획 몫이다(`design_passage-api.md` 갈림길 5).
+        from websearch import serve
+        worst_ms = indexer.MAX_PASSAGE_HTML / 1000 * 0.44 * serve.PASSAGE_LIMIT
+        self.assertLessEqual(worst_ms, 500 / 3, "%.0fms" % worst_ms)
+
+    def test_missing_db_raises(self):
+        with self.assertRaises(FileNotFoundError):
+            indexer.passages(os.path.join(self.dir.name, "없는.db"), "김치")
+
+    def test_db_without_pages_raises_for_every_query_shape(self):
+        # 색인 `docs` 는 살아 있는데 원본 창고가 통째로 없는 DB. 세 질의가 **같은**
+        # 예외를 내는 것이 요점이다 — 판정이 `hits` 의 비어 있음에 달리면 같은 DB 가
+        # `q=김치찌개` 면 터지고 `q=%01` 이면 조용한 `[]` 로 갈린다(계획 47 과 같은 고장).
+        self._seed_and_index([("http://a.test/", "<title>김치</title><p>김치찌개</p>")])
+        db = sqlite3.connect(self.db_path)
+        self.addCleanup(db.close)
+        db.execute("DROP TABLE pages")
+        db.commit()
+        for query in ("김치찌개", "zzzznope", "\x01"):
+            with self.subTest(query=query):
+                with self.assertRaises(indexer.NoCrawlDataError):
+                    indexer.passages(self.db_path, query)
+
+    def test_stale_index_raises(self):
+        # 503 경로 — 조용한 빈 목록은 "결과 0건" 과 구분되지 않는다.
+        # `search()` 를 부르는 한 공짜로 물려받는다(자체 질의를 짜면 잃는다)
+        store = Store(self.db_path)
+        store.upsert("http://a.test/", "<title>김치</title><p>김치찌개</p>", 200)
+        db = sqlite3.connect(self.db_path)
+        self.addCleanup(db.close)
+        db.execute(TestSchemaDrift.OLD_SCHEMA)
+        db.execute("INSERT INTO docs(title, body, url) VALUES ('김치', '김치찌개', 'http://a.test/')")
+        db.commit()
+        with self.assertRaises(indexer.StaleIndexError):
+            indexer.passages(self.db_path, "김치")
+
+    def test_corrupt_db_is_loud(self):
+        self._seed_and_index([("http://a.test/", "<p>김치</p>")])
+        with open(self.db_path, "wb") as fh:
+            fh.write(b"NOT a sqlite file\n" * 64)
+        with self.assertRaises(sqlite3.DatabaseError):
+            indexer.passages(self.db_path, "김치")
+
+    def test_unindexed_db_returns_empty(self):
+        Store(self.db_path).upsert("http://a.test/", "<p>김치</p>", 200)
+        self.assertEqual(indexer.passages(self.db_path, "김치"), [])
 
 
 class TestDbOpenIsAtomic(unittest.TestCase):

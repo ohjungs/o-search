@@ -177,6 +177,257 @@ class TestSchemaVersion(ServeTestCase):
                 self.assertNotIn("version", body.lower())
 
 
+PASSAGE_Q = "/passages?q=%EA%B9%80%EC%B9%98"  # /passages?q=김치
+
+
+class TestPassagesEndpoint(ServeTestCase):
+    """GET /passages — 근거 문단(계획 48). 계약은 `/search` 와 **한 벌**이다."""
+
+    def test_200_lists_url_title_position_text(self):
+        status, body, headers = self.get(PASSAGE_Q)
+        self.assertEqual(status, 200, body)
+        self.assertIn("application/json", headers["Content-Type"])
+        self.assertTrue(body["passages"], "매치가 있는 코퍼스인데 문단이 0건이다")
+        for passage in body["passages"]:
+            self.assertEqual(set(passage), {"url", "title", "position", "text"})
+            # 순번은 정수다 — 문자열이면 소비자의 비교가 조용히 문자열 비교가 된다
+            self.assertIsInstance(passage["position"], int)
+            self.assertTrue(passage["text"].strip(), "빈 문단은 근거가 아니다")
+
+    def test_response_carries_no_pagination_fields(self):
+        """`has_next`·`page` 는 **응답에 없다**(설계 계약) — 없는 것도 계약이다.
+
+        페이지네이션을 안 열었으므로 필드를 두면 소비자가 따라갈 손잡이가 생긴다.
+        최상위 키 집합으로 잰다 — 한 필드만 보면 다른 필드가 새는 것을 못 본다.
+        """
+        _, body, _ = self.get(PASSAGE_Q)
+        self.assertEqual(set(body), {"version", "query", "passages"})
+
+    def test_server_does_not_pick_passages_of_its_own(self):
+        """문단 로직은 `indexer.passages()` 한 벌이다 — 서버가 다시 고르면 여기서 죽는다."""
+        _, body, _ = self.get(PASSAGE_Q)
+        self.assertEqual(
+            [(p["url"], p["position"], p["text"]) for p in body["passages"]],
+            [(url, pos, text) for url, _title, pos, text
+             in indexer.passages(self.db, "김치", limit=serve.PASSAGE_LIMIT)])
+
+    def test_title_is_the_document_title_not_a_placeholder(self):
+        """갭 탐색(테스트 5) — `title` **값**을 아무 데서도 안 쟀다.
+
+        `"title": ""` 로 바꾸는 변이가 573건 전부 초록으로 살아남았다. 위 200 검사는
+        키 **집합**만 보고, `test_server_does_not_pick_passages_of_its_own` 은
+        (url·position·text)만 비교한다. 소비자가 근거를 인용할 때 사람에게 보이는
+        것은 URL 이 아니라 제목이라 빈 값은 조용한 품질 손실이다.
+        """
+        _, body, _ = self.get(PASSAGE_Q)
+        self.assertEqual({p["url"]: p["title"] for p in body["passages"]},
+                         {"http://a.test/1": "김치찌개 만들기",
+                          "http://a.test/2": "김치 담그기"})
+
+    def test_query_echoed_in_response(self):
+        _, body, _ = self.get(PASSAGE_Q)
+        self.assertEqual(body["query"], "김치")
+
+    def test_no_match_is_empty_list_not_error(self):
+        status, body, _ = self.get("/passages?q=zzzznotfound")
+        self.assertEqual((status, body["passages"]), (200, []))
+
+    def test_missing_query_is_400_not_traceback(self):
+        status, body, _ = self.get("/passages")
+        self.assertEqual(status, 400, body)
+        self.assertNotIn("Traceback", json.dumps(body, ensure_ascii=False))
+
+    def test_long_query_is_400_here_too(self):
+        """`_parse` 를 재사용하면 공짜로 참이다 — 안 쓰고 직접 읽는 변이가 여기서 죽는다."""
+        status, _, _ = self.get(
+            "/passages?q=" + urllib.parse.quote("가" * (serve.MAX_QUERY + 1)))
+        self.assertEqual(status, 400)
+
+    def test_page_two_is_400_not_the_same_passages_again(self):
+        """페이지를 안 나누므로 **받되 거절한다**(설계 갈림길 2 · 변이 M6).
+
+        조용히 무시하면 `page` 를 올리는 소비자가 같은 문단을 영원히 받는다 —
+        그쪽이 400 보다 나쁘다. 200 이 나오면 그 침묵이 계약이 된 것이다.
+        """
+        status, body, _ = self.get(PASSAGE_Q + "&page=2")
+        self.assertEqual(status, 400, body)
+        self.assertIn("page", body["error"])
+
+    def test_page_one_is_accepted(self):
+        # 거절이 `page` 자체를 막는 것이 되면 안 된다 — 1 은 기본값이자 유일한 유효값이다
+        status, _, _ = self.get(PASSAGE_Q + "&page=1")
+        self.assertEqual(status, 200)
+
+
+class TestPassageLimitIsServerSide(ServeTestCase):
+    """문단 수는 **서버 상수**다(설계 갈림길 2) — 예산이 클라이언트 손에 있으면 안 된다."""
+
+    pages = MANY_PAGES
+
+    def test_client_cannot_turn_the_knob(self):
+        _, body, _ = self.get(PASSAGE_Q)
+        self.assertEqual(len(body["passages"]), serve.PASSAGE_LIMIT)
+        _, wider, _ = self.get(PASSAGE_Q + "&limit=50")
+        self.assertEqual(len(wider["passages"]), serve.PASSAGE_LIMIT)
+
+
+class TestLongPassageIsTruncated(ServeTestCase):
+    """문단 하나가 응답을 통째로 채우지 못한다 — MAX_QUERY·MAX_PAGE 와 같은 자원 상한(변이 M8)."""
+
+    pages = {"http://long.test/1": "<html><title>김치</title><body><p>%s</p></body></html>"
+                                   % ("김치 " * 2000)}
+
+    def test_passage_is_cut_at_max(self):
+        # **값까지 단언한다** — `serve.MAX_PASSAGE` 로 재면 fixture 가 값을 따라 움직여
+        # 값을 바꾸는 변이가 안 죽는다(실측: 2000→500 · 2000→5000 둘 다 557건 전부 초록).
+        # 잘라 놓고 상한만 넓히면 응답이 소리 없이 부풀고, 좁히면 근거 문단이 문장
+        # 중간에서 끊겨 부르는 쪽 모델에 반 토막이 들어간다 — 둘 다 여기로 와야 한다.
+        # fixture 는 8,000자라 넓히는 변이도 «안 잘린 길이 ≠ 2000» 으로 죽는다.
+        _, body, _ = self.get(PASSAGE_Q)
+        self.assertEqual(len(body["passages"][0]["text"]), 2000,
+                         "MAX_PASSAGE 를 바꿨으면 이 줄도 함께 바꾼다")
+
+
+class TestPassagesMissingDb(ServeTestCase):
+    """없는 DB 는 여기서도 503 이다 — 색인을 다시 돌리면 낫는 상태다(사양 디자인 5)."""
+
+    pages = None
+
+    def test_missing_db_is_503_without_internals(self):
+        with mock.patch("sys.stderr", new_callable=io.StringIO):
+            status, body, headers = self.get(PASSAGE_Q)
+        self.assertEqual(status, 503, body)
+        self.assertIn("application/json", headers["Content-Type"])
+        self.assertEqual(body["error"], "색인이 아직 준비되지 않았다")
+        self.assertNotIn(self.db, json.dumps(body, ensure_ascii=False), "DB 경로가 응답으로 샜다")
+
+
+class TestPassagesBrokenDb(ServeTestCase):
+    """손상 DB 는 503 이 아니라 500 이다 — 기다린다고 낫지 않는다."""
+
+    def test_corrupt_db_is_500_not_503(self):
+        with open(self.db, "wb") as fh:
+            fh.write(b"NOT a sqlite file\n" * 64)
+        with mock.patch("sys.stderr", new_callable=io.StringIO) as err:
+            status, body, _ = self.get(PASSAGE_Q)
+            logged = err.getvalue()
+        self.assertEqual(status, 500, body)
+        self.assertEqual(body["error"], "검색 중 오류가 났다")
+        self.assertNotIn(self.db, json.dumps(body, ensure_ascii=False), "DB 경로가 샜다")
+        self.assertIn("DatabaseError", logged, "500 의 원인이 로그에 안 남았다")
+
+
+class TestPassagesWithoutPagesTable(ServeTestCase):
+    """색인은 살아 있는데 원본 창고(`pages`)가 없는 DB — 크롤·색인을 다시 돌리면 낫는다."""
+
+    def setUp(self):
+        super().setUp()
+        db = sqlite3.connect(self.db)
+        db.execute("DROP TABLE pages")
+        db.commit()
+        db.close()
+
+    def test_every_query_shape_is_503(self):
+        # 매치 있음 · 매치 없는 낱말 · 무토큰. 셋이 갈리면 소비자가 같은 순간의 같은 DB 를
+        # «우리가 터졌다» 와 «근거가 없다» 로 다르게 읽는다.
+        for q in ("%EA%B9%80%EC%B9%98", "zzzznope", "%01"):
+            with self.subTest(q=q), mock.patch("sys.stderr", new_callable=io.StringIO):
+                status, body, _ = self.get("/passages?q=" + q)
+                # **단언도 `subTest` 안이다.** 밖에 두면 첫 질의에서 멈춰 «세 질의가
+                # 갈리는지» 라는 이 테스트의 축 자체를 못 잰다 — 실측: 판정을 `hits` 에
+                # 매다는 변이가 여기서는 라벨 없는 실패 1건, 같은 축의
+                # `test_db_without_pages_raises_for_every_query_shape` 에서는 어느 질의가
+                # 갈렸는지 적힌 실패 2건을 냈다.
+                self.assertEqual(status, 503, body)
+                self.assertEqual(body["error"], "색인이 아직 준비되지 않았다")
+                self.assertNotIn(self.db, json.dumps(body, ensure_ascii=False), "DB 경로가 샜다")
+
+    def test_search_still_answers_200(self):
+        # 색인만으로 되는 검색은 안 깬다 — 가드가 `search()` 로 번지면 여기가 죽는다.
+        status, body, _ = self.get("/search?q=%EA%B9%80%EC%B9%98")
+        self.assertEqual(status, 200, body)
+        self.assertTrue(body["results"], "색인이 멀쩡한데 결과가 비었다")
+
+    def test_html_screen_still_answers_200(self):
+        """화면 사다리를 **안 넓힌 것**이 계약이다 (설계 갈림길 3).
+
+        화면은 `_page_hits` → `search()` 만 타고 `search()` 는 `NoCrawlDataError` 를
+        안 낸다 — 대칭으로 넓히면 어떤 테스트로도 RED 를 못 만드는 줄이 생긴다는 것이
+        좁게 둔 근거였다. 그 근거가 되는 「200·결과 있음」은 `serve.py` 주석의 실측값으로만
+        있었다. 여기서 잰다 — 가드가 `search()` 쪽으로 번지면 이 줄이 먼저 빨개진다.
+        """
+        status, body, _ = self.raw("/?q=%EA%B9%80%EC%B9%98")
+        self.assertEqual(status, 200, body[:200])
+        self.assertIn("김치찌개 만들기", body, "색인이 멀쩡한데 화면에 결과가 없다")
+
+
+class TestPassagesWithoutHtmlColumn(ServeTestCase):
+    """`pages` 는 있는데 `html` 열이 없다 — 설계서 4절이 「500 이 맞는 이름」으로 적어 둔 천장.
+
+    **천장은 500 하나가 아니라 500/200 갈림이다.** 가드는 테이블의 *유무만* 보므로
+    매치되는 질의만 `SELECT html` 에 닿아 500 이 되고, 매치 없는 질의는 루프가 한 번도
+    안 돌아 200 `[]` 이 된다 — 계획 53 이 테이블 째로 없는 DB 에서 닫은 바로 그 고장이
+    열 하나 아래에 그대로 남아 있다.
+
+    **아래 값은 바라는 답이 아니라 오늘의 답이다.** 천장을 옮기는 날 이 테스트가 빨개져
+    「그 갈림을 알고 바꾼다」가 되게 하려고 잰다.
+    """
+
+    def setUp(self):
+        super().setUp()
+        db = sqlite3.connect(self.db)
+        db.execute("DROP TABLE pages")
+        # 열 하나만 빠진 창고. `ALTER … RENAME/DROP COLUMN` 은 sqlite 버전을 타서 새로 만든다.
+        db.execute("CREATE TABLE pages (url TEXT PRIMARY KEY, status INTEGER)")
+        db.executemany("INSERT INTO pages VALUES (?, 200)", [(url,) for url in PAGES])
+        db.commit()
+        db.close()
+
+    def test_matching_query_is_500(self):
+        # 열이 빠진 것은 크롤·색인을 다시 돌린다고 낫는 상태가 아니다 — 503(재시도하라)이
+        # 아니라 500 이 맞는 이름이라는 것이 설계 4절의 판정이다.
+        with mock.patch("sys.stderr", new_callable=io.StringIO) as err:
+            status, body, _ = self.get(PASSAGE_Q)
+            logged = err.getvalue()
+        self.assertEqual(status, 500, body)
+        self.assertEqual(body["error"], "검색 중 오류가 났다")
+        self.assertNotIn(self.db, json.dumps(body, ensure_ascii=False), "DB 경로가 샜다")
+        self.assertIn("OperationalError", logged, "500 의 원인이 로그에 안 남았다")
+
+    def test_query_without_match_is_200_the_split_that_is_left(self):
+        # 같은 순간의 같은 고장난 DB 인데 소비자가 받는 답이 질의 내용으로 갈린다.
+        # `pages` 테이블 자체가 없을 때는 이 갈림이 닫혔다(위 클래스) — 열 단위로는 열려 있다.
+        for q in ("zzzznope", "%01"):
+            with self.subTest(q=q):
+                status, body, _ = self.get("/passages?q=" + q)
+                self.assertEqual(status, 200, body)  # 먼저 잰다 — 503 이면 아래가 KeyError 다
+                self.assertEqual(body["passages"], [])
+
+
+class TestPassagesSchemaVersion(ServeTestCase):
+    """`_send` 를 안 쓰고 직접 JSON 을 쓰는 변이(M7)가 여기서 죽는다.
+
+    `/search` 의 다섯을 재는 자리(`TestSchemaVersion`)와 같은 이유로 **오류 응답까지**
+    잰다 — 200 만 재면 계약을 호출부로 흩어 놓는 변이가 안 죽는다.
+    """
+
+    def test_every_passages_response_carries_version(self):
+        for path, expected in ((PASSAGE_Q, 200), ("/passages", 400),
+                               (PASSAGE_Q + "&page=2", 400)):
+            with self.subTest(path=path):
+                status, body, _ = self.get(path)
+                self.assertEqual((status, body["version"]), (expected, 1))
+        for exc, expected in ((FileNotFoundError("db"), 503),
+                              (indexer.StaleIndexError("old"), 503),
+                              (indexer.NoCrawlDataError("nopages"), 503),
+                              (AttributeError("boom"), 500)):
+            with self.subTest(status=expected, exc=type(exc).__name__), \
+                    mock.patch("websearch.indexer.passages", side_effect=exc), \
+                    mock.patch("sys.stderr", new_callable=io.StringIO):
+                status, body, _ = self.get(PASSAGE_Q)
+            self.assertEqual((status, body["version"]), (expected, 1))
+
+
 class TestPagination(ServeTestCase):
     """20건 색인 = 2페이지. 페이지 경계와 has_next 를 못박는다."""
 
@@ -496,8 +747,25 @@ class TestProgrammingErrorStays500(ServeTestCase):
             logged = err.getvalue()
         self.assertEqual(status, 500, body)
         self.assertEqual(body["error"], "검색 중 오류가 났다")
-        self.assertIn("search 실패", logged, "500 이 stderr 에 한 줄도 안 남았다")
+        # 앞의 `/` 까지 단언한다 — `"search 실패"` 로만 재면 경로를 안 찍는 옛 문구가
+        # 부분문자열로 통과한다(리뷰 4 변이 Y4 가 564건 전부 초록이었다)
+        self.assertIn("/search 실패", logged, "500 이 stderr 에 한 줄도 안 남았다")
         self.assertIn("AttributeError", logged, "500 의 원인이 로그에 안 남았다")
+
+    def test_the_500_log_names_which_of_the_two_json_paths_broke(self):
+        """500 의 유일한 흔적이 로그라, 두 경로가 사다리를 나눠 쓰면 **구별돼야** 한다.
+
+        `/search` 쪽 단언만으로는 안 된다 — 경로를 안 찍어도 그 문구는 남는다.
+        갈라지는 것을 재는 자리는 여기다.
+        """
+        with mock.patch("websearch.indexer.passages", side_effect=AttributeError("boom")), \
+                mock.patch("sys.stderr", new_callable=io.StringIO) as err:
+            status, body, _ = self.get("/passages?q=%EA%B9%80%EC%B9%98")
+            logged = err.getvalue()
+        self.assertEqual(status, 500, body)
+        self.assertEqual(body["error"], "검색 중 오류가 났다")
+        self.assertIn("/passages 실패", logged, "/passages 의 500 이 어느 경로인지 안 남겼다")
+        self.assertNotIn("/search 실패", logged, "터진 것은 /passages 인데 /search 라고 적었다")
 
     def test_programming_error_is_500_on_the_html_path(self):
         with mock.patch("websearch.serve._page_hits", side_effect=AttributeError("boom")), \
@@ -578,8 +846,12 @@ class TestSlowClient(ServeTestCase):
         OFFSET 990 짜리 질의(7ms)를 상한으로 막으면서 이쪽을 열어두면 균형이 안 맞는다.
         """
         handler = self.server.RequestHandlerClass
-        # 실제로 나가는 값을 단언한다 — 아래에서 짧게 갈아끼우고 재는 건 기제가 도는지만 본다
-        self.assertIsNotNone(handler.timeout, "핸들러에 소켓 타임아웃이 없다(stdlib 기본 None)")
+        # 실제로 나가는 값을 단언한다 — 아래에서 짧게 갈아끼우고 재는 건 기제가 도는지만 본다.
+        # **`is not None` 은 값을 안 붙든다** — 10→600 으로 넓히는 변이가 557건 전부
+        # 초록으로 지나갔다(실측). 이 값이 곧 공격자가 스레드 하나를 공짜로 붙잡는 초다.
+        self.assertEqual(handler.timeout, 10,
+                         "핸들러 소켓 타임아웃이 REQUEST_TIMEOUT 10초가 아니다"
+                         "(stdlib 기본은 None — 무한정 붙잡는다)")
         with mock.patch.object(handler, "timeout", 0.3):
             sock = socket.create_connection(self.server.server_address, timeout=10)
             self.addCleanup(sock.close)
@@ -676,7 +948,8 @@ class TestResultsPage(ServeTestCase):
         """이스케이프가 이 계획에서 가장 공들인 자리다. 두 헤더가 그 뒤를 받친다 —
         한 줄이 뚫렸을 때 CSP 가 인라인 스크립트 실행을 막고, nosniff 는 브라우저가
         JSON 을 HTML 로 재해석하는 경로를 닫는다. JS 0KB 라 CSP 가 잃을 것이 없다."""
-        for path in ("/", "/?q=" + urllib.parse.quote("김치"), "/search?q=" + urllib.parse.quote("김치")):
+        for path in ("/", "/?q=" + urllib.parse.quote("김치"),
+                     "/search?q=" + urllib.parse.quote("김치"), PASSAGE_Q):
             with self.subTest(path=path):
                 _, _, headers = self.raw(path)
                 self.assertEqual(headers.get("X-Content-Type-Options"), "nosniff", path)

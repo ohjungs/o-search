@@ -1,7 +1,8 @@
-"""검색 HTTP 서버. 경로 둘이다.
+"""검색 HTTP 서버. 경로 셋이다.
 
-    GET /          검색 홈 (HTML)          GET /?q=…      결과 페이지 (HTML)
-    GET /search?q= 검색 결과 (JSON)
+    GET /            검색 홈 (HTML)        GET /?q=…      결과 페이지 (HTML)
+    GET /search?q=   검색 결과 (JSON, 10건 단위 · page 로 넘긴다)
+    GET /passages?q= 근거 문단 (JSON, 문서당 최대 1개 · 페이지를 나누지 않는다)
 
 요청마다 sqlite 연결을 새로 연다 — 연결 open+close 가 0.04ms 로 질의(1.16ms)의
 3% 라 아낄 것이 없다(docs/design_search-api.md 탐침). 그래서 indexer.search() 를
@@ -24,6 +25,12 @@ MAX_QUERY = 200
 # 성능이 아니라 자원 고갈 방어다 — OFFSET 이 깊어질수록 정렬 결과에서 뽑아 버리는 행이
 # 선형으로 는다(설계 탐침: offset 0 에서 1.1ms, 990 에서 7.2ms).
 MAX_PAGE = 100
+# 문단 수는 **서버 상수**다 — 사양 성능 5 가 *"못 지키면 문단 수를 줄이지, 예산을 늘리지
+# 않는다"* 라고 서버 손잡이로 못박았다. 클라이언트가 돌리면 예산이 클라이언트 손에 있는 것이 된다.
+PASSAGE_LIMIT = 10
+# 문단 하나가 응답을 통째로 채우는 것을 막는다 — MAX_QUERY·MAX_PAGE 와 같은 자리의 자원
+# 상한이다. 자르면서 질의어가 잘려 나가면 정확도가 떨어지는 것이 정직하다(안 보정한다).
+MAX_PASSAGE = 2000
 # 요청 라인을 끝내지 않는 연결은 스레드를 무기한 점유한다(슬로로리스). 깊은 OFFSET 을
 # 막으면서 이쪽을 열어두면 균형이 안 맞는다 — 이게 훨씬 싼 고갈 경로다.
 REQUEST_TIMEOUT = 10
@@ -246,27 +253,52 @@ def make_server(db_path, port=8000):
             if parts.path == "/":
                 self._do_html(urllib.parse.parse_qs(parts.query))
                 return
-            if parts.path != "/search":
+            if parts.path not in ("/search", "/passages"):
                 self._send(404, {"error": "없는 경로: %s" % parts.path})
                 return
+            # 두 JSON 경로가 **같은 사다리 한 벌**을 쓴다 — 갈래마다 try 를 두면
+            # 400·500·503 판정이 세 벌이 되고, 계획 47 이 한곳에 모은 것이 다시 흩어진다
+            # (indexer.passages 가 search 를 부르는 것과 같은 이유다).
+            passages = parts.path == "/passages"
             try:
                 query, page = _parse(urllib.parse.parse_qs(parts.query))
-                # 탐침 한 줄로 has_next 를 판정한다 — 개수 질의는 두 번째 전수 질의라
-                # p95 에 그대로 얹힌다 (design_search-api.md 계약)
-                hits = _page_hits(db_path, query, page)
+                if passages:
+                    # 페이지네이션을 안 연다(설계 갈림길 2) — 조용히 무시하면 page 를
+                    # 올리는 소비자가 같은 문단을 영원히 받는다. 그쪽이 400 보다 나쁘다.
+                    if page != 1:
+                        raise ValueError("page 는 1 이어야 한다 — /passages 는 페이지를 나누지 않는다")
+                    found = indexer.passages(db_path, query, limit=PASSAGE_LIMIT)
+                else:
+                    # 탐침 한 줄로 has_next 를 판정한다 — 개수 질의는 두 번째 전수 질의라
+                    # p95 에 그대로 얹힌다 (design_search-api.md 계약)
+                    hits = _page_hits(db_path, query, page)
             except ValueError as exc:
                 self._send(400, {"error": str(exc)})
             # **`except Exception` 앞이어야 한다** — 뒤면 영영 안 닿는다. 색인을 다시
             # 돌리면 낫는 상태에 500(재시도 안 함)은 틀린 신호다. 이 코드를 읽는 것은
             # 사람이 아니라 인프라다(사양 디자인 5 · design_json-contract.md 갈림길 B).
             # 본문은 고정 문구다 — `str(exc)` 는 곧 DB 경로다.
-            except (FileNotFoundError, indexer.StaleIndexError) as exc:
+            except (FileNotFoundError, indexer.StaleIndexError,
+                    indexer.NoCrawlDataError) as exc:
                 self.log_error("색인 없음: %r", exc)
                 self._send(503, {"error": "색인이 아직 준비되지 않았다"})
             except Exception as exc:  # 트레이스백을 응답 본문에 싣지 않는다
-                self.log_error("search 실패: %r", exc)
+                # 경로를 찍는다 — 사다리를 두 경로가 나눠 쓴 뒤로 "search 실패" 한 문구는
+                # /passages 가 터진 것도 그렇게 적었다. 500 의 유일한 흔적이라 어느 문이
+                # 열렸는지가 거기 있어야 한다. 값은 위 404 갈래를 지난 둘 중 하나뿐이다.
+                self.log_error("%s 실패: %r", parts.path, exc)
                 self._send(500, {"error": "검색 중 오류가 났다"})
             else:
+                if passages:
+                    # has_next·page 는 **응답에 없다** — 페이지네이션을 안 열었으므로
+                    # 소비자에게 따라갈 손잡이를 주지 않는다 (design_passage-api.md 계약).
+                    self._send(200, {
+                        "query": query,
+                        "passages": [{"url": url, "title": title, "position": pos,
+                                      "text": text[:MAX_PASSAGE]}
+                                     for url, title, pos, text in found],
+                    })
+                    return
                 self._send(200, {
                     "query": query,
                     "page": page,
@@ -289,7 +321,10 @@ def make_server(db_path, port=8000):
                 hits = _page_hits(db_path, query, page)  # JSON 경로와 **같은 한 벌**
             except ValueError as exc:
                 self._send_html(400, _error_page(str(exc), typed))
-            except (FileNotFoundError, indexer.StaleIndexError) as exc:  # JSON 과 같은 값
+            # JSON 사다리보다 **일부러 좁다** — 화면은 `_page_hits` → `search()` 만 타고
+            # `search()` 는 `NoCrawlDataError` 를 안 낸다. 대칭으로 넓히면 어떤 테스트로도
+            # RED 를 못 만드는 줄이 생긴다(실측: `pages` 없는 DB 의 `/?q=김치찌개` 는 200·1건).
+            except (FileNotFoundError, indexer.StaleIndexError) as exc:
                 self.log_error("색인 없음: %r", exc)
                 self._send_html(503, _error_page("색인이 아직 준비되지 않았다", typed))
             except Exception as exc:  # 트레이스백을 응답 본문에 싣지 않는다

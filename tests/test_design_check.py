@@ -102,7 +102,7 @@ class ContrastAxisTest(unittest.TestCase):
     def test_product_css_reports_the_ring_rule(self):
         """제품 CSS 에서 링을 그리는 규칙이 **읽혀서 화면에 찍힌다.**
 
-        이 줄이 안 찍히면 아래 아홉 변이가 전부 "우연히" 통과하는 상태로 돌아간 것이다.
+        이 줄이 안 찍히면 아래 열아홉 변이가 전부 "우연히" 통과하는 상태로 돌아간 것이다.
         값(2px)은 안 붙든다 — 붙들면 검사기 옆에 옛 값을 하나 더 두는 꼴이 된다.
         """
         fail, unmeasurable, out = run(CSS)
@@ -146,6 +146,72 @@ class ContrastAxisTest(unittest.TestCase):
             # 링이 보이고 키보드에는 안 보이므로 색 넷을 다 봐도 안 걸린다.
             ("V11 셀렉터가 포커스용이 아니다", ":focus-visible", ":hover",
              "포커스용이 아니다"),
+            # 아래 둘은 계획 49 스텝 1. 셀렉터에 `:focus` 라는 **문자열**은 남는데
+            # 링이 그려지는 조건은 키보드 포커스가 아닌 갈래다 — 부분 문자열 가드가
+            # 둘 다 통과시켰다(설계서 1절 표 ⓒⓓ, 후보 C 만 종료 2).
+            # ⓒ 는 극성이 뒤집혔다: 포커스가 **아닐 때만** 그린다.
+            ("ⓒ 셀렉터 :not(:focus-visible)", ":focus-visible",
+             ":not(:focus-visible)", "포커스용이 아니다"),
+            # ⓓ 는 자식이 받은 포커스라 링이 부모 상자에 그려진다 — 낱말 경계로 가른다.
+            ("ⓓ 셀렉터 :focus-within", ":focus-visible", ":focus-within",
+             "포커스용이 아니다"),
+            # 아래 셋은 **테스트 phase 가 찾은 ⓒⓓ 의 형제 구멍**이다 — 셋 다 종료 0 으로
+            # 살아남아 3.56:1 을 찍고 있었다(갭 탐침 실측). 셀렉터에 `:focus-visible` 이
+            # 낱말로 남아 있는데 링은 포커스받은 요소에 안 그려지는 갈래라, 조건 5 가
+            # `:not(…)` 을 **한 겹만·소문자로만** 지운 것이 그대로 구멍이 됐다.
+            # ⓔ 는 ⓒ 를 괄호 한 겹으로 감싼 것뿐이고, ⓕ 는 ⓓ 와 의미가 같고
+            # (링이 조상 상자로 간다), ⓖ 는 CSS 가 셀렉터 이름의 대소문자를 안 가린다.
+            ("ⓔ 셀렉터 :not(:is(:focus-visible))", ":focus-visible",
+             ":not(:is(:focus-visible))", "포커스용이 아니다"),
+            ("ⓕ 셀렉터 :has(:focus-visible)", ":focus-visible",
+             ":has(:focus-visible)", "포커스용이 아니다"),
+            ("ⓖ 셀렉터 대문자 :NOT(:focus-visible)", ":focus-visible",
+             ":NOT(:focus-visible)", "포커스용이 아니다"),
+            # offset 의 **세 번째** 갈래. 주석은 «없는 것과 0 과 음수는 같은 결과다» 인데
+            # 붙들려 있던 것은 앞 둘(V5·V6)뿐이었다. 음수를 거절하는 일은
+            # `float(re.match(r"[\d.]*", offset).group() or 0)` 이 `-` 앞에서 빈 문자열을
+            # 내는 데 기대고 있다 — 순진한 `float(offset.rstrip("px"))` 로 바뀌면
+            # 음수만 조용히 통과한다.
+            ("V12 offset 음수", "outline-offset:2px", "outline-offset:-2px",
+             "outline-offset"),
+            # 아래 넷은 계획 49 스텝 2. 규칙 하나 · 셀렉터 · 색 · offset 이 **전부
+            # 멀쩡한데** 링이 at-rule 안에 있어 라이트 화면에 늘 그려지지는 않는다.
+            # ⓐⓑ 가 계획서가 죽이러 온 둘이고, F3·F4 는 설계가 실측으로 찾아낸
+            # 나머지 둘이다(설계서 1절 표) — **at-rule 의 prelude 를 안 읽는 것**이
+            # 후보 C 를 고른 이유라, 「이 조건은 괜찮다」는 화이트리스트가 생기면
+            # F3·F4 가 먼저 빨개진다.
+            ("ⓐ 다크 @media 안에서만 그린다", RING_RULE,
+             "@media(prefers-color-scheme:dark){" + RING_RULE + "}", "at-rule 안에 있다"),
+            ("ⓑ @media print 안", RING_RULE,
+             "@media print{" + RING_RULE + "}", "at-rule 안에 있다"),
+            ("F3 @media (forced-colors:active) 안", RING_RULE,
+             "@media (forced-colors:active){" + RING_RULE + "}", "at-rule 안에 있다"),
+            ("F4 @layer 안", RING_RULE,
+             "@layer base{" + RING_RULE + "}", "at-rule 안에 있다"),
+            # 아래 일곱은 계획 52. 셀렉터에 `:focus-visible` 이 **낱말로 남아 있는데**
+            # 링은 포커스받은 요소가 아니라 **옆·아래 상자**에 그려지는 갈래다 — 조건 5 가
+            # 셀렉터를 한 덩어리로 봐서 「어느 compound 에 붙었나」를 안 읽은 자리다.
+            # 앞 넷이 결합자 4종(자손·`>`·`+`·`~`), 다섯째가 공백 낀 `>`,
+            # 여섯째가 쉼표 목록(조각 하나만 포커스여도 통과했다),
+            # 일곱째는 투명한 `:is()` 안의 포커스 뒤에 결합자가 붙은 것이다.
+            ("결합자 자손", ":focus-visible", ":focus-visible .hint",
+             "포커스용이 아니다"),
+            ("결합자 >", ":focus-visible", ":focus-visible>.hint", "포커스용이 아니다"),
+            ("결합자 +", ":focus-visible", ":focus-visible+.hint", "포커스용이 아니다"),
+            ("결합자 ~", ":focus-visible", ":focus-visible~.hint", "포커스용이 아니다"),
+            ("결합자 > 양옆 공백", ":focus-visible", ":focus-visible > .hint",
+             "포커스용이 아니다"),
+            ("쉼표 목록의 한 조각만 포커스", ":focus-visible", ":focus-visible,.x",
+             "포커스용이 아니다"),
+            (":is(…) 안의 포커스 뒤 결합자", ":focus-visible", ":is(:focus-visible) .hint",
+             "포커스용이 아니다"),
+            # 여덟째는 테스트 phase 가 더했다 — 깊이 세기의 **가드절**(`max(0, …)`)을
+            # 밟는 유일한 입력이다. 안 열린 `)` 로 깊이가 음수로 내려가면 그 뒤의
+            # 결합자·쉼표가 전부 «괄호 안» 으로 보여 셀렉터가 한 덩어리가 되고, 링을
+            # `.hint` 에 그리는 이 규칙이 다시 통과한다(가드를 지운 변이가 593건을
+            # 전부 통과하는 것을 실측했다). 깨진 CSS 라 판정은 측정 불능이 맞다.
+            ("안 열린 `)` 로 깊이가 음수", ":focus-visible", ":focus-visible) .hint",
+             "포커스용이 아니다"),
         ):
             with self.subTest(name):
                 fail, unmeasurable, out = run(self.twist(old, new))
@@ -155,6 +221,71 @@ class ContrastAxisTest(unittest.TestCase):
                 # 요점은 판정이 아니라 **안 찍는 것**이다 — 링이 없는데 링의 대비를
                 # 화면에 내놓으면 사람이 그 숫자를 근거로 다음 판단을 한다.
                 self.assertNotIn("--focus", out)
+
+    def test_transparent_pseudo_classes_still_draw_the_ring(self):
+        """조건 5 의 **넓어지는 쪽** 표다 — 아래 넷은 링을 포커스받은 요소에 그대로
+        그리는 정상 CSS 라 종료 0 이어야 한다.
+
+        위 변이 표가 「링이 딴 데 그려지면 죽는다」를 붙들고, 이 표가 「그 가름이
+        정상 CSS 를 안 잡아먹는다」를 붙든다. `:is()`·`:where()` 는 **투명하다** —
+        안의 `:focus-visible` 은 여전히 이 요소가 받는다. 그래서 「괄호가 보이면
+        지운다」로 넓히면 앞 둘이 먼저 빨개진다. 셋째는 괄호 **밖**에 남은 포커스가
+        살아남는지를 본다(`:not(…)` 을 지우다 뒤까지 먹으면 여기서 걸린다).
+        넷째는 CSS 가 셀렉터 이름의 대소문자를 안 가린다는 것이다 — ⓖ 와 짝이라,
+        대문자를 그냥 거절하는 쪽으로 닫으면 이 줄이 오탐을 잡아낸다.
+
+        **뒤 아홉은 계획 52 가 더했다** — 위 미탐 표가 「결합자 뒤에 그리면 죽는다」로
+        가르는 순간, 그 가름이 **괄호·대괄호 안의 결합자와 쉼표**를 셀렉터의 것으로
+        착각하면 정상 CSS 가 종료 2 로 빨개진다(설계서 2절이 세 대안을 가른 여섯 행이
+        전부 이쪽이다). `[class~=btn]` 의 `~` 는 결합자가 아니라 속성 연산자고,
+        마지막 둘은 가르기 전에 조각을 `strip()` 하지 않으면 마지막 compound 가
+        빈 문자열이 되는 자리다(`RULE_RE` 가 여는 중괄호 앞을 통째로 준다).
+        """
+        for name, old, new in (
+            (":is(…) 는 투명하다", ":focus-visible", ":is(:focus-visible)"),
+            (":where(…) 도 투명하다", ":focus-visible", ":where(:focus-visible)"),
+            ("괄호 밖의 포커스는 남는다", ":focus-visible", ":not(.no-ring):focus-visible"),
+            ("대문자도 같은 셀렉터다", ":focus-visible", ":FOCUS-VISIBLE"),
+            (":not(…) 안의 결합자", ":focus-visible", ":focus-visible:not(.x + .y)"),
+            (":is(…) 안의 결합자", ":focus-visible", ":focus-visible:is(.x + .y)"),
+            (":is(…) 안의 쉼표", ":focus-visible", ":is(.x, .y):focus-visible"),
+            (":not(…) 안의 쉼표", ":focus-visible", ":focus-visible:not(.x, .y)"),
+            (":is(…) 안의 쉼표와 결합자", ":focus-visible", ":is(.x, .y > .z):focus-visible"),
+            ("속성 선택자의 ~= 는 결합자가 아니다", ":focus-visible",
+             ":focus-visible[class~=btn]"),
+            ("앞 compound 도 포커스다", ":focus-visible", ":focus-visible a:focus-visible"),
+            ("꼬리 공백", ":focus-visible", ":focus-visible "),
+            ("줄바꿈 낀 쉼표", ":focus-visible,.sb", ":focus-visible,\n.sb"),
+        ):
+            with self.subTest(name):
+                fail, unmeasurable, out = run(self.twist(old, new))
+                self.assertEqual((fail, unmeasurable), ([], []), out)
+                self.assertIn("포커스 링 규칙 1개", out)
+
+    def test_brace_counting_is_not_fooled_by_comments_or_strings(self):
+        """조건 6 은 **중괄호를 세서** 링 규칙이 at-rule 밖인지를 본다 — 그 세기의
+        함정이 주석과 문자열이다. 정상 CSS 의 아래 다섯 모양은 전부 종료 0 이어야 한다.
+
+        여는 중괄호 하나가 주석 안에 있으면(둘째 줄) 세기가 어긋나 「at-rule 안」이라는
+        **거짓 판정**이 난다. `content:"}"` 도 같다. 오탐이 종료 2 라 조용하지는 않지만,
+        멈추는 검사기는 안 도는 검사기다 — 진짜 CSS 에 주석 하나 못 적게 된다.
+
+        위 변이 표가 「at-rule 안이면 죽는다」를 붙들고, 이 표가 「그 세기가 CSS 를
+        읽을 줄 안다」를 붙든다. 둘 중 하나만 있으면 조건 6 은 반쪽이다.
+        """
+        for name, old, new in (
+            ("주석 안의 중괄호 짝", RING_RULE, "/* 예: a{color:red} */\n" + RING_RULE),
+            ("주석 안의 여는 중괄호 하나", RING_RULE, "/* 여는 것 { 하나 */\n" + RING_RULE),
+            ("content 문자열 안의 닫는 중괄호", RING_RULE,
+             '.hit h2::after{content:"}"}\n' + RING_RULE),
+            ("줄바꿈·공백", RING_RULE, "\n\n  " + RING_RULE.replace("{", " {\n  ", 1)),
+            ("@media 블록이 링 규칙 뒤에 온다", RING_RULE,
+             RING_RULE + "\n@media print{.pager{display:none}}"),
+        ):
+            with self.subTest(name):
+                fail, unmeasurable, out = run(self.twist(old, new))
+                self.assertEqual((fail, unmeasurable), ([], []), out)
+                self.assertIn("포커스 링 규칙 1개", out)
 
 
 if __name__ == "__main__":
