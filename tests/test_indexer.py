@@ -964,6 +964,21 @@ class TestPassagesColumnAxisInvariant(unittest.TestCase):
             return type(exc).__name__
         return "ok"
 
+    def test_the_three_queries_really_have_different_shapes(self):
+        """**자기검사 2** — 세 질의의 모양이 갈려 있지 않으면 위 자는 조용히 초록이 된다.
+
+        위 자가 묻는 것은 «루프에 닿는 질의와 못 닿는 질의가 같은 판정인가» 다.
+        `DOC` 이나 `QUERIES` 가 바뀌어 셋이 같은 모양이 되면 그 물음 자체가 사라지는데
+        판정은 여전히 하나라 자는 통과한다 — 눈금 0칸을 막은 것과 같은 이유로 막는다.
+        정상 DB 가 예외를 안 내는 것(오탐 0)도 같은 줄이 잡는다.
+        """
+        healthy = self._fresh_db("모양")
+        shapes = [bool(indexer.passages(healthy, q)) for q in self.QUERIES]
+        self.assertEqual(
+            shapes, [True, False, False],
+            "정상 DB 에서 세 질의의 모양이 갈리지 않는다 — 자가 «루프에 닿는 질의 vs "
+            "못 닿는 질의» 를 못 가른다: %s" % dict(zip(self.QUERIES, shapes)))
+
     def test_every_missing_column_gives_one_verdict_for_every_query_shape(self):
         columns = self._columns(self._fresh_db("눈금"))
         names = [name for name, _ in columns]

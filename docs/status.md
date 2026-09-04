@@ -1,69 +1,73 @@
 ---
 signal: GREEN
-phase: 테스트
+phase: 리뷰
 step: 1/1
 attempt: 0
-iteration: 323
+iteration: 324
 updated: 2026-09-05
-ctx: 63
-night_iterations: 145
+ctx: 47
+night_iterations: 146
 night_red: 2
 night_retries: 0
-plan: db-state-invariant # 계획 55 — 개발 1/1 완료(자 + 처방 한 낱말) · 다음은 테스트
+plan: db-state-invariant # 계획 55 — 테스트 1/1 완료(자기검사 2 를 더했다) · 다음은 리뷰
 ---
 
 # 현재 상태
 
-**계획 55 `db-state-invariant` 의 개발 1/1 이 끝났다.** 설계 5절 계약을 그대로 TDD 로
-돌았고 브랜치는 `loop/db-state-invariant`. **다음 phase 는 테스트다.**
+**계획 55 `db-state-invariant` 의 테스트 1/1 이 끝났다.** 전수를 맨몸으로 다시 돌리고
+갭을 훑어 **8점짜리 하나**를 닫았다. 브랜치는 `loop/db-state-invariant`.
+**다음 phase 는 리뷰다.**
 
-## 이 반복이 만든 것
+## 이 반복이 직접 잰 것 (반복 324)
 
-**자 — `tests/test_indexer.py` `TestPassagesColumnAxisInvariant`**(`TestPassages` 옆 ·
-HTTP 안 띄운다). 눈금을 우리가 안 적고 **정상 DB 의 `PRAGMA table_info(pages)`** 에서
-받는다: 자기검사(4칸 이상 · `url`·`html` 포함) → 열마다 `subTest` 로 ①정상 DB 재생성
-②그 열을 뺀 `pages` 로 교체(이름·선언 타입 둘 다 `PRAGMA` 가 준다 · 손으로 적는
-스키마 0줄) ③세 질의(`김치찌개`·`zzzznope`·`\x01`)의 **판정 이름** 수집
-④`len(set(...)) == 1`. **재는 것은 반환값이 아니라 판정**(예외 클래스 이름 또는 `ok`)
-이다 — 설계가 거짓 RED 로 죽인 초안이 반환값을 비교한 것이었다.
+**전수 재확인** — `PYTHONPATH=src python3 -m unittest discover -b -s tests` 를 맨몸·단독
+(러너를 파이프 왼쪽에 안 둔다)으로 돌려 **604건 OK · 13.320초 · rc 0**. 직전 반복이 적어
+둔 604 는 참이었다. 새 테스트를 더한 뒤 **605건 OK · 13.448초 · rc 0**.
 
-**처방 — `src/websearch/indexer.py` `passages()` 의 한 낱말**:
-`SELECT html FROM pages LIMIT 0` → **`SELECT url, html FROM pages LIMIT 0`**. 자리
-(가드 직후 · `hits` 루프 앞)·시그니처·docstring 무변. 그 줄 위 `ponytail:` 주석 두
-문장(「`html` 한 열만 본다」·「넓히는 날은 한 낱말」)이 거짓이 되므로 **같은 커밋에서**
-새 천장으로 고쳤다 — 「아래 루프가 읽는 두 열만 본다 · 스키마 전 열을 요구하는 안은
-설계 55 가 expand 함정으로 죽였다」.
+**변이 넷을 다시 심었다**(전부 저장소 밖 사본에서 · `PYTHONDONTWRITEBYTECODE=1`).
 
-**`tests/test_serve.py` 새 클래스 0개**(설계 5절) · `serve.py`·`store.py`·스키마
-**0줄** · 새 예외 0 · 새 의존성 0.
+| 변이 | 결과 |
+|---|---|
+| ① 처방 되돌리기 (`SELECT url, html` → `SELECT html`) | **RED, 604건 중 정확히 1건** — 새 자의 `missing='url'` 뿐 (`{'김치찌개': 'OperationalError', 'zzzznope': 'ok', '\x01': 'ok'}`) |
+| ② 눈금 0칸 (`_columns` → `[]`) | **RED** — 자기검사가 `0 not greater than or equal to 4` |
+| ③ `store.SCHEMA` 에 `lang TEXT` 추가 | 눈금 **4 → 5칸** 자동 확장(`url·html·status·fetched_at·lang`), 자는 **그대로 GREEN**(처방 A 에 expand 함정이 없다는 설계 4절의 재확인) |
+| ④ 판정 삼키기 (`except OperationalError: return []`) | **RED 8건** — 전부 계획 53·54 가 남긴 클래스(`TestPassages`·`TestPassagesWithoutHtmlColumn`·`…BeforeIndexing`). **새 자는 이 변이에 안 죽는다**(셋 다 `ok` 라 판정은 여전히 하나) |
 
-## 이 반복이 직접 잰 것 (반복 323)
+**변이 ①이 604건 중 1건만 죽였다는 것이 「53·54 클래스가 중복인가」의 답이다** — 아니다.
+`url` 축을 잡는 자는 저장소에 **새 자 하나뿐**이고, 반대로 변이 ④는 새 자가 못 잡고 53·54
+클래스만 잡는다. 둘은 **서로 다른 것을 잰다**(일관성 vs 값). 지우면 구멍이 생긴다.
 
-**RED 를 눈으로 먼저 봤다** — 자만 세운 상태에서 실패가 **정확히 `url` 한 행**이고
-내용이 `{'김치찌개': 'OperationalError', 'zzzznope': 'ok', '\x01': 'ok'}` 였다. 처방
-한 낱말로 **4행 전부 GREEN**. 설계가 예고한 값과 한 칸도 안 달랐다.
+## 이 반복이 더한 것 — 갭 하나 (중요도 8)
 
-**완료 기준 5절을 대칭으로 잰 결과** — 오탐 0(정상 DB `1/0/0` · `status` 뺀 DB
-`1/0/0` · `fetched_at` 뺀 DB `1/0/0`, 셋이 같다) · 눈금이 스키마를 따라간다(사본
-`SCHEMA` 에 `lang TEXT` 를 더하니 케이스가 **4 → 5** 로 저절로 늘었다) · 눈금이 0칸
-이면 조용한 초록이 아니라 **RED**(`_columns` 를 `[]` 로 갈아끼워 확인) ·
-**변이 ①**(`url,` 삭제 = 착수 전 상태) **RED** · **변이 ②**(탐침을 `hits` 루프 **안**
-으로) **RED, 2행**(`url`·`html`) — 계획 6절이 예고한 대로 둘 다 죽는다.
+**`tests/test_indexer.py` `TestPassagesColumnAxisInvariant.test_the_three_queries_really_have_different_shapes`** (+1건, `src/` **0줄**).
 
-**HTTP 표면**(줄은 안 더했다) — `url` 열 없는 DB 를 실제 서버로 띄워 재니
-`/passages` 세 질의가 **500·500·500**, `/search` 200 · 화면 `/` 200. 잰 뒤 서버는
-`shutdown()`·`server_close()` 로 죽였고 `pgrep -f websearch.serve` **잔여 0**.
+자기검사가 **눈금 축만** 막혀 있었다. 자가 재는 물음은 «루프에 **닿는** 질의와 **못 닿는**
+질의가 같은 판정인가» 인데, `DOC`·`QUERIES` 가 바뀌어 세 질의가 같은 모양이 되면 그 물음이
+사라져도 판정은 여전히 하나라 **조용히 초록**이 된다 — 설계가 위험 1 로 막은 「눈금 0칸」과
+같은 고장이 다른 방아쇠로 살아 있었다. 정상 DB 에서 세 질의의 모양이
+`[True, False, False]` 인지 한 줄로 단언한다(정상 DB 오탐 0 도 같은 줄이 잡는다).
+
+**RED 를 보고 넣었다** — 사본에서 `DOC` 의 `김치찌개` 를 `된장찌개` 로 바꾸니 새 자기검사만
+`[False, False, False]` 로 **RED**, 본 자는 GREEN. 정확히 그 구멍이다.
+
+## 8점 미만이라 안 한 것 (리뷰·다음 계획 몫)
+
+- **`url` 열 없는 DB 의 HTTP 표면 클래스**(5점) — 직전 반복이 실서버로 500·500·500 을
+  쟀지만 테스트로는 안 박았다. 설계 5절이 `serve.py` 매핑을 범위 밖으로 두었고,
+  `OperationalError → 500` 은 `TestPassagesWithoutHtmlColumn` 이 이미 박고 있다(변이 ④가
+  증명했다). 새 클래스는 같은 매핑의 두 벌이다.
+- **두 열 이상이 동시에 빠진 조합**(4점) · **열 타입이 바뀐 축**(4점) — 설계 6절이 적어 둔
+  천장 그대로. 조합을 늘리면 재현 비용만 는다.
 
 ## 범위 (하드 제약 확인)
 
-단위 **603 → 604 OK**(13.671초 · 맨몸·단독 · rc 0) · e2e 는 관련 둘만 먼저 확인
-(`search_api_e2e` rc 0 · `hidden_passage_e2e` rc 0), **21종 전수는 e2e phase 몫** ·
-`README.md` 의 `단위 603건` → `604건`(`test_readme` 가 즉시 FAILED 로 잡아 줬다) ·
-`main` 직접 커밋 0 · `--no-verify`·`--force` 0 · **PR 무접촉(조회 0회)** ·
-`docs/specs/` 무변 · `data/crawl.db` sha256 `85c96744…5bda18` **무변**(모든 실측이
-임시 디렉터리 사본) · 스키마·마이그레이션·재색인 0 · stdlib 만 ·
-**푸시 대조** — 착수 직전 원격이 `a2cc8ad` 로 밀려 있지 않아 먼저 푸시했고
-`git ls-remote` 로 대조했다(직전 반복이 빠뜨린 것을 이 반복이 회수했다).
+`src/` **0줄** · `serve.py`·`store.py`·스키마·마이그레이션·재색인 **0** · 새 의존성 0 ·
+새 예외 0 · stdlib 만 · 고친 파일 **둘**(`tests/test_indexer.py` +16줄 ·
+`README.md` 의 `단위 604건` → `605건`) · `docs/specs/` 무변 ·
+`data/crawl.db` sha256 `85c96744…5bda18` **무변**(모든 변이가 저장소 밖 사본) ·
+서버 0개(`pgrep -f websearch.serve` 잔여 0) · `main` 직접 커밋 0 ·
+`--no-verify`·`--force` 0 · **PR 무접촉(조회 0회)** · 브랜치 병합 시도 0 ·
+e2e 21종 전수는 **e2e phase 몫**.
 
 ## 사람 결정 대기
 
@@ -76,4 +80,4 @@ HTTP 안 띄운다). 눈금을 우리가 안 적고 **정상 DB 의 `PRAGMA tabl
 
 ## 정지 사유
 
-없음 — 계획 55 **테스트** 로 이어간다.
+없음 — 계획 55 **리뷰** 로 이어간다.
