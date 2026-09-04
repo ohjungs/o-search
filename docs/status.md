@@ -15,22 +15,18 @@ plan: null
 # 현재 상태
 
 **계획 51 `hidden-passage` 완료.** e2e 통과 · 계획·설계 아카이브(`plan_history_037.md` ·
-`design_history_037.md`) · `index.md` 51번 줄 **완료**. 다음 계획 없음 — 대기.
-
-**새 e2e 파일 1개** `e2e/hidden_passage_e2e.py`(~185줄) · 제품 `src/` **0줄** ·
-`README.md`·`docs/project.md` 는 e2e 명령 등재분만(테스트 건수 가드 `test_readme.py`).
+`design_history_037.md`) · `index.md` 51번 줄 **완료** · `plan: null`. 다음 계획 없음.
+**새 파일은 e2e 1개**(`e2e/hidden_passage_e2e.py`) · 제품 `src/` **0줄**.
 
 ## 재본 것 — 프로세스 밖 사용자 자리
 
 계획·설계가 잰 5/5 → 0/5 는 `indexer.passages()` 를 같은 프로세스에서 부른 값이다.
-새 e2e 는 crawl 로 HTML 을 받아 색인하고 **README 그대로** `python3 -m websearch.serve
-data/crawl.db --port 0` 를 띄워 `GET /passages` 를 HTTP 로 때린다(11문서 · 12.5초).
-그 형태에서도 **누출 0/5** · 정상 문단 **5/5 무변** · 오탐 대조군 4종 **전부 살아 있다**.
-숨김만 매치한 문서는 `/search` 결과에 **그대로 나온다** — 색인 경로가 안 움직인 증거.
-
-`extract_text` 무변은 논증이 아니라 **비교**로 닫았다: 기점 `d5367fa` 의 `extract.py`
-를 따로 적재해 11개 입력(실물 페이지 2건 포함)에 먹여 **차이 0건**.
-`data/crawl.db` sha256 `85c96744…75bda18` 시작·끝 동일(읽기만 했다).
+새 e2e 는 crawl 로 HTML 을 받아 색인하고 **README 그대로** 서버를 띄워 `GET /passages`
+를 HTTP 로 때린다(11문서 · 12.5초). 그 형태에서도 **누출 0/5** · 정상 문단 **5/5 무변** ·
+오탐 대조군 4종 **전부 살아 있다**. 숨김만 매치한 문서는 `/search` 결과에 **그대로
+나온다** — 색인 경로가 안 움직인 증거. `extract_text` 무변은 논증이 아니라 **비교**로
+닫았다(기점 `d5367fa` 의 `extract.py` 를 적재해 11개 입력에서 **차이 0건**).
+`data/crawl.db` sha256 `85c96744…75bda18` 시작·끝 동일 — 읽기만 했다.
 
 ## 신호는 GREEN
 
@@ -42,19 +38,17 @@ data/crawl.db --port 0` 를 띄워 `GET /passages` 를 HTTP 로 때린다(11문�
 
 ## 배운 것
 
-**변이 하나가 fixture 항목 하나에만 닿게 자른다.** 오탐 대조군 3종을 한 문서에 몰아
-뒀더니 과탐 변이가 하나를 죽여도 남은 둘이 대신 뽑혀 자가 초록이었다(M3 생존).
-문서 하나에 문단 하나로 갈라 죽였다 — `metrics.md` 「전수의 축」 다섯 번째.
-**`PASSAGE_LIMIT`(10)이 fixture 의 상한이다.** 넘기니 밀려난 문서가 「잘렸다」와
-구별이 안 됐다(거짓 빨강 한 번). 모듈 최상단 `assert` 로 못 박았다.
+**변이 하나가 fixture 항목 하나에만 닿게 자른다** — 오탐 대조군 3종을 한 문서에 몰아
+뒀더니 하나가 죽어도 남은 둘이 대신 뽑혀 자가 안 섰다(M3 생존 → 문서당 문단 1개로 분리).
+**`PASSAGE_LIMIT`(10)이 fixture 의 상한이다** — 넘기니 밀려난 문서가 「잘렸다」와 구별이
+안 돼 거짓 빨강을 한 번 봤다. 모듈 최상단 `assert` 로 못 박았다(`metrics.md` 다섯째 축).
 
 ## 문서
 
-`status.md`(이 파일 · 반복 **302**) · `metrics.md`(반복 302 · e2e 28 · 계획 36/0/0 ·
-「전수의 축」 다섯 번째) · `index.md`(51번 줄 완료) · `history_current.md`(항목을 붙이니
-308줄이라 회전 — 테스트 3을 `history_053.md` 로 밀어 **229줄**) · `digest.md`(**200줄
-유지** · 명부에 `history_053.md`) · `docs/e2e/hidden-passage/result.md`(신규).
-`docs/specs/` **무변** · `data/crawl.db` **무변**.
+`metrics.md`(반복 302 · e2e 28 · 계획 36/0/0) · `index.md`(51번 줄 완료) ·
+`history_current.md`(308줄이 되어 회전 — 테스트 3을 `history_053.md` 로 밀어 **229줄**) ·
+`digest.md`(**200줄 유지** · 명부에 `history_053.md`) · `docs/e2e/hidden-passage/result.md`
+신규 · `README.md`·`project.md` 는 e2e 등재분만. `docs/specs/` **무변**.
 
 ## 원격 — 푸시 뒤에 다시 읽은 값이다
 
