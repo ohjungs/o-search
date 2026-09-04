@@ -205,6 +205,13 @@ class ContrastAxisTest(unittest.TestCase):
              "포커스용이 아니다"),
             (":is(…) 안의 포커스 뒤 결합자", ":focus-visible", ":is(:focus-visible) .hint",
              "포커스용이 아니다"),
+            # 여덟째는 테스트 phase 가 더했다 — 깊이 세기의 **가드절**(`max(0, …)`)을
+            # 밟는 유일한 입력이다. 안 열린 `)` 로 깊이가 음수로 내려가면 그 뒤의
+            # 결합자·쉼표가 전부 «괄호 안» 으로 보여 셀렉터가 한 덩어리가 되고, 링을
+            # `.hint` 에 그리는 이 규칙이 다시 통과한다(가드를 지운 변이가 593건을
+            # 전부 통과하는 것을 실측했다). 깨진 CSS 라 판정은 측정 불능이 맞다.
+            ("안 열린 `)` 로 깊이가 음수", ":focus-visible", ":focus-visible) .hint",
+             "포커스용이 아니다"),
         ):
             with self.subTest(name):
                 fail, unmeasurable, out = run(self.twist(old, new))
