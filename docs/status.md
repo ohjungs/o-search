@@ -109,8 +109,8 @@ en 19/20 · `perf_search` p95 8.78 · `search_api` p95 2.10 · `perf_crawl` 10.2
 
 - **커밋·푸시 뒤에 `git ls-remote origin` 을 다시 읽었다**(digest 의 「원격을 바꾸는 동작을
   «명령을 보냈다» 로 기록하지 않는다」 항목). 아래 SHA 는 이 반복이 실제로 읽은 값이다.
-- **`loop/hidden-passage` = (리뷰 4 커밋 직후 이 자리에 실제로 읽은 값을 적는다 —
-  앞 반복들과 같은 «문서: … 원격 SHA» 후속 커밋이다. 기점은 `4ef5e49`).**
+- **`loop/hidden-passage` = `d1fd613`** (리뷰 4 커밋 · `4ef5e49` → `d1fd613`, fast-forward).
+  `git ls-remote origin loop/hidden-passage` 의 `d1fd6133…2574e154` 와 로컬 `HEAD` 가 같다.
   `git ls-remote origin main` = `687a1598…68d8e5e` 무변(계획 47).
   `--no-verify`·`--force` 0회 · 훅 우회 0.
 - **PR #7** — `loop/merge-48-50` → `main`, 계획 48·49·50. **OPEN·미병합.** 병합은
