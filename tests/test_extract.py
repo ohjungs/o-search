@@ -368,6 +368,44 @@ class TestExtractBlocks(unittest.TestCase):
             with self.subTest(shape=name):
                 self.assertEqual(texts(html), [])
 
+    def test_every_element_with_an_optional_end_tag_is_closed_by_its_sibling(self):
+        # 리뷰 51 `[R51-5]`. 위 테스트는 **여덟 키**만 덮었고, 명세가 종료 태그 생략을
+        # 허용하는 나머지 여덟(`thead`·`tbody`·`tfoot`·`caption`·`colgroup`·
+        # `optgroup`·`rt`·`rp`)은 키에 없어 숨김이 형제로 새었다 — 아래 여섯은 전부
+        # **명세가 허용하는 정상 HTML** 인데 HEAD 에서 보이는 문단이 통째로 사라졌다.
+        # 표 구조는 실물의 기본형이고(`<thead hidden>` 은 접히는 헤더), 방향은 계획
+        # 8절이 「제일 위험」이라 적은 **오탐**이다
+        for name, html, want in [
+            ("thead", "<table><thead hidden><tr><th>숨은 헤더"
+                      "<tbody><tr><td>보이는 셀</table>", ["보이는 셀"]),
+            ("tbody", "<table><tbody hidden><tr><td>숨은 행"
+                      "<tfoot><tr><td>보이는 꼬리</table>", ["보이는 꼬리"]),
+            ("caption", "<table><caption hidden>숨은 설명"
+                        "<tbody><tr><td>보이는 셀</table>", ["보이는 셀"]),
+            ("colgroup", "<table><colgroup hidden><col>"
+                         "<tbody><tr><td>보이는 셀</table>", ["보이는 셀"]),
+            ("optgroup", "<select><optgroup hidden><option>숨은"
+                         "<optgroup><option>보이는</select>", ["보이는"]),
+            # `rt` 는 `_INLINE_TAGS` 라 경계에 공백이 안 들어간다(`Kim<b>chi</b>`
+            # 규칙) — 여기서 재는 것은 띄어쓰기가 아니라 `보이는` 이 나오느냐다
+            ("rt/rp", "<ruby>漢<rt hidden>숨은<rt>보이는</ruby>", ["漢보이는"]),
+        ]:
+            with self.subTest(shape=name):
+                self.assertEqual(texts(html), want)
+        # **넓어지는 쪽 가드** — 키를 늘리는 것은 누출(과잉) 방향이다. 형제가 아니라
+        # **자식**으로 들어가는 태그는 여전히 숨김을 안 걷어야 한다
+        for name, html in [
+            ("숨은 thead 안의 행", "<table><thead hidden><tr><th>숨은 헤더</table>"),
+            ("숨은 optgroup 안의 option",
+             "<select><optgroup hidden><option>숨은</select>"),
+            ("숨은 caption 안의 인라인",
+             "<table><caption hidden>숨은<b>여전히 숨은</b></table>"),
+            ("숨은 colgroup 안의 col",
+             "<table><colgroup hidden><col><col>숨은</table>"),
+        ]:
+            with self.subTest(shape=name):
+                self.assertEqual(texts(html), [])
+
     def test_text_that_only_looks_hidden_is_kept(self):
         # 오탐이 이 계획의 제일 위험이다 — 정상 문단을 숨김으로 읽으면 근거가
         # **조용히** 사라진다. `font-size:0.9em` 은 보이는 작은 글씨인데

@@ -39,6 +39,9 @@ _VOID_TAGS = {
 # **종료 태그 생략이 허용된** 요소 — 「어떤 시작 태그가 이것을 암묵적으로 닫는가」.
 # 명세가 허용하는 정상 HTML 이라 «안 닫힌 컨테이너» 천장이 안 덮는다(리뷰 51 [R51-1]).
 #
+# **키는 명세의 「optional tags」 열여섯 전부다**(리뷰 51 [R51-5]: 여덟만 있어
+# `<thead hidden>` 다음의 `<tbody>` 가 숨김을 못 걷었고 **보이는 문단이 통째로
+# 사라졌다** — 오탐 방향). 값은 각 삽입 모드가 적은 목록을 그대로 옮긴다.
 # **전부 닫힌 집합이다 — `p` 도 그렇다.** `p` 를 «인라인도 비블록도 아닌 것 전부» 로
 # 쓰면(리뷰 2 [R51-3]) 술어가 열린 집합이 되고, 명세가 `<p>` 를 닫지 않는다고 적은
 # 태그까지 닫아 그 뒤의 **숨은 텍스트가 근거 문단으로 샌다**(표준 태그 전수 대조에서
@@ -50,11 +53,23 @@ _VOID_TAGS = {
 # ponytail: 표 구조 태그(`tr`·`td`…)는 **표 밖에서도** 닫는다. 브라우저는 표 밖의
 # 그것을 무시하므로 그 자리에서만 넓게 닫지만, 표 밖 `<td>` 는 깨진 입력이고
 # 표 안의 안 닫힌 `<p>` 는 실물의 기본형이다(리뷰 51 [R51-1] 이 넣은 그 행).
+# 표 구조 시작 태그 — 삽입 모드 「in cell」·「in row」·「in table body」·「in caption」이
+# 전부 이 목록으로 열린 셀·행·구획을 걷는다. 빼는 쪽이 «자식으로 들어가는 것»이다:
+# 셀은 행 **안**이라 `<td>` 는 `<tr>` 을 안 닫고, 행은 구획 안이라 `<tr>` 은 `<tbody>`
+# 를 안 닫으며, `<col>` 은 `<colgroup>` 안이다. 그 뺄셈이 누출(과잉 닫기)을 막는다
+_TABLE_PARTS = {"caption", "col", "colgroup", "tbody", "td", "tfoot", "th",
+                "thead", "tr"}
 _IMPLIED_END = {
     "li": {"li"},
     "dt": {"dt", "dd"}, "dd": {"dt", "dd"},
-    "tr": {"tr"}, "td": {"td", "th", "tr"}, "th": {"td", "th", "tr"},
-    "option": {"option", "optgroup"},
+    "td": _TABLE_PARTS, "th": _TABLE_PARTS, "caption": _TABLE_PARTS,
+    "tr": _TABLE_PARTS - {"td", "th"},
+    "thead": _TABLE_PARTS - {"td", "th", "tr"},
+    "tbody": _TABLE_PARTS - {"td", "th", "tr"},
+    "tfoot": _TABLE_PARTS - {"td", "th", "tr"},
+    "colgroup": _TABLE_PARTS - {"col"},
+    "option": {"option", "optgroup"}, "optgroup": {"optgroup"},
+    "rt": {"rt", "rp", "rb", "rtc"}, "rp": {"rt", "rp", "rb", "rtc"},
     "p": {
         "address", "article", "aside", "blockquote", "center", "details",
         "dialog", "dir", "div", "dl", "fieldset", "figcaption", "figure",
