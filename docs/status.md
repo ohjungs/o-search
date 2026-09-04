@@ -123,8 +123,9 @@ test_every_element_with_an_optional_end_tag_is_closed_by_its_sibling`
 
 - **커밋·푸시 뒤에 `git ls-remote origin` 을 다시 읽었다**(digest 의 「원격을 바꾸는 동작을
   «명령을 보냈다» 로 기록하지 않는다」 항목). 아래 SHA 는 이 반복이 실제로 읽은 값이다.
-- **`loop/hidden-passage` = `PENDING`** (개발 4 커밋 · `2b9a6a6` → `PENDING`).
-  `--no-verify`·`--force` 0회 · 훅 우회 0.
+- **`loop/hidden-passage` = `918b925`** (개발 4 커밋 · `2b9a6a6` → `918b925`, fast-forward).
+  `git ls-remote origin loop/hidden-passage` 의 `918b9255…7a02d` 와 로컬 `HEAD` 가 같다.
+  `main` = `687a159` 무변. `--no-verify`·`--force` 0회 · 훅 우회 0.
 - **PR #7** — `loop/merge-48-50` → `main`, 계획 48·49·50. **OPEN·미병합.** 병합은
   **사용자가 처리한다** — 이 반복은 PR 을 열지도 닫지도 않았고 그 브랜치를 건드리지도,
   `main` 으로 리베이스하지도 않았다.
