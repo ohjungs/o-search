@@ -298,6 +298,16 @@ def passages(db_path, query, limit=10):
     found = []
     db = _connect(db_path)
     try:
+        # **루프 앞이다.** 안이나 뒤에 두면 `hits` 가 빈 질의는 판정에 못 닿아 같은
+        # 고장난 DB 가 `q=김치` 면 503, `q=%01` 이면 200 으로 갈린다 — `search()` 안의
+        # 무토큰 조기 반환을 판정 뒤로 민 것과 같은 이유다(계획 47).
+        # ponytail: `index_pages` 와 같은 질의가 두 곳. 셋째 호출자가 생기면 뽑는다
+        if not db.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'pages'"
+        ).fetchone():
+            # 테이블의 **유무만** 본다. `pages` 는 있는데 `html` 열이 없거나 권한이
+            # 막힌 DB 는 기다린다고 안 낫는 상태라 500 이 맞는 이름이다.
+            raise NoCrawlDataError(db_path)
         for url, title, _snippet in hits:
             row = db.execute("SELECT html FROM pages WHERE url = ?", (url,)).fetchone()
             if not row or not row[0]:

@@ -278,7 +278,8 @@ def make_server(db_path, port=8000):
             # 돌리면 낫는 상태에 500(재시도 안 함)은 틀린 신호다. 이 코드를 읽는 것은
             # 사람이 아니라 인프라다(사양 디자인 5 · design_json-contract.md 갈림길 B).
             # 본문은 고정 문구다 — `str(exc)` 는 곧 DB 경로다.
-            except (FileNotFoundError, indexer.StaleIndexError) as exc:
+            except (FileNotFoundError, indexer.StaleIndexError,
+                    indexer.NoCrawlDataError) as exc:
                 self.log_error("색인 없음: %r", exc)
                 self._send(503, {"error": "색인이 아직 준비되지 않았다"})
             except Exception as exc:  # 트레이스백을 응답 본문에 싣지 않는다
@@ -320,7 +321,10 @@ def make_server(db_path, port=8000):
                 hits = _page_hits(db_path, query, page)  # JSON 경로와 **같은 한 벌**
             except ValueError as exc:
                 self._send_html(400, _error_page(str(exc), typed))
-            except (FileNotFoundError, indexer.StaleIndexError) as exc:  # JSON 과 같은 값
+            # JSON 사다리보다 **일부러 좁다** — 화면은 `_page_hits` → `search()` 만 타고
+            # `search()` 는 `NoCrawlDataError` 를 안 낸다. 대칭으로 넓히면 어떤 테스트로도
+            # RED 를 못 만드는 줄이 생긴다(실측: `pages` 없는 DB 의 `/?q=김치찌개` 는 200·1건).
+            except (FileNotFoundError, indexer.StaleIndexError) as exc:
                 self.log_error("색인 없음: %r", exc)
                 self._send_html(503, _error_page("색인이 아직 준비되지 않았다", typed))
             except Exception as exc:  # 트레이스백을 응답 본문에 싣지 않는다

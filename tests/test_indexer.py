@@ -816,6 +816,20 @@ class TestPassages(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             indexer.passages(os.path.join(self.dir.name, "없는.db"), "김치")
 
+    def test_db_without_pages_raises_for_every_query_shape(self):
+        # 색인 `docs` 는 살아 있는데 원본 창고가 통째로 없는 DB. 세 질의가 **같은**
+        # 예외를 내는 것이 요점이다 — 판정이 `hits` 의 비어 있음에 달리면 같은 DB 가
+        # `q=김치찌개` 면 터지고 `q=%01` 이면 조용한 `[]` 로 갈린다(계획 47 과 같은 고장).
+        self._seed_and_index([("http://a.test/", "<title>김치</title><p>김치찌개</p>")])
+        db = sqlite3.connect(self.db_path)
+        self.addCleanup(db.close)
+        db.execute("DROP TABLE pages")
+        db.commit()
+        for query in ("김치찌개", "zzzznope", "\x01"):
+            with self.subTest(query=query):
+                with self.assertRaises(indexer.NoCrawlDataError):
+                    indexer.passages(self.db_path, query)
+
     def test_stale_index_raises(self):
         # 503 경로 — 조용한 빈 목록은 "결과 0건" 과 구분되지 않는다.
         # `search()` 를 부르는 한 공짜로 물려받는다(자체 질의를 짜면 잃는다)

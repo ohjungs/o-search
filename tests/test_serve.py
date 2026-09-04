@@ -317,6 +317,33 @@ class TestPassagesBrokenDb(ServeTestCase):
         self.assertIn("DatabaseError", logged, "500 의 원인이 로그에 안 남았다")
 
 
+class TestPassagesWithoutPagesTable(ServeTestCase):
+    """색인은 살아 있는데 원본 창고(`pages`)가 없는 DB — 크롤·색인을 다시 돌리면 낫는다."""
+
+    def setUp(self):
+        super().setUp()
+        db = sqlite3.connect(self.db)
+        db.execute("DROP TABLE pages")
+        db.commit()
+        db.close()
+
+    def test_every_query_shape_is_503(self):
+        # 매치 있음 · 매치 없는 낱말 · 무토큰. 셋이 갈리면 소비자가 같은 순간의 같은 DB 를
+        # «우리가 터졌다» 와 «근거가 없다» 로 다르게 읽는다.
+        for q in ("%EA%B9%80%EC%B9%98", "zzzznope", "%01"):
+            with self.subTest(q=q), mock.patch("sys.stderr", new_callable=io.StringIO):
+                status, body, _ = self.get("/passages?q=" + q)
+            self.assertEqual(status, 503, body)
+            self.assertEqual(body["error"], "색인이 아직 준비되지 않았다")
+            self.assertNotIn(self.db, json.dumps(body, ensure_ascii=False), "DB 경로가 샜다")
+
+    def test_search_still_answers_200(self):
+        # 색인만으로 되는 검색은 안 깬다 — 가드가 `search()` 로 번지면 여기가 죽는다.
+        status, body, _ = self.get("/search?q=%EA%B9%80%EC%B9%98")
+        self.assertEqual(status, 200, body)
+        self.assertTrue(body["results"], "색인이 멀쩡한데 결과가 비었다")
+
+
 class TestPassagesSchemaVersion(ServeTestCase):
     """`_send` 를 안 쓰고 직접 JSON 을 쓰는 변이(M7)가 여기서 죽는다.
 
@@ -332,6 +359,7 @@ class TestPassagesSchemaVersion(ServeTestCase):
                 self.assertEqual((status, body["version"]), (expected, 1))
         for exc, expected in ((FileNotFoundError("db"), 503),
                               (indexer.StaleIndexError("old"), 503),
+                              (indexer.NoCrawlDataError("nopages"), 503),
                               (AttributeError("boom"), 500)):
             with self.subTest(status=expected, exc=type(exc).__name__), \
                     mock.patch("websearch.indexer.passages", side_effect=exc), \

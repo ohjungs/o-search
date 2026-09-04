@@ -134,3 +134,40 @@ append 전용이고 수정·삭제 금지다. 각 회전의 사유는 `digest.md
   `tests/test_serve.py` 의 `test_every_passages_response_carries_version` 표에
   `NoCrawlDataError → 503` 행 + 실제 DB HTTP 503 하나(같은 DB 의 `/search` 200 을 옆에).
   `README.md` 계약 줄과 `단위 593건`·`tests/test_readme.py` 건수 단언은 **같은 커밋**.
+
+## 2026-09-04 18:20 | passage-db-state | 개발 | 1/1 시도0
+
+- 한 일: **설계서 3절 계약을 그대로 심었다.** ① `indexer.passages()` 의 `_connect()`
+  직후·`hits` 루프 **앞**에 `index_pages()` 와 같은 `sqlite_master` 가드 · ② `serve` JSON
+  사다리의 503 튜플에 `indexer.NoCrawlDataError` · ③ 화면 사다리는 **안 넓히고**
+  `# JSON 과 같은 값` 주석을 「왜 더 좁은가」로 다시 썼다. 헬퍼는 안 뽑았고 천장 둘은
+  `ponytail:` 주석과 「테이블 유무만 본다」 주석으로 코드에 있다. 제품 diff 는
+  `src/websearch/indexer.py` **+10** · `src/websearch/serve.py` **+8/-2** 두 파일뿐.
+- **RED 를 먼저 눈으로 봤다** — `FAILED (failures=5, errors=1)`. 계획서 완료 기준 1·2·3 이
+  각각 `OperationalError: no such table: pages`(HTTP 500) · `NoCrawlDataError not raised`
+  (200 `[]`) · 같은 것(무토큰)으로 나왔다. 계획·설계 phase 가 프로세스 밖 HTTP 로 잰
+  500/200/200 이 **단위 테스트 안에서 글자 그대로 재현됐다** — 탐침이 잰 것과 테스트가
+  잡는 것이 같은 고장이라는 확인이다. GREEN 은 **593 → 596 OK**(13.596초 · 맨몸·단독).
+- **대조군이 RED 때부터 초록이었다.** `TestPassagesWithoutPagesTable` 의
+  `test_search_still_answers_200` 은 구현 전에도 통과했다 — 갈림길 2(가드를 `_connect()`
+  에 두면 `/search` 가 죽는다)를 붙드는 자리라 **구현 후에도 초록인 것**이 값이다.
+  가드가 `search()` 로 번지는 변이는 여기서 죽는다.
+- **변이 둘 다 사망**(완료 기준 10): ① `passages()` 가드 삭제 → `failures=3, errors=1` ·
+  ② 503 튜플에서 `NoCrawlDataError` 제거 → `failures=2`. 스크래치패드 사본에서 돌려
+  `.mutation-lock` 도 `git checkout` 도 안 썼다(계획 52 개발이 산 교훈).
+- **변이 첫 판이 엉뚱한 자리를 지웠다 — 설계서의 천장이 도구에서 먼저 나타났다.**
+  `t.index("if not db.execute(")` 가 `index_pages()` 의 **같은 가드**를 먼저 잡아 변이 ①이
+  `passages()` 가 아니라 `index_pages()` 를 지웠고, 그 결과가 「무관한 테스트 하나 에러」로
+  보였다. 설계가 「같은 세 줄이 두 곳 — 헬퍼는 안 뽑고 `ponytail:` 주석으로 천장을 남긴다」
+  고 적은 그 중복이, 제품이 아니라 **변이 도구를 먼저 물었다.** `def passages` 뒤부터
+  찾도록 고쳐 다시 쟀다. 두 벌 문자열의 값은 여전히 얇지만 **비용이 0 은 아니라는 실측**이
+  하나 생겼다 — 셋째 호출자가 생기면 뽑는다는 주석의 근거가 그만큼 굳었다.
+- 범위: `data/crawl.db` sha256 `85c967…5bda18` 무변(`git status` 에 안 뜬다) ·
+  `docs/specs/` 무변 · `e2e/` **0줄** · 새 파일 0 · **PR #7 무접촉**. `README.md` 는 계약
+  줄(`pages` 없음 추가)과 `단위 596건` 둘 다 **같은 커밋**이다 — 건수 단언
+  (`tests/test_readme.py`)이 RED 목록에 함께 떠서 잊을 수 없었다.
+- **러너 규율 위반 0회** — 단위·변이 어디에도 파이프·리다이렉션 0. 서버를 띄운 것은
+  `ServeTestCase` 안뿐이라 남은 프로세스 0.
+- 다음: **테스트** phase. 갭 후보 셋 — `pages` 는 있는데 `html` 열이 없는 DB(설계서 4절이
+  「500 이 맞는 이름」으로 적어 둔 천장인데 붙드는 단언이 **0개**) · 가드가 `search()`
+  **뒤**라는 순서(옛 색인 우선순위) · 화면 사다리를 **안 넓힌 것**.

@@ -1,74 +1,72 @@
 ---
 signal: GREEN
-phase: 설계
-step: 0/1
+phase: 개발
+step: 1/1
 attempt: 0
-iteration: 310
+iteration: 311
 updated: 2026-09-04
 ctx: 46
-night_iterations: 133
+night_iterations: 134
 night_red: 2
 night_retries: 0
-plan: passage-db-state # 계획 53 — 설계 1/1 완료 · 다음은 개발
+plan: passage-db-state # 계획 53 — 개발 1/1 완료 · 다음은 테스트
 ---
 
 # 현재 상태
 
-**계획 53 `passage-db-state` 설계 1/1 을 끝냈다.** 다음 phase 는 **개발**이다.
+**계획 53 `passage-db-state` 개발 1/1 을 끝냈다.** 다음 phase 는 **테스트**다.
 설계서는 `docs/design_passage-db-state.md`, 계획서는 `docs/plan_passage-db-state.md`,
 브랜치는 `loop/passage-db-state`.
 
-## 결정 — 편집 둘 + 주석 하나
+## 심은 것 — 설계서 3절 계약 그대로
 
-① `indexer.passages()` 의 `_connect()` 직후·`hits` 루프 **앞**에 `index_pages()` 와
-같은 `sqlite_master` 가드 네 줄을 인라인으로 둔다. ② `serve.do_GET` JSON 사다리의
-503 튜플에 `indexer.NoCrawlDataError` 를 더한다. ③ 화면 사다리는 **안 넓히고**
-`# JSON 과 같은 값` 주석을 비대칭 사유로 고친다. 헬퍼는 안 뽑는다(천장은 주석으로).
+① `indexer.passages()` 의 `_connect()` 직후 · `hits` 루프 **앞**에 `index_pages()` 와
+같은 `sqlite_master` 가드. ② `serve.do_GET` JSON 사다리의 503 튜플에
+`indexer.NoCrawlDataError`. ③ 화면 사다리는 **안 넓혔고** `# JSON 과 같은 값` 주석을
+「왜 더 좁은가」로 다시 썼다. 헬퍼는 안 뽑았고 천장은 `ponytail:` 주석으로 코드에 있다.
 
-## 갈림길 셋을 무엇으로 갈랐나
+제품 diff 는 `src/websearch/indexer.py` **+10** · `src/websearch/serve.py` **+8/-2**
+두 파일뿐. 스키마·재색인·마이그레이션 **0** · 시그니처 무변.
 
-1. **503 이냐 200 `[]` 이냐 → 503.** 같은 고장난 DB 의 `/search` 가 **200 · 결과 1건**
-   이라, 200 `[]` 는 「제목만 매치된 문서」가 내는 **오늘의 정상 응답과 글자 그대로 같다**
-   (`e2e/hidden_passage_e2e.py` 가 0/5 로 재는 값). 소비자가 두 상태를 못 가른다.
-2. **가드 자리 → `passages()` 안(`search()` 뒤·루프 앞).** `_connect()` 에 두면
-   `search()` 까지 걸려 `pages` 없는 DB 의 `/search` 가 200 → 503 으로 죽는다.
-   헬퍼(C안)는 관측이 같은데 `index_pages()` 를 건드리는 직교 편집이라 버렸다.
-3. **화면 사다리 → 안 넓힌다.** `pages` 없는 DB 의 `/?q=김치찌개` 는 **200 · 결과 1건**
-   으로 실측됐다 — `search()` 는 `NoCrawlDataError` 를 못 낸다. 넣으면 **변이로 죽지
-   않는 줄**(완료 기준 10 이 못 덮는 코드)이 생긴다. 대신 주석 한 줄을 고친다.
+## RED 를 눈으로 봤다
 
-## 가정을 깼다 — 참이었다 (반복 310 실측)
+구현 전 `FAILED (failures=5, errors=1)` — 계획서 완료 기준 1·2·3 이 정확히 그 자리다.
 
-「정상 경로에 `pages` 없는 DB 로 `passages()` 를 부르는 곳이 없다」를 **실제로 두 편집을
-넣고 전수를 돌린 뒤 되돌렸다**(커밋 없음).
+| 관측 | RED 에서 본 값 | GREEN |
+|---|---|---|
+| `pages` 없는 DB · `q=김치찌개` | `OperationalError: no such table: pages` → HTTP **500** | **503** |
+| 같은 DB · `q=zzzznope` | `NoCrawlDataError not raised` → **200 `[]`** | **503** |
+| 같은 DB · `q=%01`(무토큰) | `NoCrawlDataError not raised` → **200 `[]`** | **503** |
+| 같은 DB · `/search?q=김치찌개` | **200**(RED 때부터 초록 — 대조군) | **200 무변** |
+| `README.md` 건수 단언 | `(593, 21) != (596, 21)` | 596 으로 맞춤 |
 
-| 질의 | 오늘 | 가드만 | **가드+튜플** | 정상 DB 대조군 |
-|---|---|---|---|---|
-| `/passages?q=김치찌개` | 500 | 500 | **503** | 200 · 문단 1건 (무변) |
-| `/passages?q=zzzznope` | 200 `[]` | 500 | **503** | 200 `[]` (무변) |
-| `/passages?q=%01` | 200 `[]` | 500 | **503** | 200 `[]` (무변) |
-| `/search?q=김치찌개` | 200 | 200 | **200** | 200 (무변) |
-| `/?q=김치찌개`(화면) | 200 | 200 | **200** | 200 (무변) |
+단위 **593 → 596 OK**(13.596초 · 맨몸·단독). 새 테스트 셋:
+`test_indexer.TestPassages.test_db_without_pages_raises_for_every_query_shape`(`subTest` 3) ·
+`test_serve.TestPassagesWithoutPagesTable`(503 3종 · `/search` 200) ·
+`TestPassagesSchemaVersion` 표에 `NoCrawlDataError → 503` 행.
 
-- 단위 **593 OK**(가드만·둘 다 — 두 번 다) · e2e **21종 전수 rc 0** ·
-  `passage_eval` 정확도 **100.0%** · 채택률 **99.5%** · p95 **1.52ms** 세 숫자 무변.
-- 덤 둘: **가드만으로는 여전히 500**(계획서의 «처방은 두 곳» 확인 — 완료 기준 10 변이 ②의
-  기대값이다) · **«판정이 질의 내용에 안 달린다» 를 내는 것은 가드 하나**(가드만 넣어도
-  세 질의가 500 하나로 모인다). 겹쳐 있던 두 고장을 서로 다른 편집이 고친다.
+## 변이 둘이 다 죽었다 (완료 기준 10)
+
+스크래치패드 사본에서 돌렸다(`.mutation-lock` 불필요 · `git checkout` **0회**).
+
+- **① `passages()` 가드 삭제** → `failures=3, errors=1`(indexer 세 질의 + serve 503 3종).
+- **② 503 튜플에서 `NoCrawlDataError` 제거** → `failures=2`
+  (`TestPassagesWithoutPagesTable` · `TestPassagesSchemaVersion`).
+
+**첫 판이 틀린 자리를 지웠다** — `t.index("if not db.execute(")` 가 `index_pages()` 의
+같은 가드를 먼저 잡아 엉뚱한 변이가 됐다. 같은 문자열이 두 곳이라는 설계서의 천장이
+변이 도구에서 먼저 나타난 것이다. `def passages` 뒤부터 찾도록 고쳐 다시 쟀다.
 
 ## 행동
 
-다음은 **개발**이다(스텝 1/1). TDD 로 2절 표의 세 질의를 먼저 RED 로 세운다 —
-`tests/test_indexer.py` 의 `test_missing_db_raises` 옆에 `subTest` 셋,
-`tests/test_serve.py` 의 `test_every_passages_response_carries_version` 표에
-`NoCrawlDataError → 503` 행과 실제 DB HTTP 503 하나(같은 DB 의 `/search` 200 을 옆에).
-`README.md` 의 상태 코드 계약 줄과 `단위 593건` · `tests/test_readme.py` 건수 단언은
-**같은 커밋**에서 움직인다.
+다음은 **테스트** phase 다. 갭 탐색의 자리 후보:
+`pages` 는 있는데 `html` 열이 없는 DB(설계서 4절이 「500 이 맞는 이름」으로 적어 둔
+천장 — 그것을 붙드는 단언이 0개다) · 가드가 `search()` 뒤라는 **순서**를 붙드는 단언
+(옛 색인 우선순위가 오늘 그대로인지) · 화면 사다리를 **안 넓힌 것**을 붙드는 단언.
 
 ## 설계
 
-**끝났다.** `docs/design_passage-db-state.md` — 갈림길 셋의 표, 깬 가정, 계약, 천장,
-역할 검토, 되돌리기까지. 개발이 새로 고를 것은 없다.
+**끝났다.** `docs/design_passage-db-state.md` — 개발은 3절 계약을 한 글자도 안 벗어났다.
 
 ## 사람 결정 대기
 
