@@ -1,80 +1,75 @@
 ---
-signal: GREEN
+signal: DONE
 phase: e2e
 step: 1/1
 attempt: 0
-iteration: 325
+iteration: 326
 updated: 2026-09-05
-ctx: 52
-night_iterations: 147
+ctx: 58
+night_iterations: 148
 night_red: 2
 night_retries: 0
-plan: db-state-invariant # 계획 55 — 리뷰 1/1 완료(지적 4 · 자동수정 2) · 다음은 e2e
+plan: db-state-invariant # 계획 55 — e2e 1/1 통과 · 완료 기준 9/9 · 새 e2e 0개 · DONE
 ---
 
 # 현재 상태
 
-**계획 55 `db-state-invariant` 의 리뷰 1/1 이 끝났다.** 원격 `main` `c0be72f` 부터
-HEAD 까지 **여섯 커밋 전부**를 백지 패스 먼저로 봤고, 지적 넷 중 둘을 그 자리에서
-고쳤다(`src/` **0줄**). 브랜치는 `loop/db-state-invariant`. **다음 phase 는 e2e 다.**
+**계획 55 `db-state-invariant` 가 끝났다.** 결과는 `docs/e2e/db-state-invariant/result.md`,
+설계서는 `docs/design_db-state-invariant.md`, 계획서는 `docs/plan_db-state-invariant.md`,
+브랜치는 `loop/db-state-invariant`.
 
-## 이 반복이 직접 잰 것 (반복 325)
+## e2e 가 잰 것 — **앞 반복의 숫자를 하나도 그대로 안 받았다**
 
-적힌 숫자를 하나도 안 믿고 다시 쟀다. **전수** `PYTHONPATH=src python3 -m unittest
-discover -b -s tests` 를 맨몸·단독(러너를 파이프 왼쪽에 안 둔다)으로 **605건 OK ·
-13.494초 · rc 0**. 리뷰가 고친 뒤 다시 **605건 OK · 13.504초 · rc 0**.
+`status.md` 가 「rc 0 확인됨」으로 적어 둔 것까지 전부 다시 돌렸고, 앞 phase 들이 단위
+실패 건수로만 재고 넘긴 완료 기준 3·4·5·6 도 **저장소 밖 전체 사본에서 다시 심어 다시
+쟀다**(`rsync` · `.git` 없는 트리 · `git checkout` 0회).
 
-**변이 재측** — 전부 저장소 밖 **전체 사본**(`rsync`)에서 · `PYTHONDONTWRITEBYTECODE=1`.
+**① 자의 눈금이 스키마를 따라 저절로 큰다** — `store.SCHEMA` 에 `title TEXT` 한 줄을 더한
+사본에서 자가 도는 눈금이 `url·html·status·fetched_at` **4칸 → 5칸**이 됐다. **테스트
+파일은 한 글자도 안 고쳤다.** 눈금을 0칸으로 눈멀게 하면 조용한 초록이 아니라
+`0 not greater than or equal to 4` 로 죽는다(기준 4).
 
-| 변이 | 결과 |
-|---|---|
-| ① 처방 되돌리기 (`SELECT url, html` → `SELECT html`) | **RED 1/605** — `missing='url'`, `{'김치찌개': 'OperationalError', 'zzzznope': 'ok', '\x01': 'ok'}` |
-| ② 눈금 0칸 (`_columns` → `[]`) | **RED** — `0 not greater than or equal to 4` |
-| ③ `DOC` 을 `된장찌개` 로 | **RED** — 자기검사 2 만, `[False, False, False]` |
-| ⑤ **새로 심었다** — 루프를 `SELECT html, status … WHERE url = ?` 로 넓히고 탐침은 그대로 | **RED 1/605** — 그 하나가 새 자(`missing='status'`) |
+**② 변이 둘 다 RED — 그런데 폭이 다르다(새로 안 것).**
 
-**⑤가 이 계획의 앞날 주장을 실증한다.** 코드 주석이 *"셋째 열을 읽게 되면 그 열을 여기
-더한다 — 자가 그날을 잡아 준다"* 라고 적었는데, 그 날을 흉내 내니 605건 중 **오직 새 자**가
-울었다. 계획 55 가 「자리를 넓히는 대신 원칙을 세운다」를 실제로 한 것이 맞다.
+| 변이 | rc | 죽은 subTest |
+|---|---|---|
+| ① 탐침에서 `url,` 삭제 | 1 | `missing='url'` **1건** |
+| ② 탐침을 `hits` 루프 **안**으로 | 1 | `missing='url'` · `missing='html'` **2건** |
 
-**실서버 실측** — `--port 0` 으로 띄우고 `url` 열이 없는 DB(저장소 밖)를 먹였다.
-`/passages` 는 세 질의 전부 **500**이고 본문이 셋 다
-`{"version": 1, "error": "검색 중 오류가 났다"}` 다. `/search` 는 같은 DB 에서 200 셋인데
-**이것이 정상이다** — FTS `docs` 는 `content=` 없는 독립 표라 `pages` 를 안 읽는다
-(`indexer.py:15`). 같은 DB 에 `indexer` CLI 는 rc 1. 서버는 끝내기 전에 죽였다.
+계획 54 e2e 는 이 둘을 «HTTP 표면에서 동치» 로 적었는데 그 측정은 `html` **한 축**만 봤기
+때문이다. 열 축 전체를 도는 자로 재니 ②는 **계획 54 가 닫은 자리까지 함께 되돌린다**.
+자리를 하나 더 넓히는 안이었다면 그 회귀를 아무도 못 봤다 — **자를 세운 값이 여기 있다.**
 
-**보안(CSO) 통과** — sqlite 문구는 응답 본문에 **안 실린다**. 서버 stderr 로그에만
-`/passages 실패: OperationalError('no such column: url')` 로 남는다. 경로·스키마 노출 0.
+**③ 실서버 두 대 · `url` 열 없는 DB**
 
-## 지적 넷 (자동수정 2 · 보고만 2)
+| DB 상태 | `/passages` 세 질의 | `/search` 세 질의 | 화면 |
+|---|---|---|---|
+| 정상 (대조군) | 200 · 200 · 200 | 200 · 200 · 200 | 200 |
+| **`url` 열 없음** | **500 · 500 · 500** (착수 500/200/200) | **200 · 200 · 200** | **200** |
 
-- **[R55-1] low · 고침** — `_drop_column` 이 다시 만드는 표가 `PRIMARY KEY`·`NOT NULL`·
-  `DEFAULT` 를 잃는다(실측: `url` 뺀 표가 `html TEXT, status INTEGER, fetched_at TEXT`).
-  `PRAGMA table_info` 는 이름·타입까지만 준다. 판정 영향은 0 이지만 주석이 *"실제로
-  만들어진 표를 잰다"* 라 절반만 참이었다 → `ponytail:` 천장 네 줄을 더했다.
-- **[R55-2] low · 고침** — README 재작성(`c8827e9`)이 품질 표에서 **비텍스트 명암비
-  3:1** 을 지웠다. `e2e/design_check.py` 는 계속 잰다(`MIN_CONTRAST_NONTEXT = 3.0`)이고
-  아래 「사람 결정 대기」 2번이 바로 그 기준 얘기다 → 셀 한 줄 복원.
-- **[R55-3] low · 보고만** — 같은 재작성이 `/passages` 응답 스키마
-  `{url,title,position,text}` 와 rc 표의 「어디서」 열도 지웠다. 쉬운 말로 옮긴 편집
-  의도가 분명해 되돌리지 않는다. 되살릴 거리는 다음 문서 반복 몫이다.
-- **[R55-4] low · 보고만** — 설계 5절이 `README.md` 를 범위 **밖**으로 적었는데 테스트
-  스텝은 고칠 수밖에 없었다(`tests/test_readme.py` 의 `UNIT_COUNT` 가 숫자를 강제한다).
-  **계약 문구가 반증됐다** — 다음 계획서는 *"README 는 숫자 가드가 강제하는 줄만"* 이다.
+**정상 대조군 7칸 무변**이라 계획서 8절의 최대 위험(가드 오탐)은 **0**. `/search` 가 200 인
+것은 정상이다 — FTS `docs` 는 `content=` 없는 독립 표라 `pages` 를 안 읽는다.
+**CSO 통과** — 500 본문에 `sqlite`·`OperationalError`·`no column`·DB 경로 **0건**, 원인은
+서버 stderr 에만(`/passages 실패: OperationalError('no such column: url')`).
 
-**거짓양성으로 버린 것 하나.** 「자가 일관성만 재니 «일관되게 틀린» 상태를 통과시킨다」를
-변이로 확인했다(탐침 삭제 + 루프에서 `except OperationalError: continue`). 새 자는 초록인데
-**계획 53·54 클래스 8건이 죽었다** — 저장소가 이미 덮고 있어 `severity.md` 의 「이미 충분히
-덮는 단언을 더 조일 수 있다」에 걸린다. `metrics.md` 가 같은 것을 이미 적어 두었다.
+## 완료 기준 — **9/9 통과** (뒤집힌 행 0개)
 
-## 범위 (하드 제약 확인)
+## 전수
 
-`src/` **0줄** · `serve.py`·`store.py`·스키마·마이그레이션·재색인 **0** · 새 의존성 0 ·
-stdlib 만 · 고친 파일 **둘**(`tests/test_indexer.py` 주석 +4줄 · `README.md` 셀 1줄) ·
-`docs/specs/` 무변 · `data/crawl.db` sha256 `85c96744…5bda18` **무변**(변이는 전부
-저장소 밖 전체 사본) · 서버 잔여 0(`pgrep -f websearch.serve` 0건) · `main` 직접 커밋 0 ·
-`--no-verify`·`--force` 0 · **PR 무접촉(조회 0회)** · 브랜치 병합 시도 0 ·
-e2e 21종 전수는 **e2e phase 몫**.
+**단위 605 OK**(13.526초 · 맨몸·단독 · rc 0) · **e2e 21종 전수 rc 0 · 새 e2e 파일 0개**(근거
+넷은 result.md 4절 — 결정적인 것은 «손으로 적는 e2e 는 스키마를 따라 안 커서, 이 계획이
+없애러 온 취약성을 e2e 디렉터리에 새로 만든다») · 21종 합계 약 171초, 오래 걸리는 넷은
+전부 실시계를 일부러 기다리는 것들이다(`perf_crawl` 28s · `deadline` 19s · `interrupt` 18s ·
+`retry_interval` 15s) · `passage_eval` 정확도 **100.0%**(398/398) · 채택률 99.5% ·
+p95 1.65ms(예산의 0.3%) · `quality_eval` ko 20/20 · en 19/20 · `perf_search` p95 8.81ms ·
+`perf_crawl` 10.24/s · `design_check` 4축 — **기준선 전 축 무변**.
+
+## 한도
+
+`src/` **0줄**(e2e phase) · 제품 diff 는 계획 전체로도 `indexer.py` 한 파일 ·
+`data/crawl.db` sha256 `85c96744…5bda18` 무변(열지도 않았다) · `docs/specs/` 무변 ·
+새 의존성 0 · 스키마·마이그레이션·재색인 0 · `pgrep -f websearch.serve` **0건** ·
+`--no-verify`·`--force` 0 · `main` 직접 커밋 0 · **PR 무접촉(조회 0회)** · 러너 규율 위반 0.
 
 **푸시 대조** — 아래 「푸시」 절에 실측을 적는다.
 
@@ -84,9 +79,8 @@ e2e 21종 전수는 **e2e phase 몫**.
 2. **`--focus` 가 `--bg-button` 위에서 1.45:1**(다크 1.66:1) — `outline-offset` 0 일 때만.
 3. **반응형 360px 미검증** — 브라우저가 없어 저장소의 아무도 안 그려 본다.
 4. **브랜치 병합** — 원격 `main` 은 `c0be72f`, 계획 54(PR #9)까지 들어 있다.
-   `loop/db-state-invariant` 의 병합은 사람 몫이고 `main` 직접 커밋은 하지 않는다.
-   **이 반복도 PR 을 조회조차 안 했다.**
+   `loop/db-state-invariant` 병합은 사람 몫이고 `main` 직접 커밋은 않는다.
 
 ## 정지 사유
 
-없음 — 계획 55 **e2e** 로 이어간다.
+없음 — 계획 55 DONE. 다음 반복은 **계획 탐색**이다(아카이브·회전은 이 반복이 안 했다).
