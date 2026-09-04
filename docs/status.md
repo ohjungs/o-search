@@ -49,11 +49,11 @@ plan: focus-ring-combinator
 
 ## 원격을 다시 읽은 값이다
 
-- 브랜치 `loop/hidden-passage` · `HEAD` **`20ee8d5`** ·
-  `git ls-remote origin loop/hidden-passage` **`20ee8d5dd307…`** — 로컬과 같다.
-- 새 브랜치 `loop/focus-ring-combinator` 의 **기점은 `20ee8d5`**(`main` 아님).
-  `origin/main` 은 `687a159`(계획 47)이라 `README.md` 의 `단위 593건`·`e2e 21종`
-  단언이 거기서는 RED 다.
+- 브랜치 **`loop/focus-ring-combinator`**(기점 `20ee8d5` — `loop/hidden-passage` 의
+  HEAD 이고 `ls-remote` 가 `20ee8d5dd307…` 로 같았다). 계획 커밋 뒤 푸시하고
+  **원격을 다시 읽었다**: `HEAD` **`23fdb82`** = `ls-remote` **`23fdb82728c1…`**.
+- 기점을 `main` 으로 안 잡았다 — `origin/main` 은 `687a159`(계획 47)이라
+  `README.md` 의 `단위 593건`·`e2e 21종` 단언이 거기서는 RED 다.
 - **PR #7**(`loop/merge-48-50` → `main`) **OPEN·미병합.** 병합은 사용자가 처리한다 —
   이 반복은 PR 을 열지도 닫지도, 그 브랜치를 건드리지도 않았다.
 - `--no-verify`·`--force` 0회 · 훅 우회 0 · `data/crawl.db`·`docs/specs/` 무변경.
