@@ -148,4 +148,10 @@ append 전용이고 수정·삭제 금지다. 각 회전의 사유는 `digest.md
   제자리 변이는 `git checkout` 이 아니라 스크래치패드 사본으로 되돌린다** — 이후
   변이 셋은 사본에서 `cp` 로 되돌렸다. `.mutation-lock` 은 걸었지만 그 락이 막는 것은
   「변이가 커밋되는 것」이지 「원복 수단이 틀린 것」이 아니다.
+- 위 둘을 `digest ## 반복 실패` 에 적었다 — 러너 규율은 ⑳ 로(계획 phase 의 1회를
+  합쳐 **28 → 31회**), 되돌리기 교훈은 같은 항목 안에. `index.md` 의
+  `plan_focus-ring-combinator` 행은 `0/1 → 1/1`,
+  `metrics.md` 반복 304→305 · 개발 72→73.
+- 원격을 다시 읽었다: 개발 커밋 **`5f86d08e9a2f…`** 를 푸시하고
+  `git ls-remote origin loop/focus-ring-combinator` = **`5f86d08e9a2f…`** = 로컬 `HEAD`.
 - 다음: **테스트 1/1** — 갭 탐색(조건 5 가 새로 읽는 자리의 이웃)과 e2e 전수 21종.
