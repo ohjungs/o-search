@@ -318,6 +318,12 @@ class TestExtractBlocks(unittest.TestCase):
              ["보이는 김치찌개"]),
             ("dt/dd", "<dl><dt hidden>숨은<dd>보이는 김치찌개</dl>",
              ["보이는 김치찌개"]),
+            # 테스트 4 가 찾은 갭 — 위 줄은 **`dt` 키만** 쓴다. `dd` 도 키인데
+            # 아무 케이스도 안 밟아 「`dd` 줄 삭제」 변이가 살아 있었다(실측).
+            # `<dd hidden>` 은 접히는 FAQ 의 실물 기본형이고, 못 닫으면 다음 답이
+            # 통째로 사라지는 **오탐** 방향이다(계획서 8절)
+            ("dd", "<dl><dt>질문<dd hidden>숨은 답<dd>보이는 김치찌개</dl>",
+             ["질문", "보이는 김치찌개"]),
             # 한 시작 태그가 **둘을 겹쳐 닫는다** — 안 닫힌 `<p>` 위의 `<li>` 다.
             # 한 번만 닫으면 바깥 `<li hidden>` 이 남아 뒤가 통째로 사라진다
             ("li 안의 안 닫힌 p",
@@ -380,6 +386,12 @@ class TestExtractBlocks(unittest.TestCase):
                       "<tbody><tr><td>보이는 셀</table>", ["보이는 셀"]),
             ("tbody", "<table><tbody hidden><tr><td>숨은 행"
                       "<tfoot><tr><td>보이는 꼬리</table>", ["보이는 꼬리"]),
+            # 테스트 4 가 찾은 갭 — 개발 4 가 넣은 여덟 중 `tfoot` 만 **어느 방향으로도**
+            # 안 밟혀 「`tfoot` 줄 삭제」와 「`tfoot` 의 뺄셈 제거」 두 변이가 살아
+            # 있었다(실측). `<tfoot>` 은 명세가 `<tbody>` 보다 **앞**에 오는 것을
+            # 허용하므로 이 모양은 깨진 입력이 아니다
+            ("tfoot", "<table><tfoot hidden><tr><td>숨은 꼬리"
+                      "<tbody><tr><td>보이는 셀</table>", ["보이는 셀"]),
             ("caption", "<table><caption hidden>숨은 설명"
                         "<tbody><tr><td>보이는 셀</table>", ["보이는 셀"]),
             ("colgroup", "<table><colgroup hidden><col>"
@@ -396,6 +408,9 @@ class TestExtractBlocks(unittest.TestCase):
         # **자식**으로 들어가는 태그는 여전히 숨김을 안 걷어야 한다
         for name, html in [
             ("숨은 thead 안의 행", "<table><thead hidden><tr><th>숨은 헤더</table>"),
+            # `tfoot` 의 뺄셈(`- {td, th, tr}`)을 붙드는 유일한 자리다 — 빼기를
+            # 지우면 `<tr>` 이 숨은 `<tfoot>` 을 걷어 숨은 텍스트가 근거로 샌다
+            ("숨은 tfoot 안의 행", "<table><tfoot hidden><tr><td>숨은 꼬리</table>"),
             ("숨은 optgroup 안의 option",
              "<select><optgroup hidden><option>숨은</select>"),
             ("숨은 caption 안의 인라인",
