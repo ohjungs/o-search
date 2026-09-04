@@ -343,6 +343,61 @@ class TestPassagesWithoutPagesTable(ServeTestCase):
         self.assertEqual(status, 200, body)
         self.assertTrue(body["results"], "색인이 멀쩡한데 결과가 비었다")
 
+    def test_html_screen_still_answers_200(self):
+        """화면 사다리를 **안 넓힌 것**이 계약이다 (설계 갈림길 3).
+
+        화면은 `_page_hits` → `search()` 만 타고 `search()` 는 `NoCrawlDataError` 를
+        안 낸다 — 대칭으로 넓히면 어떤 테스트로도 RED 를 못 만드는 줄이 생긴다는 것이
+        좁게 둔 근거였다. 그 근거가 되는 「200·결과 있음」은 `serve.py` 주석의 실측값으로만
+        있었다. 여기서 잰다 — 가드가 `search()` 쪽으로 번지면 이 줄이 먼저 빨개진다.
+        """
+        status, body, _ = self.raw("/?q=%EA%B9%80%EC%B9%98")
+        self.assertEqual(status, 200, body[:200])
+        self.assertIn("김치찌개 만들기", body, "색인이 멀쩡한데 화면에 결과가 없다")
+
+
+class TestPassagesWithoutHtmlColumn(ServeTestCase):
+    """`pages` 는 있는데 `html` 열이 없다 — 설계서 4절이 「500 이 맞는 이름」으로 적어 둔 천장.
+
+    **천장은 500 하나가 아니라 500/200 갈림이다.** 가드는 테이블의 *유무만* 보므로
+    매치되는 질의만 `SELECT html` 에 닿아 500 이 되고, 매치 없는 질의는 루프가 한 번도
+    안 돌아 200 `[]` 이 된다 — 계획 53 이 테이블 째로 없는 DB 에서 닫은 바로 그 고장이
+    열 하나 아래에 그대로 남아 있다.
+
+    **아래 값은 바라는 답이 아니라 오늘의 답이다.** 천장을 옮기는 날 이 테스트가 빨개져
+    「그 갈림을 알고 바꾼다」가 되게 하려고 잰다.
+    """
+
+    def setUp(self):
+        super().setUp()
+        db = sqlite3.connect(self.db)
+        db.execute("DROP TABLE pages")
+        # 열 하나만 빠진 창고. `ALTER … RENAME/DROP COLUMN` 은 sqlite 버전을 타서 새로 만든다.
+        db.execute("CREATE TABLE pages (url TEXT PRIMARY KEY, status INTEGER)")
+        db.executemany("INSERT INTO pages VALUES (?, 200)", [(url,) for url in PAGES])
+        db.commit()
+        db.close()
+
+    def test_matching_query_is_500(self):
+        # 열이 빠진 것은 크롤·색인을 다시 돌린다고 낫는 상태가 아니다 — 503(재시도하라)이
+        # 아니라 500 이 맞는 이름이라는 것이 설계 4절의 판정이다.
+        with mock.patch("sys.stderr", new_callable=io.StringIO) as err:
+            status, body, _ = self.get(PASSAGE_Q)
+            logged = err.getvalue()
+        self.assertEqual(status, 500, body)
+        self.assertEqual(body["error"], "검색 중 오류가 났다")
+        self.assertNotIn(self.db, json.dumps(body, ensure_ascii=False), "DB 경로가 샜다")
+        self.assertIn("OperationalError", logged, "500 의 원인이 로그에 안 남았다")
+
+    def test_query_without_match_is_200_the_split_that_is_left(self):
+        # 같은 순간의 같은 고장난 DB 인데 소비자가 받는 답이 질의 내용으로 갈린다.
+        # `pages` 테이블 자체가 없을 때는 이 갈림이 닫혔다(위 클래스) — 열 단위로는 열려 있다.
+        for q in ("zzzznope", "%01"):
+            with self.subTest(q=q):
+                status, body, _ = self.get("/passages?q=" + q)
+                self.assertEqual(status, 200, body)  # 먼저 잰다 — 503 이면 아래가 KeyError 다
+                self.assertEqual(body["passages"], [])
+
 
 class TestPassagesSchemaVersion(ServeTestCase):
     """`_send` 를 안 쓰고 직접 JSON 을 쓰는 변이(M7)가 여기서 죽는다.
