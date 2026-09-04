@@ -1,74 +1,92 @@
 ---
-signal: GREEN
+signal: DONE
 phase: e2e
 step: 1/1
 attempt: 0
-iteration: 313
+iteration: 314
 updated: 2026-09-04
-ctx: 52
-night_iterations: 136
+ctx: 48
+night_iterations: 137
 night_red: 2
 night_retries: 0
-plan: passage-db-state # 계획 53 — 리뷰 1/1 완료(반려 0) · 다음은 e2e
+plan: passage-db-state # 계획 53 — e2e 1/1 통과 · 완료 기준 10/10 · DONE
 ---
 
 # 현재 상태
 
-**계획 53 `passage-db-state` 리뷰 1/1 을 끝냈다. 반려 0 — 다음 phase 는 e2e 다.**
-설계서는 `docs/design_passage-db-state.md`, 계획서는 `docs/plan_passage-db-state.md`,
-브랜치는 `loop/passage-db-state` — 테스트 커밋 `9e57f23` 위에 리뷰 커밋을 얹었다.
+**계획 53 `passage-db-state` 가 끝났다 — 완료 기준 10 개를 전부 실측으로 닫았다.**
+결과는 `docs/e2e/passage-db-state/result.md`, 설계서는 `docs/design_passage-db-state.md`,
+계획서는 `docs/plan_passage-db-state.md`. 브랜치 `loop/passage-db-state`.
 
-## 보고 1건 — 자동 수정 1 · 승인 필요 0 · 제품 `src/` 0줄
+## e2e 가 잰 것 — **실서버 둘을 띄워 상태 코드를 소켓에서 받았다**
 
-**[R53-1] 세 질의가 갈리는지 재는 단언이 `subTest` 밖에 있었다.**
-`TestPassagesWithoutPagesTable.test_every_query_shape_is_503` 이 세 질의를 `subTest` 로
-돌면서 단언 셋은 `with` 블록 **밖**에 뒀다 — 첫 질의에서 멈추고 어느 질의가 갈렸는지도
-안 남는다. 설계서 3절이 「세 질의가 `subTest` 셋이어야 *판정이 질의 내용에 안 달린다* 가
-하나의 축으로 잡힌다」고 적은 그 축이 **실제로는 안 잡혀 있었다**. 단언 셋을 `with` 안으로
-넣고 사유를 주석으로 남겼다(`tests/test_serve.py` 한 파일).
+단위는 핸들러를 프로세스 안에서 부른다. 계획 53 이 고친 것은 본문이 아니라 **상태 코드**라
+그 값은 프로세스 밖에서 재야 참이다. 임시 DB 둘(정상 / `DROP TABLE pages`)을 각각
+`python3 -m websearch.serve --port 0` 으로 띄웠다.
 
-**실측이 갈랐다** — 판정을 `hits` 에 매다는 변이에서 고치기 전에는 라벨 없는 실패 **1건**,
-고친 뒤에는 `(q='zzzznope')`·`(q='%01')` **2건**. 같은 계약을 단위에서 재는
-`test_db_without_pages_raises_for_every_query_shape` 는 처음부터 둘을 냈다.
+| 질의 | 착수(반복 309) | 오늘 |
+|---|---|---|
+| `/passages?q=김치찌개`(매치 있음) | **500** | **503** |
+| `/passages?q=zzzznope`(매치 없음) | **200 `[]`** | **503** |
+| `/passages?q=%01`(무토큰) | **200 `[]`** | **503** |
+| `/search?q=김치찌개` | 200 | **200**(결과 1건) |
+| `/?q=김치찌개`(화면) | 200 | **200** |
 
-## 변이 넷을 다시 돌렸다 — 「검증됨」을 그대로 안 믿는다
+본문은 고정 문구(`{"version":1,"error":"색인이 아직 준비되지 않았다"}`)고 **DB 경로가
+안 샌다** — 경로는 서버 로그에만 남는다. 정상 DB 대조군 다섯 줄은 **전부 무변**이라
+계획서 8절의 최대 위험(가드 오탐)은 **0** 이다.
 
-스크래치패드 사본에서 돌렸다(`git checkout` **0회** · 저장소 무변).
+## 변이 둘을 HTTP 표면에서 다시 죽였다 — **②가 이 phase 의 값이다**
 
-| 변이 | 결과 |
-|---|---|
-| ① 503 튜플에서 `NoCrawlDataError` 제거 | `failures=2` |
-| ② `passages()` 가드 삭제 | `failures=3, errors=1` |
-| ③ 가드를 `hits` 에 매단다(`if hits and not …`) | `failures=3` → 수정 후 **4** |
-| ④ **화면 사다리를 `NoCrawlDataError` 로 넓힌다** | **`599 OK` · 죽는 것 0** |
+`src/` 사본을 스크래치패드에 두고 심었다(`git checkout` 0회 · 저장소 무변).
 
-④ 가 값이다 — 설계 갈림길 3 과 `serve.py` 주석이 근거로 삼은 「대칭으로 넓히면 어떤
-테스트로도 RED 를 못 만드는 줄이 생긴다」를 **리뷰가 처음 직접 쟀다**.
+| 변이 | `q=김치찌개` | `q=zzzznope` | `q=%01` | 탐침 rc |
+|---|---|---|---|---|
+| ① 503 튜플에서 `NoCrawlDataError` 제거 | 500 | 500 | 500 | **1** |
+| ② `passages()` 가드 삭제 | 500 | **200 `[]`** | **200 `[]`** | **1** |
 
-## 버린 후보 5건 · 전수로 본 것
-
-80점 미만 5건(두 벌 문자열 헬퍼 · 화면 테스트 중복 · docstring 예외 미기재 ·
-`TestPassagesWithoutHtmlColumn` 의 오늘 값 고정 · `digest.md` 207줄).
-**열거형 완전성은 diff 밖 전수로 봤다** — `passages()` 의 비테스트 호출자는 `serve`
-한 곳뿐이라 새 예외가 CLI 트레이스백으로 새는 경로 **0**, 가드의 `raise` 는
-`finally: db.close()` 안이라 연결도 안 샌다. `digest` 로 넘긴 6점 둘의 점수도 맞다.
+②를 심으면 착수 때의 그 갈림이 **HTTP 표면에 글자 그대로 돌아온다**. 개발·리뷰는
+`failures=N` 으로 쟀는데, **소비자가 받는 세 값이 갈리는 것**을 본 것은 여기가 처음이다.
+①은 셋을 500 하나로 모으지만 이름이 틀렸다 — 두 변이가 서로 다른 층을 잡는다.
 
 ## 전수
 
-**단위 599 OK**(13.607초 · 맨몸·단독). `data/crawl.db` sha256 `85c967…5bda18` 무변 ·
-`docs/specs/` 무변 · `src/`·`e2e/`·`README.md` **0줄** · 새 파일 0 · **PR #7 무접촉**.
+**단위 599 OK**(13.687초 · 맨몸·단독 · rc 0) · **e2e 21종 전수 rc 0** ·
+`passage_eval` 정확도 **100.0%** · 채택률 **99.5%**(398/400) · p95 **1.55ms**(예산의 0.3%) ·
+`quality_eval` ko 20/20 · en 19/20 · `design_check` 4축 · `perf_search` p95 8.84ms ·
+`perf_crawl` 3시나리오. `data/crawl.db` sha256 `85c967…5bda18` 무변 · `docs/specs/` 무변 ·
+제품 diff **두 파일**(`indexer.py` +10 · `serve.py` +8/-2) · `e2e/` **0줄** · 새 e2e 0개 ·
+**PR #7 무접촉**. `pgrep -f websearch.serve` **0건**.
+
+## 러너 규율 — **위반 2회**(숨기지 않는다)
+
+둘 다 **재확인 실행**이고 방아쇠가 같다. ① 변이 탐침의 재확인에 `2>&1 | tail -40` 을 붙여
+변이 ① 구간이 잘렸다. ② 문서 갱신 뒤 `test_docs`·`test_readme` 재확인에 `2>&1 | tail -30`
+을 붙였다(판정 줄은 살아남았지만 `rc` 는 파이프 뒤라 안 찍혔다).
+`digest ## 반복 실패` 의 「러너의 판정 줄을 가린다」가 적은 방아쇠 그대로다(«재확인 실행»).
+**둘 다 맨몸으로 다시 돌렸고**(`Ran 16 … OK · rc=0` · `Ran 599 … OK · rc=0`) 기록한 값은
+전부 맨몸 실행의 것이다. 단위·e2e **전수**에는 위반 0회.
+**한 반복에 같은 방아쇠가 두 번 당겨진 것은 처음이다** — 조항이 겨냥할 자리는 본 실행이
+아니라 **«이미 통과한 줄 알고 다시 돌리는 실행»** 이다.
+
+## 집안일 둘
+
+1. **`digest.md` 를 208 → 197줄로 회전했다** — 2026-09-01 이전 완료 항목 아홉을 지웠다
+   (원본은 각 `history_<NNN>.md`, 계획별 서술은 `index.md`).
+2. **아카이브 명부에 `history_055.md` 가 빠져 있었다** — 직전 회전이 «명부에 더했다» 고
+   적었는데 실제로는 서술 줄에만 붙었다. 명부에 넣었다. 그 줄을 지웠다면
+   `ArchiveIndexTest` 가 RED 였을 자리다 — 오래된 항목을 지우기 **전에** 잡혔다.
 
 ## 행동
 
-다음은 **e2e** phase 다. 완료 기준 8(21종 전수)은 테스트 phase 가 이미 rc 0 으로 닫았으니
-e2e 의 몫은 **계약 표면을 실서버로 다시 재는 것**이다 — `pages` 를 치운 DB 에서
-`/passages` **503**·`/search` **200**·화면 **200**, 그리고 본문이 DB 경로를 안 흘리는지.
-집안일 하나: `docs/digest.md` 가 **207줄**로 상한 200 을 넘었다(기점에서 이미 205).
-회전할 때 오래된 완료 항목부터 지운다 — 아카이브 명부 줄은 남긴다.
+**다음은 새 계획 탐색**이다. `digest ## 다음 계획 후보` 에 `[6]`(「`pages` 는 있는데
+`html` 열이 없는 DB 에서는 판정이 아직 질의 내용에 달렸다」)이 남아 있고, 테스트 phase 갭
+목록에도 8점 미만 항목이 쌓여 있다.
 
 ## 설계
 
-**끝났다.** `docs/design_passage-db-state.md` — 리뷰는 3절 계약을 안 건드렸다.
+**끝났다.** `docs/design_passage-db-state.md` — e2e 는 3절 계약을 안 건드렸고,
+갈림길 3(화면 사다리를 안 넓힌다)의 근거를 실서버로 다시 확인했다.
 
 ## 사람 결정 대기
 
