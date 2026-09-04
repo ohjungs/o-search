@@ -79,8 +79,9 @@ plan: focus-ring-combinator
 
 ## 원격을 다시 읽은 값이다
 
-- 브랜치 **`loop/focus-ring-combinator`**(기점 `20ee8d5`). 리뷰 커밋 뒤 푸시하고
-  **원격을 다시 읽었다** — 값은 `history_current.md` 리뷰 항목에 적었다.
+- 브랜치 **`loop/focus-ring-combinator`**(기점 `20ee8d5`). 리뷰 커밋 `d83dd3e` 를
+  푸시하고 **원격을 다시 읽었다** — `git ls-remote` 가
+  `d83dd3ee8f6d89d8e226f16700e46d86e222d748` 로 같다(`56c522e..d83dd3e`).
 - 기점을 `main` 으로 안 잡았다 — `origin/main` 은 `687a159`(계획 47)이라
   `README.md` 의 `단위 593건`·`e2e 21종` 단언이 거기서는 RED 다.
 - **PR #7**(`loop/merge-48-50` → `main`) **OPEN·미병합.** 병합은 사용자가 처리한다 —
