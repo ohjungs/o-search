@@ -1,65 +1,62 @@
 ---
-signal: DONE
-phase: e2e
-step: 5
+signal: GREEN
+phase: 설계
+step: 0
 attempt: 0
-iteration: 302
+iteration: 303
 updated: 2026-09-04
-ctx: 38
+ctx: 45
 night_iterations: 130
 night_red: 2
 night_retries: 0
-plan: null
+plan: focus-ring-combinator
 ---
 
 # 현재 상태
 
-**계획 51 `hidden-passage` 완료.** e2e 통과 · 계획·설계 아카이브(`plan_history_037.md` ·
-`design_history_037.md`) · `index.md` 51번 줄 **완료** · `plan: null`. 다음 계획 없음.
-**새 파일은 e2e 1개**(`e2e/hidden_passage_e2e.py`) · 제품 `src/` **0줄**.
+**계획 52 `focus-ring-combinator` 착수.** 계획서 `docs/plan_focus-ring-combinator.md` ·
+`index.md` 52번 줄 신설(0/1) · 다음은 **설계**. 계획 51 `hidden-passage` 는 DONE 그대로다.
 
-## 재본 것 — 프로세스 밖 사용자 자리
+## 무엇을 열었나
 
-계획·설계가 잰 5/5 → 0/5 는 `indexer.passages()` 를 같은 프로세스에서 부른 값이다.
-새 e2e 는 crawl 로 HTML 을 받아 색인하고 **README 그대로** 서버를 띄워 `GET /passages`
-를 HTTP 로 때린다(11문서 · 12.5초). 그 형태에서도 **누출 0/5** · 정상 문단 **5/5 무변** ·
-오탐 대조군 4종 **전부 살아 있다**. 숨김만 매치한 문서는 `/search` 결과에 **그대로
-나온다** — 색인 경로가 안 움직인 증거. `extract_text` 무변은 논증이 아니라 **비교**로
-닫았다(기점 `d5367fa` 의 `extract.py` 를 적재해 11개 입력에서 **차이 0건**).
-`data/crawl.db` sha256 `85c96744…75bda18` 시작·끝 동일 — 읽기만 했다.
+`e2e/design_check.py` 의 `focus_rule()` 조건 5 는 셀렉터를 한 덩어리로 봐서
+**링이 포커스받은 요소가 아니라 옆 상자에 그려져도 초록**이다. 제품 `src/` 0줄 계획이고
+고치는 것은 **재는 자**다 — 제품 CSS 에 결합자 뒤 링은 0곳이라 오늘의 3.56:1 은 참이다.
 
-## 신호는 GREEN
+## 탐색은 6순위에서 멈췄다 — 1~5순위 실측 0건
 
-단위 **593건 OK** rc 0(맨몸·단독 13.614초) · e2e **21종 rc 0**(20 + 새 1) ·
-품질 5축 전부 통과·무변(ko 20/20 · en 19/20 · 근거 100.0% · `/passages` p95 1.49ms ·
-`/search` p95 8.94ms · 수집 10.22/10.26 · 디자인 4축) · RED 0 · 재시도 0.
-변이 **4종(좁힘 2 · 넓힘 2) 전부 사망** — 상세는 `docs/e2e/hidden-passage/result.md`.
-러너 호출 **31회 · 명령 잇기 0 · 출력 조작 0**.
+- 1 실패 테스트 **0**(맨몸 `Ran 593 tests · OK` 13.540초) · 2 린터·타입체커 **설정 0개** ·
+  3 코드 `TODO`/`FIXME`/`HACK` **0**(유일한 hit 는 `tests/test_indexer.py:758` 의 fixture
+  HTML 주석 문자열) · 4 `docs/candidates.md`·`scripts/` **없음** · 5 `digest ## 보류` **빈 절**.
+- 6순위 후보를 **전수로 대조**했다. 나머지는 전부 여는 조건 미도래거나 이미 닫혔다 —
+  특히 **[8] 「토크나이저가 못 잡는 세 가지」는 취소선만 안 그어진 완료 항목**이다
+  (계획 11 `tokenizer` 가 5/40 중 넷을 닫았다). 다시 열면 중복 작업이라 버렸다.
 
-## 배운 것
+## 계획 phase 가 오늘 직접 잰 셋
 
-**변이 하나가 fixture 항목 하나에만 닿게 자른다** — 오탐 대조군 3종을 한 문서에 몰아
-뒀더니 하나가 죽어도 남은 둘이 대신 뽑혀 자가 안 섰다(M3 생존 → 문서당 문단 1개로 분리).
-**`PASSAGE_LIMIT`(10)이 fixture 의 상한이다** — 넘기니 밀려난 문서가 「잘렸다」와 구별이
-안 돼 거짓 빨강을 한 번 봤다. 모듈 최상단 `assert` 로 못 박았다(`metrics.md` 다섯째 축).
+1. **거짓 초록 4/4 재현** — `a:focus-visible` 뒤 결합자 ` `·`>`·`+`·`~` 넷 다 통과.
+2. **후보에 없던 다섯째 갈래** — `a:focus-visible,.x` 도 통과한다(조건 5 가 쉼표 목록을
+   조각으로 안 가른다). `.x` 는 링이 **항상** 그려지는 상자다.
+3. **물려받은 처방이 절반이었다** — 후보가 적어 둔 `re.split(r"[ >+~]", part)[-1]` 은
+   `a:focus-visible:not(.x + .y)` 를 **거절**한다(오탐). 그대로 쓰면 계획 44·49 가 지킨
+   「오탐 0」이 깨진다. 「기록된 처방은 실행 전에 다시 재라」가 41·44 에 이어 세 번째.
 
-## 문서
+## 설계로 넘긴다 — 트리거 하나
 
-`metrics.md`(반복 302 · e2e 28 · 계획 36/0/0) · `index.md`(51번 줄 완료) ·
-`history_current.md`(308줄이 되어 회전 — 테스트 3을 `history_053.md` 로 밀어 **229줄**) ·
-`digest.md`(**200줄 유지** · 명부에 `history_053.md`) · `docs/e2e/hidden-passage/result.md`
-신규 · `README.md`·`project.md` 는 e2e 등재분만. `docs/specs/` **무변**.
+「대안이 2개 이상 갈림」. A 순진한 split · B `INDIRECT_RE` 선지우기 · C 괄호 깊이 세기 —
+셋 다 결합자 4종은 닫는데 **오탐/미탐 집합이 다르다.** 설계는 셋을 다 짜서 같은 표에
+먹이고 **갈리는 행**으로 고른다(계획 49 교훈: 말로 고르면 갈림이 계획서 자리에 없다).
 
-## 원격 — 푸시 뒤에 다시 읽은 값이다
+## 원격을 다시 읽은 값이다
 
-- **`loop/hidden-passage` = `2fde651`**(e2e 커밋 · `82cc84e` → `2fde651`, fast-forward).
-  `git ls-remote origin loop/hidden-passage` 의 `2fde6518…3b010b0a` 와 로컬 `HEAD` 가 같다.
-  `--no-verify`·`--force` 0회 · 훅 우회 0.
-- 기점은 `d5367fa`(**`main` 아님**) — `origin/main`(`687a159`)에는 계획 48·49·50 이 없어
-  `README.md` 의 건수 단언이 거기서는 RED 다.
-- **PR #7**(`loop/merge-48-50` → `main`, 계획 48·49·50) **OPEN·미병합.** 병합은
-  **사용자가 처리한다** — 이 반복은 PR 을 열지도 닫지도, 그 브랜치를 건드리지도 않았다.
-  이번 브랜치의 PR 도 만들지 않았다(아래 「승인 대기」 5).
+- 브랜치 `loop/hidden-passage` · `HEAD` **`20ee8d5`** ·
+  `git ls-remote origin loop/hidden-passage` **`20ee8d5dd307…`** — 로컬과 같다.
+- 새 브랜치 `loop/focus-ring-combinator` 의 **기점은 `20ee8d5`**(`main` 아님).
+  `origin/main` 은 `687a159`(계획 47)이라 `README.md` 의 `단위 593건`·`e2e 21종`
+  단언이 거기서는 RED 다.
+- **PR #7**(`loop/merge-48-50` → `main`) **OPEN·미병합.** 병합은 사용자가 처리한다 —
+  이 반복은 PR 을 열지도 닫지도, 그 브랜치를 건드리지도 않았다.
+- `--no-verify`·`--force` 0회 · 훅 우회 0 · `data/crawl.db`·`docs/specs/` 무변경.
 
 ## 승인 대기
 
@@ -68,4 +65,4 @@ plan: null
 3. **반응형 360px 미검증** — 브라우저가 없어 저장소의 누구도 그 화면을 못 그린다.
 4. **회전 규약·러너 규율의 저장소 밖 절반**과 **사양이 남긴 둘**(`specs/concept.md` 의
    `## 사람이 정할 것`).
-5. **PR #7 병합** · 이번 브랜치 `loop/hidden-passage` 의 PR 생성 여부.
+5. **PR #7 병합** · `loop/hidden-passage`·`loop/focus-ring-combinator` 의 PR 생성 여부.
