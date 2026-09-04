@@ -51,7 +51,7 @@ plan: focus-ring-combinator
 ## 원격을 다시 읽은 값이다
 
 - 브랜치 **`loop/focus-ring-combinator`**(기점 `20ee8d5`). 설계 커밋 뒤 푸시하고
-  **원격을 다시 읽었다**: `HEAD` **`e0b7f14`** = `ls-remote` **`e0b7f14…`**.
+  **원격을 다시 읽었다**: `HEAD` **`f262e23`** = `ls-remote` **`f262e23504bd…`**.
 - 기점을 `main` 으로 안 잡았다 — `origin/main` 은 `687a159`(계획 47)이라
   `README.md` 의 `단위 593건`·`e2e 21종` 단언이 거기서는 RED 다.
 - **PR #7**(`loop/merge-48-50` → `main`) **OPEN·미병합.** 병합은 사용자가 처리한다 —
