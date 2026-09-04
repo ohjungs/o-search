@@ -1,77 +1,82 @@
 ---
 signal: GREEN
-phase: 리뷰
+phase: e2e
 step: 1/1
 attempt: 0
-iteration: 324
+iteration: 325
 updated: 2026-09-05
-ctx: 47
-night_iterations: 146
+ctx: 52
+night_iterations: 147
 night_red: 2
 night_retries: 0
-plan: db-state-invariant # 계획 55 — 테스트 1/1 완료(자기검사 2 를 더했다) · 다음은 리뷰
+plan: db-state-invariant # 계획 55 — 리뷰 1/1 완료(지적 4 · 자동수정 2) · 다음은 e2e
 ---
 
 # 현재 상태
 
-**계획 55 `db-state-invariant` 의 테스트 1/1 이 끝났다.** 전수를 맨몸으로 다시 돌리고
-갭을 훑어 **8점짜리 하나**를 닫았다. 브랜치는 `loop/db-state-invariant`.
-**다음 phase 는 리뷰다.**
+**계획 55 `db-state-invariant` 의 리뷰 1/1 이 끝났다.** 원격 `main` `c0be72f` 부터
+HEAD 까지 **여섯 커밋 전부**를 백지 패스 먼저로 봤고, 지적 넷 중 둘을 그 자리에서
+고쳤다(`src/` **0줄**). 브랜치는 `loop/db-state-invariant`. **다음 phase 는 e2e 다.**
 
-## 이 반복이 직접 잰 것 (반복 324)
+## 이 반복이 직접 잰 것 (반복 325)
 
-**전수 재확인** — `PYTHONPATH=src python3 -m unittest discover -b -s tests` 를 맨몸·단독
-(러너를 파이프 왼쪽에 안 둔다)으로 돌려 **604건 OK · 13.320초 · rc 0**. 직전 반복이 적어
-둔 604 는 참이었다. 새 테스트를 더한 뒤 **605건 OK · 13.448초 · rc 0**.
+적힌 숫자를 하나도 안 믿고 다시 쟀다. **전수** `PYTHONPATH=src python3 -m unittest
+discover -b -s tests` 를 맨몸·단독(러너를 파이프 왼쪽에 안 둔다)으로 **605건 OK ·
+13.494초 · rc 0**. 리뷰가 고친 뒤 다시 **605건 OK · 13.504초 · rc 0**.
 
-**변이 넷을 다시 심었다**(전부 저장소 밖 사본에서 · `PYTHONDONTWRITEBYTECODE=1`).
+**변이 재측** — 전부 저장소 밖 **전체 사본**(`rsync`)에서 · `PYTHONDONTWRITEBYTECODE=1`.
 
 | 변이 | 결과 |
 |---|---|
-| ① 처방 되돌리기 (`SELECT url, html` → `SELECT html`) | **RED, 604건 중 정확히 1건** — 새 자의 `missing='url'` 뿐 (`{'김치찌개': 'OperationalError', 'zzzznope': 'ok', '\x01': 'ok'}`) |
-| ② 눈금 0칸 (`_columns` → `[]`) | **RED** — 자기검사가 `0 not greater than or equal to 4` |
-| ③ `store.SCHEMA` 에 `lang TEXT` 추가 | 눈금 **4 → 5칸** 자동 확장(`url·html·status·fetched_at·lang`), 자는 **그대로 GREEN**(처방 A 에 expand 함정이 없다는 설계 4절의 재확인) |
-| ④ 판정 삼키기 (`except OperationalError: return []`) | **RED 8건** — 전부 계획 53·54 가 남긴 클래스(`TestPassages`·`TestPassagesWithoutHtmlColumn`·`…BeforeIndexing`). **새 자는 이 변이에 안 죽는다**(셋 다 `ok` 라 판정은 여전히 하나) |
+| ① 처방 되돌리기 (`SELECT url, html` → `SELECT html`) | **RED 1/605** — `missing='url'`, `{'김치찌개': 'OperationalError', 'zzzznope': 'ok', '\x01': 'ok'}` |
+| ② 눈금 0칸 (`_columns` → `[]`) | **RED** — `0 not greater than or equal to 4` |
+| ③ `DOC` 을 `된장찌개` 로 | **RED** — 자기검사 2 만, `[False, False, False]` |
+| ⑤ **새로 심었다** — 루프를 `SELECT html, status … WHERE url = ?` 로 넓히고 탐침은 그대로 | **RED 1/605** — 그 하나가 새 자(`missing='status'`) |
 
-**변이 ①이 604건 중 1건만 죽였다는 것이 「53·54 클래스가 중복인가」의 답이다** — 아니다.
-`url` 축을 잡는 자는 저장소에 **새 자 하나뿐**이고, 반대로 변이 ④는 새 자가 못 잡고 53·54
-클래스만 잡는다. 둘은 **서로 다른 것을 잰다**(일관성 vs 값). 지우면 구멍이 생긴다.
+**⑤가 이 계획의 앞날 주장을 실증한다.** 코드 주석이 *"셋째 열을 읽게 되면 그 열을 여기
+더한다 — 자가 그날을 잡아 준다"* 라고 적었는데, 그 날을 흉내 내니 605건 중 **오직 새 자**가
+울었다. 계획 55 가 「자리를 넓히는 대신 원칙을 세운다」를 실제로 한 것이 맞다.
 
-## 이 반복이 더한 것 — 갭 하나 (중요도 8)
+**실서버 실측** — `--port 0` 으로 띄우고 `url` 열이 없는 DB(저장소 밖)를 먹였다.
+`/passages` 는 세 질의 전부 **500**이고 본문이 셋 다
+`{"version": 1, "error": "검색 중 오류가 났다"}` 다. `/search` 는 같은 DB 에서 200 셋인데
+**이것이 정상이다** — FTS `docs` 는 `content=` 없는 독립 표라 `pages` 를 안 읽는다
+(`indexer.py:15`). 같은 DB 에 `indexer` CLI 는 rc 1. 서버는 끝내기 전에 죽였다.
 
-**`tests/test_indexer.py` `TestPassagesColumnAxisInvariant.test_the_three_queries_really_have_different_shapes`** (+1건, `src/` **0줄**).
+**보안(CSO) 통과** — sqlite 문구는 응답 본문에 **안 실린다**. 서버 stderr 로그에만
+`/passages 실패: OperationalError('no such column: url')` 로 남는다. 경로·스키마 노출 0.
 
-자기검사가 **눈금 축만** 막혀 있었다. 자가 재는 물음은 «루프에 **닿는** 질의와 **못 닿는**
-질의가 같은 판정인가» 인데, `DOC`·`QUERIES` 가 바뀌어 세 질의가 같은 모양이 되면 그 물음이
-사라져도 판정은 여전히 하나라 **조용히 초록**이 된다 — 설계가 위험 1 로 막은 「눈금 0칸」과
-같은 고장이 다른 방아쇠로 살아 있었다. 정상 DB 에서 세 질의의 모양이
-`[True, False, False]` 인지 한 줄로 단언한다(정상 DB 오탐 0 도 같은 줄이 잡는다).
+## 지적 넷 (자동수정 2 · 보고만 2)
 
-**RED 를 보고 넣었다** — 사본에서 `DOC` 의 `김치찌개` 를 `된장찌개` 로 바꾸니 새 자기검사만
-`[False, False, False]` 로 **RED**, 본 자는 GREEN. 정확히 그 구멍이다.
+- **[R55-1] low · 고침** — `_drop_column` 이 다시 만드는 표가 `PRIMARY KEY`·`NOT NULL`·
+  `DEFAULT` 를 잃는다(실측: `url` 뺀 표가 `html TEXT, status INTEGER, fetched_at TEXT`).
+  `PRAGMA table_info` 는 이름·타입까지만 준다. 판정 영향은 0 이지만 주석이 *"실제로
+  만들어진 표를 잰다"* 라 절반만 참이었다 → `ponytail:` 천장 네 줄을 더했다.
+- **[R55-2] low · 고침** — README 재작성(`c8827e9`)이 품질 표에서 **비텍스트 명암비
+  3:1** 을 지웠다. `e2e/design_check.py` 는 계속 잰다(`MIN_CONTRAST_NONTEXT = 3.0`)이고
+  아래 「사람 결정 대기」 2번이 바로 그 기준 얘기다 → 셀 한 줄 복원.
+- **[R55-3] low · 보고만** — 같은 재작성이 `/passages` 응답 스키마
+  `{url,title,position,text}` 와 rc 표의 「어디서」 열도 지웠다. 쉬운 말로 옮긴 편집
+  의도가 분명해 되돌리지 않는다. 되살릴 거리는 다음 문서 반복 몫이다.
+- **[R55-4] low · 보고만** — 설계 5절이 `README.md` 를 범위 **밖**으로 적었는데 테스트
+  스텝은 고칠 수밖에 없었다(`tests/test_readme.py` 의 `UNIT_COUNT` 가 숫자를 강제한다).
+  **계약 문구가 반증됐다** — 다음 계획서는 *"README 는 숫자 가드가 강제하는 줄만"* 이다.
 
-## 8점 미만이라 안 한 것 (리뷰·다음 계획 몫)
-
-- **`url` 열 없는 DB 의 HTTP 표면 클래스**(5점) — 직전 반복이 실서버로 500·500·500 을
-  쟀지만 테스트로는 안 박았다. 설계 5절이 `serve.py` 매핑을 범위 밖으로 두었고,
-  `OperationalError → 500` 은 `TestPassagesWithoutHtmlColumn` 이 이미 박고 있다(변이 ④가
-  증명했다). 새 클래스는 같은 매핑의 두 벌이다.
-- **두 열 이상이 동시에 빠진 조합**(4점) · **열 타입이 바뀐 축**(4점) — 설계 6절이 적어 둔
-  천장 그대로. 조합을 늘리면 재현 비용만 는다.
+**거짓양성으로 버린 것 하나.** 「자가 일관성만 재니 «일관되게 틀린» 상태를 통과시킨다」를
+변이로 확인했다(탐침 삭제 + 루프에서 `except OperationalError: continue`). 새 자는 초록인데
+**계획 53·54 클래스 8건이 죽었다** — 저장소가 이미 덮고 있어 `severity.md` 의 「이미 충분히
+덮는 단언을 더 조일 수 있다」에 걸린다. `metrics.md` 가 같은 것을 이미 적어 두었다.
 
 ## 범위 (하드 제약 확인)
 
 `src/` **0줄** · `serve.py`·`store.py`·스키마·마이그레이션·재색인 **0** · 새 의존성 0 ·
-새 예외 0 · stdlib 만 · 고친 파일 **둘**(`tests/test_indexer.py` +16줄 ·
-`README.md` 의 `단위 604건` → `605건`) · `docs/specs/` 무변 ·
-`data/crawl.db` sha256 `85c96744…5bda18` **무변**(모든 변이가 저장소 밖 사본) ·
-서버 0개(`pgrep -f websearch.serve` 잔여 0) · `main` 직접 커밋 0 ·
+stdlib 만 · 고친 파일 **둘**(`tests/test_indexer.py` 주석 +4줄 · `README.md` 셀 1줄) ·
+`docs/specs/` 무변 · `data/crawl.db` sha256 `85c96744…5bda18` **무변**(변이는 전부
+저장소 밖 전체 사본) · 서버 잔여 0(`pgrep -f websearch.serve` 0건) · `main` 직접 커밋 0 ·
 `--no-verify`·`--force` 0 · **PR 무접촉(조회 0회)** · 브랜치 병합 시도 0 ·
 e2e 21종 전수는 **e2e phase 몫**.
 
-**푸시 대조** — 스텝 커밋 `660fbaa` 를 푸시하고 `git ls-remote origin
-loop/db-state-invariant` 로 대조했다: 원격 `660fbaa` = 로컬 HEAD. (이 줄 자체는 그
-대조 결과를 남기는 한 줄짜리 뒷정리 커밋이라 스텝 커밋과 따로 간다.)
+**푸시 대조** — 아래 「푸시」 절에 실측을 적는다.
 
 ## 사람 결정 대기
 
@@ -84,4 +89,4 @@ loop/db-state-invariant` 로 대조했다: 원격 `660fbaa` = 로컬 HEAD. (이 
 
 ## 정지 사유
 
-없음 — 계획 55 **리뷰** 로 이어간다.
+없음 — 계획 55 **e2e** 로 이어간다.

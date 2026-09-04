@@ -945,6 +945,10 @@ class TestPassagesColumnAxisInvariant(unittest.TestCase):
     def _drop_column(self, path, victim, columns):
         # `ALTER … DROP COLUMN` 은 sqlite 버전을 타서 표를 새로 만든다. 열 이름과
         # 선언 타입 둘 다 `PRAGMA` 가 줬으므로 손으로 적는 스키마가 0줄이다
+        # ponytail: `PRAGMA` 는 이름·타입까지다 — 다시 만든 표는 `PRIMARY KEY`·
+        # `NOT NULL`·`DEFAULT` 를 잃는다(리뷰 55 실측: `url` 을 뺀 표가
+        # `html TEXT, status INTEGER, fetched_at TEXT`). `passages()` 가 제약을 안
+        # 읽어 오늘 판정은 안 변하지만, 제약 축까지 재려면 `sqlite_master.sql` 이다.
         kept = [(name, decl) for name, decl in columns if name != victim]
         names = ", ".join(name for name, _ in kept)
         db = sqlite3.connect(path)

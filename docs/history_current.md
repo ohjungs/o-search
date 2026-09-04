@@ -106,3 +106,42 @@ append 전용이고 수정·삭제 금지다. 각 회전의 사유는 `digest.md
   2열 이상 조합 4점 · 열 타입 축 4점 — 설계 6절 천장 그대로.
 다음: **리뷰** — 새 자기검사가 본 자의 물음을 좁히지 않았는지, 그리고 계획 55 가
   「자리를 넓히는 대신 원칙을 세운다」를 실제로 했는지 백지에서 본다.
+
+## 2026-09-05 01:44 | db-state-invariant | 리뷰 1/1 | 시도0
+한 일: `c0be72f`(원격 `main`)부터 HEAD `b660c9d` 까지 **여섯 커밋 전부**를 백지 패스 먼저로
+  봤다(README 재작성 `c8827e9` 도 범위 안이다 — 앞 반복들이 이 커밋을 안 세었다).
+  적힌 숫자를 하나도 안 믿고 전수·변이·실서버를 다시 쟀다. 지적 넷 중 둘을 그 자리에서
+  고쳤다 — `tests/test_indexer.py` `_drop_column` 의 거짓 천장 주석 4줄, `README.md`
+  품질 표의 비텍스트 명암비 셀 1줄. `src/` **0줄**.
+결과: 전수 **605건 OK · 13.494초 · rc 0**(고친 뒤 재확인 605 OK · 13.504초 · rc 0).
+  변이 재측(전부 저장소 밖 전체 사본 · `PYTHONDONTWRITEBYTECODE=1`): ①처방 되돌리기
+  **RED 1/605**(`missing='url'`: `OperationalError/ok/ok`) · ②눈금 0칸 RED(`0 not greater
+  than or equal to 4`) · ③`DOC` 을 `된장찌개` 로 RED(`[False,False,False]`) — 세 주장 참.
+  **새로 심은 변이 ⑤가 계획 55 의 앞날 주장을 실증했다**: 루프 질의를
+  `SELECT html, status … WHERE url = ?` 로 넓히고 탐침은 그대로 두자 **RED 1/605** 이고
+  그 하나가 새 자(`missing='status'`)다 — *"셋째 열을 읽게 되면 자가 그날을 잡아 준다"* 는
+  주석이 참이다. **실서버 실측**(`--port 0` · `url` 열 없는 DB): `/passages` 세 질의
+  **500·500·500**, 본문은 셋 다 `{"version": 1, "error": "검색 중 오류가 났다"}` —
+  **CSO 통과, sqlite 문구는 서버 stderr 로그에만**(`/passages 실패:
+  OperationalError('no such column: url')`). `/search` 는 같은 DB 에서 200 셋인데
+  **정상이다** — FTS `docs` 는 `content=` 없는 독립 표라 `pages` 를 안 읽는다(indexer.py:15
+  확인). 같은 DB 에 `indexer` CLI 는 rc 1(`DB 를 열 수 없다: … no such column: url`).
+  `data/crawl.db` sha256 `85c96744…5bda18` **무변** · `docs/specs/` 무변 · 서버 잔여 0 ·
+  **PR 무접촉(조회 0회)** · `main` 직접 커밋 0 · `--no-verify`·`--force` 0.
+  지적: **[R55-1] low 자동수정** — `_drop_column` 이 다시 만드는 표가 `PRIMARY KEY`·
+  `NOT NULL`·`DEFAULT` 를 잃는다(실측: `url` 뺀 표가 `html TEXT, status INTEGER,
+  fetched_at TEXT`). 판정 영향 0 이지만 주석이 *"실제로 만들어진 표를 잰다"* 라 절반만
+  참이었다 → 천장 한 줄 추가. **[R55-2] low 자동수정** — README 품질 표가 비텍스트
+  명암비 **3:1** 을 잃었는데 `e2e/design_check.py` 는 계속 잰다(`MIN_CONTRAST_NONTEXT
+  = 3.0`)이고 `status.md` 의 사람 결정 대기 2번이 바로 그 기준 얘기다 → 셀 복원.
+  **[R55-3] low 보고만** — 같은 재작성이 `/passages` 응답 스키마
+  `{url,title,position,text}` 와 rc 표의 「어디서」 열도 지웠다. 쉬운 말로 옮긴 편집 의도가
+  분명해 되돌리지 않는다. **[R55-4] low 보고만** — 설계 5절이 `README.md` 를 범위 **밖**
+  으로 적었는데 테스트 스텝은 고칠 수밖에 없었다(`tests/test_readme.py` 의 `UNIT_COUNT`
+  가 숫자를 강제한다). 계약 문구가 반증됐다 — 다음 계획서는 *"README 는 숫자 가드가
+  강제하는 줄만"* 으로 적는다. **거짓양성으로 버린 것 하나**: 「자가 일관성만 재고
+  «일관되게 틀린» 상태를 통과시킨다」를 변이로 확인했더니(탐침 삭제 + 루프에서
+  `except OperationalError: continue`) 새 자는 초록인데 **53·54 클래스 8건이 죽었다** —
+  저장소가 이미 덮고 있다(`severity.md` 「이미 충분히 덮는 단언」).
+다음: **e2e 1/1** — 계획 53·54 는 새 e2e 파일 0개였다. 21종 전수를 돌려 판정하고,
+  `url` 열 없는 DB 의 실서버 500 셋은 이 반복이 이미 쟀으니 새 파일이 필요한지부터 가른다.

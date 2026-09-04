@@ -91,7 +91,7 @@ PYTHONPATH=src python3 -m websearch.indexer data/crawl.db --query 검색어
 | 문단도 빠른가 | 100번 중 95번은 0.5초 안에 | `e2e/passage_eval.py` |
 | 잘 주워 오나 | 1초에 5장 이상 | `e2e/perf_crawl.py` |
 | 화면이 가벼운가 | JS 50KB 이하 | `e2e/design_check.py` |
-| 글씨가 잘 보이나 | 배경과 4.5배 이상 차이 나게 | 〃 |
+| 글씨가 잘 보이나 | 배경과 4.5배 이상 차이 나게 (글씨 아닌 것 — 포커스 링 같은 표시 — 은 3배) | 〃 |
 
 **눈에 안 보이는 글은 근거로 안 쓴다.** 웹페이지에는 숨겨 놓은 글이 있다(`<template>`,
 `hidden`, `aria-hidden="true"`, `display:none`, 글자 크기 0). 사람 눈에 안 보이는 걸
