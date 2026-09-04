@@ -230,3 +230,5 @@ append 전용이고 수정·삭제 금지다. 각 회전의 사유는 `digest.md
   `e2e/` 0줄 · 새 파일 0 · 새 의존성 0 · stdlib 만 · 스키마·재색인 0 · **PR #7 무접촉** ·
   띄운 서버 0개(`pgrep -f websearch.serve` 0건) · **러너 규율 위반 0회**(전부 맨몸).
 - 다음: **리뷰 phase.**
+- 커밋 `e30ae37` 을 푸시했고 `git ls-remote origin loop/passage-html-column` 이
+  `e30ae37123c9921d4641f9c9eb803b7fda1058c8` 로 로컬 HEAD 와 같음을 **읽어서** 확인했다.
