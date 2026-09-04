@@ -181,7 +181,7 @@
 | 2 | 쉼표 목록의 비포커스 조각이 **거절** | `a:focus-visible,.x` → rc 2 | **통과(거짓 초록)** |
 | 3 | **오탐 0** — 제품 CSS 통과 | `PYTHONPATH=src python3 e2e/design_check.py` rc **0** · `[3]` 축 **16행** · 라이트 `--focus` **3.56:1** 유지 | rc 0 · 16행 · 3.56:1 |
 | 4 | **오탐 0** — 정상 표 전수 | 오탐 표에 최소 넷: 제품 3조각 · `:is(a > b):focus-visible` · `:where(…)` 투명 · **`a:focus-visible:not(.x + .y)`**(3절 ③ 이 잡은 자리) | 마지막 하나가 순진한 처방에서 **거짓 RED** |
-| 5 | 단위 스위트 | `PYTHONPATH=src python3 -m unittest discover -b -s tests` → 593 → **N건 OK**(N > 593) | 593 OK |
+| 5 | 단위 스위트 | `PYTHONPATH=src python3 -m unittest discover -b -s tests` → ~~**N건 OK**(N > 593)~~ → **593건 OK · 건수 무변**이 옳다 (리뷰 1 정정: 4절이 «두 표에 **행**을 더한다 · 새 테스트 클래스·파일 0» 이라 `subTest` 행은 건수를 안 늘린다. 늘렸다면 `README.md` 의 `단위 593건` 과 `tests/test_readme.py` 의 건수 대조가 같은 커밋에서 RED 다 — 즉 «N > 593» 은 4절·README 가드와 **모순되는 문구**였다) | 593 OK |
 | 6 | e2e 전수 | `e2e/*.py` **21종 rc 0** | 21종 rc 0 |
 | 7 | 변이가 죽는다 | 새 조건을 되돌리는 변이 — ① 마지막 compound → 조각 전체 ② 쉼표 가르기 제거 ③ 결합자 집합에서 한 글자 빼기(` `/`>`/`+`/`~`) — **셋 다 죽는다.** 심기 전에 `count(원문) == 1` 로 원문 존재를 먼저 단언한다 | — |
 | 8 | 제품 무변 | `git diff --stat` 에 `src/` **0줄** · `data/crawl.db` 무변경 · `docs/specs/` 무변경 | — |

@@ -11,7 +11,7 @@
 
 | | 값 |
 |---|---|
-| 반복 | 306 |
+| 반복 | 307 |
 | 계획 (완료/폐기/보류) | 36 / 0 / 0 (진행 1) |
 | 재시도 | 0 |
 | RED | 1 |
@@ -26,17 +26,17 @@
 | 설계 | 19 (생략 5) |
 | 개발 | 73 |
 | 테스트 | 38 |
-| 리뷰 | 38 |
+| 리뷰 | 39 |
 | e2e | 28 |
 
 ## 리뷰 정확도 — 80점 임계 검증용
 
 | | 값 |
 |---|---|
-| 발견 후보 | 196 |
-| 80점 미만으로 버림 | 63 (기보류 중복 4 + search-api 2 + crawl-delay 3 + quality-eval 3 + non-ascii-url 2 + cooldown-burn 3 + crawl-politeness 1 + graceful-interrupt 2 + deadline-stop 3 + indexer-interrupt 5 + indexer-lock 2 + docs-citation-guard 2 + focus-contrast 2 + focus-ring-presence 3 + passage-api 17 + focus-rule-scope 2 + runner-quiet 2 + hidden-passage 10) |
-| 보고함 | 122 |
-| **그중 실제로 고친 것** | 80 (hidden-passage 8건 — 개발 2 가 2건, 개발 3 이 [R51-3]·[R51-4] 2건, 리뷰 3 이 설계 문서 모순 1건, 개발 4 가 [R51-5] 1건, 리뷰 4 가 [R4-1]·[R4-2] 2건 자동 수정) |
+| 발견 후보 | 201 |
+| 80점 미만으로 버림 | 65 (기보류 중복 4 + search-api 2 + crawl-delay 3 + quality-eval 3 + non-ascii-url 2 + cooldown-burn 3 + crawl-politeness 1 + graceful-interrupt 2 + deadline-stop 3 + indexer-interrupt 5 + indexer-lock 2 + docs-citation-guard 2 + focus-contrast 2 + focus-ring-presence 3 + passage-api 17 + focus-rule-scope 2 + runner-quiet 2 + hidden-passage 10 + focus-ring-combinator 2) |
+| 보고함 | 125 |
+| **그중 실제로 고친 것** | 83 (hidden-passage 8건 — 개발 2 가 2건, 개발 3 이 [R51-3]·[R51-4] 2건, 리뷰 3 이 설계 문서 모순 1건, 개발 4 가 [R51-5] 1건, 리뷰 4 가 [R4-1]·[R4-2] 2건 자동 수정 / focus-ring-combinator 3건 — 리뷰 1 이 [R52-1] 천장 주석·[R52-2] docstring 계수·[R52-3] 계획서 완료 기준 모순 자동 수정) |
 
 **성능 축을 백지 패스에 붙이라던 자기 지시가 처음으로 값을 냈다 (2026-09-03 hidden-passage, 반복 292).**
 반복 267·270 이 «성능 숫자는 세 번 중 두 번 틀렸다 · 다음 리뷰는 백지 패스에 성능 축을
