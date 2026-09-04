@@ -29,6 +29,10 @@
 - **e2e**: `PYTHONPATH=src python3 e2e/non_ascii_e2e.py` (2026-08-26 실행 확인, 2.6s —
   한글 경로 링크·두 표기 중복 제거·살릴 수 없는 시드 건너뛰기. 시드/링크 정규화를 빼는
   변이 2건에서 실패하는 것까지 확인)
+- **e2e**: `PYTHONPATH=src python3 e2e/hidden_passage_e2e.py` (2026-09-04 실행 확인, 12.5s —
+  화면에 안 보이는 텍스트가 `GET /passages` 로 나가는가. 다섯 모양 각 1문서 + 숨김만
+  매치한 문서 + 오탐 대조군 4문서를 crawl→색인→CLI 서버로 올려 HTTP 로 잰다. 변이 4종에서
+  전부 실패하는 것까지 확인 — 판정 무력화·`template` 갈래 제거·과탐 둘)
 - **e2e**: `PYTHONPATH=src python3 e2e/design_check.py` (2026-08-27 실행 확인, 0.4s —
   컨셉 디자인 4축. 판정 내용과 대리 지표의 천장은 아래 "품질 기준" 절에 적었다.
   변이 7종에서 전부 실패하는 것까지 확인)
