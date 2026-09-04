@@ -139,7 +139,10 @@ def _is_hidden(tag, attrs):          # `_BlockParser` 만 읽는다
 
 ## 6. 개발이 지킬 계약 (스텝 1/1)
 
-- 건드릴 파일: `src/websearch/extract.py`(모듈 상수 둘 + `_BlockParser` 메서드 셋) ·
+- 건드릴 파일: `src/websearch/extract.py`(모듈 상수 둘 — **오늘 넷이다**: 리뷰 51
+  `[R51-1]`·`[R51-5]` 가 `_VOID_TAGS`·`_IMPLIED_END`·`_TABLE_PARTS` 를 열었다.
+  전부 `_BlockParser` 전용 읽기라 색인 경로는 그대로다 — 리뷰 4 `[R4-2]`) +
+  `_BlockParser` 메서드 셋) ·
   `tests/test_extract.py` · 문서 단위 단언이 필요하면 `tests/test_indexer.py`.
   **`_SKIP_TAGS`·`_INLINE_TAGS`·`_NON_BLOCK_TAGS`·`_normalize`·`_TextParser` 는 무변경.**
 - **예외 하나 — 테스트 3 이 열었고 리뷰 3 이 여기 적는다**(2026-09-04 · 반복 298).

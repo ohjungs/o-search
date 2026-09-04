@@ -398,6 +398,11 @@ class TestExtractBlocks(unittest.TestCase):
                          "<tbody><tr><td>보이는 셀</table>", ["보이는 셀"]),
             ("optgroup", "<select><optgroup hidden><option>숨은"
                          "<optgroup><option>보이는</select>", ["보이는"]),
+            # 리뷰 4 `[R4-1]` — `optgroup` 을 걷는 것은 형제 `<optgroup>` 만이
+            # 아니다. 「in select」 모드가 `<hr>` 에서도 걷는다(명세가 구분선으로
+            # 허용한 태그다). 안 걷으면 `<hr>` 뒤의 **보이는 항목이 사라진다**
+            ("optgroup + hr", "<select><optgroup hidden><option>숨은"
+                              "<hr><option>보이는</select>", ["보이는"]),
             # `rt` 는 `_INLINE_TAGS` 라 경계에 공백이 안 들어간다(`Kim<b>chi</b>`
             # 규칙) — 여기서 재는 것은 띄어쓰기가 아니라 `보이는` 이 나오느냐다
             ("rt/rp", "<ruby>漢<rt hidden>숨은<rt>보이는</ruby>", ["漢보이는"]),

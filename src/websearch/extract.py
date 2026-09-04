@@ -68,7 +68,10 @@ _IMPLIED_END = {
     "tbody": _TABLE_PARTS - {"td", "th", "tr"},
     "tfoot": _TABLE_PARTS - {"td", "th", "tr"},
     "colgroup": _TABLE_PARTS - {"col"},
-    "option": {"option", "optgroup"}, "optgroup": {"optgroup"},
+    # 「in select」 삽입 모드는 `<hr>` 에서도 열린 `option`·`optgroup` 을 걷는다
+    # (명세가 `<select>` 안의 구분선으로 허용한 태그다 — 리뷰 4 [R4-1]: 빼면
+    # `<optgroup hidden>` 뒤 `<hr>` 다음의 **보이는 항목이 통째로 사라진다**)
+    "option": {"option", "optgroup", "hr"}, "optgroup": {"optgroup", "hr"},
     "rt": {"rt", "rp", "rb", "rtc"}, "rp": {"rt", "rp", "rb", "rtc"},
     "p": {
         "address", "article", "aside", "blockquote", "center", "details",

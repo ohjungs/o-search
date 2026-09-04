@@ -11,7 +11,7 @@
 
 | | 값 |
 |---|---|
-| 반복 | 300 |
+| 반복 | 301 |
 | 계획 (완료/폐기/보류) | 35 / 0 / 0 (진행 1) |
 | 재시도 | 0 |
 | RED | 1 |
@@ -26,17 +26,17 @@
 | 설계 | 18 (생략 5) |
 | 개발 | 72 |
 | 테스트 | 37 |
-| 리뷰 | 37 |
+| 리뷰 | 38 |
 | e2e | 27 |
 
 ## 리뷰 정확도 — 80점 임계 검증용
 
 | | 값 |
 |---|---|
-| 발견 후보 | 192 |
-| 80점 미만으로 버림 | 61 (기보류 중복 4 + search-api 2 + crawl-delay 3 + quality-eval 3 + non-ascii-url 2 + cooldown-burn 3 + crawl-politeness 1 + graceful-interrupt 2 + deadline-stop 3 + indexer-interrupt 5 + indexer-lock 2 + docs-citation-guard 2 + focus-contrast 2 + focus-ring-presence 3 + passage-api 17 + focus-rule-scope 2 + runner-quiet 2 + hidden-passage 8) |
-| 보고함 | 120 |
-| **그중 실제로 고친 것** | 77 (hidden-passage 5건 — 개발 2 가 2건, 개발 3 이 [R51-3]·[R51-4] 2건, 리뷰 3 이 설계 문서 모순 1건 자동 수정. [R51-5] 는 개발 4 몫이라 아직 안 셌다) |
+| 발견 후보 | 196 |
+| 80점 미만으로 버림 | 63 (기보류 중복 4 + search-api 2 + crawl-delay 3 + quality-eval 3 + non-ascii-url 2 + cooldown-burn 3 + crawl-politeness 1 + graceful-interrupt 2 + deadline-stop 3 + indexer-interrupt 5 + indexer-lock 2 + docs-citation-guard 2 + focus-contrast 2 + focus-ring-presence 3 + passage-api 17 + focus-rule-scope 2 + runner-quiet 2 + hidden-passage 10) |
+| 보고함 | 122 |
+| **그중 실제로 고친 것** | 80 (hidden-passage 8건 — 개발 2 가 2건, 개발 3 이 [R51-3]·[R51-4] 2건, 리뷰 3 이 설계 문서 모순 1건, 개발 4 가 [R51-5] 1건, 리뷰 4 가 [R4-1]·[R4-2] 2건 자동 수정) |
 
 **성능 축을 백지 패스에 붙이라던 자기 지시가 처음으로 값을 냈다 (2026-09-03 hidden-passage, 반복 292).**
 반복 267·270 이 «성능 숫자는 세 번 중 두 번 틀렸다 · 다음 리뷰는 백지 패스에 성능 축을
@@ -80,6 +80,11 @@ HEAD 와 어떻게 다른가» 를 쟀지 «그 동작을 무엇이 붙들고 �
 메모리 안에서 무너뜨리는 변이 **146건 중 106건이 살아 있었고**(`tfoot` 은 키·뺄셈
 **양쪽 다**), 그 전수가 초록이던 바로 그 자리다. 굳힌다: **«전수로 확인했다» 는
 «제품을 갈아끼운 전수인가, 테스트를 갈아끼운 전수인가» 를 함께 적어야 증거다.**
+**리뷰 4(반복 301)가 네 번째 축을 붙였다 — 전수는 «오늘의 상수 안» 에서만 돌았다.**
+77,284 도 146 도 `_IMPLIED_END` 에 **적힌 것**을 축으로 쓴다. [R4-1] 은 적히지 않은
+값(「in select」 모드의 `<hr>`)이라 어느 전수에도 안 걸렸고, 잡은 것은 **주석이 스스로
+적어 둔 규칙**(「값은 각 삽입 모드가 적은 목록을 그대로 옮긴다」)을 명세와 대조한
+패스 A 다. 굳힌다: **표를 상수로 옮겨 적었으면 전수의 축은 표가 아니라 원전이다.**
 
 **리뷰의 산출물이 처음으로 «반려도 수리도 아닌 등재» 하나였다 (2026-09-02 focus-rule-scope, 반복 280).**
 보고 2건 중 하나는 docstring 한 줄(자동 수정)이고, 값이 있는 쪽 `[R1]`(결합자 뒤의 거짓
