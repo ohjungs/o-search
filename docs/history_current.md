@@ -260,6 +260,8 @@ append 전용이고 수정·삭제 금지다. 각 회전의 사유는 `digest.md
 - **러너 규율 위반 0회** — 단위·변이 어디에도 `2>&1`·`>/dev/null` 단독 사용 0이고
   `Ran 599 … OK` 판정 줄을 눈으로 봤다. 서버는 `ServeTestCase` 안에서만 떴고
   `pgrep -f websearch.serve` **0건**.
+- 커밋 `81c46a1` 을 푸시했고 `git ls-remote origin loop/passage-db-state` 가
+  `81c46a1816a3013584855b7f74bfbc5a28d2bfcf` 으로 로컬 HEAD 와 같음을 확인했다.
 - 다음: **e2e** phase. 완료 기준 8(21종 전수)은 테스트 phase 가 이미 rc 0 으로 닫았으니
   e2e 는 **계약 표면**을 실서버로 다시 재는 것이 몫이다 — `pages` 를 치운 DB 에서
   `/passages` 503 · `/search` 200 · 화면 200. 집안일 하나: `digest.md` 207줄(상한 200).
