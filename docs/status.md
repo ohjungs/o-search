@@ -69,6 +69,10 @@ plan: db-state-invariant # 계획 55 — 테스트 1/1 완료(자기검사 2 를
 `--no-verify`·`--force` 0 · **PR 무접촉(조회 0회)** · 브랜치 병합 시도 0 ·
 e2e 21종 전수는 **e2e phase 몫**.
 
+**푸시 대조** — 스텝 커밋 `660fbaa` 를 푸시하고 `git ls-remote origin
+loop/db-state-invariant` 로 대조했다: 원격 `660fbaa` = 로컬 HEAD. (이 줄 자체는 그
+대조 결과를 남기는 한 줄짜리 뒷정리 커밋이라 스텝 커밋과 따로 간다.)
+
 ## 사람 결정 대기
 
 1. **`--line` 이 SC 1.4.11 대상인가**(라이트 1.34:1 · 다크 1.27:1).
