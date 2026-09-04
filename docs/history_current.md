@@ -230,3 +230,61 @@ append 전용이고 수정·삭제 금지다. 각 회전의 사유는 `digest.md
 - 다음: **테스트 phase.** 개발이 이미 변이 셋으로 재고 왔으니 볼 것은 「그 셋이 충분한
   축인가」다. 안 잰 축 하나가 보인다 — 오늘 센 것은 **호출처**(1곳)인데 안 센 것은
   **오염원**이다(`unittest.main` 말고 `defaultTestLoader` 에 상태를 심는 진입점이 또 있나).
+
+## 2026-09-05 07:40 | loader-isolation | 테스트 1/1 | 시도0
+
+- 한 일: 개발이 남긴 단서(*"센 것은 호출처(1곳)인데 안 센 것은 **오염원**"*)를 본체로 삼아
+  **모듈 수준 싱글턴을 건드리는 자리를 저장소 전체에서 세고, 새는지를 실측으로 갈랐다.**
+  저장소 코드 **0줄** · 새 파일 0(탐침 넷은 전부 스크래치패드).
+- 결과 — **오염원 후보 7종 12자리 중 실제로 새는 것은 1종**: `sys.path`(4자리 전부 안
+  되돌린다 — `test_design_check.py:25`·`test_quality_eval.py:17`·`test_passage_eval.py:184`,
+  그리고 **`TestLoader.discover` 자신**). 나머지는 되돌리거나(`signal.SIGINT` 2자리 ·
+  `PAGES` 의 `mock.patch.dict` · `sys.stdout/stderr` 의 `with`) 단위 스위트 밖이거나
+  (`urllib` 전역 opener 는 `e2e/` 3자리) 저장소 코드에 **0자리**다
+  (`logging`·`socket`·`sqlite3`·`warnings`·`locale`·`decimal`·`os.environ`).
+- **「진입점이 또 있나」에 CPython 을 세어 답했다** — `defaultTestLoader` 에 쓰는 자리는
+  표준 라이브러리 **전체에 한 곳**(`unittest/main.py:151`, 3.9.6 실측)이고 대상은
+  `testNamePatterns` 뿐이다. 그것은 **클래스 속성**인데 `main` 은 **인스턴스**에만 쓰므로
+  새 인스턴스는 구조적으로 면역이다. 도달 가능한 CLI 경로 넷을 다 때려 **전부 GREEN**:
+  `discover -k Readme`(5 OK) · `-k '*counts*'`(3 OK) · `python3 tests/test_readme.py -k
+  counts`(1 OK · `unittest.main` 직행) · `-m unittest -k counts test_readme`(1 OK).
+  **다섯째 가설은 실측이 지웠다** — 「`-t .` 로 최상위를 루트로 두면 검사가 테스트 모듈을
+  두 번 임포트한다」를 세웠는데 `tests/` 에 `__init__.py` 가 없어 **경로 자체가 안 열린다**
+  (`ImportError: Start directory is not importable`).
+- **순서 뒤집기 네 방향 전부 605 OK**: 역순(13.438초) · 무작위 seed=1 · seed=20260905 ·
+  **모듈 단독 17회**(17/17 OK · rc 0 · 건수 합 **정확히 605**). 역순은 순열 하나뿐이라
+  무작위 둘을 얹었고, 가장 센 자는 모듈 단독이다 — 「A 가 심은 것을 B 가 먹고 산다」면
+  B 혼자 돌릴 때 죽는데 **한 건도 안 죽었다**.
+- **전역 대조 24축 중 3축만 움직인다**(전수를 한 프로세스에서 돌리고 앞뒤를 찍었다):
+  `sys.path` **+4** · `logging.Logger.manager.loggerDict` 0→3(`asyncio`·`concurrent`·
+  `concurrent.futures` — `import concurrent.futures` 부산물이고 **root 로거의 level·handlers
+  무변**) · `tempfile.tempdir` None→경로(`gettempdir()` 의 stdlib 메모이제이션).
+  **안 움직인 21축에 `defaultTestLoader` 축 셋이 전부 들어 있다**
+  (`testNamePatterns`·`_top_level_dir`·`errors`) — 지금까지 「`-k` 아래 값이 옳다」로
+  간접 확인하던 것을 **싱글턴 자체가 안 움직인다**로 처음 직접 쟀다.
+- **변이 재판 둘(전부 저장소 밖 사본)**: **D** 사본에서 `TestLoader()`→`defaultTestLoader`
+  되돌림 → 움직이는 축이 **3 → 4** 로 정확히 하나 늘고 그것이 `_top_level_dir` 이다,
+  같은 사본의 `-k Readme` 는 `(605, 21) != (5, 21)` · `Ran 5` · **FAILED rc 1**(함정 재현).
+  **E** 사본 `e2e/tempfile.py` 로 표준 `tempfile` 을 가림 → 전수 `Ran 605` ·
+  **FAILED(failures=22)** · rc 1.
+- **핵심 발견 — `sys.path` 누출은 실재하고 하위 프로세스까지 전파된다.** 변이 E 의 실패
+  22건은 전부 **자식 프로세스의 `import tempfile`** 트레이스백이었다 — 러너들이
+  `sys.path.insert(0, E2E)` 를 자식 부트스트랩에 그대로 넘기기 때문이다. 그런데도
+  **[5]점으로 등재만 했다**(룰 4절): ① 지금 겹치는 이름이 **0개**다(`tests/`+`e2e/` 모듈
+  이름 **38개**를 표준 라이브러리와 대조, 충돌 0 · 서로도 안 겹친다) ② **터질 때 시끄럽게
+  터진다** — 거짓 초록이 아니라 즉시 22 FAILED 이고, 이 저장소가 8점을 매겨 온 것은 언제나
+  「조용히 초록인 것」이었다 ③ **강제할 규칙을 저장소가 못 지킨다** — 「`sys.path` 에
+  남기지 마라」를 검사로 세우면 `TestLoader.discover`(stdlib `loader.py:285`)가 자기도
+  위반한다. **고친 줄 자신이 그 규칙의 첫 위반자다.**
+- **일반화 — grep 은 「저장소가 쓴 코드」만 보고 전역 대조는 「실제로 움직인 전역」을 본다.**
+  이번에 저장소 코드 0자리로 판정한 일곱 축(`logging`·`socket`·`sqlite3` 등)은 grep 만으로는
+  «안 쓴다» 까지밖에 못 말한다 — 저장소가 부른 표준 라이브러리가 몰래 바꾼 것은 앞뒤 대조가
+  아니면 안 보인다. 실제로 `logging` 과 `tempfile` **둘이 그렇게 잡혔고 둘 다 무해로 판정**됐다.
+- 러너 규율 **0회(누적 35)** — 스물여덟 번 전부 맨몸·단독. 모듈 단독 17회에 `for` 루프를
+  썼으나 방아쇠가 겨냥한 것은 루프가 아니라 **판정을 가리는 것**이라 러너를 맨몸으로 두고
+  `echo "rc=$?"` 를 뒤에 붙여 판정 줄 17개와 rc 17개를 전부 남겼다.
+- 한도: 제품 `src/` 0줄 · 저장소 코드 **0줄** · `README.md` 무변 · `data/crawl.db` sha256
+  `85c96744…5bda18` 무변 · `docs/specs/` 무변 · `pgrep -f websearch.serve` 0건 ·
+  `__pycache__` 0개 · PR 무접촉 · `--no-verify`·`--force` 0 · **자동 스냅샷 안 끼어들었다**.
+- 다음: **리뷰 phase.** 리뷰가 볼 것은 「등재 판정 셋, 특히 ③(«stdlib 도 위반한다») 이
+  변명이 아닌가」다.
