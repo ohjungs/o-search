@@ -902,6 +902,107 @@ class TestPassages(unittest.TestCase):
         self.assertEqual(indexer.passages(self.db_path, "김치"), [])
 
 
+class TestPassagesColumnAxisInvariant(unittest.TestCase):
+    """자 — 눈금을 우리가 안 적고 **sqlite 에게 묻는다**. 「한 DB 상태 = 한 판정」을
+    `pages` 의 **열 축 전체**에서 잰다.
+
+    계획 47(`search()` 안)·53(테이블 축)·54(`html` 열 축)이 같은 원칙을 세 번 닫았고,
+    그때마다 자리를 하나씩 손으로 넓혔다. 그래서 **다섯 번째 자리가 생기는 날 그것을
+    알아차리는 기계가 저장소에 0개**였다. 이 클래스가 그 기계다 — 눈금이
+    `PRAGMA table_info(pages)` 라 열이 늘거나 줄면 케이스도 같이 늘거나 준다.
+
+    재는 것은 세 질의의 **반환값**이 아니라 **판정 이름**이다(예외면 클래스 이름,
+    정상 반환이면 `ok`). 질의마다 결과 건수가 다른 것은 검색이 일하는 것이지 고장이
+    아니다 — 초안이 반환값을 비교했다가 정상 DB 를 거짓 RED 로 불렀다.
+
+    ponytail: 열 **유무** 축만 잰다 — 타입이 바뀐 열·권한이 막힌 DB·`docs` 가 깨진
+    DB 는 다른 경로가 판정한다. 열을 **하나씩만** 뺀다(2^4 조합은 재현 비용만 늘고,
+    한 열 축이 닫히면 조합도 같은 줄이 잡는다).
+    """
+
+    # 계획 47 이래 같은 셋 — 매치되는 질의 · 매치 없는 질의 · 토큰이 0개인 질의.
+    # 세 질의가 `hits` 의 비어 있음에서 갈리므로 갈림을 드러내는 최소 조합이다
+    QUERIES = ("김치찌개", "zzzznope", "\x01")
+    DOC = ("http://a.test/", "<title>김치</title><p>김치찌개는 배추로 끓인다.</p>")
+
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.dir.cleanup)
+
+    def _fresh_db(self, name):
+        """제품이 만드는 것과 같은 정상 DB — 색인까지 돌아 있다."""
+        path = os.path.join(self.dir.name, name + ".db")
+        Store(path).upsert(self.DOC[0], self.DOC[1], 200)
+        index_pages(path)
+        return path
+
+    def _columns(self, path):
+        """(이름, 선언 타입) 목록 — 소스 문자열이 아니라 **실제로 만들어진 표**를 잰다."""
+        db = sqlite3.connect(path)
+        self.addCleanup(db.close)
+        return [(r[1], r[2]) for r in db.execute("PRAGMA table_info(pages)")]
+
+    def _drop_column(self, path, victim, columns):
+        # `ALTER … DROP COLUMN` 은 sqlite 버전을 타서 표를 새로 만든다. 열 이름과
+        # 선언 타입 둘 다 `PRAGMA` 가 줬으므로 손으로 적는 스키마가 0줄이다
+        # ponytail: `PRAGMA` 는 이름·타입까지다 — 다시 만든 표는 `PRIMARY KEY`·
+        # `NOT NULL`·`DEFAULT` 를 잃는다(리뷰 55 실측: `url` 을 뺀 표가
+        # `html TEXT, status INTEGER, fetched_at TEXT`). `passages()` 가 제약을 안
+        # 읽어 오늘 판정은 안 변하지만, 제약 축까지 재려면 `sqlite_master.sql` 이다.
+        kept = [(name, decl) for name, decl in columns if name != victim]
+        names = ", ".join(name for name, _ in kept)
+        db = sqlite3.connect(path)
+        self.addCleanup(db.close)
+        rows = db.execute("SELECT %s FROM pages" % names).fetchall()
+        db.execute("DROP TABLE pages")
+        db.execute("CREATE TABLE pages (%s)"
+                   % ", ".join("%s %s" % (name, decl) for name, decl in kept))
+        db.executemany("INSERT INTO pages(%s) VALUES (%s)"
+                       % (names, ", ".join("?" * len(kept))), rows)
+        db.commit()
+
+    def _verdict(self, path, query):
+        try:
+            indexer.passages(path, query)
+        except Exception as exc:  # 판정 이름만 본다 — 건수는 검색의 일이다
+            return type(exc).__name__
+        return "ok"
+
+    def test_the_three_queries_really_have_different_shapes(self):
+        """**자기검사 2** — 세 질의의 모양이 갈려 있지 않으면 위 자는 조용히 초록이 된다.
+
+        위 자가 묻는 것은 «루프에 닿는 질의와 못 닿는 질의가 같은 판정인가» 다.
+        `DOC` 이나 `QUERIES` 가 바뀌어 셋이 같은 모양이 되면 그 물음 자체가 사라지는데
+        판정은 여전히 하나라 자는 통과한다 — 눈금 0칸을 막은 것과 같은 이유로 막는다.
+        정상 DB 가 예외를 안 내는 것(오탐 0)도 같은 줄이 잡는다.
+        """
+        healthy = self._fresh_db("모양")
+        shapes = [bool(indexer.passages(healthy, q)) for q in self.QUERIES]
+        self.assertEqual(
+            shapes, [True, False, False],
+            "정상 DB 에서 세 질의의 모양이 갈리지 않는다 — 자가 «루프에 닿는 질의 vs "
+            "못 닿는 질의» 를 못 가른다: %s" % dict(zip(self.QUERIES, shapes)))
+
+    def test_every_missing_column_gives_one_verdict_for_every_query_shape(self):
+        columns = self._columns(self._fresh_db("눈금"))
+        names = [name for name, _ in columns]
+        # **자기검사** — 눈금이 0칸이면 루프가 0회 돌고 자는 조용히 초록이 된다.
+        # 4는 하한이라 열이 늘어도 안 낡고, `url`·`html` 은 `passages()` 가 실제로
+        # 읽는 두 열이다(이 둘이 눈금에서 빠지면 자가 아무것도 안 재게 된다)
+        self.assertGreaterEqual(len(columns), 4, names)
+        self.assertIn("url", names)
+        self.assertIn("html", names)
+        for victim in names:
+            with self.subTest(missing=victim):
+                path = self._fresh_db("없음-" + victim)
+                self._drop_column(path, victim, columns)
+                verdicts = {q: self._verdict(path, q) for q in self.QUERIES}
+                self.assertEqual(
+                    len(set(verdicts.values())), 1,
+                    "`%s` 열이 없는 같은 DB 가 질의마다 다르게 판정한다: %s"
+                    % (victim, verdicts))
+
+
 class TestDbOpenIsAtomic(unittest.TestCase):
     """DB 를 여는 자리 하나 — `exists` 와 `connect` 사이에 창이 있으면 안 된다.
 

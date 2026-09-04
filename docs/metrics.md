@@ -11,8 +11,8 @@
 
 | | 값 |
 |---|---|
-| 반복 | 320 |
-| 계획 (완료/폐기/보류) | 39 / 0 / 0 (진행 0) |
+| 반복 | 326 |
+| 계획 (완료/폐기/보류) | 40 / 0 / 0 (진행 0) |
 | 재시도 | 0 |
 | RED | 1 |
 
@@ -22,21 +22,32 @@
 
 | phase | 반복 수 |
 |---|---|
-| 계획 | 34 |
-| 설계 | 20 (생략 5) |
-| 개발 | 75 |
-| 테스트 | 40 |
-| 리뷰 | 41 |
-| e2e | 31 |
+| 계획 | 35 |
+| 설계 | 21 (생략 5) |
+| 개발 | 76 |
+| 테스트 | 41 |
+| 리뷰 | 42 |
+| e2e | 32 |
 
 ## 리뷰 정확도 — 80점 임계 검증용
 
 | | 값 |
 |---|---|
-| 발견 후보 | 209 |
-| 80점 미만으로 버림 | 65 (기보류 중복 4 + search-api 2 + crawl-delay 3 + quality-eval 3 + non-ascii-url 2 + cooldown-burn 3 + crawl-politeness 1 + graceful-interrupt 2 + deadline-stop 3 + indexer-interrupt 5 + indexer-lock 2 + docs-citation-guard 2 + focus-contrast 2 + focus-ring-presence 3 + passage-api 17 + focus-rule-scope 2 + runner-quiet 2 + hidden-passage 10 + focus-ring-combinator 2 + passage-db-state 5) |
-| 보고함 | 128 |
-| **그중 실제로 고친 것** | 86 (passage-html-column 2건 — 리뷰 1 이 [R54-1] 새 `ponytail:` 주석의 거짓 천장·[R54-2] 재현 안 되는 8배 계수 자동 수정 / passage-db-state 1건 — 리뷰 1 이 [R53-1] `subTest` 범위 자동 수정 / hidden-passage 8건 — 개발 2 가 2건, 개발 3 이 [R51-3]·[R51-4] 2건, 리뷰 3 이 설계 문서 모순 1건, 개발 4 가 [R51-5] 1건, 리뷰 4 가 [R4-1]·[R4-2] 2건 자동 수정 / focus-ring-combinator 3건 — 리뷰 1 이 [R52-1] 천장 주석·[R52-2] docstring 계수·[R52-3] 계획서 완료 기준 모순 자동 수정) |
+| 발견 후보 | 214 |
+| 80점 미만으로 버림 | 65 (기보류 중복 4 + search-api 2 + crawl-delay 3 + quality-eval 3 + non-ascii-url 2 + cooldown-burn 3 + crawl-politeness 1 + graceful-interrupt 2 + deadline-stop 3 + indexer-interrupt 5 + indexer-lock 2 + docs-citation-guard 2 + focus-contrast 2 + focus-ring-presence 3 + passage-api 17 + focus-rule-scope 2 + runner-quiet 2 + hidden-passage 10 + focus-ring-combinator 2 + passage-db-state 5 + db-state-invariant 1) |
+| 보고함 | 132 |
+| **그중 실제로 고친 것** | 88 (db-state-invariant 2건 — 리뷰 1 이 [R55-1] `_drop_column` 이 다시 만드는 표가 제약을 잃는다는 천장 누락·[R55-2] README 가 잃은 비텍스트 명암비 3:1 자동 수정 / passage-html-column 2건 — 리뷰 1 이 [R54-1] 새 `ponytail:` 주석의 거짓 천장·[R54-2] 재현 안 되는 8배 계수 자동 수정 / passage-db-state 1건 — 리뷰 1 이 [R53-1] `subTest` 범위 자동 수정 / hidden-passage 8건 — 개발 2 가 2건, 개발 3 이 [R51-3]·[R51-4] 2건, 리뷰 3 이 설계 문서 모순 1건, 개발 4 가 [R51-5] 1건, 리뷰 4 가 [R4-1]·[R4-2] 2건 자동 수정 / focus-ring-combinator 3건 — 리뷰 1 이 [R52-1] 천장 주석·[R52-2] docstring 계수·[R52-3] 계획서 완료 기준 모순 자동 수정) |
+
+**불변식을 재는 자와 값을 재는 자는 서로를 대체하지 않는다 (2026-09-05 db-state-invariant, 반복 324).**
+테스트 phase 가 「계획 53·54 가 손으로 넓힌 클래스들이 이제 중복인가」를 변이로 물었다.
+답은 **아니다**, 그리고 두 방향으로 그렇다: 처방을 되돌리는 변이는 604건 중 **새 자 하나만**
+죽였고(53·54 클래스는 `url` 축을 아예 안 본다), 판정을 삼키는 변이
+(`except OperationalError: return []`)는 **53·54 클래스 8건만** 죽이고 새 자는 안 죽였다 —
+세 질의가 나란히 `ok` 라 「한 상태 한 판정」은 여전히 참이기 때문이다. **일관성만 재는 자는
+«일관되게 틀린» 상태를 통과시킨다.** 굳힌다: 불변식 자를 세웠다고 값 자를 지우지 않는다.
+같은 날 같은 자에서 **자기검사가 한 축만 막고 있던 것**도 나왔다 — 눈금(열 목록)이 0칸이면
+RED 였지만, 세 질의가 같은 모양이 되면(=`DOC` 이 바뀌면) 물음 자체가 사라지는데도 초록이었다.
+**자기검사는 «자가 조용해지는 경로» 마다 하나씩 필요하다 — 한 개 세웠다고 축이 닫히지 않는다.**
 
 **«변이 둘이 죽었다» 가 한 변이만큼의 증거였다 (2026-09-04 passage-html-column, 반복 320).**
 개발·리뷰가 변이 둘(① 판정 줄 삭제 · ② 같은 줄을 `hits` 루프 **안**으로)을 각각 심어
