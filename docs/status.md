@@ -108,9 +108,10 @@ RED 0 · 재시도 0. 브랜치 `loop/hidden-passage`, 기점 `d5367fa`(**`main`
 
 - **커밋·푸시 뒤에 `git ls-remote origin` 을 다시 읽었다**(digest 의 「원격을 바꾸는 동작을
   «명령을 보냈다» 로 기록하지 않는다」 항목). 아래 SHA 는 이 반복이 실제로 읽은 값이다.
-- **`loop/hidden-passage` = `<커밋 뒤 채운다>`** — 푸시 뒤 `git ls-remote origin
-  loop/hidden-passage` 로 다시 읽어 로컬 `HEAD` 와 같은지 확인한다.
-  `main` = `687a159` 무변. `--no-verify`·`--force` 0회 · 훅 우회 0.
+- **`loop/hidden-passage` = `8a790bd`** (테스트 4 커밋 · `c97f1e4` → `8a790bd`, fast-forward).
+  `git ls-remote origin loop/hidden-passage` 의 `8a790bd1…82e37234` 와 로컬 `HEAD` 가 같다.
+  `git ls-remote origin main` = `687a1598…68d8e5e` 무변(계획 47).
+  `--no-verify`·`--force` 0회 · 훅 우회 0.
 - **PR #7** — `loop/merge-48-50` → `main`, 계획 48·49·50. **OPEN·미병합.** 병합은
   **사용자가 처리한다** — 이 반복은 PR 을 열지도 닫지도 않았고 그 브랜치를 건드리지도,
   `main` 으로 리베이스하지도 않았다.
