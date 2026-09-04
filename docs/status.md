@@ -48,6 +48,7 @@ plan: null # 계획 52 focus-ring-combinator DONE
 - `.mutation-lock` **두 번** 사용 · 원복은 전부 스크래치패드 사본(`git checkout` **0회**) ·
   되붙인 뒤 `git status --short`·`git diff --stat` **빈 출력** 확인
 - 러너 규율 **위반 0회** — 파이프·리다이렉션·명령 잇기 0(`git push`·`ls-remote` 포함)
+- 원격 `loop/focus-ring-combinator` = **`bfc4c17`**(`ls-remote` 로 읽었다 · 로컬 HEAD 와 같다)
 
 ## 다음 행동
 
