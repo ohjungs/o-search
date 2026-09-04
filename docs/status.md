@@ -71,7 +71,9 @@ p95 1.65ms(예산의 0.3%) · `quality_eval` ko 20/20 · en 19/20 · `perf_searc
 새 의존성 0 · 스키마·마이그레이션·재색인 0 · `pgrep -f websearch.serve` **0건** ·
 `--no-verify`·`--force` 0 · `main` 직접 커밋 0 · **PR 무접촉(조회 0회)** · 러너 규율 위반 0.
 
-**푸시 대조** — 아래 「푸시」 절에 실측을 적는다.
+**푸시 대조** — 스텝 커밋 `e227602` 를 푸시하고 `git ls-remote origin
+loop/db-state-invariant` 로 대조했다: 원격 `e227602c6cf89dbedbfe7669bcefb4b7f960651b` =
+로컬 HEAD. 트리 clean · 서버 잔여 0.
 
 ## 사람 결정 대기
 
