@@ -16,7 +16,8 @@ plan: passage-db-state # 계획 53 — 개발 1/1 완료 · 다음은 테스트
 
 **계획 53 `passage-db-state` 개발 1/1 을 끝냈다.** 다음 phase 는 **테스트**다.
 설계서는 `docs/design_passage-db-state.md`, 계획서는 `docs/plan_passage-db-state.md`,
-브랜치는 `loop/passage-db-state`.
+브랜치는 `loop/passage-db-state` — 개발 커밋 `a4efdd9` 를 푸시했고
+`git ls-remote origin loop/passage-db-state` 가 `a4efdd94…bc4a80` 으로 로컬 HEAD 와 같다.
 
 ## 심은 것 — 설계서 3절 계약 그대로
 

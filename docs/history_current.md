@@ -168,6 +168,8 @@ append 전용이고 수정·삭제 금지다. 각 회전의 사유는 `digest.md
   (`tests/test_readme.py`)이 RED 목록에 함께 떠서 잊을 수 없었다.
 - **러너 규율 위반 0회** — 단위·변이 어디에도 파이프·리다이렉션 0. 서버를 띄운 것은
   `ServeTestCase` 안뿐이라 남은 프로세스 0.
+- 커밋 `a4efdd9` 를 푸시했고 `git ls-remote origin loop/passage-db-state` 가
+  `a4efdd94763f937c43541b787eb3a3f219bc4a80` 으로 로컬 HEAD 와 같음을 확인했다.
 - 다음: **테스트** phase. 갭 후보 셋 — `pages` 는 있는데 `html` 열이 없는 DB(설계서 4절이
   「500 이 맞는 이름」으로 적어 둔 천장인데 붙드는 단언이 **0개**) · 가드가 `search()`
   **뒤**라는 순서(옛 색인 우선순위) · 화면 사다리를 **안 넓힌 것**.
