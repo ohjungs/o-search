@@ -188,6 +188,23 @@ class ContrastAxisTest(unittest.TestCase):
              "@media (forced-colors:active){" + RING_RULE + "}", "at-rule 안에 있다"),
             ("F4 @layer 안", RING_RULE,
              "@layer base{" + RING_RULE + "}", "at-rule 안에 있다"),
+            # 아래 일곱은 계획 52. 셀렉터에 `:focus-visible` 이 **낱말로 남아 있는데**
+            # 링은 포커스받은 요소가 아니라 **옆·아래 상자**에 그려지는 갈래다 — 조건 5 가
+            # 셀렉터를 한 덩어리로 봐서 「어느 compound 에 붙었나」를 안 읽은 자리다.
+            # 앞 넷이 결합자 4종(자손·`>`·`+`·`~`), 다섯째가 공백 낀 `>`,
+            # 여섯째가 쉼표 목록(조각 하나만 포커스여도 통과했다),
+            # 일곱째는 투명한 `:is()` 안의 포커스 뒤에 결합자가 붙은 것이다.
+            ("결합자 자손", ":focus-visible", ":focus-visible .hint",
+             "포커스용이 아니다"),
+            ("결합자 >", ":focus-visible", ":focus-visible>.hint", "포커스용이 아니다"),
+            ("결합자 +", ":focus-visible", ":focus-visible+.hint", "포커스용이 아니다"),
+            ("결합자 ~", ":focus-visible", ":focus-visible~.hint", "포커스용이 아니다"),
+            ("결합자 > 양옆 공백", ":focus-visible", ":focus-visible > .hint",
+             "포커스용이 아니다"),
+            ("쉼표 목록의 한 조각만 포커스", ":focus-visible", ":focus-visible,.x",
+             "포커스용이 아니다"),
+            (":is(…) 안의 포커스 뒤 결합자", ":focus-visible", ":is(:focus-visible) .hint",
+             "포커스용이 아니다"),
         ):
             with self.subTest(name):
                 fail, unmeasurable, out = run(self.twist(old, new))
@@ -209,15 +226,32 @@ class ContrastAxisTest(unittest.TestCase):
         살아남는지를 본다(`:not(…)` 을 지우다 뒤까지 먹으면 여기서 걸린다).
         넷째는 CSS 가 셀렉터 이름의 대소문자를 안 가린다는 것이다 — ⓖ 와 짝이라,
         대문자를 그냥 거절하는 쪽으로 닫으면 이 줄이 오탐을 잡아낸다.
+
+        **뒤 여덟은 계획 52 가 더했다** — 위 미탐 표가 「결합자 뒤에 그리면 죽는다」로
+        가르는 순간, 그 가름이 **괄호·대괄호 안의 결합자와 쉼표**를 셀렉터의 것으로
+        착각하면 정상 CSS 가 종료 2 로 빨개진다(설계서 2절이 세 대안을 가른 여섯 행이
+        전부 이쪽이다). `[class~=btn]` 의 `~` 는 결합자가 아니라 속성 연산자고,
+        마지막 둘은 가르기 전에 조각을 `strip()` 하지 않으면 마지막 compound 가
+        빈 문자열이 되는 자리다(`RULE_RE` 가 여는 중괄호 앞을 통째로 준다).
         """
-        for name, new in (
-            (":is(…) 는 투명하다", ":is(:focus-visible)"),
-            (":where(…) 도 투명하다", ":where(:focus-visible)"),
-            ("괄호 밖의 포커스는 남는다", ":not(.no-ring):focus-visible"),
-            ("대문자도 같은 셀렉터다", ":FOCUS-VISIBLE"),
+        for name, old, new in (
+            (":is(…) 는 투명하다", ":focus-visible", ":is(:focus-visible)"),
+            (":where(…) 도 투명하다", ":focus-visible", ":where(:focus-visible)"),
+            ("괄호 밖의 포커스는 남는다", ":focus-visible", ":not(.no-ring):focus-visible"),
+            ("대문자도 같은 셀렉터다", ":focus-visible", ":FOCUS-VISIBLE"),
+            (":not(…) 안의 결합자", ":focus-visible", ":focus-visible:not(.x + .y)"),
+            (":is(…) 안의 결합자", ":focus-visible", ":focus-visible:is(.x + .y)"),
+            (":is(…) 안의 쉼표", ":focus-visible", ":is(.x, .y):focus-visible"),
+            (":not(…) 안의 쉼표", ":focus-visible", ":focus-visible:not(.x, .y)"),
+            (":is(…) 안의 쉼표와 결합자", ":focus-visible", ":is(.x, .y > .z):focus-visible"),
+            ("속성 선택자의 ~= 는 결합자가 아니다", ":focus-visible",
+             ":focus-visible[class~=btn]"),
+            ("앞 compound 도 포커스다", ":focus-visible", ":focus-visible a:focus-visible"),
+            ("꼬리 공백", ":focus-visible", ":focus-visible "),
+            ("줄바꿈 낀 쉼표", ":focus-visible,.sb", ":focus-visible,\n.sb"),
         ):
             with self.subTest(name):
-                fail, unmeasurable, out = run(self.twist(":focus-visible", new))
+                fail, unmeasurable, out = run(self.twist(old, new))
                 self.assertEqual((fail, unmeasurable), ([], []), out)
                 self.assertIn("포커스 링 규칙 1개", out)
 

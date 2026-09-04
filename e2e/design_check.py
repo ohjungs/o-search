@@ -203,6 +203,29 @@ FOCUS_RE = re.compile(r":focus(?:-visible)?(?![\w-])", re.I)
 COMMENT_OR_STRING_RE = re.compile(r"/\*.*?\*/|\"[^\"\n]*\"|'[^'\n]*'", re.S)
 
 
+def _top_level(text, seps):
+    """괄호 `()`·대괄호 `[]` **밖**의 `seps` 에서만 가른다. 깊이만 세고 문법은 안 읽는다.
+
+    `str.split` 이 아닌 이유는 괄호 안이다 — `:is(.x, .y)` 의 쉼표도 `:not(.x + .y)` 의
+    결합자도 셀렉터를 가르지 않고, `[class~=btn]` 의 `~` 는 결합자가 아니라 속성
+    연산자다. 깊이를 안 세면 그 여섯 모양이 전부 **정상 CSS 를 거절하는 오탐**이 된다
+    (설계서 2절 표가 세 대안을 가른 행이 전부 이쪽이다).
+    """
+    depth, buf, out = 0, [], []
+    for ch in text:
+        if ch in "([":
+            depth += 1
+        elif ch in ")]":
+            depth = max(0, depth - 1)   # 안 열린 닫기에 음수로 내려가지 않는다
+        elif depth == 0 and ch in seps:
+            out.append("".join(buf))
+            buf = []
+            continue
+        buf.append(ch)
+    out.append("".join(buf))
+    return out
+
+
 def focus_rule(css):
     """링을 그리는 규칙 하나를 읽어 (색 토큰, outline-offset 문자열). 안 그려지면 ValueError.
 
@@ -231,9 +254,17 @@ def focus_rule(css):
     # 조상에 그릴 조건이라 먼저 지운다. 남은 자리에서 `:focus`/`:focus-visible` 이
     # **낱말로** 있어야 한다 — `:focus-within` 은 뒤에 `-` 가 붙어 안 남는다.
     # `:not(.foo):focus-visible` 은 괄호 밖 포커스가 남아 그대로 통과한다.
-    if not FOCUS_RE.search(INDIRECT_RE.sub("", selector)):
-        raise ValueError("outline 을 정하는 유일한 규칙이 키보드 포커스용이 아니다: %s"
-                         % " ".join(selector.split()))
+    # 보는 자리는 셀렉터 전체가 아니라 **쉼표 조각마다 마지막 compound** 다 — 링은
+    # 셀렉터가 고르는 그 요소에 그려지므로 `a:focus-visible+.hint` 는 포커스받은 요소가
+    # 아니라 **옆 상자**에 그린다. 낱말이 어디에 있든 통과시키면 아무도 못 보는 링
+    # 위에서 대비를 재게 된다(계획 44 가 막으려던 그 자리). 조각 하나라도 어긋나면
+    # 거절한다 — 쉼표 목록은 전부 같은 규칙을 받으므로 한 조각만 딴 데 그려도 틀린 잣대다.
+    # `strip()` 은 꼬리 공백에서 마지막 compound 가 빈 문자열이 되는 것을 막는다.
+    for part in _top_level(selector, ","):
+        if not FOCUS_RE.search(INDIRECT_RE.sub(
+                "", _top_level(part.strip(), " \t\n>+~")[-1])):
+            raise ValueError("outline 을 정하는 유일한 규칙이 키보드 포커스용이 아니다: %s"
+                             % " ".join(selector.split()))
     # 규칙 앞의 중괄호가 안 닫혀 있으면 링은 어떤 at-rule 안이다(조건 6). **prelude 를
     # 안 읽는다** — 「이 조건은 늘 참」을 고르기 시작하면 `@layer`·`@supports`·
     # `forced-colors` 처럼 모르는 것이 안전으로 분류돼 새 나간다(설계서 1절 F1~F4).
