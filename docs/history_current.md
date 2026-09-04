@@ -57,3 +57,22 @@ append 전용이고 수정·삭제 금지다. 각 회전의 사유는 `digest.md
   표 · ③상태마다 클래스 × A `SELECT url, html FROM pages LIMIT 0` · B `PRAGMA table_info`
   (오늘 실측이 반대한다) · C 제품 0줄. ①+A 가 유력하지만 **①의 파싱 비용을 아직 안 쟀다** —
   열을 하나 더한 스키마 사본에 ①·②를 둘 다 먹여 가른다.
+
+## 2026-09-05 04:20 | db-state-invariant | 설계 0/1 시도0
+한 일: `docs/design_db-state-invariant.md` 를 썼다. 갈림길 1 에 **넷째 안 ①'** 를 더해
+  골랐다 — 눈금을 `store.SCHEMA` 문자열에서 파싱하지 않고 **정상 DB 의
+  `PRAGMA table_info(pages)`** 에서 받는다(우리가 쓸 파서 0줄 · 열을 뺀 표를 다시 만들
+  선언 타입까지 `PRAGMA` 가 준다). 처방은 **A**(한 낱말). 임시 디렉터리에 제품 사본 셋
+  (오늘·A·B)을 만들어 4열 × 3질의를 직접 쟀다(`data/crawl.db` 무접촉).
+결과: 단위 **603 OK**(13.559초 · 맨몸·단독 · rc 0) · 제품 `src/` **0줄**.
+  ①' 자 실물: 눈금 4칸 · 오늘 **RED 정확히 1행(`url`)** · A 사본 **4행 PASS** · 정상 DB
+  오탐 0. **자의 첫 초안이 틀린 것을 실측이 잡았다** — 반환값을 비교하니 정상 DB 가
+  `n=2/0/0` 으로 거짓 RED 였다. 자가 재는 단위는 결과가 아니라 **판정**이다.
+  **B 를 죽인 진짜 사유는 오탐이 아니라 expand 함정이다**(새로 깬 가정): 사본 `SCHEMA` 에
+  `lang TEXT` 를 더하고 기존 정상 DB 를 다시 열자 `CREATE TABLE IF NOT EXISTS` 가 열을 안
+  더해 세 질의 전부 `no such column: lang` — 읽을 수 있는 DB 를 전면 500 으로 만든다.
+  비용: `LIMIT 0` 한 열 0.0014ms · 두 열 **0.0015ms** · `LIMIT 1` 0.0087ms(1,000행·6.8KB).
+  `data/crawl.db` sha256 무변 · `docs/specs/` 무변 · **PR 무접촉(조회 0회)** · 서버 0개.
+다음: **개발 1/1** — 설계 5절 계약대로 자를 먼저 세워 `url` 행 RED 를 보고(자가 0행을 재거나
+  RED 0행이면 그 자체가 결함), 제품 한 낱말로 GREEN. 같은 커밋에서 그 줄 위 `ponytail:`
+  주석 두 문장의 거짓을 고친다. `test_serve.py` 새 클래스 0개.
