@@ -315,14 +315,13 @@ def passages(db_path, query, limit=10):
         # 읽는다. 늘 `LIMIT 0` 이 같거나 싸고, 차이는 어느 쪽이든 잡음 크기다.
         # 이 줄도 **루프 앞**이다. 안이나 뒤면 `hits` 가 빈 질의가 판정에 못 닿아
         # 같은 고장난 DB 가 `q=김치` 면 500, `q=%01` 이면 200 으로 다시 갈린다.
-        # ponytail: `html` **한 열만** 본다 — 다른 열의 갈림은 아직 열려 있다.
-        # 리뷰 54 실측: `url` 열이 없는 DB 는 매치되는 질의만 루프 안에서 터져 500 이고
-        # 매치 없는 두 질의는 그대로 200 `[]` 다(바로 이 줄이 `html` 축에서 닫은 갈림이
-        # `url` 축에 남아 있다). `status` 는 `passages()` 가 아예 안 읽어 무해하다.
-        # 안 넓힌 이유는 도달 조건뿐이다 — 사람이 스키마를 손으로 고쳐야 닿는다.
-        # 넓히는 날은 `SELECT url, html FROM pages LIMIT 0` 한 낱말이거나,
-        # 셋째 열이 근거 있는 경로에 생기면 `PRAGMA table_info` 한 번이다.
-        db.execute("SELECT html FROM pages LIMIT 0")
+        # ponytail: **아래 루프가 읽는 두 열만** 본다(`url`·`html`). `status`·
+        # `fetched_at` 은 `passages()` 가 아예 안 읽어 요구하면 오탐이고, 스키마 전
+        # 열을 요구하는 안은 설계 55 가 깨 보고 죽였다 — `SCHEMA` 의
+        # `CREATE TABLE IF NOT EXISTS` 는 기존 DB 에 열을 안 더하므로, 새 열이 생기는
+        # 날 **읽을 수 있는 DB 가 전면 500** 이 된다. 셋째 열을 읽게 되면 그 열을
+        # 여기 더한다 — 자(`TestPassagesColumnAxisInvariant`)가 그날을 잡아 준다.
+        db.execute("SELECT url, html FROM pages LIMIT 0")
         for url, title, _snippet in hits:
             row = db.execute("SELECT html FROM pages WHERE url = ?", (url,)).fetchone()
             if not row or not row[0]:

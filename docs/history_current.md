@@ -76,3 +76,14 @@ append 전용이고 수정·삭제 금지다. 각 회전의 사유는 `digest.md
 다음: **개발 1/1** — 설계 5절 계약대로 자를 먼저 세워 `url` 행 RED 를 보고(자가 0행을 재거나
   RED 0행이면 그 자체가 결함), 제품 한 낱말로 GREEN. 같은 커밋에서 그 줄 위 `ponytail:`
   주석 두 문장의 거짓을 고친다. `test_serve.py` 새 클래스 0개.
+
+## 2026-09-05 05:10 | db-state-invariant | 개발 1/1 시도0
+한 일: 자(`TestPassagesColumnAxisInvariant`, `tests/test_indexer.py`)를 세워 RED 를 눈으로
+  보고 처방 한 낱말(`SELECT url, html FROM pages LIMIT 0`)로 GREEN. 그 줄 위 거짓이 된
+  `ponytail:` 주석 두 문장을 같은 커밋에서 새 천장으로 갈았다. `test_serve.py` 새 클래스 0개.
+결과: **RED 정확히 1행**(`url`: `OperationalError/ok/ok`) → 4행 GREEN · 단위 603 → **604 OK**
+  (13.671초 rc 0) · 오탐 0(정상·`status`·`fetched_at` 셋 다 `1/0/0`) · 눈금이 `SCHEMA` 를
+  따라간다(사본에 `lang` 더하니 4→5) · 눈금 0칸이면 RED · 변이 ① RED · 변이 ② **RED 2행** ·
+  HTTP 표면 `/passages` 500 셋 · `/search`·화면 200 · 서버 잔여 0 · `data/crawl.db` sha 무변.
+다음: **테스트** — 자가 잡는 축과 안 잡는 축(타입 변경·권한·`docs` 파손)의 경계를 재고,
+  `README` 숫자 가드처럼 자 자신이 낡는 자리가 있는지 본다.
