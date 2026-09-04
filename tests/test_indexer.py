@@ -860,6 +860,36 @@ class TestPassages(unittest.TestCase):
         with self.assertRaises(indexer.StaleIndexError):
             indexer.passages(self.db_path, "김치")
 
+    def test_stale_index_wins_over_a_broken_pages_warehouse(self):
+        """판정 넷의 우선순위 — **옛 색인이 창고 고장보다 먼저** 이긴다.
+
+        순서를 정하는 것은 `hits = search(...)` 가 두 가드보다 **앞줄**이라는 사실
+        하나뿐이다. 그 한 줄을 가드 **뒤**로 내리는 변이는 나머지 전부를 초록으로
+        지나가면서(실측: 602건 OK) 옛 색인 + 고장난 창고를 503 이 아니라 500 으로
+        바꾼다 — **색인만 다시 돌리면 낫는 DB** 를 «우리가 터졌다» 로 부르게 된다.
+        설계 54 3절이 「없는 DB → 옛 색인 → 창고 없음 → 열 없음(500)」을 표로만 쟀고
+        코드에는 못이 없던 자리다. 열 축·테이블 축 둘 다 같은 변이로 갈리므로 함께 잰다.
+        """
+        for label, warehouse in (
+                # `html` 열만 없는 창고 · 창고가 통째로 없음. 둘 다 옛 색인에 진다.
+                ("html 열 없음", "CREATE TABLE pages (url TEXT PRIMARY KEY, status INTEGER)"),
+                ("창고 없음", None)):
+            with self.subTest(warehouse=label):
+                path = os.path.join(self.dir.name, label + ".db")
+                Store(path).upsert("http://a.test/", "<title>김치</title><p>김치찌개</p>", 200)
+                db = sqlite3.connect(path)
+                self.addCleanup(db.close)
+                # 옛 정의로 만든 색인 — `index_pages()` 를 안 부른다(위 테스트와 같은 방법).
+                db.execute(TestSchemaDrift.OLD_SCHEMA)
+                db.execute("INSERT INTO docs(title, body, url) "
+                           "VALUES ('김치', '김치찌개', 'http://a.test/')")
+                db.execute("DROP TABLE pages")
+                if warehouse:
+                    db.execute(warehouse)
+                db.commit()
+                with self.assertRaises(indexer.StaleIndexError):
+                    indexer.passages(path, "김치")
+
     def test_corrupt_db_is_loud(self):
         self._seed_and_index([("http://a.test/", "<p>김치</p>")])
         with open(self.db_path, "wb") as fh:

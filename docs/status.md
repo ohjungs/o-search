@@ -1,94 +1,73 @@
 ---
 signal: GREEN
-phase: 테스트
+phase: 리뷰
 step: 1/1
 attempt: 0
-iteration: 317
+iteration: 318
 updated: 2026-09-04
-ctx: 55
-night_iterations: 139
+ctx: 45
+night_iterations: 140
 night_red: 2
 night_retries: 0
-plan: passage-html-column # 계획 54 — 개발 1/1 완료 · 다음은 테스트
+plan: passage-html-column # 계획 54 — 테스트 1/1 완료 · 다음은 리뷰
 ---
 
 # 현재 상태
 
-**계획 54 `passage-html-column` 개발 1/1 을 끝냈다.** 다음 phase 는 **테스트**다.
+**계획 54 `passage-html-column` 테스트 phase 를 끝냈다.** 다음 phase 는 **리뷰**다.
 설계서는 `docs/design_passage-html-column.md`, 계획서는 `docs/plan_passage-html-column.md`,
 브랜치는 `loop/passage-html-column`.
 
-## 심은 것 — 설계서 4절 계약 그대로 한 줄
+## 갭을 하나 찾아 닫았다 — 「판정 넷의 우선순위」 (8점)
 
-`indexer.passages()` 안, 계획 53 이 심은 `sqlite_master` 가드 **직후** · `hits` 루프 **앞**:
+문서가 적어 둔 후보를 그대로 안 믿고 **직접 다시 쟀다.** 임시 DB 여덟 상태 × 세 질의를
+`indexer.passages()` 에 직접 먹여 우선순위를 확인했다(저장소 `data/crawl.db` 는 안 읽었다):
 
-```python
-db.execute("SELECT html FROM pages LIMIT 0")
-```
+| DB 상태 | 세 질의 전부 |
+|---|---|
+| 없는 DB | `FileNotFoundError`(503) |
+| 옛 색인 · 옛 색인 + `html` 열 없음 · 옛 색인 + `pages` 없음 | **`StaleIndexError`**(503) |
+| `pages` 없음 | `NoCrawlDataError`(503) |
+| `html` 열 없음 · `html` 열 없음 + 색인 전 | `OperationalError`(500) |
 
-열이 없으면 sqlite 가 준비 단계에서 `OperationalError` 를 **질의와 무관하게** 내고,
-`serve.do_GET` 의 `except Exception` 이 이미 그것을 500 으로 옮긴다. **`serve.py` 0줄 ·
-새 예외 0개 · 스키마·마이그레이션·재색인 0 · 시그니처 무변.** 제품 diff 는
-`src/websearch/indexer.py` **한 파일**이고, 그중 코드는 한 줄이다.
+설계서 3절의 표가 오늘도 참이다. **그런데 그 순서를 붙드는 단언이 0개였다.**
+순서를 정하는 것은 `hits = search(...)` 가 두 가드보다 **앞줄**이라는 사실 하나인데,
+그 한 줄을 가드 **뒤**로 내리는 변이를 스크래치패드 **전체 사본**에 심어 보니
+**602건이 전부 초록**이었다. 그 변이는 「옛 색인 + `html` 열 없음」을 503 → **500**,
+「옛 색인 + `pages` 없음」을 503 → 503(`NoCrawlDataError`)으로 바꾼다 —
+**색인만 다시 돌리면 낫는 DB 를 «우리가 터졌다» 로 부르게 된다.**
 
-주석 두 자리를 고쳤다 — 계획서가 «오늘 살아 있는 손실은 거짓 주석» 이라 적은 자리다.
-위 가드의 «`html` 열이 없거나 … 500 이 맞는 이름» 은 새 줄이 갈라내는 것으로 다시 썼고,
-새 줄에는 `LIMIT 0` 을 고른 실측(0.0128 대 0.0016 ms)과 **루프 앞인 이유**를 적었다.
-천장은 `ponytail:` 로 코드에 남겼다 — **`html` 열 하나만 본다**(다른 열·권한은 여전히
-루프 안 500 이고 답이 같아 갈림이 없다. 셋째 열이 근거 경로에 생기면 `PRAGMA table_info`).
+단언 하나를 세웠다: `test_indexer.TestPassages.test_stale_index_wins_over_a_broken_pages_warehouse`
+(`subTest` 둘 — 열 축·테이블 축). 같은 변이를 다시 심으니 **`errors=2`** 로 죽고,
+어느 창고에서 갈렸는지가 실패 라벨에 적힌다(`warehouse='html 열 없음'`·`'창고 없음'`).
+HTTP 표면은 안 더했다 — `StaleIndexError` → 503 은 `test_serve` 의 예외 표가 이미 붙들고
+있어 그쪽에 줄을 더하면 룰 5절(이미 덮인 것)에 걸린다.
 
-## RED 를 눈으로 봤다
+## 전수 — 맨몸·단독
 
-구현 전 `FAILED (failures=6)` — 계획서 완료 기준 1·2·7 이 정확히 그 자리다.
+- 단위 **602 → 603 OK**(13.439초). `README.md` 의 `단위 603건` 은 같은 커밋이다.
+- `passage_eval` 정확도 **100.0%**(398/398) · 채택률 **99.5%** · p95 **1.51ms**(예산의 0.3%)
+  — 손댄 경로를 직접 재는 도구라 다시 돌렸고 셋 다 무변이다.
+- e2e 21종 전수는 **안 돌렸다**(e2e phase 의 몫이다). 제품 코드는 이번 스텝에서 **0줄**이다.
+- `data/crawl.db` sha256 `85c96744…5bda18` **전후 대조 무변** · `docs/specs/` 무변 ·
+  `e2e/` 0줄 · 새 파일 0 · 새 의존성 0 · stdlib 만 · **PR #7 무접촉** ·
+  띄운 서버 0개(`pgrep -f websearch.serve` 0건) · **러너 규율 위반 0회**(전부 맨몸).
 
-| 관측 | RED 에서 본 값 | GREEN |
-|---|---|---|
-| `html` 열 없는 DB · `q=김치` | 500(오늘도 500 — 안 갈린 쪽) | **500 무변** |
-| 같은 DB · `q=zzzznope` | `200 != 500` · `{"passages": []}` | **500** |
-| 같은 DB · `q=%01`(무토큰) | `200 != 500` · `{"passages": []}` | **500** |
-| 같은 DB **+ 색인 전** · `q=김치` | `200 != 500` | **500**(알고 바꾼 값) |
-| `indexer.passages()` 세 질의(HTTP 밖) | `OperationalError not raised` × 2 | **셋 다 `OperationalError`** |
-| 같은 DB · `/search?q=김치` | **200**(RED 때부터 초록 — 대조군) | **200 무변** |
-| `README.md` 건수 단언 | `(599, 21) != (602, 21)` | 602 로 맞춤 |
+## 안 연 갭 (`digest` 에 남겼다)
 
-단위 **599 → 602 OK**(13.441초 · 맨몸·단독). 새 단언 셋:
-`test_serve.TestPassagesWithoutHtmlColumn.test_every_query_shape_is_500`(`subTest` 3 —
-뒤집힌 것) · `test_search_still_answers_200`(대조군) ·
-`TestPassagesWithoutHtmlColumnBeforeIndexing`(색인 전 500) ·
-`test_indexer.TestPassages.test_db_without_html_column_raises_for_every_query_shape`.
-클래스 docstring 의 «천장은 500 하나가 아니라 500/200 갈림이다» 는 이제 거짓이라 고쳤다.
-
-## 변이 둘이 다 죽었다 — 붙들린 것은 「루프 앞」이다
-
-스크래치패드 **전체 사본**에서 돌렸다(`git checkout` **0회** · 저장소 무접촉).
-
-- **① 새 줄 삭제** → `failures=5`.
-- **② 같은 줄을 `hits` 루프 **안으로** 이동** → `failures=5` — **①과 글자 그대로 같은 다섯**.
-
-**②가 이 스텝의 진짜 변이다.** 줄이 있어도 자리가 틀리면 `hits` 가 빈 질의는 판정에 못
-닿아 갈림이 그대로 돌아온다. 삭제 변이만 돌렸으면 「줄이 있다」만 재고 「앞에 있다」는
-못 쟀다. 첫 판에서 `src`·`tests` 만 복사했더니 `e2e/`·`docs/` 가 없어 무관한 실패 24건이
-섞였다 — 사본은 **저장소 전체**여야 판정 줄이 읽힌다.
-
-## 재지 않은 것 · 그대로인 것
-
-`passage_eval` 정확도 **100.0%**(398/398) · 채택률 **99.5%** · p95 **1.51ms**(예산의 0.3%)
-— 손댄 경로를 직접 재는 도구라 이번에 돌렸고 셋 다 무변이다. **e2e 21종 전수는 안 돌렸다**
-(e2e phase 의 몫이다). `data/crawl.db` sha256 `85c96744…5bda18` **무변**(전후 대조) ·
-`docs/specs/` 무변 · `e2e/` 0줄 · 새 파일 0 · 새 의존성 0 · stdlib 만 · **PR #7 무접촉** ·
-띄운 서버 0개(`pgrep -f websearch.serve` 0건 확인) · **러너 규율 위반 0회**(전부 맨몸).
+- **[5] 「`html` 열 없음」 상태의 화면(HTML) 사다리를 붙드는 단언이 없다.** 형제 클래스
+  `TestPassagesWithoutPagesTable` 에는 있고 이쪽에는 없다. 오늘 실측 **200 · 결과 보임**.
+  화면은 `_page_hits` → `search()` 만 타 현실적인 변이가 안 서서 8점이 아니다.
 
 ## 행동
 
-다음은 **테스트** phase 다. 갭 탐색의 자리 후보:
-**판정 넷의 우선순위**(없는 DB → 옛 색인 → 창고 없음 → **열 없음 500**)를 붙드는 단언이
-아직 0개다 — 설계서 3절이 표로만 쟀고 「`html` 열 없음 + 옛 색인 → `StaleIndexError`」가
-코드에 못박혀 있지 않다. 그 밖에 `LIMIT 0` 이 **정상 DB 에서 오탐 0** 이라는 축(오늘은
-602건 전체 통과가 대신 붙들고 있다)과, 화면(HTML) 사다리를 **안 넓힌 것**을 붙드는 단언.
+다음은 **리뷰** phase 다. 백지로 볼 자리: 새 제품 한 줄(`SELECT html FROM pages LIMIT 0`)의
+**비용 축**(`LIMIT 0` 대 `LIMIT 1` 을 붙드는 단언은 여전히 0개다 — 값이 0.01ms 라 안 열었다)과,
+설계·개발·테스트가 세 번 인용한 「602/603 전체 통과가 오탐 0 을 붙든다」가 정말 그런지.
 
 ## 설계
 
-**끝났다.** `docs/design_passage-html-column.md` — 개발은 4절 계약을 한 글자도 안 벗어났다.
+**끝났다.** `docs/design_passage-html-column.md` — 테스트 phase 는 4절 계약을 안 건드렸다.
 
 ## 사람 결정 대기
 
