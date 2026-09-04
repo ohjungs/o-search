@@ -305,9 +305,20 @@ def passages(db_path, query, limit=10):
         if not db.execute(
                 "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'pages'"
         ).fetchone():
-            # 테이블의 **유무만** 본다. `pages` 는 있는데 `html` 열이 없거나 권한이
-            # 막힌 DB 는 기다린다고 안 낫는 상태라 500 이 맞는 이름이다.
+            # 테이블의 **유무만** 본다. 열이 없는 DB 는 바로 아래 줄이 갈라내고,
+            # 권한이 막힌 DB 는 기다린다고 안 낫는 상태라 500 이 맞는 이름이다.
             raise NoCrawlDataError(db_path)
+        # 창고가 **있는지** 다음은 **읽을 수 있는지**다. 열이 없으면 sqlite 가 준비
+        # 단계에서 `OperationalError` 를 내고 `serve` 의 `except Exception` 이 500 으로
+        # 옮긴다 — 크롤·색인을 다시 돌려도 열은 안 살아나므로 503 은 틀린 말이다.
+        # `LIMIT 0` 이다 — `LIMIT 1` 은 열 이름만 물으면서 html 본문을 한 행 통째로
+        # 읽어 8배 비싸다(0.0128 대 0.0016 ms, 1000행·행당 10KB 실측).
+        # 이 줄도 **루프 앞**이다. 안이나 뒤면 `hits` 가 빈 질의가 판정에 못 닿아
+        # 같은 고장난 DB 가 `q=김치` 면 500, `q=%01` 이면 200 으로 다시 갈린다.
+        # ponytail: `html` 열 하나만 본다. `url`·`status` 가 없거나 권한이 막힌 DB 는
+        # 여전히 루프 안에서 터지는데 답이 같은 500 이라 갈림이 없다. 세 번째 열이
+        # 근거 있는 경로에 생기면 그때 `PRAGMA table_info` 한 번으로 올린다.
+        db.execute("SELECT html FROM pages LIMIT 0")
         for url, title, _snippet in hits:
             row = db.execute("SELECT html FROM pages WHERE url = ?", (url,)).fetchone()
             if not row or not row[0]:

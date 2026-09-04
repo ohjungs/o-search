@@ -362,15 +362,16 @@ class TestPassagesWithoutPagesTable(ServeTestCase):
 
 
 class TestPassagesWithoutHtmlColumn(ServeTestCase):
-    """`pages` 는 있는데 `html` 열이 없다 — 설계서 4절이 「500 이 맞는 이름」으로 적어 둔 천장.
+    """`pages` 는 있는데 `html` 열이 없다 — 세 질의가 **같은 500** 으로 모인다.
 
-    **천장은 500 하나가 아니라 500/200 갈림이다.** 가드는 테이블의 *유무만* 보므로
-    매치되는 질의만 `SELECT html` 에 닿아 500 이 되고, 매치 없는 질의는 루프가 한 번도
-    안 돌아 200 `[]` 이 된다 — 계획 53 이 테이블 째로 없는 DB 에서 닫은 바로 그 고장이
-    열 하나 아래에 그대로 남아 있다.
+    열이 빠진 창고는 크롤·색인을 다시 돌려도 안 낫는다(설계 54 실측: `Store()` 재생성은
+    `SCHEMA` 가 `IF NOT EXISTS` 라 열을 못 살리고, 이어지는 `upsert()`·`index_pages()` 가
+    둘 다 죽는다). 그래서 503 «기다렸다 다시 걸어라» 가 아니라 500 이 맞는 이름이다.
 
-    **아래 값은 바라는 답이 아니라 오늘의 답이다.** 천장을 옮기는 날 이 테스트가 빨개져
-    「그 갈림을 알고 바꾼다」가 되게 하려고 잰다.
+    **여기서 재는 축은 이름이 아니라 갈림이다.** 계획 53 이 테이블 축에서 닫은 고장이
+    열 축에서 500/200 갈림으로 살아 있었다 — 가드가 테이블의 *유무만* 봐서 매치되는
+    질의만 `SELECT html` 에 닿았기 때문이다. 계획 54 가 `LIMIT 0` 탐침을 `hits` 루프
+    **앞**에 두어 닫았다.
     """
 
     def setUp(self):
@@ -394,14 +395,49 @@ class TestPassagesWithoutHtmlColumn(ServeTestCase):
         self.assertNotIn(self.db, json.dumps(body, ensure_ascii=False), "DB 경로가 샜다")
         self.assertIn("OperationalError", logged, "500 의 원인이 로그에 안 남았다")
 
-    def test_query_without_match_is_200_the_split_that_is_left(self):
-        # 같은 순간의 같은 고장난 DB 인데 소비자가 받는 답이 질의 내용으로 갈린다.
-        # `pages` 테이블 자체가 없을 때는 이 갈림이 닫혔다(위 클래스) — 열 단위로는 열려 있다.
-        for q in ("zzzznope", "%01"):
-            with self.subTest(q=q):
+    def test_every_query_shape_is_500(self):
+        # 매치 있음 · 매치 없는 낱말 · 무토큰. 셋이 갈리면 소비자가 같은 순간의 같은 DB 를
+        # «우리가 터졌다» 와 «근거가 없다» 로 다르게 읽는다. **단언도 `subTest` 안이다** —
+        # 밖에 두면 첫 질의에서 멈춰 이 테스트의 축 자체를 못 잰다(계획 53 리뷰 [R53-1]).
+        for q in ("%EA%B9%80%EC%B9%98", "zzzznope", "%01"):
+            with self.subTest(q=q), mock.patch("sys.stderr", new_callable=io.StringIO):
                 status, body, _ = self.get("/passages?q=" + q)
-                self.assertEqual(status, 200, body)  # 먼저 잰다 — 503 이면 아래가 KeyError 다
-                self.assertEqual(body["passages"], [])
+                self.assertEqual(status, 500, body)
+                self.assertEqual(body["error"], "검색 중 오류가 났다")
+                self.assertNotIn(self.db, json.dumps(body, ensure_ascii=False), "DB 경로가 샜다")
+
+    def test_search_still_answers_200(self):
+        # 색인만으로 되는 검색은 안 깬다 — 탐침이 `_connect()` 로 올라가면 여기가 죽는다.
+        # **구현 전에도 초록이라야 한다**: 대조군이 RED 때부터 초록인 것이 이 단언의 값이다.
+        status, body, _ = self.get("/search?q=%EA%B9%80%EC%B9%98")
+        self.assertEqual(status, 200, body)
+        self.assertTrue(body["results"], "색인이 멀쩡한데 결과가 비었다")
+
+
+class TestPassagesWithoutHtmlColumnBeforeIndexing(ServeTestCase):
+    """`html` 열 없음 **+ 색인 전**. 200 `[]` → 500 으로 **알고 바꾼 값**의 못이다.
+
+    색인 전 DB 는 `/search` 와 같은 답(빈 목록)을 내는 것이 오늘의 계약이지만, 이 DB 는
+    색인을 돌리면 낫는 것이 아니라 **색인이 죽는다**(`index_pages()` 가 `no such column:
+    html`). 500 이 참인 쪽이라 새 탐침이 여기서도 걸리는 것이 맞다 — 설계 54 3절 마지막 행.
+    """
+
+    index = False
+
+    def setUp(self):
+        super().setUp()
+        db = sqlite3.connect(self.db)
+        db.execute("DROP TABLE pages")
+        db.execute("CREATE TABLE pages (url TEXT PRIMARY KEY, status INTEGER)")
+        db.executemany("INSERT INTO pages VALUES (?, 200)", [(url,) for url in PAGES])
+        db.commit()
+        db.close()
+
+    def test_unindexed_db_without_html_column_is_500(self):
+        with mock.patch("sys.stderr", new_callable=io.StringIO):
+            status, body, _ = self.get(PASSAGE_Q)
+        self.assertEqual(status, 500, body)
+        self.assertEqual(body["error"], "검색 중 오류가 났다")
 
 
 class TestPassagesSchemaVersion(ServeTestCase):

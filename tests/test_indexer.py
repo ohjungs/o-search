@@ -830,6 +830,23 @@ class TestPassages(unittest.TestCase):
                 with self.assertRaises(indexer.NoCrawlDataError):
                     indexer.passages(self.db_path, query)
 
+    def test_db_without_html_column_raises_for_every_query_shape(self):
+        # 창고는 있는데 **열 하나가 없는** DB. HTTP 밖에서도 갈림이 닫혔음을 잰다 —
+        # 위 테이블 축(`NoCrawlDataError`)과 달리 여기는 sqlite 가 준비 단계에서 내는
+        # `OperationalError` 라 `serve` 의 `except Exception` 이 500 으로 옮긴다.
+        self._seed_and_index([("http://a.test/", "<title>김치</title><p>김치찌개</p>")])
+        db = sqlite3.connect(self.db_path)
+        self.addCleanup(db.close)
+        db.execute("DROP TABLE pages")
+        # `ALTER … DROP COLUMN` 은 sqlite 버전을 타서 새로 만든다.
+        db.execute("CREATE TABLE pages (url TEXT PRIMARY KEY, status INTEGER)")
+        db.execute("INSERT INTO pages VALUES ('http://a.test/', 200)")
+        db.commit()
+        for query in ("김치찌개", "zzzznope", "\x01"):
+            with self.subTest(query=query):
+                with self.assertRaises(sqlite3.OperationalError):
+                    indexer.passages(self.db_path, query)
+
     def test_stale_index_raises(self):
         # 503 경로 — 조용한 빈 목록은 "결과 0건" 과 구분되지 않는다.
         # `search()` 를 부르는 한 공짜로 물려받는다(자체 질의를 짜면 잃는다)
