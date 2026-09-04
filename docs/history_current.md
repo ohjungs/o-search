@@ -247,3 +247,5 @@ append 전용이고 수정·삭제 금지다. 각 회전의 사유는 `digest.md
 - **판정: 승인 필요 0건 · 자동 수정 2건 적용.** 재검증 **`Ran 603 tests` OK**(맨몸·단독) ·
   `data/crawl.db` sha256 `85c96744…5bda18` **전후 무변** · `docs/specs/`·`e2e/`·`README.md` 0줄 ·
   제품 `src/` **주석만**(동작 0줄) · PR #7 무접촉 · 띄운 서버 0개 · 러너 규율 위반 **0회**.
+- **원격 확인** — `git ls-remote origin loop/passage-html-column` 이 `59b3bf3`(리뷰 54 커밋)
+  으로 로컬 `HEAD` 와 같다. `main` 은 여전히 `687a159`(계획 47)이고 **PR #7 은 무접촉**이다.
