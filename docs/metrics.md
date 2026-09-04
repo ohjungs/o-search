@@ -11,7 +11,7 @@
 
 | | 값 |
 |---|---|
-| 반복 | 312 |
+| 반복 | 313 |
 | 계획 (완료/폐기/보류) | 37 / 0 / 0 (진행 1) |
 | 재시도 | 0 |
 | RED | 1 |
@@ -26,17 +26,28 @@
 | 설계 | 19 (생략 5) |
 | 개발 | 74 |
 | 테스트 | 39 |
-| 리뷰 | 39 |
+| 리뷰 | 40 |
 | e2e | 29 |
 
 ## 리뷰 정확도 — 80점 임계 검증용
 
 | | 값 |
 |---|---|
-| 발견 후보 | 201 |
-| 80점 미만으로 버림 | 65 (기보류 중복 4 + search-api 2 + crawl-delay 3 + quality-eval 3 + non-ascii-url 2 + cooldown-burn 3 + crawl-politeness 1 + graceful-interrupt 2 + deadline-stop 3 + indexer-interrupt 5 + indexer-lock 2 + docs-citation-guard 2 + focus-contrast 2 + focus-ring-presence 3 + passage-api 17 + focus-rule-scope 2 + runner-quiet 2 + hidden-passage 10 + focus-ring-combinator 2) |
-| 보고함 | 125 |
-| **그중 실제로 고친 것** | 83 (hidden-passage 8건 — 개발 2 가 2건, 개발 3 이 [R51-3]·[R51-4] 2건, 리뷰 3 이 설계 문서 모순 1건, 개발 4 가 [R51-5] 1건, 리뷰 4 가 [R4-1]·[R4-2] 2건 자동 수정 / focus-ring-combinator 3건 — 리뷰 1 이 [R52-1] 천장 주석·[R52-2] docstring 계수·[R52-3] 계획서 완료 기준 모순 자동 수정) |
+| 발견 후보 | 207 |
+| 80점 미만으로 버림 | 65 (기보류 중복 4 + search-api 2 + crawl-delay 3 + quality-eval 3 + non-ascii-url 2 + cooldown-burn 3 + crawl-politeness 1 + graceful-interrupt 2 + deadline-stop 3 + indexer-interrupt 5 + indexer-lock 2 + docs-citation-guard 2 + focus-contrast 2 + focus-ring-presence 3 + passage-api 17 + focus-rule-scope 2 + runner-quiet 2 + hidden-passage 10 + focus-ring-combinator 2 + passage-db-state 5) |
+| 보고함 | 126 |
+| **그중 실제로 고친 것** | 84 (passage-db-state 1건 — 리뷰 1 이 [R53-1] `subTest` 범위 자동 수정 / hidden-passage 8건 — 개발 2 가 2건, 개발 3 이 [R51-3]·[R51-4] 2건, 리뷰 3 이 설계 문서 모순 1건, 개발 4 가 [R51-5] 1건, 리뷰 4 가 [R4-1]·[R4-2] 2건 자동 수정 / focus-ring-combinator 3건 — 리뷰 1 이 [R52-1] 천장 주석·[R52-2] docstring 계수·[R52-3] 계획서 완료 기준 모순 자동 수정) |
+
+**«변이가 죽는다» 와 «죽을 때 무엇을 말하는가» 는 다른 축이다 (2026-09-04 passage-db-state, 반복 313).**
+리뷰가 낸 유일한 보고 [R53-1] 은 **테스트가 못 잡는 결함이 아니라 잡고도 못 말하는 결함**
+이었다 — 세 질의를 `subTest` 로 돌면서 단언을 블록 밖에 둬, 판정을 `hits` 에 매다는 변이가
+라벨 없는 실패 **1건**만 남겼다(같은 계약을 재는 단위 테스트는 **2건**). 변이는 양쪽 다
+죽었으므로 「변이가 죽는가」만 보는 자에는 안 걸린다. 굳힌다: **여러 입력을 한 축으로
+재는 테스트는 «죽는가» 옆에 «어느 입력에서 죽는다고 적히는가» 를 같이 잰다.** 같은 리뷰가
+변이 넷을 다시 돌려 앞 phase 의 기록을 전부 재현했고(①②③), **넷째는 처음 잰 것**이다 —
+화면 사다리를 대칭으로 넓히는 변이가 599건을 **전부 통과**해, 설계가 「어떤 테스트로도 RED
+를 못 만드는 줄」이라고 적고 제품 주석이 근거로 삼은 문장이 실측으로 확인됐다.
+**주석이 자기 근거를 적어 뒀으면 리뷰의 몫은 그 근거를 다시 재는 것이다.**
 
 **성능 축을 백지 패스에 붙이라던 자기 지시가 처음으로 값을 냈다 (2026-09-03 hidden-passage, 반복 292).**
 반복 267·270 이 «성능 숫자는 세 번 중 두 번 틀렸다 · 다음 리뷰는 백지 패스에 성능 축을

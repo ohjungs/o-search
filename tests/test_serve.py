@@ -333,9 +333,14 @@ class TestPassagesWithoutPagesTable(ServeTestCase):
         for q in ("%EA%B9%80%EC%B9%98", "zzzznope", "%01"):
             with self.subTest(q=q), mock.patch("sys.stderr", new_callable=io.StringIO):
                 status, body, _ = self.get("/passages?q=" + q)
-            self.assertEqual(status, 503, body)
-            self.assertEqual(body["error"], "색인이 아직 준비되지 않았다")
-            self.assertNotIn(self.db, json.dumps(body, ensure_ascii=False), "DB 경로가 샜다")
+                # **단언도 `subTest` 안이다.** 밖에 두면 첫 질의에서 멈춰 «세 질의가
+                # 갈리는지» 라는 이 테스트의 축 자체를 못 잰다 — 실측: 판정을 `hits` 에
+                # 매다는 변이가 여기서는 라벨 없는 실패 1건, 같은 축의
+                # `test_db_without_pages_raises_for_every_query_shape` 에서는 어느 질의가
+                # 갈렸는지 적힌 실패 2건을 냈다.
+                self.assertEqual(status, 503, body)
+                self.assertEqual(body["error"], "색인이 아직 준비되지 않았다")
+                self.assertNotIn(self.db, json.dumps(body, ensure_ascii=False), "DB 경로가 샜다")
 
     def test_search_still_answers_200(self):
         # 색인만으로 되는 검색은 안 깬다 — 가드가 `search()` 로 번지면 여기가 죽는다.

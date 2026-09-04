@@ -214,3 +214,52 @@ append 전용이고 수정·삭제 금지다. 각 회전의 사유는 `digest.md
 - **러너 규율 위반 0회** — 단위·변이·e2e 어디에도 `2>&1`·`>/dev/null` 단독 사용 0,
   판정 줄(`OK`/`FAILED`/`rc=`)을 전부 눈으로 봤다. `pgrep -f websearch.serve` **0건**.
 - 다음: **리뷰** phase.
+
+## 2026-09-04 18:50 | passage-db-state | 리뷰 | 1/1 시도0
+
+- 한 일: **계획 53 의 세 커밋(`a4a4da1..HEAD`)을 백지 패스부터 다시 읽고, 문서가
+  「검증됨」으로 적어 둔 것을 전부 다시 쟀다.** 보고 **1건**(자동 수정 1 · 승인 필요 0) ·
+  제품 `src/` **0줄** · **599 OK**(13.607초 · 맨몸·단독).
+- **[R53-1] 자동 수정 — 세 질의가 갈리는지 재는 단언이 `subTest` 밖에 있었다.**
+  `tests/test_serve.py` 의 `TestPassagesWithoutPagesTable.test_every_query_shape_is_503` 은
+  세 질의를 `subTest` 로 돌면서 단언 셋은 `with` 블록 **밖**에 뒀다 — 첫 질의에서 멈추고
+  어느 질의가 갈렸는지도 안 남는다. 설계서 3절이 *"세 질의가 한 테스트 안의 `subTest`
+  셋이어야 「판정이 질의 내용에 안 달린다」가 하나의 축으로 잡힌다"* 고 적은 그 축이
+  **실제로는 안 잡혀 있었다.** 실측으로 갈랐다 — 판정을 `hits` 에 매다는 변이에서
+  고치기 전에는 라벨 없는 실패 **1건**, 고친 뒤에는 `(q='zzzznope')`·`(q='%01')` **2건**.
+  같은 계약을 단위에서 재는 `test_db_without_pages_raises_for_every_query_shape` 는
+  처음부터 둘을 냈다: **두 표면이 같은 축을 재는데 한쪽만 눈금이 있었다.**
+- **변이 넷을 스크래치패드 사본에서 다시 돌렸다**(`git checkout` 0회 · 저장소 무변).
+  ① 503 튜플에서 `NoCrawlDataError` 제거 → `failures=2` ·
+  ② 가드 삭제 → `failures=3, errors=1` ·
+  ③ 가드를 `hits` 에 매단다(`if hits and not …`) → `failures=3`(고친 뒤 **4**) ·
+  ④ **화면 사다리를 `NoCrawlDataError` 로 넓힌다 → `599 OK`, 죽는 것 0.**
+  ④ 가 값이다 — 설계 갈림길 3 이 「대칭으로 넓히면 어떤 테스트로도 RED 를 못 만드는 줄이
+  생긴다」고 적고 `serve.py` 주석이 그것을 근거로 삼은 자리를 **리뷰가 처음 직접 쟀다.**
+  테스트 phase 가 「화면 테스트는 고유한 킬러 변이가 없다」고 적어 둔 것도 같이 확인됐다.
+- **열거형 완전성을 diff 밖 전수로 봤다**(`rules/review.md` 3절). `passages()` 의 비테스트
+  호출자는 `serve` **한 곳**뿐이고 `indexer.main` 은 `passages` 를 안 부른다 — 새 예외가
+  CLI 트레이스백으로 새는 경로 **0**. `NoCrawlDataError` 를 받는 자리는 `main`(rc 1)과
+  JSON 사다리(503) 둘이고 화면 사다리는 **일부러** 안 받는다. 연결도 안 샌다 — 가드의
+  `raise` 는 `finally: db.close()` 안이다.
+- **버린 후보 5건**(80점 미만): ① `sqlite_master` 질의 두 벌을 헬퍼로 — 설계가 판정하고
+  `ponytail:` 주석으로 천장을 남긴 자리라 승인 축이다 · ② `test_html_screen_still_answers_200`
+  은 고유 킬러가 없으니 지운다 — 두 번째 표면의 계약을 적은 중복이라 `severity.md` 4절
+  억제 항목 · ③ `passages()` docstring 이 새 예외를 안 적는다 — `search()` 도 안 적는
+  저장소 관례(일관성만을 위한 변경) · ④ `TestPassagesWithoutHtmlColumn` 이 결함을 계약으로
+  굳힌다 — docstring 이 *"바라는 답이 아니라 오늘의 답"* 이라고 먼저 적었고 `digest` 에
+  여는 조건까지 있다 · ⑤ `docs/digest.md` 가 상한 200 을 넘겼다(207줄) — 기점 `a4a4da1`
+  에서 이미 205 라 이 계획이 만든 것이 아니다(2줄만 이 계획 몫).
+- `digest` 로 넘긴 6점 둘의 점수를 다시 봤다 — **둘 다 맞다.** 「`html` 열 없음」은 스키마를
+  손으로 고쳐야 닿고(`store`·`indexer` 의 어느 경로도 그런 `pages` 를 안 만든다), 「판정
+  셋의 우선순위」는 셋 다 503 이라 HTTP 표면에서 구분이 없다. 8점(정상 흐름에서 난다)은
+  둘 다 아니다.
+- 범위: 고친 파일은 `tests/test_serve.py` **하나**(단언 셋을 `with` 안으로 + 사유 주석).
+  `src/` **0줄** · `e2e/` 0줄 · `README.md` 0줄 · 새 파일 0 · `docs/specs/` 무변 ·
+  `data/crawl.db` sha256 `85c967…5bda18` 무변 · **PR #7 무접촉**(조회도 안 했다).
+- **러너 규율 위반 0회** — 단위·변이 어디에도 `2>&1`·`>/dev/null` 단독 사용 0이고
+  `Ran 599 … OK` 판정 줄을 눈으로 봤다. 서버는 `ServeTestCase` 안에서만 떴고
+  `pgrep -f websearch.serve` **0건**.
+- 다음: **e2e** phase. 완료 기준 8(21종 전수)은 테스트 phase 가 이미 rc 0 으로 닫았으니
+  e2e 는 **계약 표면**을 실서버로 다시 재는 것이 몫이다 — `pages` 를 치운 DB 에서
+  `/passages` 503 · `/search` 200 · 화면 200. 집안일 하나: `digest.md` 207줄(상한 200).

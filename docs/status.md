@@ -1,73 +1,74 @@
 ---
 signal: GREEN
-phase: 리뷰
+phase: e2e
 step: 1/1
 attempt: 0
-iteration: 312
+iteration: 313
 updated: 2026-09-04
-ctx: 44
-night_iterations: 135
+ctx: 52
+night_iterations: 136
 night_red: 2
 night_retries: 0
-plan: passage-db-state # 계획 53 — 테스트 1/1 완료 · 다음은 리뷰
+plan: passage-db-state # 계획 53 — 리뷰 1/1 완료(반려 0) · 다음은 e2e
 ---
 
 # 현재 상태
 
-**계획 53 `passage-db-state` 테스트 1/1 을 끝냈다.** 다음 phase 는 **리뷰**다.
+**계획 53 `passage-db-state` 리뷰 1/1 을 끝냈다. 반려 0 — 다음 phase 는 e2e 다.**
 설계서는 `docs/design_passage-db-state.md`, 계획서는 `docs/plan_passage-db-state.md`,
-브랜치는 `loop/passage-db-state` — 개발 커밋 `a4efdd9` 위에 테스트 커밋을 얹었다.
+브랜치는 `loop/passage-db-state` — 테스트 커밋 `9e57f23` 위에 리뷰 커밋을 얹었다.
 
-## 심은 것 — 테스트 **+3** · 제품 `src/` **0줄**
+## 보고 1건 — 자동 수정 1 · 승인 필요 0 · 제품 `src/` 0줄
 
-전부 `tests/test_serve.py` 한 파일이다.
+**[R53-1] 세 질의가 갈리는지 재는 단언이 `subTest` 밖에 있었다.**
+`TestPassagesWithoutPagesTable.test_every_query_shape_is_503` 이 세 질의를 `subTest` 로
+돌면서 단언 셋은 `with` 블록 **밖**에 뒀다 — 첫 질의에서 멈추고 어느 질의가 갈렸는지도
+안 남는다. 설계서 3절이 「세 질의가 `subTest` 셋이어야 *판정이 질의 내용에 안 달린다* 가
+하나의 축으로 잡힌다」고 적은 그 축이 **실제로는 안 잡혀 있었다**. 단언 셋을 `with` 안으로
+넣고 사유를 주석으로 남겼다(`tests/test_serve.py` 한 파일).
 
-| 새 단언 | 붙드는 것 |
+**실측이 갈랐다** — 판정을 `hits` 에 매다는 변이에서 고치기 전에는 라벨 없는 실패 **1건**,
+고친 뒤에는 `(q='zzzznope')`·`(q='%01')` **2건**. 같은 계약을 단위에서 재는
+`test_db_without_pages_raises_for_every_query_shape` 는 처음부터 둘을 냈다.
+
+## 변이 넷을 다시 돌렸다 — 「검증됨」을 그대로 안 믿는다
+
+스크래치패드 사본에서 돌렸다(`git checkout` **0회** · 저장소 무변).
+
+| 변이 | 결과 |
 |---|---|
-| `TestPassagesWithoutHtmlColumn.test_matching_query_is_500` | 설계서 4절이 「500 이 맞는 이름」으로 적어 둔 천장 |
-| 같은 클래스 `…_is_200_the_split_that_is_left` | **그 천장이 500 하나가 아니라 500/200 갈림**이라는 오늘의 답 |
-| `TestPassagesWithoutPagesTable.test_html_screen_still_answers_200` | 화면 사다리를 **안 넓힌 것**(설계 갈림길 3) |
+| ① 503 튜플에서 `NoCrawlDataError` 제거 | `failures=2` |
+| ② `passages()` 가드 삭제 | `failures=3, errors=1` |
+| ③ 가드를 `hits` 에 매단다(`if hits and not …`) | `failures=3` → 수정 후 **4** |
+| ④ **화면 사다리를 `NoCrawlDataError` 로 넓힌다** | **`599 OK` · 죽는 것 0** |
 
-## 후보 ①이 후보가 적은 것보다 나빴다
+④ 가 값이다 — 설계 갈림길 3 과 `serve.py` 주석이 근거로 삼은 「대칭으로 넓히면 어떤
+테스트로도 RED 를 못 만드는 줄이 생긴다」를 **리뷰가 처음 직접 쟀다**.
 
-`pages` 는 있는데 `html` 열이 없는 DB 는 **질의 내용으로 답이 갈린다** —
-`q=김치찌개` 는 `no such column: html` 로 **500**, `q=zzzznope`·`q=%01` 은 루프에
-못 닿아 **200 `[]`**. 계획 53 이 테이블 째로 없는 DB 에서 닫은 그 고장이 **열 하나
-아래에 그대로** 있다. 설계서의 「500 이 맞는 이름」은 **답의 절반에만 참**이었다.
-고치는 것은 제품 변경이라 범위 밖이다 — **오늘의 답을 못박고** `digest` 로 넘겼다(6점).
+## 버린 후보 5건 · 전수로 본 것
 
-후보 ②(가드가 `search()` 뒤라는 순서)는 **안 열었다** — `pages` 없음 + 옛 색인은
-`StaleIndexError` 가 이기는데 **셋 다 503 이라 HTTP 표면에서 구분이 없다**(6점 · `digest`).
-
-## 변이 둘이 다 죽었다
-
-스크래치패드 사본에서 돌렸다(`git checkout` **0회**).
-
-- **① 가드가 열까지 본다**(`sql LIKE '%html%'` = 천장을 옮긴다) → `failures=3` —
-  **새 테스트 둘만** 죽고 나머지 596 은 초록. 「천장을 옮기면 빨개진다」가 실물로 확인됐다.
-- **② 가드를 `passages()` 에서 빼 `search()` 로 옮긴다**(설계가 버린 「대칭」안) →
-  `failures=2` — 새 화면 테스트와 기존 `test_search_still_answers_200` 이 **함께** 죽었다.
-
-**화면 테스트는 고유한 킬러 변이가 없다.** 변이 ②에서 기존 단언과 같이 죽고, 설계가
-예고한 「화면 사다리를 대칭으로 넓히는」 변이는 어느 쪽도 못 죽인다. 남긴 이유는 **두
-번째 표면**이라는 것 하나 — 화면이 근거 문단을 그리게 되는 날 그 줄만 빨개진다.
+80점 미만 5건(두 벌 문자열 헬퍼 · 화면 테스트 중복 · docstring 예외 미기재 ·
+`TestPassagesWithoutHtmlColumn` 의 오늘 값 고정 · `digest.md` 207줄).
+**열거형 완전성은 diff 밖 전수로 봤다** — `passages()` 의 비테스트 호출자는 `serve`
+한 곳뿐이라 새 예외가 CLI 트레이스백으로 새는 경로 **0**, 가드의 `raise` 는
+`finally: db.close()` 안이라 연결도 안 샌다. `digest` 로 넘긴 6점 둘의 점수도 맞다.
 
 ## 전수
 
-**단위 599 OK**(13.342초 · 맨몸·단독) · **e2e 21종 전수 rc 0**(하나씩 눈으로 봤다) ·
-`passage_eval` 정확도 **100.0%** · `quality_eval` 통과 · `hidden_passage_e2e` 0/5 무변.
-계획서 8절의 최대 위험(「임시 DB 를 `pages` 없이 만드는 e2e 가 있으면 전수 RED」)은
-**0건**으로 닫혔다. `README.md` 는 `단위 596 → 599건` 한 줄뿐이고 건수 단언과 같은 커밋이다.
+**단위 599 OK**(13.607초 · 맨몸·단독). `data/crawl.db` sha256 `85c967…5bda18` 무변 ·
+`docs/specs/` 무변 · `src/`·`e2e/`·`README.md` **0줄** · 새 파일 0 · **PR #7 무접촉**.
 
 ## 행동
 
-다음은 **리뷰** phase 다. 볼 자리: 새 세 단언이 계약을 **낮추지 않았는지**(특히
-`…_is_200_the_split_that_is_left` 가 결함을 「바라는 답」으로 굳히는 것으로 읽히지 않는지) ·
-`digest` 로 넘긴 6점 둘의 점수가 맞는지.
+다음은 **e2e** phase 다. 완료 기준 8(21종 전수)은 테스트 phase 가 이미 rc 0 으로 닫았으니
+e2e 의 몫은 **계약 표면을 실서버로 다시 재는 것**이다 — `pages` 를 치운 DB 에서
+`/passages` **503**·`/search` **200**·화면 **200**, 그리고 본문이 DB 경로를 안 흘리는지.
+집안일 하나: `docs/digest.md` 가 **207줄**로 상한 200 을 넘었다(기점에서 이미 205).
+회전할 때 오래된 완료 항목부터 지운다 — 아카이브 명부 줄은 남긴다.
 
 ## 설계
 
-**끝났다.** `docs/design_passage-db-state.md` — 테스트 phase 는 3절 계약을 안 건드렸다.
+**끝났다.** `docs/design_passage-db-state.md` — 리뷰는 3절 계약을 안 건드렸다.
 
 ## 사람 결정 대기
 
