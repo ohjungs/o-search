@@ -160,3 +160,5 @@ append 전용이고 수정·삭제 금지다. 각 회전의 사유는 `digest.md
   띄운 서버 0개 · **러너 규율 위반 1회**(설계 문서 추가 뒤 첫 재확인에 `2>&1 | tail` 을 붙였다 —
   맨몸으로 다시 돌려 `Ran 599 tests` `OK` 를 끝까지 봤다. 방아쇠는 이번에도 «재확인 실행»이다).
   **다음: 개발 phase** — RED 는 새로 짓는 것이 아니라 `TestPassagesWithoutHtmlColumn` 을 뒤집는 것이다.
+  커밋 `62f619f` 를 푸시했고 `git ls-remote origin loop/passage-html-column` 이
+  `62f619f5488d6183b523753d45c99ada94dda5a6` 로 로컬 HEAD 와 같음을 **읽어서** 확인했다.
