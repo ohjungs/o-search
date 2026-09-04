@@ -56,12 +56,16 @@ data/crawl.db --port 0` 를 띄워 `GET /passages` 를 HTTP 로 때린다(11문�
 유지** · 명부에 `history_053.md`) · `docs/e2e/hidden-passage/result.md`(신규).
 `docs/specs/` **무변** · `data/crawl.db` **무변**.
 
-## 원격
+## 원격 — 푸시 뒤에 다시 읽은 값이다
 
-브랜치 `loop/hidden-passage` — 커밋 후 push, `git ls-remote origin loop/hidden-passage`
-로 SHA 재확인해 아래 「승인 대기」와 함께 남긴다. 기점은 `d5367fa`(**`main` 아님**).
-`origin/main`(`687a159`)에는 계획 48·49·50 이 아직 없다.
-**PR #7**(`loop/merge-48-50`) **OPEN·미병합** — 병합은 사용자 몫이라 루프가 안 건드린다.
+- **`loop/hidden-passage` = `2fde651`**(e2e 커밋 · `82cc84e` → `2fde651`, fast-forward).
+  `git ls-remote origin loop/hidden-passage` 의 `2fde6518…3b010b0a` 와 로컬 `HEAD` 가 같다.
+  `--no-verify`·`--force` 0회 · 훅 우회 0.
+- 기점은 `d5367fa`(**`main` 아님**) — `origin/main`(`687a159`)에는 계획 48·49·50 이 없어
+  `README.md` 의 건수 단언이 거기서는 RED 다.
+- **PR #7**(`loop/merge-48-50` → `main`, 계획 48·49·50) **OPEN·미병합.** 병합은
+  **사용자가 처리한다** — 이 반복은 PR 을 열지도 닫지도, 그 브랜치를 건드리지도 않았다.
+  이번 브랜치의 PR 도 만들지 않았다(아래 「승인 대기」 5).
 
 ## 승인 대기
 
