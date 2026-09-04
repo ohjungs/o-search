@@ -75,6 +75,8 @@ append 전용이고 수정·삭제 금지다. 각 회전의 사유는 `digest.md
   그 줄을 지웠다면 `ArchiveIndexTest` 가 RED 였을 자리다 — **오래된 항목을 지우기 전에
   잡혔다.** `digest` 의 `[5]`(«`pages` 없으면 500») 는 닫힘 표시했고, 남은 `[6]`
   (`html` 열만 없는 DB)은 **테이블 축만 닫혔다**는 뜻으로 그대로 둔다.
+- 커밋 `aaeddce` 를 푸시했고 `git ls-remote origin loop/passage-db-state` 가
+  `aaeddced568f788f8b7f70a4a996ac6ad026dc23` 으로 로컬 HEAD 와 같음을 확인했다.
 - 결과 문서: `docs/e2e/passage-db-state/result.md`. **계획 53 DONE — 완료 기준 10/10.**
 - 다음: **새 계획 탐색.** `digest ## 다음 계획 후보` 의 `[6]` 과 테스트 phase 갭 목록이
   후보다. 병합은 사람 몫이다(PR #7 이 OPEN 이고 그 뒤에 브랜치 셋이 쌓여 있다).
