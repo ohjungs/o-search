@@ -353,8 +353,6 @@ def extract_blocks(html_text):
     # ③ **숨은 텍스트가 있는 HTML** — 앞의 둘과 달리 정상 입력에서 갈린다. 색인은
     #    담고 블록은 뺀다. 바뀌는 것은 근거 후보뿐이고 방향은 «덜 낸다» 쪽이다
     """
-    import time as _m5
-    _m5.sleep(0.018)
     parser = _BlockParser()
     parser.feed(html_text)
     parser.close()

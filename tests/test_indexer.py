@@ -819,16 +819,21 @@ class TestPassages(unittest.TestCase):
         # ② **계수 상한** — 위 1.00 은 리터럴이라 파서가 느려져도 한 글자도 안 움직인다.
         # 그 구멍으로 계수가 0.118 → 0.352 → 0.44 로 **세 번 조용히 낡았다**. 캡을 채운
         # 최악 모양(`<p>` 만 반복 · 333태그/1000자)을 그 자리에서 파싱해 1,000자당 ms 를
-        # 재고 1.60 에 건다 — 한가할 때 0.917~0.974 이고 CPU 를 코어 수만큼 태운 부하에서
-        # min-of-3 최대 1.176 이라 **부하 실측의 1.36배 · 오늘 값의 1.6배**다. 파서가
-        # 1.6배 느려지면 죽고 부하로는 안 죽는다. 시간을 예산(500ms)이 아니라 **계수**에
-        # 묶은 이유가 이것이다 — 최악 모양이 이미 예산의 70% 라 예산에 묶으면 남는 1.4배를
-        # 부하 1.25배가 먹어 빨개진다(부하 실측 674ms · 예산의 135%).
+        # 재고, 상한은 **리터럴이 아니라 예산에서 그 자리에서 유도한다** —
+        # `500 / (캡kB × 건수)` = 1.4286. 그래서 「② 가 초록 = 최악 10건 ≤ 500ms」가
+        # 참이 되고(옛 리터럴 1.60 이 열어 둔 1.4286~1.60 창이 **0** 이 된다), 캡이나
+        # `PASSAGE_LIMIT` 를 올리면 상한이 같이 내려가 ①-b 와 결이 맞는다(계획 58).
+        # 여유는 한가할 때 min-of-3 0.951~0.996 의 **약 1.43배**다. 부하를 실제로 재 봤다
+        # (2026-09-05 · 15판 · 설계 58): 반코어 부하 1.185 는 **0/15** 로 조용하고,
+        # 전코어 부하 1.730 에서 **14/15** 로 빨개진다 — 다만 그 자리는 옛 1.60 도
+        # **4/15** 로 못 견디니 상한 탓이 아니라 기계가 바쁜 것이다.
         # 표본 3회는 min-of-1 1.211 · min-of-3 1.176 · min-of-10 1.178 에서 골랐다 —
         # 3에서 값이 붙고 10은 스위트에 34ms 를 더 낼 뿐이다.
-        # ponytail: 1.00~1.60 사이는 열려 있다 — 파서가 1.5배 느려지면 ② 는 초록인데
-        # ① 은 예산 정각이다. 조이려면 부하 배수(1.25)부터 줄여야 하고 그것은 스위트를
-        # 격리해 돌리는 별건이다. 그때 1.60 을 1.20 으로 내린다.
+        # ponytail: ① 의 1.00 과 ② 의 1.4286 사이는 아직 열려 있다 — 그러나 그 구간은
+        # **사양 안**이다(최악 ≤500ms). 열어 두는 이유는 ① 이 «오늘 값» 기록이기
+        # 때문이고, 오늘 값이 1.2 를 넘어 자리를 잡으면 그때 ① 의 리터럴을 실측으로
+        # 올린다. `time.process_time` 으로 자를 바꿔 부하를 걷어내는 길은 실측으로
+        # 기각했다 — 전코어 부하에서 1.612 vs 벽시계 1.636 으로 6% 밖에 못 줄인다.
         worst_html = "<p>" * (indexer.MAX_PASSAGE_HTML // 3)
         samples = []
         for _ in range(3):
@@ -836,7 +841,15 @@ class TestPassages(unittest.TestCase):
             extract.extract_blocks(worst_html)
             samples.append((time.perf_counter() - start) * 1000)
         per_1k = min(samples) / (len(worst_html) / 1000)
-        self.assertLessEqual(per_1k, 1.60, "%.3f ms/1000자" % per_1k)
+        budget_per_1k = 500 / (indexer.MAX_PASSAGE_HTML / 1000 * serve.PASSAGE_LIMIT)
+        self.assertLessEqual(
+            per_1k, budget_per_1k,
+            "%.3f ms/1000자 → 최악 %d건 %.0fms (예산 500ms · 상한 %.4f). "
+            "한가할 때는 0.95~1.00 이라 1.7 근처면 «기계가 바쁨» 이고 "
+            "1.4~1.6 이면 «파서 회귀» 다" % (
+                per_1k, serve.PASSAGE_LIMIT,
+                per_1k * indexer.MAX_PASSAGE_HTML / 1000 * serve.PASSAGE_LIMIT,
+                budget_per_1k))
 
     def test_missing_db_raises(self):
         with self.assertRaises(FileNotFoundError):
