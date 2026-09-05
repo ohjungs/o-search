@@ -247,3 +247,33 @@ append 전용이고 수정·삭제 금지다. 각 회전의 사유는 `digest.md
   (`IterationSyncTest` 의 같은 자기비교 구멍 · 닫힌 계획 행은 두 번 다시 안 본다)이 후보다.
   병합은 사람 몫이라 `loop/passage-cost-band` 에 쌓아만 둔다(`origin/main` 무접촉 · PR 0).
   러너 규율 위반 **0회**(누적 38 유지).
+
+## 2026-09-06 05:00 | iter-gap-cover | 계획 0/1 | 시도1
+
+- 한 일: 계획 60 `index-step-sync` 마감 + 계획 61 `iter-gap-cover` 등재. 만진 것은
+  `docs/` 뿐 — `src/`·`tests/`·`e2e/`·`README.md`·`docs/specs/`·`data/crawl.db` 무접촉.
+  **앞 에이전트가 같은 스텝에서 변경 0건으로 죽어 시도1**(3회에서 정지). 탐색·마감·등재를
+  쪼개 커밋 둘로 냈다.
+- 마감: `plan_index-step-sync.md`→`plan_history_046.md` · `design_…`→`design_history_046.md`
+  (`git mv` · 내용 무변경) · `index.md` 60번 `진행`→`완료`(완료 기준 6/6 · 새 e2e 0 ·
+  21종 rc 0 · 회귀 0 · `src/` 0줄) · `digest ## 완료` 한 줄.
+- 마감: `digest ## 반복 실패` 의 「스텝 커밋에서 `index.md`·`metrics.md` 숫자를 안 올린다」
+  (5회)에 취소선 — 규율이 아니라 `StepSyncTest` 가 붙든다.
+- 집안일: `digest.md` 201줄 → `rules/docs.md` 3절대로 **완료 항목부터** 하나 삭제(계획 53,
+  원본은 `index.md` 53번·`plan_history_040.md`·`docs/e2e/passage-db-state/result.md`).
+  200줄 · 명부/보류/재발/관찰 무변. 이 파일은 249→279줄로 상한 300 미달이라 회전 없음
+  (다음 회전 번호 `history_063.md`).
+- 탐색: **1~5순위 0건** — 전수 `Ran 614 · OK · rc 0`(맨몸) · 린터 설정 0 ·
+  `TODO`/`FIXME` 1건은 `tests/test_indexer.py:759` 파서 입력 문자열 안 · `candidates.md`
+  없음 · `## 보류` 0 · 이슈 0. **6순위에서 여는 조건이 온 항목 하나** — `digest [6]`
+  「`IterationSyncTest` 의 «판정» 도 실물 문서 위에서만 돈다」, 조건이 「반복 축을 손대는
+  날」이었고 계획 60 이 닫히며 미룬 이유(직교 편집)가 사라졌다. 나머지 6순위는 그대로 막힘.
+- 탐침: 기록된 답이 절반 틀렸다(`digest [7]` 12번째 적용). 메모리 변이로 재니 생존이
+  하나가 아니라 **넷**(M1 자기비교 · M2·M3 가드 삭제 · M4 판정 통째 삭제, 전부
+  `Ran 614 · 죽은 단언 0`). M5 `ITER_ROW` 넓힘은 `IterationPatternTest` 가 죽인다.
+  점수 6→**7**. 양성 대조를 먼저 걸어 패치 대상이 `tests/test_docs.py` 임을 확인(`[8]`).
+- 결정: **설계 생략 — `rules/design.md` 1절 트리거 0**(새 모듈 0 · 파일 1개 · revert 하나).
+  대안 셋은 `design_history_046.md` 안 D 와 계획서 5·6절이 이미 갈라 놨다.
+- 다음: **개발 1/1** — `step_gap` 옆에 `iter_gap(status_text, metrics_text)` 를 세우고
+  `IterationSyncTest` 를 세 줄로 줄인 뒤 `IterGapTest` 로 갈래 넷을 밟는다. 완료 기준은
+  `docs/plan_iter-gap-cover.md` 4절 여섯 개. 러너 규율 위반 **0회**(누적 38 유지).
