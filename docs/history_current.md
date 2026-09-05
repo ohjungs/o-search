@@ -244,3 +244,30 @@ append 전용이고 수정·삭제 금지다. 각 회전의 사유는 `digest.md
 - 다음: **e2e phase 0/1.** 승인 필요 항목 0건이라 개발 phase 복귀 없이 넘어간다.
   남은 완료 기준은 6번(e2e 21종 전수 rc 0 · 기준선 회귀 0)뿐이다.
   러너 규율 위반 **0회**(누적 37).
+
+## 2026-09-05 23:45 | endtag-cut-cover | e2e 1/1 · **DONE** | 시도0
+
+- 한 일: **계획 59 e2e phase.** ① `rules/e2e.md` 3절 면제 판정 — 계획이 바꾼 것은
+  `tests/test_extract.py` 단언 +12줄과 주석뿐이고 제품 `src/` 0줄이라 **프로세스 밖에서
+  달라지는 동작이 0** 이다. 새 단언이 지키는 실물 계약은 `e2e/hidden_passage_e2e.py` 가
+  이미 재고 있어 **새 시나리오 0개**(만든 e2e 파일 0 · 고친 e2e 파일 0). ② e2e 21종 전수를
+  맨몸으로. ③ 완료 기준 2·3·4 를 **메모리 변이**로 다시 재기(하네스는 스크래치패드
+  `e2e59_mut.py` · `mock.patch.object` 로 `_BlockParser`·`_IMPLIED_END` 교체 · 저장소 무변경 ·
+  `PYTHONDONTWRITEBYTECODE=1`+`PYTHONPYCACHEPREFIX=$(mktemp -d)`).
+- 결과: **21종 전부 `rc 0` · 기준선 회귀 0건.** 정확도 100.0%(=) · `/passages` p95 1.51ms
+  (1.52) · `/search` p95 8.80ms(8.81 · 기록 9.11) · ko 20/20 · en 19/20 · 매치 14.0/11/28(=) ·
+  크롤 [열림] 10.24/s · [차단] 10.24/s(반복 344 는 10.21) · 숨은 텍스트 0/5 · 디자인 4축
+  (JS 0 B · 4.87:1). **움직인 기준선이 없어 `docs/project.md` 수치는 한 줄도 안 고쳤다.**
+- 결과: **완료 기준 6/6 충족.** 전수 `Ran 605 tests in 13.789s` `OK` rc 0 · 무변이 대조군
+  `605 failures=0`(기준 3 오탐 0) · 변이 M-a `failures=2` 로 늘어난 칸이 **`안 닫힌 span`**
+  (기준 2 · 착수 탐침은 1) · **`_IMPLIED_END` 에서 `li` 줄을 지우는 변이는 새 subTest 를 못
+  죽인다**(기준 4 — 죽는 둘은 전부 `test_an_optional_end_tag_does_not_hide_the_next_sibling`
+  의 `li`·`li 안의 안 닫힌 p` 다). 표를 건드리는 변이와 자르기를 죽이는 변이가 **서로 다른
+  칸을 죽인다**는 것이 계획이 주장한 「축이 다르다」의 실측 증거다.
+- 결과: 고친 파일은 `docs/` 뿐이다(`docs/e2e/endtag-cut-cover/result.md` 신규 · `status.md` ·
+  이 파일 · `metrics.md`). `src/`·`tests/`·`e2e/`·`README.md`·`docs/specs/` 무접촉 ·
+  `data/crawl.db` sha256 `85c96744…5bda18` 무변 · 재색인·스키마·새 의존성 0.
+- 다음: **계획 59 DONE.** 다음 반복은 계획 phase — 계획 59 마감(계획서 아카이브 회전 ·
+  `digest.md` 후보 `[5]` 취소선 · `## 완료` 절에 한 줄)과 새 후보 탐색. 병합은 사람 몫이라
+  `loop/passage-cost-band` 에 쌓아만 둔다(`origin/main` 무접촉 · PR 0).
+  러너 규율 위반 **0회**(누적 37).
