@@ -220,3 +220,32 @@ append 전용이고 수정·삭제 금지다. 각 회전의 사유는 `digest.md
   `Ran 16 tests · OK` · rc 0 · `data/crawl.db` sha256 앞뒤 동일(`85c96744…5bda18`) ·
   `e2e/`·`README.md`·`docs/specs/` 무접촉 · 새 의존성 0 · 재색인 0.
 - 완료 기준 **7/7 충족 → signal DONE.** 다음 반복은 아카이브와 새 계획 탐색이다.
+
+## 2026-09-05 16:30 | (passage-cost-axis 마감 → passage-cost-band) | 계획 0/1 | 시도0
+
+- 한 일: **계획 57 아카이브.** `plan_passage-cost-axis.md` → **`plan_history_043.md`** ·
+  `design_passage-cost-axis.md` → **`design_history_043.md`**(`git mv` · 내용 무변경).
+  `index.md` 의 계획 57 줄을 **진행 1/1 → 완료 1/1**(완료 기준 7/7 · 21종 rc 0 · 회귀 0)로
+  닫고 아카이브 파일명을 적었다.
+- 한 일: **계획 58 탐색.** 1~5순위 실측 **0건** — 전수 `Ran 605 tests in 15.832s` · `OK` ·
+  rc 0 · 린터/타입체커 없음 · `TODO`/`FIXME`/`HACK` 이 `src`·`tests`·`e2e` 에 **1건**인데
+  그것은 파서 입력 문자열 안이다 · `docs/candidates.md` 없음 · `docs/patches/` 없음 ·
+  `digest ## 보류` 0건. 6순위에서 **더 높은 점수 넷이 전부 막혀 있음을 항목 본문으로
+  확인**했다(`[9]` `/search` 몫 = 실물 분포 → 재색인 · `[8]` 숨은 텍스트 = `_SKIP_TAGS`
+  공유 → 재색인 · `[7]` macOS pycache = 처방 이미 적용 + 여는 조건이 「옛 변이 결론」 ·
+  `[7]` 재파싱 몫 배정 = `docs/specs/` 판단 → 사람 결정 5번). 골라 잡은 것은 `[5]`
+  「계수 상한 1.60 과 예산 정각 1.4286 사이가 열려 있다」다.
+- 한 일: **`docs/plan_passage-cost-band.md`(계획 58) 작성.** 스텝 1개 · 건드릴 파일
+  `tests/test_indexer.py` 하나 · 제품 0줄. **phase 는 설계** — 대안 셋(A 예산에서 유도
+  1.4286 · B 리터럴 1.20 · C 자를 `time.process_time` 으로 교체)이 갈려 `plan.md` 6-1 의
+  「대안이 두 개 이상이면 설계」에 걸린다. `digest` 에서 닫힌 항목 둘(`[9]` 러너 잡음 =
+  계획 50 · `[7]` 캡 안 최악 = 계획 57)에 취소선을 긋고 `[5]` 에 계획 58 을 표시했으며,
+  `## 완료` 에 계획 57 줄을 더하고 상한 200줄에 맞춰 오래된 완료 넷을 지웠다.
+- 결과: 문서 가드 3종 `Ran 3 tests` · `OK` · rc 0(`ArchiveIndexTest`·`DocCitationTest`·
+  `IterationSyncTest`) · 전수 605 `OK` · rc 0 · `src/`·`tests/`·`e2e/`·`README.md`·
+  `docs/specs/` **무접촉** · `data/crawl.db` 무변경 · 새 의존성 0.
+- 결과: **기점을 `main` 으로 안 잡았다** — `git ls-remote origin main` = `d1fe3e9`(계획 56)이고
+  `git show origin/main:tests/test_indexer.py` 에 `1.60` 이 **0건**이다. 고칠 단언 자체가
+  `main` 에 없어 `loop/passage-cost-axis` 의 아카이브 커밋에서 `loop/passage-cost-band` 를 땄다.
+- 다음: **설계 phase.** 세 안의 부하 여유 배수를 실측해 고르고, 착수 전에 「계수 1.50
+  변이(M5)가 오늘은 초록이다」를 먼저 재서 기록한다.
