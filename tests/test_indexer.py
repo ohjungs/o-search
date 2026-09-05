@@ -5,10 +5,11 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest import mock
 
-from websearch import indexer
+from websearch import extract, indexer
 from websearch.indexer import index_pages, search
 from websearch.store import Store
 
@@ -804,13 +805,35 @@ class TestPassages(unittest.TestCase):
         # 200개/1000자 벌을 만들면 0.502(176ms)라 이 배정치를 넘는다. **캡 안 최악은
         # 이 축의 끝**이다 — `<li>가</li>` 0.535 · `<p>가</p>` 0.665 · 안 닫은
         # `<p>가` **0.901**(10건 **315ms · 예산의 63%**)로 위 154ms 의 **2.1배**.
-        # 그래서 이 단언의 1/3 은 «여유» 가 아니라 그 **모양 배수를 흡수하는 자리**다 —
-        # 1/3 을 지키면 최악 모양이 500ms 안에 든다(154 × 2.1 = 323ms). 계수를 최악
-        # 모양으로 갈아 끼우면 캡을 18,000 으로 내려야 초록인데, 그것은 «긴 문서의
-        # 뒷부분 근거» 를 반으로 자르는 계획 몫이다(`design_passage-api.md` 갈림길 5).
+        # **그래서 계수를 그 축의 끝으로 갈아 끼우고 한도를 예산 정각으로 폈다**(계획 57).
+        # 1/3 배정치는 «모양 배수를 흡수하는 자리» 였는데 계수가 이제 캡 최악 모양의
+        # 실측(0.95 ≥ 한가할 때 0.939~0.970)이라 **흡수할 배수가 없다** — 캡 최악이 예산의
+        # 67% 를 먹는다는 사실이 그대로 드러난다. 캡·`PASSAGE_LIMIT` 를 내리는 판단은
+        # 여전히 «긴 문서의 뒷부분 근거» 쪽 몫이다(`design_passage-api.md` 갈림길 5).
         from websearch import serve
-        worst_ms = indexer.MAX_PASSAGE_HTML / 1000 * 0.44 * serve.PASSAGE_LIMIT
-        self.assertLessEqual(worst_ms, 500 / 3, "%.0fms" % worst_ms)
+        worst_ms = indexer.MAX_PASSAGE_HTML / 1000 * 0.95 * serve.PASSAGE_LIMIT
+        self.assertLessEqual(worst_ms, 500, "%.0fms" % worst_ms)
+        # ② **계수 상한** — 위 0.95 는 리터럴이라 파서가 느려져도 한 글자도 안 움직인다.
+        # 그 구멍으로 계수가 0.118 → 0.352 → 0.44 로 **세 번 조용히 낡았다**. 캡을 채운
+        # 최악 모양(`<p>` 만 반복 · 333태그/1000자)을 그 자리에서 파싱해 1,000자당 ms 를
+        # 재고 1.60 에 건다 — 한가할 때 0.939~0.970 이고 CPU 를 코어 수만큼 태운 부하에서
+        # min-of-3 최대 1.176 이라 **부하 실측의 1.36배 · 오늘 값의 1.7배**다. 파서가
+        # 1.7배 느려지면 죽고 부하로는 안 죽는다. 시간을 예산(500ms)이 아니라 **계수**에
+        # 묶은 이유가 이것이다 — 최악 모양이 이미 예산의 67% 라 예산에 묶으면 남는 1.5배를
+        # 부하 1.25배가 먹어 빨개진다(부하 실측 674ms · 예산의 135%).
+        # 표본 3회는 min-of-1 1.211 · min-of-3 1.176 · min-of-10 1.178 에서 골랐다 —
+        # 3에서 값이 붙고 10은 스위트에 34ms 를 더 낼 뿐이다.
+        # ponytail: 0.95~1.60 사이는 열려 있다 — 파서가 1.5배 느려지면 ② 는 초록인데
+        # ① 은 예산 정각이다. 조이려면 부하 배수(1.25)부터 줄여야 하고 그것은 스위트를
+        # 격리해 돌리는 별건이다. 그때 1.60 을 1.20 으로 내린다.
+        worst_html = "<p>" * (indexer.MAX_PASSAGE_HTML // 3)
+        samples = []
+        for _ in range(3):
+            start = time.perf_counter()
+            extract.extract_blocks(worst_html)
+            samples.append((time.perf_counter() - start) * 1000)
+        per_1k = min(samples) / (len(worst_html) / 1000)
+        self.assertLessEqual(per_1k, 1.60, "%.3f ms/1000자" % per_1k)
 
     def test_missing_db_raises(self):
         with self.assertRaises(FileNotFoundError):
