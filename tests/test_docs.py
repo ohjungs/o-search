@@ -109,8 +109,8 @@ def step_gap(status_text, index_text):
         return None
     r = step_row(slug).search(index_text)
     if r is None:
-        return ("index.md 에 `| plan_%s |` 행이 없다 — 계획 커밋과 등재 커밋이 갈렸다"
-                % slug)
+        return ("index.md 에서 `| plan_%s |` 행의 스텝 칸을 못 읽었다 — 등재가 빠졌거나"
+                " 표의 열 모양이 바뀌었다(스텝을 넷째 칸으로 가정한다)" % slug)
     if r.group(1) != s.group(1):
         return ("스텝이 어긋났다 — index.md `plan_%s` %s ≠ status.md `step` %s"
                 % (slug, r.group(1), s.group(1)))
