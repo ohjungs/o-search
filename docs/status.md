@@ -3,86 +3,118 @@ signal: DONE
 phase: e2e
 step: 1/1
 attempt: 0
-iteration: 326
+iteration: 331
 updated: 2026-09-05
 ctx: 58
-night_iterations: 148
+night_iterations: 153
 night_red: 2
 night_retries: 0
-plan: db-state-invariant # 계획 55 — e2e 1/1 통과 · 완료 기준 9/9 · 새 e2e 0개 · DONE
+plan: loader-isolation — 계획 56 **DONE** (e2e phase 완료 · 다음은 새 계획 탐색)
 ---
 
 # 현재 상태
 
-**계획 55 `db-state-invariant` 가 끝났다.** 결과는 `docs/e2e/db-state-invariant/result.md`,
-설계서는 `docs/design_db-state-invariant.md`, 계획서는 `docs/plan_db-state-invariant.md`,
-브랜치는 `loop/db-state-invariant`.
+**계획 56 을 닫았다 — e2e 21종 전부 rc 0, 완료 기준 다섯 전부 오늘 실측으로 충족.**
+저장소 코드는 계획 전체를 통틀어 `tests/test_readme.py` **한 낱말 + 주석 넉 줄**이고
+제품 `src/` 는 **0줄**이다. 이번 반복이 고친 것은 `docs/` 뿐이다.
 
-## e2e 가 잰 것 — **앞 반복의 숫자를 하나도 그대로 안 받았다**
+## 완료 기준 대조 (계획 56 4절 · 전부 오늘 다시 쟀다)
 
-`status.md` 가 「rc 0 확인됨」으로 적어 둔 것까지 전부 다시 돌렸고, 앞 phase 들이 단위
-실패 건수로만 재고 넘긴 완료 기준 3·4·5·6 도 **저장소 밖 전체 사본에서 다시 심어 다시
-쟀다**(`rsync` · `.git` 없는 트리 · `git checkout` 0회).
-
-**① 자의 눈금이 스키마를 따라 저절로 큰다** — `store.SCHEMA` 에 `title TEXT` 한 줄을 더한
-사본에서 자가 도는 눈금이 `url·html·status·fetched_at` **4칸 → 5칸**이 됐다. **테스트
-파일은 한 글자도 안 고쳤다.** 눈금을 0칸으로 눈멀게 하면 조용한 초록이 아니라
-`0 not greater than or equal to 4` 로 죽는다(기준 4).
-
-**② 변이 둘 다 RED — 그런데 폭이 다르다(새로 안 것).**
-
-| 변이 | rc | 죽은 subTest |
-|---|---|---|
-| ① 탐침에서 `url,` 삭제 | 1 | `missing='url'` **1건** |
-| ② 탐침을 `hits` 루프 **안**으로 | 1 | `missing='url'` · `missing='html'` **2건** |
-
-계획 54 e2e 는 이 둘을 «HTTP 표면에서 동치» 로 적었는데 그 측정은 `html` **한 축**만 봤기
-때문이다. 열 축 전체를 도는 자로 재니 ②는 **계획 54 가 닫은 자리까지 함께 되돌린다**.
-자리를 하나 더 넓히는 안이었다면 그 회귀를 아무도 못 봤다 — **자를 세운 값이 여기 있다.**
-
-**③ 실서버 두 대 · `url` 열 없는 DB**
-
-| DB 상태 | `/passages` 세 질의 | `/search` 세 질의 | 화면 |
+| # | 기준 | 오늘 실측 | 판정 |
 |---|---|---|---|
-| 정상 (대조군) | 200 · 200 · 200 | 200 · 200 · 200 | 200 |
-| **`url` 열 없음** | **500 · 500 · 500** (착수 500/200/200) | **200 · 200 · 200** | **200** |
+| 1 | `-k Readme` → `OK` · rc 0 | `Ran 5 tests` · `OK` · rc 0 | 충족 |
+| 2 | 전수 → `Ran 605 tests` · `OK` · rc 0 | `Ran 605 tests in 13.4s` · `OK` · rc 0 | 충족 |
+| 3 | 전역 패턴을 손으로 심어도 센 값이 605 | 고친 줄 **605** · 되돌린 줄 **5** | 충족 |
+| 4 | `README.md` 의 `단위 605건` 무수정 | `fe4dd0d..HEAD` 에 `README.md` **0줄** | 충족 |
+| 5 | `tests/test_readme.py` 외 코드 파일 0개 | 계획 전체 diff 의 코드 파일 **그 한 개** | 충족 |
 
-**정상 대조군 7칸 무변**이라 계획서 8절의 최대 위험(가드 오탐)은 **0**. `/search` 가 200 인
-것은 정상이다 — FTS `docs` 는 `content=` 없는 독립 표라 `pages` 를 안 읽는다.
-**CSO 통과** — 500 본문에 `sqlite`·`OperationalError`·`no column`·DB 경로 **0건**, 원인은
-서버 stderr 에만(`/passages 실패: OperationalError('no such column: url')`).
+## e2e 21종 전수 — **rc 0 × 21**
 
-## 완료 기준 — **9/9 통과** (뒤집힌 행 0개)
+하나씩 따로 돌렸다(`for` 루프 안에서 러너를 돌리지 않았다). 판정 줄과 `rc=` 를 전부 봤다.
 
-## 전수
+```
+crawl_e2e 0 · crawl_delay_e2e 0 · crawl_politeness_e2e 0 · deadline_e2e 0 ·
+design_check 0 · domain_key_e2e 0 · hidden_passage_e2e 0 · indexer_e2e 0 ·
+indexer_interrupt_e2e 0 · interrupt_e2e 0 · noindex_e2e 0 · non_ascii_e2e 0 ·
+pagination_ui_e2e 0 · passage_eval 0 · perf_crawl 0 · perf_search 0 ·
+quality_eval 0 · retry_interval_e2e 0 · search_api_e2e 0 · tokenizer_e2e 0 ·
+url_normalize_e2e 0
+```
 
-**단위 605 OK**(13.526초 · 맨몸·단독 · rc 0) · **e2e 21종 전수 rc 0 · 새 e2e 파일 0개**(근거
-넷은 result.md 4절 — 결정적인 것은 «손으로 적는 e2e 는 스키마를 따라 안 커서, 이 계획이
-없애러 온 취약성을 e2e 디렉터리에 새로 만든다») · 21종 합계 약 171초, 오래 걸리는 넷은
-전부 실시계를 일부러 기다리는 것들이다(`perf_crawl` 28s · `deadline` 19s · `interrupt` 18s ·
-`retry_interval` 15s) · `passage_eval` 정확도 **100.0%**(398/398) · 채택률 99.5% ·
-p95 1.65ms(예산의 0.3%) · `quality_eval` ko 20/20 · en 19/20 · `perf_search` p95 8.81ms ·
-`perf_crawl` 10.24/s · `design_check` 4축 — **기준선 전 축 무변**.
+기준선(회귀 비교용): 정확도 **100.0%**(398/398) · 채택률 99.5% · `/passages` p95 **1.53ms** ·
+`perf_search` p95 **8.95ms**(예산 300ms 의 3.0%) · `search_api` p95 2.12ms ·
+품질 ko **20/20**·en **19/20** · 크롤 처리량 **10.30/s**(차단 10.27/s) · 디자인 4축 전부 OK.
+계획 54 e2e(p95 1.5ms · 100.0%)와 나란하다 — **회귀 0**.
+
+## 리뷰 지적의 「더 싼 처방」 — **안 넣는다. 값이 0 으로 측정됐다**
+
+리뷰가 `tests/test_design_check.py`·`test_quality_eval.py`·`test_passage_eval.py` 세 자리에
+`if E2E not in sys.path` 한 줄씩을 제안했다. **넣기 전에 만들어서 먹여 봤다.**
+저장소 밖 사본 둘(가드 없음 A · 가드 있음 B)에 같은 변이(`e2e/tempfile.py` 로 stdlib 가리기)를
+심고 전수를 돌렸다:
+
+```
+A(가드 없음)  Ran 605 · FAILED(failures=23) · rc 1
+B(가드 있음)  Ran 605 · FAILED(failures=23) · rc 1   ← 실패 목록이 파일·줄까지 동일
+```
+
+**가드는 중복 칸만 막고 첫 insert 를 안 막는다.** 위험이라고 지목된 것은
+「`e2e/` 가 전수 내내 `sys.path[0]` 에 앉아 있다」인데 가드는 그것을 한 칸도 안 건드린다.
+게다가 계획 56 5절이 「다른 테스트의 전역 상태 감사 — 넓히면 별건」으로 이 자리를 미리 잘라 뒀다.
+**`digest ## 다음 계획 후보` `[5]` 에 이 실측과 함께 등재를 유지했다(5점).**
+
+## 바로잡은 문장
+
+- **`digest.md` `[5]` 의 「`sys.path` 에 **네 칸**을 남긴다」→ **여섯 칸**.** 공식 진입점
+  (`unittest.main(module=None, argv=[…,'discover','-b','-s','tests'])`)으로 앞뒤를 대조하니
+  `e2e` 0→3 · `src` **1→3** · `tests` 0→1 이다. 빠져 있던 둘은 `e2e/quality_eval.py:28` 과
+  `e2e/passage_eval.py:48` 이 in-process 임포트될 때 넣는 `src` 다.
+  **저장소 몫은 `e2e`×3 + `src`×2 = 다섯 칸, stdlib 몫이 `tests`×1.**
+  재는 자를 두 반복 연속 다시 재서 두 번 다 숫자가 움직였다.
+- 「누출이 프로세스 경계를 넘는다」는 리뷰(반복 330)가 이미 `digest.md` 에서 고쳤고,
+  아카이브(`history_<NNN>.md`)는 수정 금지라 **이번 append 가 정정을 싣는다**.
+
+## 문서 회전 (이번 반복 첫 일)
+
+`history_current.md` **298줄 → 140줄** — 계획 55 `db-state-invariant` 의 여섯 반복을
+**`docs/history_058.md`**(188줄)로 밀어냈다. `digest.md` «아카이브 명부» 줄에 등록했고
+(`ArchiveIndexTest` 초록) 회전 서술은 새 줄을 안 만들고 기존 회전 줄에 이어 붙였다.
+`digest.md` 는 **202줄 → 200줄** — 가장 오래된 완료 항목 둘(계획 44 `focus-ring-presence` ·
+계획 48 `passage-api`)을 지웠다. 결과는 `index.md` 와 `plan_history_*.md` 가 그대로 갖고 있고
+계획 48 의 숫자들(`MAX_PASSAGE_HTML` 35,000 · p95 199.9ms)은 `project.md ## 품질 기준` 에 산다.
+
+## 다음 행동
+
+**새 계획 탐색.** `digest ## 다음 계획 후보` 의 7점짜리(`[7]` 태그 밀도 축)와 5점 셋이 후보다.
+**아카이브(`plan_loader-isolation.md` → `plan_history_042.md` · `index.md` 줄 추가)는 다음
+반복이 한다** — 이 스텝은 e2e 하나만 돌고 멈춘다. 병합은 사람 몫이다.
+
+## 러너 규율 — **이번 반복 0회 (누적 35회)**
+
+러너를 스물다섯 번 돌렸다(e2e 21 · 전수 2 · `-k` 1 · 사본 변이 2, 그 밖에 탐침 3).
+**전부 맨몸이고 파이프 왼쪽에 둔 적 0회 · `2>&1`·`2>/dev/null`·`>/dev/null` 0회 ·
+백그라운드 0회.** 판정 줄과 `rc=` 를 전부 화면에 남겼다.
 
 ## 한도
 
-`src/` **0줄**(e2e phase) · 제품 diff 는 계획 전체로도 `indexer.py` 한 파일 ·
-`data/crawl.db` sha256 `85c96744…5bda18` 무변(열지도 않았다) · `docs/specs/` 무변 ·
-새 의존성 0 · 스키마·마이그레이션·재색인 0 · `pgrep -f websearch.serve` **0건** ·
-`--no-verify`·`--force` 0 · `main` 직접 커밋 0 · **PR 무접촉(조회 0회)** · 러너 규율 위반 0.
-
-**푸시 대조** — 스텝 커밋 `e227602` 를 푸시하고 `git ls-remote origin
-loop/db-state-invariant` 로 대조했다: 원격 `e227602c6cf89dbedbfe7669bcefb4b7f960651b` =
-로컬 HEAD. 트리 clean · 서버 잔여 0.
+제품 `src/` **0줄** · 저장소 코드 **0줄**(이번 반복은 `docs/` 만) · 새 파일은 회전 산물
+`docs/history_058.md` 하나 · `data/crawl.db` **무변**(sha256 `85c96744…5bda18` 대조를
+e2e 전수 앞뒤로 두 번 통과) · `docs/specs/` 무변 · `README.md` 무변 · 새 의존성 0 ·
+스키마·마이그레이션·재색인 0 · `pgrep -f websearch.serve` **0건** · `__pycache__` 0개 ·
+`--no-verify`·`--force` 0 · `main` 직접 커밋 0 · **PR 무접촉(조회·생성·병합 0회)** ·
+브랜치 병합·삭제 0 · 변이 재현은 **스크래치패드 사본**에서 돌고 지웠다.
 
 ## 사람 결정 대기
 
 1. **`--line` 이 SC 1.4.11 대상인가**(라이트 1.34:1 · 다크 1.27:1).
 2. **`--focus` 가 `--bg-button` 위에서 1.45:1**(다크 1.66:1) — `outline-offset` 0 일 때만.
 3. **반응형 360px 미검증** — 브라우저가 없어 저장소의 아무도 안 그려 본다.
-4. **브랜치 병합** — 원격 `main` 은 `c0be72f`, 계획 54(PR #9)까지 들어 있다.
-   `loop/db-state-invariant` 병합은 사람 몫이고 `main` 직접 커밋은 않는다.
+4. **3시간 자동 스냅샷 잡을 루프 작업 중에도 세울 것인가**(반복 328 의 사고).
+   **이번 반복에는 끼어들었다** — 문서 회전 직후 `73a93bd 자동 스냅샷 2026-09-05 10:50` 이
+   회전 세 파일을 커밋하고 원격까지 밀었다. 초록 상태였고 되돌리지 않았다(`--force` 금지).
+   RED 중간을 덮치면 깨진 상태가 원격에 올라간다는 위험은 그대로다.
+   루프가 도는 동안 `.mutation-lock` 을 켜 두는 안이 있다.
 
 ## 정지 사유
 
-없음 — 계획 55 DONE. 다음 반복은 **계획 탐색**이다(아카이브·회전은 이 반복이 안 했다).
+없음 — **계획 56 DONE.** 다음 반복은 아카이브 + 새 계획 탐색.

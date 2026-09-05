@@ -80,7 +80,11 @@ class ReadmeCommandsTest(unittest.TestCase):
         e2e = E2E_COUNT.search(self.text)
         self.assertTrue(unit and e2e, "README `## 검증` 에서 숫자를 못 뽑았다")
 
-        actual_unit = unittest.defaultTestLoader.discover(str(TESTS_DIR)).countTestCases()
+        # 새 인스턴스로 센다. `defaultTestLoader` 는 모듈 수준 싱글턴이라 `-m unittest -k`
+        # 가 거기에 `testNamePatterns` 를 심어 두고, 그러면 이 검사가 «저장소 전체의 단위
+        # 수»가 아니라 «필터를 통과한 수»를 센다(실측: 605 vs 5). 그 값으로 실패 메시지가
+        # 「실제는 (5, 21)」이라 말해 README 를 틀리게 고치도록 유도하는 것이 함정이었다.
+        actual_unit = unittest.TestLoader().discover(str(TESTS_DIR)).countTestCases()
         actual_e2e = len(list(README.parent.glob("e2e/*.py")))
         self.assertEqual(
             (int(unit.group(1)), int(e2e.group(1))), (actual_unit, actual_e2e),
