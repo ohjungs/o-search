@@ -160,3 +160,26 @@ append 전용이고 수정·삭제 금지다. 각 회전의 사유는 `digest.md
 - 다음: **개발 1/1.** 고치는 파일은 `tests/test_extract.py` 하나 · 제품 `src/` 0줄 ·
   subTest 라 단위 건수 605 무변(`README.md` 무접촉). 설계는 생략(트리거 0 · 대안이 산출물을
   안 가른다). 이번 반복이 만진 것은 `docs/` 뿐이다.
+
+## 반복 346 — 계획 59 개발 1/1 (2026-09-05) | 시도1
+
+- 한 일: **앞 에이전트가 같은 스텝에서 변경 0건으로 죽은 자리를 처음부터 다시 돌았다**(재시도
+  1회차 · `attempt: 1`). 긴 명령 하나에 매달리지 않도록 쪼갰다 — 변이 측정은 `test_extract.py`
+  만(0.004s), 전수는 마지막에 한 번(13.8s).
+- 한 일: `tests/test_extract.py` `test_an_unclosed_child_does_not_pin_a_hidden_region_open`
+  목록에 **`("안 닫힌 span", "<div hidden><span>숨은</div><p>보이는 김치찌개</p>")`** 를 더하고,
+  루프 뒤에 **반대 방향** 한 줄(`<section><span>가</section><p>나</p>` → `["가", "나"]`)을 붙였다.
+  **+12줄 · 파일 1개 · 제품 `src/` 0줄 · `README.md` 무접촉**(subTest 라 건수 605 무변).
+- 결과: **변이 M-a(`del self._els[i:i+1]`)가 1 → 2건으로 죽는다** — 더하기 전
+  `failures=1`(오직 `안 닫힌 li`), 더한 뒤 `failures=2` 이고 늘어난 것이 `안 닫힌 span` 이다.
+  **변이는 저장소 파일이 아니라 메모리에서 걸었다**(`mock.patch.object` 로 `handle_endtag` 교체 ·
+  반복 328·334·341 과 같은 방식) — 심고 되돌리는 사이에 죽어도 작업 트리가 안 더러워진다.
+- 결과: **새 단언은 `_IMPLIED_END` 표 축에 안 얹혀 있다** — 표에서 `li` 줄을 지우는 변이에서
+  죽는 것은 `test_an_optional_end_tag_does_not_hide_the_next_sibling` 의 `li`·`li 안의 안 닫힌 p`
+  둘뿐이고 새 subTest 는 초록이다(완료 기준 4). 오늘의 유일한 칸(`안 닫힌 li`)이 왜 얇았는지가
+  여기서 보인다 — 그 칸은 `li` 줄이 `{"li"}` 라서 «아무도 대신 안 닫아 준다» 를 **우연히** 만족했고,
+  같은 목록의 `안 닫힌 p`·`다른 컨테이너`는 뒤따르는 `<p>` 가 대신 닫아 줘서 변이를 못 잡는다.
+- 결과: 전수 `Ran 605 tests in 13.819s` · `OK` · rc 0(맨몸 · 리다이렉션 0).
+  `git status --short` 는 `M tests/test_extract.py` 하나 + `docs/`.
+- 다음: **테스트 phase 0/1.** 남은 완료 기준은 6번(e2e 21종 전수)뿐이고 e2e phase 몫이다.
+  러너 규율 위반 0회(누적 37).

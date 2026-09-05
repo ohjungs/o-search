@@ -291,11 +291,23 @@ class TestExtractBlocks(unittest.TestCase):
         for name, html in [
             ("안 닫힌 p", "<div hidden><p>숨은</div><p>보이는 김치찌개</p>"),
             ("안 닫힌 li", "<div hidden><li>숨은</div><p>보이는 김치찌개</p>"),
+            # 계획 59. 위 두 줄은 **`_IMPLIED_END` 표에 얹혀 있다** — `</div>` 가
+            # 자손을 안 자르고 남겨도 뒤따르는 `<p>` 시작 태그가 남은 `<p>`/`<li>` 를
+            # 암묵적으로 닫아 준다(`li` 줄이 `{"li"}` 라 그 한 칸만 겨우 살아남는다).
+            # `<span>` 은 표에 아예 없어 아무도 대신 안 닫는다 — 자르기가 죽으면
+            # 숨김이 문서 끝까지 붙어 뒤 문단이 통째로 사라지고, 이 줄은 표를 어떻게
+            # 고치든 그대로 그것을 잡는다. `<div hidden>` 안의 안 닫힌 `<span>` 은
+            # 아이콘·배지가 든 드롭다운의 실물 기본형이다
+            ("안 닫힌 span", "<div hidden><span>숨은</div><p>보이는 김치찌개</p>"),
             ("다른 컨테이너",
              '<section aria-hidden="true"><p>숨은</section><p>보이는 김치찌개</p>'),
         ]:
             with self.subTest(shape=name):
                 self.assertEqual(texts(html), ["보이는 김치찌개"])
+        # 반대 방향도 함께 잰다 — 숨김이 아닌 컨테이너에서는 안 닫힌 자손의 글이
+        # **그대로 나와야** 한다. 이 줄이 없으면 「닫는 태그가 뒤를 다 버린다」가
+        # 위 단언들을 전부 통과한다
+        self.assertEqual(texts("<section><span>가</section><p>나</p>"), ["가", "나"])
 
     def test_an_optional_end_tag_does_not_hide_the_next_sibling(self):
         # 리뷰 51 `[R51-1]`. `</li>`·`</p>`·`</td>` 는 명세가 생략을 허용하므로 아래는

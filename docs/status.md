@@ -1,67 +1,57 @@
 ---
 signal: GREEN
-phase: 개발
+phase: 테스트
 step: 0/1
-attempt: 0
-iteration: 345
+attempt: 1
+iteration: 346
 updated: 2026-09-05
-ctx: 45
-night_iterations: 162
+ctx: 50
+night_iterations: 163
 night_red: 2
-night_retries: 0
-plan: endtag-cut-cover 계획 59 (계획서 작성 완료 · 설계 생략 · 다음은 개발 1/1)
+night_retries: 1
+plan: endtag-cut-cover 계획 59 (개발 1/1 완료 · 다음은 테스트 phase)
 ---
 
-# 현재 상태
+## 현재 상태
 
-**계획 58 을 아카이브하고 계획 59 `endtag-cut-cover` 를 열었다.** 이 반복이 한 일은
-둘이다: 닫힌 계획의 문서 회전, 그리고 탐색 1~5순위를 실측으로 비운 뒤 6순위에서
-**여는 조건이 없는 유일한 항목**을 골라 계획서를 쓴 것. 제품 코드 무접촉.
+**계획 59 개발 1/1 을 끝냈다 — 고친 파일은 `tests/test_extract.py` 하나(+12줄), 제품
+`src/` 0줄.** 이 반복은 **재시도 1회차**다: 앞 에이전트가 같은 스텝에서 10분간 변경 0건으로
+죽어(커밋 0·작업 트리 깨끗) 처음부터 다시 돌았고, 이번엔 전수(14초)와 변이 측정을
+**작은 단위로 쪼개** 돌렸다(변이는 `test_extract.py` 만, 메모리에서).
 
-## 아카이브 — 계획 58 `passage-cost-band`
+## 개발 1/1 — 자르기를 붙드는 단언을 표와 무관한 축으로 하나 더 세웠다
 
-`docs/plan_passage-cost-band.md` → `docs/plan_history_044.md` ·
-`docs/design_passage-cost-band.md` → `docs/design_history_044.md`(내용 무변경 · `git mv`).
-`index.md` 의 계획 58 줄을 **완료**(1/1 · 완료 기준 8/8 · e2e 21종 rc 0 · 기준선 회귀 0)로
-닫고 아카이브 파일명을 적었다. `digest.md` 는 `## 완료` 에 계획 58 을 더하고 후보 `[5]`
-「예산 정각 1.4286 과 상한 1.60 사이의 창」에 **닫힘** 취소선을 그었다(200줄 상한을 맞추려
-가장 오래된 완료 항목 하나를 뺐다). **`history_current.md` 회전은 불필요** — 항목 6개 ·
-162줄로 상한(20회 / 300줄) 안이다.
+`_BlockParser.handle_endtag` 의 `del self._els[i:]`(닫는 태그가 **자손까지** 자른다)를
+붙드는 단언은 subTest **한 칸**(`안 닫힌 li`)뿐이었고, 그 한 칸은 `_IMPLIED_END` 표의
+`li` 줄에 얹혀 있었다 — 표가 바뀌면 자르기가 조용히 살아난다.
 
-## 탐색 — 1~5순위 **0건**, 6순위에서 골랐다
+`tests/test_extract.py` 의 `test_an_unclosed_child_does_not_pin_a_hidden_region_open`
+목록에 **`("안 닫힌 span", "<div hidden><span>숨은</div><p>보이는 김치찌개</p>")`** 를
+더했다. `span` 은 `_IMPLIED_END` 에 **아예 없어** 뒤따르는 시작 태그가 대신 안 닫아 준다.
+루프 뒤에는 **반대 방향** 한 줄(`<section><span>가</section><p>나</p>` → `["가", "나"]`)을
+붙였다 — 「닫는 태그가 뒤를 다 버린다」가 위 단언들을 전부 통과하는 것을 막는다.
 
-전수 `Ran 605 tests in 13.922s` · `OK` · rc 0 · 린터/타입체커 설정 파일 **없음** ·
-`TODO`/`FIXME`/`HACK` 이 `src`·`tests`·`e2e` 에 **1건**인데 그것은 파서 입력 문자열 안
-(`tests/test_indexer.py:759`) · `docs/candidates.md`·`docs/patches/` 없음 ·
-`digest ## 보류` 0건 · 열린 이슈 0 · 열린 PR 0.
+## 검증 (전부 실측 · 맨몸)
 
-6순위에서 **더 높은 점수는 전부 여는 조건에 막혀 있다** — `[9]`/`[6]` 은 실물 코퍼스,
-`[8]` 둘은 재색인, `[7]` pycache 는 이미 처방됨, `[7]` 페이지네이션은 사람 결정.
-그래서 `[5]`「닫는 태그가 자손을 잘라내는 자리(`del self._els[i:]`)를 붙드는 단언이
-하나뿐이다」— 항목 스스로 **「다음 테스트 phase 의 첫 후보」**로 적혀 있는 것을 골랐다.
+- **변이 측정은 메모리에서** — `mock.patch.object` 로 `handle_endtag`(M-a) 와
+  `_IMPLIED_END`(li 줄 삭제)를 바꿔 끼웠다. 저장소 파일은 한 번도 안 건드렸다.
+- 완료 기준 2 — M-a(`del self._els[i:i+1]`): **더하기 전 `failures=1`**(`안 닫힌 li`)
+  → **더한 뒤 `failures=2`**, 늘어난 것이 `(shape='안 닫힌 span')` 이다(이름으로 확인).
+- 완료 기준 3 — 원본에서 초록(오탐 0). 반대 방향 줄도 함께 돈다.
+- 완료 기준 4 — `_IMPLIED_END` 에서 `li` 줄을 지우는 변이: 죽는 것은
+  `test_an_optional_end_tag_does_not_hide_the_next_sibling` 의 `li`·`li 안의 안 닫힌 p`
+  둘뿐이고 **새 subTest 는 초록**이다 → 새 단언은 표 축에 안 얹혀 있다.
+- 완료 기준 1 — 전수 `PYTHONPATH=src python3 -m unittest discover -b tests`:
+  **`Ran 605 tests in 13.819s` · `OK` · rc 0**. subTest 라 **건수 605 무변**,
+  그래서 `README.md`(104줄 `단위 605건`) 무접촉.
+- 완료 기준 5 — `git status --short` 가 `M tests/test_extract.py` 하나(+`docs/`).
 
-## 착수 탐침 — 오늘 다시 쟀다 (메모리 변이)
+## 다음 — 테스트 phase 0/1
 
-파일을 안 고치고 원본 소스를 문자열로 비틀어 `sys.modules` 에 심었다.
+남은 완료 기준은 6번(e2e 21종 전수 rc 0 · 기준선 회귀 0)뿐이고 그것은 e2e phase 몫이다.
+테스트 phase 는 이 계획이 `src/` 0줄이라 **새 갭이 있는지만** 본다.
 
-| 변이 | 오늘 실측 |
-|---|---|
-| **`del self._els[i:i+1]`** | `failures=1` — `안 닫힌 li` subTest 하나 (**표적**) |
-| `[i+1:]` / 앞에서 찾기 / `break` 삭제 / `_open` pop | 16 / 6 / 6 / 2건 (여유 충분) |
+## 병합 · 규율
 
-가르는 모양은 **`_IMPLIED_END` 에 없는 자손이 안 닫힌 때**다 —
-`<div hidden><span>속</div><p>보이는</p>` 가 원본 `[('p','보이는')]` vs 변이 `[]` 로 갈리고,
-`<p>` 자손·정상 종료·숨김 아님은 **안 갈린다**(오탐 자로 쓴다). 오늘 이 모양을 밟는
-테스트는 **0건**이라 M-a 가 한 칸에 걸려 있다.
-
-## 다음 — 개발 1/1 (설계 생략)
-
-`tests/test_extract.py:285` 의 subTest 목록에 위 두 모양을 더한다. 제품 `src/` **0줄** ·
-파일 **1개** · subTest 라 단위 건수 **605 무변**(`README.md` 무접촉). 설계 생략 사유는
-계획서 6절 — 트리거 0건이고 떠오른 대안 둘이 **산출물을 안 가른다**.
-
-## 기점 · 병합 · 규율
-
-`loop/passage-cost-band` 위에 그대로 쌓는다 — 고칠 파일은 `origin/main`(`d1fe3e9`)과
-바이트 동일이라 `main` 에서 다시 따도 되지만 그러면 이 계획서가 그 브랜치에 없다.
-**병합은 사람 몫**(미병합 브랜치 둘 · 열린 PR 0). 러너 규율 위반 **이번 0회**(누적 37).
+`loop/passage-cost-band` 위에 그대로 쌓는다(`origin/main` `d1fe3e9` 와 갈라진 채 · 열린 PR 0).
+러너 규율 위반 이번 반복 **0회**(누적 37) — 판정 줄과 `rc` 를 매번 맨몸으로 봤다.
