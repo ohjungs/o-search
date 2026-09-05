@@ -288,3 +288,11 @@ append 전용이고 수정·삭제 금지다. 각 회전의 사유는 `digest.md
   `__pycache__` 0개 · PR 무접촉 · `--no-verify`·`--force` 0 · **자동 스냅샷 안 끼어들었다**.
 - 다음: **리뷰 phase.** 리뷰가 볼 것은 「등재 판정 셋, 특히 ③(«stdlib 도 위반한다») 이
   변명이 아닌가」다.
+
+## 2026-09-05 09:00 | loader-isolation | 리뷰 1/1 | 시도0
+
+- **판정은 유지, 근거 둘이 무너졌다.** 백지 패스로 `fe4dd0d..HEAD` 를 다시 읽고 러너 인자 여섯(`-k`×2·`-p`·`--locals`·`-f`·`-t`)을 직접 때렸다 — 전수 `Ran 605 · OK · rc 0`(13.489초), `-k` 둘 다 OK, `-t .` 는 `ImportError` 로 도달 불가(재현). **열거형을 diff 밖에서 셌다**: `unittest.main` 이 로더에 심는 상태는 `testNamePatterns`(`main.py:151`)와 `_top_level_dir`(`loader.py:286`) **정확히 둘**이고 새 인스턴스가 둘 다 닫는다. 전역 대조도 재현(`sys.path` +4 · `defaultTestLoader` 축 셋 무변).
+- **[R56-1] 「누출이 프로세스 경계를 넘는다」는 틀린 문장이었다(medium·95·고침).** `sys.path` 는 자식에게 상속되지 않는다 — 마커를 심고 `subprocess.run` 으로 확인해 `CHILD_HAS_MARKER=False`. 자식에 `E2E` 가 있는 이유는 `tests/test_passage_eval.py:47` 이 `-c` 소스에 `sys.path.insert(0, E2E)` 를 **직접 써 넣기** 때문이고, 부모가 완벽히 깨끗해도 똑같이 들어간다.
+- **[R56-2] 변이 E 는 누출을 잰 적이 없다(medium·90·고침).** 사본에 `e2e/tempfile.py` 를 다시 심으니 실패가 자식 9건(`<string>` 프레임)과 **같은 프로세스 13건**(`test_quality_eval`, 프레임 없음)으로 갈리는데 **어느 쪽도 «남은 칸» 이 원인이 아니다** — 후자는 `test_quality_eval.py:17` 의 **살아 있는** insert 다. **일반화 — 「전역이 오염됐다」를 재려면 오염이 *남은 뒤*를 재야 한다. 오염이 *켜져 있는 동안* 터지는 것을 재면 다른 현상을 재고 그 값을 원래 항목에 적게 된다.** 항목의 틀도 그래서 틀렸다: 셋 중 둘이 **임포트 시점**(=`discover()` 중, 첫 테스트 전)에 돌아 위험은 「끝에 네 칸 남는다」가 아니라 **`e2e/` 가 전수 내내 `sys.path[0]` 에 앉아 있다**는 쪽이다.
+- **[R56-3] ③ 은 사실이나 과장이다(low·85·고침).** `discover` 가 `loader.py:285` 에서 안 빼는 것은 원문 확인으로 참인데 그것이 「검사 불가」를 세우지는 못한다 — 앞뒤 대조가 저장소 몫 `e2e`×3 과 stdlib 몫 `tests`×1 을 **경로로** 가르고, 더 싼 처방(`if E2E not in sys.path` 세 줄)이 따로 있다. **`e2e` 칸이 셋으로 중복되는 것이 그 가드가 없다는 증거다.** `[5]` 값은 유지하고 문장만 고쳤다.
+- **판정 ①은 축을 넓혀도 버틴다** — 38파일·고유 스템 38, 충돌이 stdlib **0** · `src/` 스템 **0** · `site-packages` **0**(테스트 phase 는 stdlib 만 봤다). 한도: 저장소 코드 **0줄** · `README.md`·`docs/specs/` 무변 · `data/crawl.db` sha256 `85c96744…5bda18` 무변 · `__pycache__` 0 · `pgrep -f websearch.serve` 0 · PR 무접촉 · 러너 규율 0회(누적 35). 고친 파일은 `docs/digest.md` 문장 둘뿐. 다음: **e2e phase**(21종 전수 회귀).

@@ -1,140 +1,115 @@
 ---
 signal: GREEN
-phase: 리뷰
+phase: e2e
 step: 1/1
 attempt: 0
-iteration: 329
+iteration: 330
 updated: 2026-09-05
-ctx: 58
-night_iterations: 151
+ctx: 63
+night_iterations: 152
 night_red: 2
 night_retries: 0
-plan: loader-isolation # 계획 56 — 테스트 phase 완료 · 다음은 리뷰
+plan: loader-isolation # 계획 56 — 리뷰 phase 완료 · 다음은 e2e
 ---
 
 # 현재 상태
 
-**계획 56 테스트 phase 를 닫았다 — 오염원을 전수로 세고, 안 잰 축 하나를 실측으로 찾았다.**
-저장소 코드 **0줄** 추가. 개발이 남긴 단서(*"센 것은 호출처(1곳)인데 안 센 것은 오염원"*)를
-본체로 삼아, 「모듈 수준 싱글턴을 건드리는 자리」를 저장소 전체에서 세고 **실제로 새는지**를
-프로세스 전역 대조로 판정했다.
+**계획 56 리뷰를 백지에서 돌렸다 — 고친 한 줄은 옳고, 그것을 정당화한 기록 둘이 틀렸다.**
+저장소 코드는 여전히 **0줄** 늘었다. 리뷰가 고친 것은 `docs/digest.md` 의 문장 둘뿐이다.
 
-## 오염원 전수 조사 — 후보 7종 · 12자리
+## 패스 A (백지) — diff 만 보고 판정
 
-grep 이 아니라 **실측이 판정했다**. 후보는 grep 으로 세고, 새는지는 전수 실행 앞뒤의
-프로세스 전역 상태를 대조해 갈랐다.
+`git diff fe4dd0d..HEAD` 의 코드 변경은 `tests/test_readme.py` 한 줄(+주석 넉 줄)뿐이다.
 
-| # | 싱글턴 | 자리 | 되돌리나 | 실측 판정 |
-|---|---|---|---|---|
-| 1 | `unittest.defaultTestLoader` | `tests/test_readme.py:87` (고쳐짐) | — | **안 샌다** |
-| 2 | **`sys.path`** | `test_design_check.py:25` · `test_quality_eval.py:17` · `test_passage_eval.py:184` · **`TestLoader.discover` 자신** | **아니오 (4자리 전부)** | **샌다 — 4칸 남는다** |
-| 3 | `signal.SIGINT` | `crawl.py:394` · `test_crawl.py:1904` | 예 (저장·복원 둘 다) | 안 샌다 |
-| 4 | 모듈 전역 `PAGES` | `test_crawl.py:156` | 예 (`mock.patch.dict`) | 안 샌다 |
-| 5 | `sys.stdout`·`sys.stderr` | `test_serve.py` 등 다수 | 예 (`with` 문) | 안 샌다 |
-| 6 | `urllib.request` 전역 opener | `e2e/` 3자리 | 예 (`finally`) | 단위 스위트 **밖** |
-| 7 | `logging`·`socket`·`sqlite3`·`warnings`·`locale`·`decimal`·`os.environ` | 저장소 코드 **0자리** | — | 안 샌다 |
+`unittest.defaultTestLoader.discover(...)` → `unittest.TestLoader().discover(...)`
 
-**후보 7종 중 실제로 새는 것은 1종(`sys.path`)뿐이다.**
+**열거형 완전성을 diff 밖에서 셌다.** 「`-k` 만 오염원인가」를 CPython 3.9.6 전수로 물었더니
+`unittest.main` 이 로더 인스턴스에 심는 상태는 **정확히 둘**이다 — `testNamePatterns`
+(`main.py:151`)과 `_top_level_dir`(`loader.py:286`, `discover` 가 자기 안에서 심는다).
+**새 인스턴스 하나가 둘 다 닫는다.** 러너 인자 다섯을 직접 때려 확인했다.
 
-### 「진입점이 또 있나」에 답이 나왔다 — CPython 을 세어서
-
-`defaultTestLoader` 에 쓰는 자리는 **표준 라이브러리 전체에 한 곳**이다 —
-`unittest/main.py:151` 의 `self.testLoader.testNamePatterns = …`(3.9.6 실측 grep).
-`testNamePatterns`·`testMethodPrefix` 는 **클래스 속성**이고 `main` 은 **인스턴스**에만
-쓰므로, `TestLoader()` 새 인스턴스는 그 경로 전부에 면역이다. 그래서 도달 가능한
-CLI 경로 넷을 다 때려 봤고 **전부 GREEN**이다.
-
-| 경로 | 결과 |
+| 인자 | 결과 |
 |---|---|
-| `discover -b -s tests -k Readme` | `Ran 5` · **OK** · rc 0 |
-| `discover -b -s tests -k '*counts*'` | `Ran 3` · **OK** · rc 0 |
-| `python3 tests/test_readme.py -k counts` (`unittest.main` 직행) | `Ran 1` · **OK** · rc 0 |
-| `-m unittest -b -k counts test_readme` (비-discover) | `Ran 1` · **OK** · rc 0 |
-| `discover -t . -s tests` | **도달 불가** — `tests/` 에 `__init__.py` 가 없어 `ImportError: Start directory is not importable` |
+| `discover -b tests` (전수) | `Ran 605` · **OK** · rc 0 · 13.489초 |
+| `-k Readme` | `Ran 5` · **OK** · rc 0 |
+| `-k '*counts*'` | `Ran 3` · **OK** · rc 0 |
+| `-p 'test_r*.py'` | `Ran 37` · **OK** · rc 0 (패턴은 로더에 안 남고 인자로만 간다) |
+| `--locals -k Readme` · `-f -k Readme` | 각 `Ran 5` · **OK** · rc 0 |
+| `-t . -s tests` | **도달 불가** — `ImportError: Start directory is not importable` (재현) |
 
-다섯째 줄이 이번에 세운 **못**이다 — 「최상위를 저장소 루트로 두면 검사가 테스트 모듈을
-두 번 임포트한다」는 가설을 세웠는데, 재 보니 **그 경로 자체가 안 열린다**. 추측을 실측이
-지웠다.
+전역 대조도 직접 다시 쟀다: 전수 뒤 `sys.path` **+4**(`e2e` ×3 · `tests` ×1),
+`defaultTestLoader` 축 셋(`testNamePatterns`·`_top_level_dir`·`errors`) **전부 무변**.
+테스트 phase 의 숫자가 한 자리도 안 틀렸다.
 
-## 순서 뒤집기 — 네 방향 전부 605 OK
+## 지적 셋 — 전부 「판정은 맞고 근거가 틀렸다」
 
-| 무엇 | 결과 |
-|---|---|
-| 전수 (기준) | `Ran 605` · **OK** · 13.593초 |
-| **역순** (605건을 통째로 뒤집음) | `Ran 605` · **OK** · 13.438초 |
-| **무작위 순열** seed=1 | `Ran 605` · **OK** · 13.743초 |
-| **무작위 순열** seed=20260905 | `Ran 605` · **OK** · 13.847초 |
-| **모듈 단독 17회** | 17/17 **OK** · rc 0 · 건수 합 **정확히 605** |
+직전 phase 가 리뷰에 넘긴 물음은 「`[5]` 등재 판정 셋이 변명이 아닌가」였다.
+**[5] 라는 값은 유지한다. 그러나 셋 중 둘은 근거가 무너진다.**
 
-역순은 순열 하나뿐이라 무작위 둘을 더 얹었다. 모듈 단독 17회가 가장 센 자다 —
-「A 가 심어 놓은 것을 B 가 먹고 산다」면 B 를 혼자 돌릴 때 죽는다. **한 건도 안 죽었다.**
+### [R56-1] 「누출이 프로세스 경계를 넘는다」는 틀렸다 — medium · 95점 · **고쳤다**
 
-## 전역 대조 — 24축 중 3축이 움직인다
+`digest.md` 와 `history_current.md` 가 *"러너들이 `sys.path.insert(0, E2E)` 를 자식
+부트스트랩에 그대로 넘긴다 — 누출이 프로세스 경계를 넘는다"* 라고 적었다.
+**`sys.path` 는 자식에게 상속되지 않는다** — 마커를 심고 `subprocess.run` 으로
+`-c` 를 띄워 실측했다(`CHILD_HAS_MARKER=False`).
+자식에 `E2E` 가 있는 진짜 이유는 `tests/test_passage_eval.py:47` 이 `-c` 소스에
+`import sys; sys.path.insert(0, %r)` 를 **직접 써 넣기** 때문이다. 의도된 배선이고,
+부모 `sys.path` 가 완벽히 깨끗해도 똑같이 들어간다.
 
-전수를 한 프로세스에서 돌리고 앞뒤를 찍었다(스크래치패드 탐침, 저장소 무접촉).
+### [R56-2] 변이 E 는 누출을 잰 적이 없다 — medium · 90점 · **고쳤다**
 
-| 움직인 축 | 값 | 판정 |
-|---|---|---|
-| `sys.path` | **+4** (`e2e` ×3 · `tests` ×1) | **저장소가 낸 진짜 누출** |
-| `logging.Logger.manager.loggerDict` | 0 → 3 (`asyncio`·`concurrent`·`concurrent.futures`) | `import concurrent.futures` 부산물 — **root 로거의 level·handlers 는 무변**이라 테스트끼리 안 섞인다 |
-| `tempfile.tempdir` | `None` → `/var/folders/…` | `gettempdir()` 의 stdlib 메모이제이션 — 저장소 코드 아님 |
+저장소 밖 사본에 `e2e/tempfile.py` 를 다시 심어 전수를 돌렸다. 실패가 두 갈래로 갈린다:
+**자식 9건**(`test_passage_eval`, 트레이스백에 `<string>` 프레임 — [R56-1] 의 배선)과
+**같은 프로세스 13건**(`test_quality_eval`, `<string>` 프레임 없음).
+**둘 중 어느 것도 «끝나고 남은 칸» 이 원인이 아니다** — 후자는 `test_quality_eval.py:17`
+자신의 **살아 있는** insert 로 들어간다. 즉 판정 ②(「터질 때 시끄럽게 터진다」)는
+결론은 맞지만 **다른 현상을 잰 증거** 위에 서 있었다.
 
-**안 움직인 21축**: `socket.getdefaulttimeout` · `sqlite3.adapters`·`converters` ·
-`warnings.filters` · `sys.getrecursionlimit` · `decimal` prec · `locale.LC_ALL` ·
-`signal.SIGINT`·`SIGTERM` · `os.environ`(추가·삭제·변경 0) · `cwd` ·
-`sys.stdout`/`stderr` 동일성 · 그리고 **`defaultTestLoader` 축 셋
-(`testNamePatterns`·`_top_level_dir`·`errors`) 전부**.
+**그래서 항목의 틀 자체가 틀렸다.** 세 insert 중 둘(`test_design_check.py:25` ·
+`test_quality_eval.py:17`)은 **임포트 시점**에 돈다 — `discover()` 중, 첫 테스트가
+돌기 전이다. 위험한 것은 «스위트가 끝나고 네 칸을 남긴다»(프로세스가 곧 죽으니 거의 무해)가
+아니라 **`e2e/` 가 전수 내내 `sys.path[0]` 에 앉아 있다**는 쪽이다. 「끝에 남는다」로 읽은
+미래의 독자는 이 항목을 과소평가한다.
 
-**마지막 줄이 이 계획의 산출물을 처음으로 직접 잰 것이다** — 지금까지는 「`-k` 아래에서
-값이 옳다」로 간접 확인했는데, 여기서는 **싱글턴 자체가 안 움직인다**를 봤다.
+### [R56-3] ③ 「강제할 규칙을 저장소가 못 지킨다」는 과장이다 — low · 85점 · **고쳤다**
 
-## 변이 재판 — 둘, 전부 저장소 밖 사본
+`TestLoader.discover` 가 `loader.py:285` 에서 `top_level_dir` 을 안 뺀다는 것은 **사실이다**
+(원문을 열어 확인). 그러나 그것이 「검사가 불가능하다」를 세우지는 못한다 —
+**앞뒤 대조가 저장소 몫(`e2e` ×3)과 stdlib 몫(`tests` ×1)을 경로로 가른다.**
+테스트 phase 의 탐침이 이미 그 다섯 줄이었다. 그리고 **더 싼 처방이 아예 따로 있다**:
+세 자리에 `if E2E not in sys.path` 한 줄씩. 지금 `e2e` 칸이 **셋으로 중복**되는 것이
+그 가드가 없다는 증거다. `digest.md` 가 *"답은 이름 충돌 목록 하나를 세는 것"* 이라고
+절반은 물러서 있어 **값은 `[5]` 로 둔다** — 고친 것은 문장이다.
 
-| 변이 | 무엇 | 결과 |
-|---|---|---|
-| **D** | 사본에서 `TestLoader()` → `defaultTestLoader` 되돌림 | 전역 대조에서 **`loader._top_level_dir` 이 추가로 움직인다**(3축 → **4축**). 같은 사본에 `-k Readme` → `AssertionError: (605, 21) != (5, 21)` · `Ran 5` · **FAILED · rc 1** |
-| **E** | 사본 `e2e/tempfile.py` 로 표준 `tempfile` 을 가림 | 전수 `Ran 605` · **FAILED (failures=22)** · rc 1 |
+## 판정 유지 — ①은 오히려 더 세게 재확인됐다
 
-**변이 D 가 「고친 줄이 곧 싱글턴을 안 건드리는 이유」임을 축 하나로 못 박는다** —
-되돌리면 움직이는 축이 정확히 하나 늘고, 그 축이 `_top_level_dir` 이다.
-
-**변이 E 가 2번 후보의 값을 정했다.** `sys.path` 누출은 실재하고 **하위 프로세스까지
-전파된다**(러너들이 `sys.path.insert(0, E2E)` 를 자식 부트스트랩에 그대로 넘긴다 —
-22건의 실패 트레이스백이 전부 자식 프로세스의 `import tempfile` 이었다).
-
-## 판정 — 새 검사를 안 붙였다 (룰 4절, 8점 미만)
-
-`sys.path` 누출을 **[5]점**으로 매기고 `digest.md` 에 등재했다. 근거 셋:
-
-1. **지금 겹치는 이름이 0개다** — `tests/`+`e2e/` 모듈 이름 **38개**를 표준 라이브러리
-   전체와 대조해 충돌 **0건**(38개가 서로도 안 겹친다 — 이름 집합 크기가 17+21 과 같다).
-2. **터질 때 시끄럽게 터진다** — 변이 E 가 낸 것은 거짓 초록이 아니라 **즉시 22 FAILED**다.
-   이 저장소가 8점을 매겨 온 것은 언제나 「조용히 초록인 것」이었다.
-3. **강제할 규칙을 저장소가 못 지킨다** — 「`sys.path` 에 남기지 마라」를 검사로 세우면
-   `TestLoader.discover`(stdlib, `loader.py:285`)가 **자기도 위반**한다. 고친 줄 자신이다.
+판정 ①(이름 충돌 0)은 독립적으로 다시 셌고 **축을 넓혀도 버틴다**:
+`tests/`+`e2e/` 파일 **38개 · 고유 스템 38개**(서로 충돌 0),
+**stdlib 0건 · `src/` 스템 0건 · `site-packages` 0건**. 테스트 phase 는 stdlib 만 봤는데
+셋 다 비어 있다. **잠복이라는 판정은 그대로 옳다.**
 
 ## 다음 행동
 
-**리뷰 phase.** 테스트 phase 가 축을 넷(진입점·순서·전역·이름 충돌)으로 넓혀 전부 초록이고
-저장소 코드는 0줄 늘었다. 리뷰가 볼 것은 「이 판정 셋(특히 3번 사유)이 변명이 아닌가」다.
+**e2e phase.** 지적 셋이 전부 문서 정정으로 닫혔고 저장소 코드는 0줄이라
+e2e 는 회귀 확인(21종 전수 rc 0)이 본체다.
+
+**집안일 예고 — `history_current.md` 가 298줄이다(상한 300).** 이번엔 안 넘어 회전하지
+않았지만 **다음 append 는 반드시 넘는다.** e2e phase 가 기록 전에 회전부터 한다.
 
 ## 러너 규율 — **이번 반복 0회 (누적 35회)**
 
-러너를 스물여덟 번 돌렸다(전수 1 · 역순 1 · 무작위 2 · 모듈 단독 17 · `-k` 계열 5 ·
-사본 변이 2). **전부 맨몸이고 파이프 왼쪽에 둔 적 0회 · `2>&1`·`2>/dev/null`·`>/dev/null`
-0회 · 백그라운드 0회.** 모듈 단독 17회는 `for` 루프를 썼는데, 앞 반복이 새로 적어 둔
-방아쇠(「한 번에 여러 번 돌린다」)가 겨냥한 것은 **루프 자체가 아니라 판정을 가리는 것**이라
-루프 안에서 러너를 맨몸으로 두고 `echo "rc=$?"` 를 뒤에 붙여 **17개 판정 줄과 rc 17개를
-전부 화면에 남겼다**. 건수 합이 605 로 떨어지는 것도 그 화면에서 셌다.
+러너를 여덟 번 돌렸다(전수 1 · 인자 매트릭스 5 · 탐침 1 · 사본 변이 1).
+**전부 맨몸이고 파이프 왼쪽에 둔 적 0회 · `2>&1`·`2>/dev/null`·`>/dev/null` 0회 ·
+백그라운드 0회.** 판정 줄과 `rc=` 를 전부 화면에 남겼다.
 
 ## 한도
 
-제품 `src/` **0줄** · 저장소 코드 **0줄** · `e2e/` 0줄 · 새 파일 0 ·
-`data/crawl.db` **무변**(sha256 `85c96744…5bda18` 대조 통과, 열지 않았다) ·
-`docs/specs/` 무변 · `README.md` 무변 · 새 의존성 0 · 스키마·마이그레이션·재색인 0 ·
+제품 `src/` **0줄** · 저장소 코드 **0줄** · `tests/`·`e2e/` **0줄** · 새 파일 0 ·
+`data/crawl.db` **무변**(sha256 `85c96744…5bda18` 대조 통과) · `docs/specs/` 무변 ·
+`README.md` 무변 · 새 의존성 0 · 스키마·마이그레이션·재색인 0 ·
 `pgrep -f websearch.serve` **0건** · `__pycache__` **0개** · `--no-verify`·`--force` 0 ·
 `main` 직접 커밋 0 · **PR 무접촉(조회·생성·병합 0회)** · 브랜치 병합·삭제 0 ·
-변이 D·E 와 순서 탐침은 **전부 스크래치패드 사본**에서 돌았고 `git status --short` 는 빈 줄이다.
+변이 재현은 **스크래치패드 사본**에서 돌고 지웠다.
 
 ## 사람 결정 대기
 
@@ -142,10 +117,9 @@ CLI 경로 넷을 다 때려 봤고 **전부 GREEN**이다.
 2. **`--focus` 가 `--bg-button` 위에서 1.45:1**(다크 1.66:1) — `outline-offset` 0 일 때만.
 3. **반응형 360px 미검증** — 브라우저가 없어 저장소의 아무도 안 그려 본다.
 4. **3시간 자동 스냅샷 잡을 루프 작업 중에도 세울 것인가**(반복 328 의 사고).
-   이번 반복에는 **안 끼어들었다**(작업 중 커밋 0건 — 아래 커밋만 있다). 다음에 RED
-   중간을 덮치면 **깨진 상태가 원격에 올라간다**는 위험은 그대로다. 루프가 도는 동안
-   `.mutation-lock` 을 항상 켜 두는 안이 있다.
+   이번 반복에도 **안 끼어들었다**. RED 중간을 덮치면 깨진 상태가 원격에 올라간다는
+   위험은 그대로다. 루프가 도는 동안 `.mutation-lock` 을 켜 두는 안이 있다.
 
 ## 정지 사유
 
-없음 — 계획 56 리뷰 phase 로 이어간다.
+없음 — 계획 56 e2e phase 로 이어간다.

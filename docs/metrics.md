@@ -11,7 +11,7 @@
 
 | | 값 |
 |---|---|
-| 반복 | 329 |
+| 반복 | 330 |
 | 계획 (완료/폐기/보류) | 40 / 0 / 0 (진행 1) |
 | 재시도 | 0 |
 | RED | 1 |
@@ -26,17 +26,29 @@
 | 설계 | 21 (생략 5) |
 | 개발 | 77 |
 | 테스트 | 42 |
-| 리뷰 | 42 |
+| 리뷰 | 43 |
 | e2e | 32 |
 
 ## 리뷰 정확도 — 80점 임계 검증용
 
 | | 값 |
 |---|---|
-| 발견 후보 | 214 |
+| 발견 후보 | 217 |
 | 80점 미만으로 버림 | 65 (기보류 중복 4 + search-api 2 + crawl-delay 3 + quality-eval 3 + non-ascii-url 2 + cooldown-burn 3 + crawl-politeness 1 + graceful-interrupt 2 + deadline-stop 3 + indexer-interrupt 5 + indexer-lock 2 + docs-citation-guard 2 + focus-contrast 2 + focus-ring-presence 3 + passage-api 17 + focus-rule-scope 2 + runner-quiet 2 + hidden-passage 10 + focus-ring-combinator 2 + passage-db-state 5 + db-state-invariant 1) |
-| 보고함 | 132 |
-| **그중 실제로 고친 것** | 88 (db-state-invariant 2건 — 리뷰 1 이 [R55-1] `_drop_column` 이 다시 만드는 표가 제약을 잃는다는 천장 누락·[R55-2] README 가 잃은 비텍스트 명암비 3:1 자동 수정 / passage-html-column 2건 — 리뷰 1 이 [R54-1] 새 `ponytail:` 주석의 거짓 천장·[R54-2] 재현 안 되는 8배 계수 자동 수정 / passage-db-state 1건 — 리뷰 1 이 [R53-1] `subTest` 범위 자동 수정 / hidden-passage 8건 — 개발 2 가 2건, 개발 3 이 [R51-3]·[R51-4] 2건, 리뷰 3 이 설계 문서 모순 1건, 개발 4 가 [R51-5] 1건, 리뷰 4 가 [R4-1]·[R4-2] 2건 자동 수정 / focus-ring-combinator 3건 — 리뷰 1 이 [R52-1] 천장 주석·[R52-2] docstring 계수·[R52-3] 계획서 완료 기준 모순 자동 수정) |
+| 보고함 | 135 |
+| **그중 실제로 고친 것** | 91 (loader-isolation 3건 — 리뷰 1 이 [R56-1] 「누출이 프로세스 경계를 넘는다」 오류·[R56-2] 변이 E 의 증거 오귀속·[R56-3] ③ 의 「검사 불가」 과장을 `digest.md` 에서 자동 수정 / db-state-invariant 2건 — 리뷰 1 이 [R55-1] `_drop_column` 이 다시 만드는 표가 제약을 잃는다는 천장 누락·[R55-2] README 가 잃은 비텍스트 명암비 3:1 자동 수정 / passage-html-column 2건 — 리뷰 1 이 [R54-1] 새 `ponytail:` 주석의 거짓 천장·[R54-2] 재현 안 되는 8배 계수 자동 수정 / passage-db-state 1건 — 리뷰 1 이 [R53-1] `subTest` 범위 자동 수정 / hidden-passage 8건 — 개발 2 가 2건, 개발 3 이 [R51-3]·[R51-4] 2건, 리뷰 3 이 설계 문서 모순 1건, 개발 4 가 [R51-5] 1건, 리뷰 4 가 [R4-1]·[R4-2] 2건 자동 수정 / focus-ring-combinator 3건 — 리뷰 1 이 [R52-1] 천장 주석·[R52-2] docstring 계수·[R52-3] 계획서 완료 기준 모순 자동 수정) |
+
+**오염을 재려면 오염이 «남은 뒤» 를 재야 한다 (2026-09-05 loader-isolation, 반복 330).**
+테스트 phase 가 `sys.path` 누출의 값을 정하려고 변이(표준 `tempfile` 가리기)를 심어
+22 FAILED 를 얻고 「누출은 실재하고 프로세스 경계까지 넘는다」로 적었다. 리뷰가 같은 변이를
+다시 재서 갈라 보니 **실패 어느 것도 누출 때문이 아니었다** — 자식 9건은 러너가 `-c` 소스에
+insert 를 **직접 써 넣어서**고(`sys.path` 는 상속되지 않는다 · 마커 실측), 나머지 13건은
+그 모듈 자신의 **살아 있는** insert 다. **오염이 켜져 있는 동안 터지는 것을 재면 다른 현상을
+재고, 그 값을 원래 항목에 적게 된다.** 셋 중 하나가 틀린 것이 아니라 **판정 셋을 떠받치던
+증거 하나가 통째로 다른 것을 재고 있었다** — 그래서 항목의 틀(「끝에 네 칸 남는다」)도 같이
+틀렸다. 진짜 노출은 insert 둘이 **임포트 시점**에 돌아 전수 내내 `sys.path[0]` 을 잡는 것이다.
+**심각도 값(`[5]`)은 살아남았다. 무너진 것은 근거다** — 리뷰가 값이 아니라 근거를 재는 자리라는
+것을 세 지적이 전부 같은 모양으로 보여줬다(셋 다 「결론 맞음 · 증거 틀림」).
 
 **불변식을 재는 자와 값을 재는 자는 서로를 대체하지 않는다 (2026-09-05 db-state-invariant, 반복 324).**
 테스트 phase 가 「계획 53·54 가 손으로 넓힌 클래스들이 이제 중복인가」를 변이로 물었다.
