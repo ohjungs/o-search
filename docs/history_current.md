@@ -245,3 +245,49 @@ append 전용이고 수정·삭제 금지다. 각 회전의 사유는 `digest.md
   판정 줄과 `rc` 를 눈으로 봤다.
 - 다음: **테스트 phase.** 새 가드 둘의 갭을 훑는다. 아는 천장 둘은 설계서 「범위 밖」에
   적혀 있다 — ① 상태 칸 자신의 정합성은 안 D 가 못 본다 ② 검사는 작업 트리 HEAD 만 본다.
+
+## 2026-09-06 02:45 | index-step-sync | 테스트 1/1 시도0
+
+- 한 일: **계획 60 테스트 phase.** 계획은 제품 `src/` 0줄이라 룰 3절(갭 탐색)만 돌았다.
+  어제 선 `StepSyncTest`·`StepPatternTest` 에 변이를 하나씩 걸고 **전수**를 돌려
+  「죽이는 단언이 몇 건인가」를 셌다 — 변이는 전부 **메모리에서** 걸었다(소스를 문자열로
+  치환해 이미 로드된 `test_docs` 모듈에 다시 exec · 저장소 파일 무변경 · 하네스는
+  스크래치패드 `gap60.py` · `PYTHONPYCACHEPREFIX=$(mktemp -d)`).
+- 결과: **8점짜리 갭 하나 — `StepSyncTest` 의 판정 전체가 아무에게도 안 재어지고 있었다.**
+  실물 두 문서가 오늘 서로 맞아 있어서(초록 데이터) 판정을 어떻게 비틀어도 전수 609건이
+  초록이다 — **변이 6종 6/6 생존**: ① null 갈래 기대값 `0/0`→`9/9` · ② null 갈래 통째 삭제 ·
+  ③ 대조를 자기비교로(`r.group(1)`→`s.group(1)`) · ④ 「index 에 행이 없다」 가드 삭제 ·
+  ⑤⑥ 「status 에 `step:`/`plan:` 줄이 없다」 가드 삭제. `StepPatternTest` 가 재던 것은
+  **정규식 셋**이지 그 위의 판정이 아니었고, 설계서가 적은 「조용히 지나가는 갈래는 0개다」를
+  **재는 것이 0개**였다. `CitationPatternTest`·`ArchiveMatchTest` 독스트링의
+  「린트형 데이터가 초록일 때 검사는 자신을 못 잰다」 세 번째 사례다.
+- 결과: **닫았다 — 새 관용구를 만들지 않고 이 파일에 이미 있는 모양을 그대로 썼다.**
+  `done_section`·`indexed` 가 `ArchiveMatchTest` 를 위해 나온 것과 같게, 판정을
+  **`step_gap(status_text, index_text)` 순수 함수**(어긋남 한 줄 또는 `None`)로 빼고
+  실물은 `StepSyncTest` 가, 갈래는 새 `StepGapTest` 5건이 합성 문자열로 부른다.
+  단언은 한 줄도 안 낮췄다(`rules/test.md` 6절) — 같은 두 문서를 읽어 같은 것을 요구하고
+  실패 메시지는 `assertIsNone(gap, gap)` 으로 그대로 나온다.
+- 결과: **고친 뒤 같은 변이 6종 재측 6/6 사망**, 각각 의도한 단언이 죽였다
+  (①② `test_null_plan_requires_the_zero_step` · ③ `test_step_mismatch_is_reported` ·
+  ④ `test_missing_index_row_is_reported` · ⑤⑥ `test_missing_status_lines_are_reported`).
+  **하네스에 이빨이 있는지 양성 대조로 봤다** — `STEP_ROW` 에서 슬러그를 빼면 7건이 죽는다
+  (`StepPatternTest` 2 + `StepGapTest` 3 + `StepSyncTest` 1 + README 건수 1).
+- 결과: 전수 609 → **614건 · `OK` · rc 0**(맨몸 · 파이프/리다이렉션 0 · 판정 줄과 `rc` 를
+  눈으로 봤다). +5 라 `README.md` 단위 건수 줄을 614 로 맞췄다 — 이번에도
+  `ReadmeCommandsTest` 가 먼저 물었다(변이 표의 대조군이 그 실패 1건으로 나왔다).
+  `status.md`(iteration 353)·`metrics.md`(반복 353 · 테스트 45→46)를 맞췄다(`IterationSyncTest`).
+- 결과: **남긴 갭 하나 — 6점.** `IterationSyncTest` 도 같은 구멍이다(축만 다르다):
+  대조를 자기비교로 비트는 변이가 전수 614건에서 **생존**한다(실측). 갈래가 하나뿐이라
+  썩을 표면이 스텝 축의 1/4 이고 `iteration` 은 매 반복 손으로 읽는 자리라 조용히 안 흐른다.
+  오늘 손대는 것은 직교 편집이라 `digest ## 다음 계획 후보 (테스트 phase 갭)` 에 `[6]` 으로
+  남겼다(여는 조건 「반복 축 검사를 손대는 날」 · 답은 `iter_gap` 세 줄).
+- 결과: `digest.md` 가 200/200 이라 새 후보 한 줄을 넣으며 **가장 오래된 완료 항목**
+  (계획 52 `focus-ring-combinator`)을 지웠다 — 내용은 `index.md` 52번 행과
+  `plan_history_038.md`·`design_history_038.md` 에 그대로 있고 **아카이브 명부는 무접촉**이다
+  (`ArchiveIndexTest` 초록). 다시 200줄.
+- 만진 파일: `tests/test_docs.py`·`README.md`·`docs/` 뿐이다. 제품 `src/` **0줄** ·
+  `e2e/`·`docs/specs/`·`data/crawl.db` 무접촉 · 재색인·스키마·새 의존성 0 · 새 파일 0개.
+- 다음: **리뷰 phase 1/1.** 볼 것은 ① 함수로 빼면서 계약이 조용히 바뀐 곳(특히 `s`/`p`
+  검사 순서 — 옛 코드는 둘을 본 뒤 실패했고 새 코드는 `step:` 을 먼저 문다) ② `StepGapTest`
+  의 합성 `INDEX` 가 실물 표 모양과 어긋나지 않았나 ③ 지운 완료 항목이 정말 다른 곳에 남아 있나.
+  러너 규율 위반 **0회**(누적 38).

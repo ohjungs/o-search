@@ -85,6 +85,38 @@ def step_row(slug):
     return re.compile(STEP_ROW % re.escape(slug), re.M)
 
 
+def step_gap(status_text, index_text):
+    """스텝 축이 어긋난 자리를 한 줄로 돌려준다. 어긋남이 없으면 `None`.
+
+    **몸통을 함수로 뺀 이유**: `StepSyncTest` 는 실물 문서 위에서만 도는데 그 문서는
+    늘 맞춰져 있어서, 검사가 문서에만 붙어 있으면 «비교를 무력화하는 변이»가 전부
+    조용히 산다(2026-09-06 계획 60 테스트 phase 실측 — 변이 6종이 전수 609건에서
+    6/6 생존했다). `done_section`·`indexed` 가 `ArchiveMatchTest` 를 위해 나온 것과
+    같은 이유다. 실물은 `StepSyncTest` 가, 갈래는 `StepGapTest` 가 부른다.
+    """
+    s = STEP_LINE.search(status_text)
+    if s is None:
+        return "status.md 에서 `step: <N/M>` 줄을 못 찾았다"
+    p = PLAN_SLUG.search(status_text)
+    if p is None:
+        return "status.md 에서 `plan: <슬러그>` 줄을 못 찾았다"
+    slug = p.group(1)
+    if slug == "null":
+        # 하네스 템플릿의 초기 상태. 대조할 행이 없으니 초기값 자신을 요구한다.
+        if s.group(1) != "0/0":
+            return ("`plan: null` 인데 `step` 이 %s 다 — 계획 없이 스텝만 흘렀다"
+                    % s.group(1))
+        return None
+    r = step_row(slug).search(index_text)
+    if r is None:
+        return ("index.md 에 `| plan_%s |` 행이 없다 — 계획 커밋과 등재 커밋이 갈렸다"
+                % slug)
+    if r.group(1) != s.group(1):
+        return ("스텝이 어긋났다 — index.md `plan_%s` %s ≠ status.md `step` %s"
+                % (slug, r.group(1), s.group(1)))
+    return None
+
+
 class DocHeadTest(unittest.TestCase):
     def test_append_targets_start_with_h1(self):
         for name in APPEND_TARGETS:
@@ -192,31 +224,14 @@ class StepSyncTest(unittest.TestCase):
     슬러그로 집으면 행이 있거나(대조한다) 없거나(그것이 결함이다) 둘 중 하나다.
 
     셋 다 매치가 `None` 이면 비교 전에 실패한다 — 조용히 지나가는 갈래는 0개다.
+    **판정은 `step_gap` 이 한다** — 갈래를 실물 없이 밟으려고 뺀 것이고,
+    그것을 밟는 것은 `StepGapTest` 다.
     """
 
     def test_index_row_and_status_agree(self):
-        status = (DOCS / "status.md").read_text(encoding="utf-8")
-        s = STEP_LINE.search(status)
-        p = PLAN_SLUG.search(status)
-        self.assertIsNotNone(s, "status.md 에서 `step: <N/M>` 줄을 못 찾았다")
-        self.assertIsNotNone(p, "status.md 에서 `plan: <슬러그>` 줄을 못 찾았다")
-        slug = p.group(1)
-        if slug == "null":
-            # 하네스 템플릿의 초기 상태. 대조할 행이 없으니 초기값 자신을 요구한다.
-            self.assertEqual(
-                "0/0", s.group(1),
-                "`plan: null` 인데 `step` 이 %s 다 — 계획 없이 스텝만 흘렀다"
-                % s.group(1))
-            return
-        index = (DOCS / "index.md").read_text(encoding="utf-8")
-        r = step_row(slug).search(index)
-        self.assertIsNotNone(
-            r, "index.md 에 `| plan_%s |` 행이 없다 — 계획 커밋과 등재 커밋이 갈렸다"
-            % slug)
-        self.assertEqual(
-            r.group(1), s.group(1),
-            "스텝이 어긋났다 — index.md `plan_%s` %s ≠ status.md `step` %s"
-            % (slug, r.group(1), s.group(1)))
+        gap = step_gap((DOCS / "status.md").read_text(encoding="utf-8"),
+                       (DOCS / "index.md").read_text(encoding="utf-8"))
+        self.assertIsNone(gap, gap)
 
 
 class StepPatternTest(unittest.TestCase):
@@ -261,6 +276,59 @@ class StepPatternTest(unittest.TestCase):
         self.assertEqual("index-step-sync", m.group(1),
                          "슬러그 뒤의 설명까지 이름으로 읽었다")
         self.assertEqual("null", PLAN_SLUG.search("plan: null").group(1))
+
+
+class StepGapTest(unittest.TestCase):
+    """`step_gap` 의 갈래를 합성 문자열로 전부 밟는다.
+
+    `StepPatternTest` 가 재는 것은 **정규식 셋**이고, 그 위에 얹힌 **판정**은
+    `StepSyncTest` 가 실물 문서로만 불렀다. 문서는 늘 맞춰져 있어서
+    2026-09-06 실측에서 판정을 무력화하는 변이 **6종이 전수 609건에서 6/6 생존**했다 —
+    ① null 갈래 기대값 비틀기 ② null 갈래 삭제 ③ 대조를 자기비교로 바꾸기
+    ④ 「index 에 행이 없다」 가드 삭제 ⑤·⑥ 「status 에 줄이 없다」 가드 삭제.
+    `CitationPatternTest`·`ArchiveMatchTest` 가 같은 자리에서 배운 것이고,
+    설계서가 적은 「조용히 지나가는 갈래는 0개다」를 실제로 재는 것이 여기다.
+    """
+
+    # 접두가 같은 더 긴 슬러그 행을 앞에 둔다 — `StepPatternTest.TABLE` 과 같은 뜻.
+    INDEX = "\n".join([
+        "| plan_index-step-sync-2 | 진행 | loop/x | 3/7 | 미정 |",
+        "| plan_index-step-sync | 진행 | loop/x | 1/1 | 미정 |",
+    ])
+
+    @staticmethod
+    def status(step, plan):
+        return "attempt: 0\nstep: %s\nplan: %s\nctx: 62\n" % (step, plan)
+
+    def test_agreeing_docs_have_no_gap(self):
+        self.assertIsNone(
+            step_gap(self.status("1/1", "index-step-sync 계획 60"), self.INDEX),
+            "맞는 문서를 어긋났다고 신고했다 — 매 반복이 빨개진다")
+
+    def test_step_mismatch_is_reported(self):
+        gap = step_gap(self.status("1/1", "index-step-sync"),
+                       self.INDEX.replace("| 1/1 |", "| 0/1 |"))
+        self.assertIsNotNone(gap, "index 가 0/1 인데 통과시켰다 — 4회 재발한 그 결함이다")
+        self.assertIn("0/1", gap, "어느 수가 어긋났는지 안 적었다")
+
+    def test_missing_index_row_is_reported(self):
+        gap = step_gap(self.status("1/1", "no-such-plan"), self.INDEX)
+        self.assertIsNotNone(gap, "index 에 행이 없는데 통과시켰다 — 등재 누락이 샌다")
+        self.assertIn("no-such-plan", gap, "어느 슬러그가 없는지 안 적었다")
+
+    def test_null_plan_requires_the_zero_step(self):
+        self.assertIsNone(step_gap(self.status("0/0", "null"), self.INDEX),
+                          "`plan: null` + `step: 0/0` 은 하네스 템플릿의 정상 상태다")
+        gap = step_gap(self.status("1/1", "null"), self.INDEX)
+        self.assertIsNotNone(gap, "`plan: null` 인데 스텝이 흘렀다 — 안 잡혔다")
+        self.assertIn("1/1", gap, "흘러간 스텝을 안 적었다")
+
+    def test_missing_status_lines_are_reported(self):
+        # 머리 형식이 바뀌면 `None` 위에서 조용히 통과하는 것이 유일한 눈먼 자리다.
+        self.assertIsNotNone(step_gap("plan: index-step-sync\n", self.INDEX),
+                             "`step:` 줄이 없는데 통과시켰다")
+        self.assertIsNotNone(step_gap("step: 1/1\n", self.INDEX),
+                             "`plan:` 줄이 없는데 통과시켰다")
 
 
 class ArchiveIndexTest(unittest.TestCase):
