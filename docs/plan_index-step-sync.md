@@ -48,8 +48,10 @@
 ## 3. 스텝 1개
 
 **스텝 1/1.** `tests/test_docs.py` 에 `IterationSyncTest` 옆자리로 스텝 축 검사를 세운다.
-`status.md` 의 `step: N/M` 과 `index.md` 의 **상태 칸이 `진행` 인 행**의 스텝 칸을 뽑아
-대조한다. 정규식은 `ITER_ROW`·`ITER_LINE` 과 같은 자리에 상수로 둔다.
+`status.md` 의 `step: N/M` 과 `index.md` 의 **`plan:` 슬러그가 가리키는 행**
+(`| plan_<슬러그> |`)의 스텝 칸을 뽑아 대조한다. 정규식은 `ITER_ROW`·`ITER_LINE` 과
+같은 자리에 상수로 둔다. — **여기 「상태 칸이 `진행` 인 행」이라 적었던 것을
+2026-09-06 설계가 실측으로 바꿨다**(오탐 0 · 조용한 통과 0 · `design_index-step-sync.md`).
 
 TDD 순서(`rules/dev.md` 0절): ① 검사를 먼저 쓰고 `index.md` 의 스텝 칸을 **손으로 비틀어**
 빨개지는 것을 본다 ② 되돌리고 초록을 본다 ③ 정규식 자신을 리터럴 표로 붙드는 단언을
@@ -61,7 +63,8 @@ TDD 순서(`rules/dev.md` 0절): ① 검사를 먼저 쓰고 `index.md` 의 스�
 1. 전수 `PYTHONPATH=src python3 -m unittest discover -b tests` 가 `OK` · rc 0 · 건수 606 이상
 2. `index.md` 진행 행의 스텝 칸을 `0/1` 로 비트는 변이에서 **새 검사가 죽는다**(오늘 `status` 는 `0/1` 이므로 반대로 `1/1` 로 비튼다) · 되돌리면 초록
 3. `status.md` 의 `step` 을 비트는 변이에서도 죽는다 — **한쪽만 재는 검사가 아니다**
-4. 정규식을 넓히는 변이(예: 상태 칸을 안 보고 아무 행이나 잡는다)에서 패턴 단언이 죽는다
+4. 정규식을 넓히는 변이(예: 슬러그를 안 보고 아무 행이나 잡는다 · 접두 일치로 넓혀
+   `plan_index-step-sync-2` 를 대신 통과시킨다)에서 패턴 단언이 죽는다
 5. `README.md` 의 단위 건수 줄이 새 건수와 맞는다(`tests/test_readme.py` 초록)
 6. 제품 `src/` **0줄** · 스키마·재색인·새 의존성 0 · `docs/specs/`·`data/crawl.db` 무접촉
 
