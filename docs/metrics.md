@@ -11,7 +11,7 @@
 
 | | 값 |
 |---|---|
-| 반복 | 342 |
+| 반복 | 343 |
 | 계획 (완료/폐기/보류) | 42 / 0 / 0 (진행 1) |
 | 재시도 | 0 |
 | RED | 1 |
@@ -26,16 +26,16 @@
 | 설계 | 23 (생략 5) |
 | 개발 | 80 |
 | 테스트 | 44 |
-| 리뷰 | 44 |
+| 리뷰 | 45 |
 | e2e | 34 |
 
 ## 리뷰 정확도 — 80점 임계 검증용
 
 | | 값 |
 |---|---|
-| 발견 후보 | 224 |
+| 발견 후보 | 225 |
 | 80점 미만으로 버림 | 68 (기보류 중복 4 + search-api 2 + crawl-delay 3 + quality-eval 3 + non-ascii-url 2 + cooldown-burn 3 + crawl-politeness 1 + graceful-interrupt 2 + deadline-stop 3 + indexer-interrupt 5 + indexer-lock 2 + docs-citation-guard 2 + focus-contrast 2 + focus-ring-presence 3 + passage-api 17 + focus-rule-scope 2 + runner-quiet 2 + hidden-passage 10 + focus-ring-combinator 2 + passage-db-state 5 + db-state-invariant 1 + passage-cost-axis 3) |
-| 보고함 | 139 |
+| 보고함 | 140 |
 | **그중 실제로 고친 것** | 94 (passage-cost-axis 3건 — e2e phase 가 [R57-1] 계수 0.95 의 거짓 부등호(오늘 재측 0.974 라 리뷰가 제안한 0.97 도 깨져 **1.00** 으로)·[R57-2] 낡은 «배정치 1/3» 주석·[R57-3] 설계 계약의 ①-b 누락과 「② 가 ① 을 붙든다」 과장 자동 수정 / loader-isolation 3건 — 리뷰 1 이 [R56-1] 「누출이 프로세스 경계를 넘는다」 오류·[R56-2] 변이 E 의 증거 오귀속·[R56-3] ③ 의 「검사 불가」 과장을 `digest.md` 에서 자동 수정 / db-state-invariant 2건 — 리뷰 1 이 [R55-1] `_drop_column` 이 다시 만드는 표가 제약을 잃는다는 천장 누락·[R55-2] README 가 잃은 비텍스트 명암비 3:1 자동 수정 / passage-html-column 2건 — 리뷰 1 이 [R54-1] 새 `ponytail:` 주석의 거짓 천장·[R54-2] 재현 안 되는 8배 계수 자동 수정 / passage-db-state 1건 — 리뷰 1 이 [R53-1] `subTest` 범위 자동 수정 / hidden-passage 8건 — 개발 2 가 2건, 개발 3 이 [R51-3]·[R51-4] 2건, 리뷰 3 이 설계 문서 모순 1건, 개발 4 가 [R51-5] 1건, 리뷰 4 가 [R4-1]·[R4-2] 2건 자동 수정 / focus-ring-combinator 3건 — 리뷰 1 이 [R52-1] 천장 주석·[R52-2] docstring 계수·[R52-3] 계획서 완료 기준 모순 자동 수정) |
 
 **처방은 등재하기 전에 만들어서 먹여 본다 (2026-09-05 loader-isolation, 반복 331).**
