@@ -46,6 +46,14 @@ ARCHIVE = re.compile(r"^(?:history|plan_history|design_history)_[0-9]+\.md$")
 # 아래 `IterationPatternTest` 가 이 둘을 합성 표로 고정한다.
 ITER_ROW = re.compile(r"^\| 반복 \| ([0-9]+) \|", re.M)
 ITER_LINE = re.compile(r"^iteration: ([0-9]+)$", re.M)
+# 스텝 번호가 사는 두 자리. `index.md` 는 행이 수십 개라 **`plan:` 슬러그로 집는다** —
+# 상태 칸(`진행`/`완료`)은 안 본다(`docs/design_index-step-sync.md` 「결정」).
+# 행 패턴은 슬러그를 `re.escape` 해 끼우므로 상수는 템플릿이다. 이름 뒤 ` | ` 를
+# 요구해 **접두 일치를 막는다** — 아니면 `plan_index-step-sync-2` 가 대신 통과한다.
+# 아래 `StepPatternTest` 가 이 셋을 합성 표로 고정한다.
+STEP_LINE = re.compile(r"^step: ([0-9]+/[0-9]+)$", re.M)
+PLAN_SLUG = re.compile(r"^plan: ([A-Za-z0-9_-]+)", re.M)
+STEP_ROW = r"^\| plan_%s \| [^|]* \| [^|]* \| ([0-9]+/[0-9]+) \|"
 
 
 def done_section(digest_text):
@@ -70,6 +78,11 @@ def indexed(name, section):
     아니다. 명부가 가리키는 것은 아카이브 원본뿐이다.
     """
     return re.search(r"(?<![A-Za-z_])" + re.escape(name), section) is not None
+
+
+def step_row(slug):
+    """`index.md` 에서 이 슬러그의 계획 행을 무는 정규식."""
+    return re.compile(STEP_ROW % re.escape(slug), re.M)
 
 
 class DocHeadTest(unittest.TestCase):
@@ -164,6 +177,90 @@ class IterationSyncTest(unittest.TestCase):
             a.group(1), b.group(1),
             "반복 번호가 어긋났다 — metrics.md `반복` %s ≠ status.md `iteration` %s"
             % (a.group(1), b.group(1)))
+
+
+class StepSyncTest(unittest.TestCase):
+    """`index.md` 의 계획 행 스텝 칸과 `status.md` 의 `step` 이 같은가.
+
+    `IterationSyncTest` 가 닫은 것은 `반복`↔`iteration` 축뿐이라 **스텝 칸은 아무도
+    안 붙들었다** — `digest ## 반복 실패` 의 「스텝을 커밋하면서 `index.md` 의 숫자를
+    안 올린다」가 **4회** 재발했고, 최근 30커밋 실측에서도 11건이 어긋난 채 갔다.
+    어긋나는 방향은 11/11 전부 `index.md` 가 뒤처지는 쪽이다.
+
+    **집는 방법은 `plan:` 슬러그다**(안 D). 상태 칸(`진행`/`완료`)을 보는 안은 계획
+    커밋과 index 등재 커밋이 갈린 자리에서 오탐이거나 침묵이었다 —
+    슬러그로 집으면 행이 있거나(대조한다) 없거나(그것이 결함이다) 둘 중 하나다.
+
+    셋 다 매치가 `None` 이면 비교 전에 실패한다 — 조용히 지나가는 갈래는 0개다.
+    """
+
+    def test_index_row_and_status_agree(self):
+        status = (DOCS / "status.md").read_text(encoding="utf-8")
+        s = STEP_LINE.search(status)
+        p = PLAN_SLUG.search(status)
+        self.assertIsNotNone(s, "status.md 에서 `step: <N/M>` 줄을 못 찾았다")
+        self.assertIsNotNone(p, "status.md 에서 `plan: <슬러그>` 줄을 못 찾았다")
+        slug = p.group(1)
+        if slug == "null":
+            # 하네스 템플릿의 초기 상태. 대조할 행이 없으니 초기값 자신을 요구한다.
+            self.assertEqual(
+                "0/0", s.group(1),
+                "`plan: null` 인데 `step` 이 %s 다 — 계획 없이 스텝만 흘렀다"
+                % s.group(1))
+            return
+        index = (DOCS / "index.md").read_text(encoding="utf-8")
+        r = step_row(slug).search(index)
+        self.assertIsNotNone(
+            r, "index.md 에 `| plan_%s |` 행이 없다 — 계획 커밋과 등재 커밋이 갈렸다"
+            % slug)
+        self.assertEqual(
+            r.group(1), s.group(1),
+            "스텝이 어긋났다 — index.md `plan_%s` %s ≠ status.md `step` %s"
+            % (slug, r.group(1), s.group(1)))
+
+
+class StepPatternTest(unittest.TestCase):
+    """`STEP_LINE`·`PLAN_SLUG`·`STEP_ROW` 자신을 합성 표로 붙든다.
+
+    `StepSyncTest` 는 실물 문서 위에서만 도는데, 문서를 맞춰 놓으면 **넓어지는 변이가
+    조용히 산다** — 아무 행이나 잡아도, 접두로 넓혀도 초록이다. `IterationPatternTest`·
+    `CitationPatternTest` 가 같은 자리에서 배운 것이라 검사 대상을 코드에 고정한다.
+
+    표는 ① 다른 슬러그 행을 **앞에** ② 접두가 같은 더 긴 슬러그 행을 **앞에** 둔다 —
+    넓힌 정규식은 엉뚱한 수를 집는다. ③ 대상 행의 상태 칸은 `완료` 다: 안 D 는 상태를
+    안 보므로 그래도 잡혀야 한다.
+    """
+
+    TABLE = "\n".join([
+        "| plan_endtag-cut-cover | 완료 | loop/x | 9/9 | 통과 |",
+        "| plan_index-step-sync-2 | 진행 | loop/x | 3/7 | 미정 |",
+        "| plan_index-step-sync | 완료 | loop/x | 1/1 | 미정 |",
+    ])
+
+    def test_row_is_picked_by_exact_slug(self):
+        m = step_row("index-step-sync").search(self.TABLE)
+        self.assertIsNotNone(m, "슬러그의 행을 못 찾았다 — 행 패턴이 죽었다")
+        self.assertEqual(
+            "1/1", m.group(1),
+            "남의 행을 물었다 — 앞선 다른 슬러그 행이나 `plan_index-step-sync-2` 를 "
+            "접두로 집었다")
+
+    def test_absent_slug_matches_nothing(self):
+        # 행이 없으면 `None` 이라야 위 검사가 «등재 누락» 으로 실패할 수 있다.
+        self.assertIsNone(step_row("no-such-plan").search(self.TABLE),
+                          "없는 슬러그의 행을 잡았다 — 슬러그를 안 보고 있다")
+
+    def test_status_lines_need_the_whole_line(self):
+        m = STEP_LINE.search("attempt: 0\nstep: 1/1\niteration: 352")
+        self.assertIsNotNone(m, "`step: <N/M>` 줄을 못 찾았다")
+        self.assertEqual("1/1", m.group(1))
+        self.assertIsNone(STEP_LINE.search("step: 1"),
+                          "`N/M` 이 아닌 것을 스텝으로 읽었다")
+        m = PLAN_SLUG.search("step: 1/1\nplan: index-step-sync 계획 60 (설계 완료)")
+        self.assertIsNotNone(m, "`plan: <슬러그>` 줄을 못 찾았다")
+        self.assertEqual("index-step-sync", m.group(1),
+                         "슬러그 뒤의 설명까지 이름으로 읽었다")
+        self.assertEqual("null", PLAN_SLUG.search("plan: null").group(1))
 
 
 class ArchiveIndexTest(unittest.TestCase):
