@@ -11,7 +11,7 @@
 
 | | 값 |
 |---|---|
-| 반복 | 330 |
+| 반복 | 331 |
 | 계획 (완료/폐기/보류) | 40 / 0 / 0 (진행 1) |
 | 재시도 | 0 |
 | RED | 1 |
@@ -27,7 +27,7 @@
 | 개발 | 77 |
 | 테스트 | 42 |
 | 리뷰 | 43 |
-| e2e | 32 |
+| e2e | 33 |
 
 ## 리뷰 정확도 — 80점 임계 검증용
 
@@ -37,6 +37,15 @@
 | 80점 미만으로 버림 | 65 (기보류 중복 4 + search-api 2 + crawl-delay 3 + quality-eval 3 + non-ascii-url 2 + cooldown-burn 3 + crawl-politeness 1 + graceful-interrupt 2 + deadline-stop 3 + indexer-interrupt 5 + indexer-lock 2 + docs-citation-guard 2 + focus-contrast 2 + focus-ring-presence 3 + passage-api 17 + focus-rule-scope 2 + runner-quiet 2 + hidden-passage 10 + focus-ring-combinator 2 + passage-db-state 5 + db-state-invariant 1) |
 | 보고함 | 135 |
 | **그중 실제로 고친 것** | 91 (loader-isolation 3건 — 리뷰 1 이 [R56-1] 「누출이 프로세스 경계를 넘는다」 오류·[R56-2] 변이 E 의 증거 오귀속·[R56-3] ③ 의 「검사 불가」 과장을 `digest.md` 에서 자동 수정 / db-state-invariant 2건 — 리뷰 1 이 [R55-1] `_drop_column` 이 다시 만드는 표가 제약을 잃는다는 천장 누락·[R55-2] README 가 잃은 비텍스트 명암비 3:1 자동 수정 / passage-html-column 2건 — 리뷰 1 이 [R54-1] 새 `ponytail:` 주석의 거짓 천장·[R54-2] 재현 안 되는 8배 계수 자동 수정 / passage-db-state 1건 — 리뷰 1 이 [R53-1] `subTest` 범위 자동 수정 / hidden-passage 8건 — 개발 2 가 2건, 개발 3 이 [R51-3]·[R51-4] 2건, 리뷰 3 이 설계 문서 모순 1건, 개발 4 가 [R51-5] 1건, 리뷰 4 가 [R4-1]·[R4-2] 2건 자동 수정 / focus-ring-combinator 3건 — 리뷰 1 이 [R52-1] 천장 주석·[R52-2] docstring 계수·[R52-3] 계획서 완료 기준 모순 자동 수정) |
+
+**처방은 등재하기 전에 만들어서 먹여 본다 (2026-09-05 loader-isolation, 반복 331).**
+리뷰가 「더 싼 처방」으로 `if E2E not in sys.path` 세 줄을 냈다. e2e phase 가 저장소 밖
+사본 둘(가드 없음·가드 있음)에 같은 변이(`e2e/tempfile.py`)를 심어 재니 **실패 23건이
+파일·줄까지 한 건도 안 달랐다** — 가드는 중복 칸만 막고 첫 insert 를 안 막아서, 정작
+위험이라던 「`e2e/` 가 전수 내내 `sys.path[0]` 에 앉아 있다」를 한 칸도 안 건드린다.
+**「더 싼 처방」은 값이 싼 것이지 효과가 있다는 뜻이 아니다.** 같은 자리에서 칸 수도
+다시 셌더니 **+4 가 아니라 +6**(빠진 둘은 `src`)이었다 — 재는 자를 두 반복 연속 다시 재서
+두 번 다 숫자가 움직였다. 굳힌다: 처방 후보를 등재할 때 **그 처방의 변이 실측을 같이 적는다.**
 
 **오염을 재려면 오염이 «남은 뒤» 를 재야 한다 (2026-09-05 loader-isolation, 반복 330).**
 테스트 phase 가 `sys.path` 누출의 값을 정하려고 변이(표준 `tempfile` 가리기)를 심어
