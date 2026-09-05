@@ -277,3 +277,24 @@ append 전용이고 수정·삭제 금지다. 각 회전의 사유는 `digest.md
 - 다음: **개발 1/1** — `step_gap` 옆에 `iter_gap(status_text, metrics_text)` 를 세우고
   `IterationSyncTest` 를 세 줄로 줄인 뒤 `IterGapTest` 로 갈래 넷을 밟는다. 완료 기준은
   `docs/plan_iter-gap-cover.md` 4절 여섯 개. 러너 규율 위반 **0회**(누적 38 유지).
+
+## 2026-09-06 06:10 | iter-gap-cover | 개발 1/1 | 시도0
+
+- 한 일: `tests/test_docs.py` 에 `iter_gap(status_text, metrics_text)` 를 `step_gap`
+  **바로 위**에 세웠다(인자 순서·반환 계약·독스트링 모양 전부 `step_gap` 과 같은 꼴).
+  `IterationSyncTest.test_metrics_and_status_agree` 는 두 파일을 읽어
+  `assertIsNone(gap, gap)` 하는 **세 줄**로 줄었고, 갈래 넷을 합성 문자열로 밟는
+  `IterGapTest` 4건을 `IterationPatternTest` 옆자리에 세웠다(초록 · 대조 불일치 ·
+  `metrics` 행 없음 · `status` 줄 없음). 단언은 한 줄도 안 낮췄다.
+- TDD 0절: **RED 를 눈으로 먼저 봤다** — 함수 없이 테스트만 넣고 전수를 돌려
+  `NameError: name 'iter_gap' is not defined` ×4 와 `(614, 21) != (618, 21)` 를 본 뒤 구현.
+- 결과: 전수 `Ran 618 tests in 15.891s` · `OK` · rc 0(맨몸). 변이 재측 **M1~M4 4/4 사망**
+  이고 **각 변이가 의도한 단언 하나만** 죽인다(M1 자기비교 → `test_iteration_mismatch_is_reported`
+  · M2 → `test_missing_metrics_row_is_reported` · M3 → `test_missing_status_line_is_reported`).
+  양성 대조 M4(판정 통째 삭제)는 **3건**을 죽여 계획서 기준 「셋 이상」을 넘긴다. 대조군은
+  `죽은 단언 0`. 만진 파일은 `tests/test_docs.py`·`README.md` 둘뿐 —
+  `src/`·`e2e/`·`docs/specs/`·`data/crawl.db` diff 빈손.
+- 다음: **테스트 1/1** — 새 `iter_gap`·`IterGapTest` 위에서 갭을 탐색한다. 완료 기준 6개
+  중 1~5 는 오늘 충족, 6(`status`↔`index` 스텝 축)은 이 커밋이 함께 `1/1` 로 올린다.
+  러너 규율 위반 **0회**(누적 38 유지). 파일 **300줄로 상한에 닿았다** — 넘지는 않아
+  이번엔 회전 없지만 **다음 append 가 넘긴다**(다음 회전 번호 `history_063.md`).

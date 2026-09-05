@@ -1,76 +1,61 @@
 ---
 signal: GREEN
-phase: 개발
-step: 0/1
-attempt: 1
-iteration: 356
+phase: 테스트
+step: 1/1
+attempt: 0
+iteration: 357
 updated: 2026-09-06
-ctx: 55
-night_iterations: 173
+ctx: 45
+night_iterations: 174
 night_red: 2
 night_retries: 2
-plan: iter-gap-cover 계획 61 (계획 완료 · 설계 생략 · 다음은 개발 1/1)
+plan: iter-gap-cover 계획 61 (개발 1/1 완료 — 반복 축 판정을 iter_gap 으로 뺐다 · 다음은 테스트 phase)
 ---
 
 ## 현재 상태
 
-**계획 60 을 마감하고 계획 61 `iter-gap-cover` 를 등재했다.** 이 반복이 만진 것은
-`docs/` 뿐이고 `src/`·`tests/`·`e2e/`·`README.md`·`docs/specs/`·`data/crawl.db` 는
-무접촉이다. 커밋 둘로 갈랐다 — 마감(`a8a052a`)과 등재.
+**계획 61 개발 1/1 을 끝냈다.** 반복 축 판정이 `IterationSyncTest` 메서드 안에 박혀
+실물 문서 위에서만 돌던 것을 순수 함수 `iter_gap(status_text, metrics_text)` 로 뺐고,
+갈래 넷을 합성 문자열로 밟는 `IterGapTest` 를 세웠다. 만진 파일은 계획서 5절이 그은
+대로 `tests/test_docs.py` 와 `README.md`(건수 줄) **둘뿐**이고
+`src/`·`e2e/`·`docs/specs/`·`data/crawl.db` 는 무접촉이다.
 
-**앞 에이전트가 같은 스텝에서 진전 0 으로 죽어 `attempt: 1` 이다**(3회에서 정지).
-이번엔 긴 명령 하나에 매달리지 않고 탐색·마감·등재를 쪼개 돌렸다.
+`step_gap`(계획 60)과 **같은 모양으로 맞췄다** — 인자 순서(`status` 가 먼저) · 어긋난
+자리를 한 줄 문자열로 돌려주고 없으면 `None` · 호출부는 `assertIsNone(gap, gap)` 세 줄.
+새 추상화는 만들지 않았다(`step_gap` 과 합치는 일반화는 계획서 5절이 거부한 그대로다).
 
-## 계획 60 마감
+## TDD — RED 를 눈으로 먼저 봤다
 
-- 아카이브 — `plan_index-step-sync.md` → `plan_history_046.md` ·
-  `design_index-step-sync.md` → `design_history_046.md`(`git mv` · 내용 무변경).
-- `index.md` 60번을 `진행` → `완료` 로 닫고 결과 칸을 실측으로 채웠다(완료 기준 6/6 ·
-  새 e2e 파일 0개 · 21종 전수 rc 0 · 기준선 회귀 0 · 제품 `src/` 0줄).
-- `digest.md` `## 완료` 에 계획 60 압축 한 줄 · `## 반복 실패` 의 「스텝을 커밋하면서
-  `index.md`·`metrics.md` 의 숫자를 안 올린다」(5회)에 **취소선** — 다섯 번 만에 규율이
-  아니라 `StepSyncTest` 가 붙든다.
-- `digest.md` 가 201줄이 돼 `rules/docs.md` 3절대로 **완료 항목부터** 하나 지웠다
-  (가장 오래된 계획 53 `passage-db-state` · 원본은 `index.md` 53번과
-  `plan_history_040.md` 에 그대로). 200줄 · 명부 줄과 보류·재발·관찰 항목은 그대로다.
-- `history_current.md` 는 249 → 279줄로 **상한 300 미달**이라 회전하지 않았다.
-  다음 회전 대상 번호는 `history_063.md` 다.
+함수 없이 `IterGapTest` 만 넣고 전수를 돌려 **`NameError: name 'iter_gap' is not
+defined` ×4** 와 `README` 건수 실패 `(614, 21) != (618, 21)` 를 확인한 뒤 구현했다.
+구현 후 전수 `Ran 618 tests in 15.891s · OK · rc 0`(맨몸).
 
-## 계획 61 탐색 — 1~5순위 0건, 6순위에서 하나
+## 갈래 넷과 변이 재측 — 4/4 사망
 
-**1~5순위 실측 0건**: 전수 `Ran 614 tests in 15.900s · OK · rc 0`(맨몸) · 린터/타입체커
-설정 파일 0개 · `TODO`/`FIXME`/`HACK` 이 `src`·`tests`·`e2e` 에 1건인데 그것은
-`tests/test_indexer.py:759` 의 파서 입력 문자열 안 · `docs/candidates.md` 없음 ·
-`docs/patches/` 없음 · `digest ## 보류` 0건 · `gh issue list` 0건 · 활성 계획 0.
+| 변이(메모리) | 죽은 단언 | 판정 |
+|---|---|---|
+| 대조군 | 0 | 기준선 618 OK |
+| M1 대조를 자기비교로 | `test_iteration_mismatch_is_reported` | **의도한 하나만** |
+| M2 `metrics` 가드 삭제 | `test_missing_metrics_row_is_reported` | **의도한 하나만** |
+| M3 `status` 가드 삭제 | `test_missing_status_line_is_reported` | **의도한 하나만** |
+| M4 판정 통째 삭제(양성 대조) | 3건 | 계획서 기준 「셋 이상」 충족 |
 
-**6순위에서 여는 조건이 실제로 온 항목이 하나 생겼다** — `digest ## 다음 계획 후보
-(테스트 phase 갭)` 의 `[6]`「`IterationSyncTest` 의 «판정» 도 실물 문서 위에서만
-돈다」다. 그 항목의 여는 조건은 「반복 축 검사를 손대는 날」이었고 계획 60 이 어제
-DONE 으로 닫히며 미룬 이유(직교 편집)가 없어졌다. 나머지 6순위 항목은 반복 350·345 가
-적어 둔 그대로 전부 「실물 코퍼스 · 재색인 · 사람 결정 · 그 파일을 손대는 날」이다.
-
-**착수 탐침이 기록된 답을 절반 죽였다**(`digest [7]` 열두 번째 적용). 메모리 변이로
-재니 살아남는 변이가 항목이 적어 둔 **하나가 아니라 넷**이다 — M1 자기비교 · M2
-`assertIsNotNone(a)` 가드 삭제 · M3 `assertIsNotNone(b)` 가드 삭제 · M4 판정 통째 삭제가
-전부 `Ran 614 · 죽은 단언 0`. 정규식 축은 이미 닫혀 있다(M5 `ITER_ROW` 넓힘 →
-`IterationPatternTest` 가 죽인다). 점수 6 → **7**. **설계 생략 — 트리거 0.**
+착수 탐침에서 **넷 다 살아 있던 것이 넷 다 죽는다.** 변이가 전부를 한꺼번에 죽이지
+않는다는 것이 갈래를 실제로 갈랐다는 증거다(완료 기준 1의 「이름으로 확인」).
 
 ## 다음
 
-**개발 1/1.** `tests/test_docs.py:88` 의 `step_gap` 옆에 `iter_gap(status_text,
-metrics_text)` 를 세우고, `IterationSyncTest.test_metrics_and_status_agree` 를 두 파일을
-읽어 `iter_gap` 을 부르는 세 줄로 줄인 뒤, 갈래 넷(초록 · `a` 없음 · `b` 없음 · 대조)을
-합성 문자열로 밟는 `IterGapTest` 를 세운다. 완료 기준은 `docs/plan_iter-gap-cover.md`
-4절 여섯 개다. 건수가 614 에서 늘면 `README.md` 러너 줄을 **같은 커밋에서** 함께 고친다.
+**테스트 1/1.** 새 `iter_gap`·`IterGapTest` 위에서 갭을 탐색한다. 완료 기준 여섯 개 중
+1~5 는 오늘 실측으로 충족했고, 6(`status`↔`index` 스텝 축 · `StepSyncTest`)은 이 커밋이
+`index.md` 행을 `1/1` 로 함께 올려 닫는다.
 
 ## 한도
 
 - 병합은 사람 몫이다 — 계획 57·58·59·60·61 의 커밋이 `loop/passage-cost-band` 에 쌓여
   있고 `origin/main` 무접촉 · PR 0(만들지도 조회하지도 않았다).
 - 러너에 리다이렉션·파이프를 안 붙인다 — 오늘도 위반 **0회**(누적 38 유지).
-- 변이는 **저장소 밖에서** 건다 — 이번엔 `mock.patch` 자리의 메모리 변이로 클래스
-  메서드를 갈아 끼웠고 저장소 파일은 무접촉이다. 양성 대조로 패치 대상 모듈이
-  `tests/test_docs.py` 임을 **먼저** 확인했다(`digest [8]`).
+- 변이는 **저장소 밖에서** 건다 — 스크래치패드 하네스가 `mock.patch.object` 로
+  `test_docs.iter_gap` 을 갈아 끼웠고 저장소 파일은 무접촉이다.
 - `PYTHONDONTWRITEBYTECODE=1` 과 `PYTHONPYCACHEPREFIX=$(mktemp -d)` 를 함께 준다.
-- 계획 61 은 `tests/test_docs.py` 하나(+건수가 늘면 `README.md`)만 만진다.
-  `src/`·`e2e/`·`docs/specs/`·`data/crawl.db` 는 계획서 5절이 범위 밖으로 그었다.
+- `history_current.md` 가 **300줄로 상한에 닿았다** — 다음 append 가 넘기므로 그때
+  `history_063.md` 로 회전한다.

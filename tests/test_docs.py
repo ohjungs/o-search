@@ -85,6 +85,27 @@ def step_row(slug):
     return re.compile(STEP_ROW % re.escape(slug), re.M)
 
 
+def iter_gap(status_text, metrics_text):
+    """반복 축이 어긋난 자리를 한 줄로 돌려준다. 어긋남이 없으면 `None`.
+
+    **몸통을 함수로 뺀 이유는 `step_gap` 과 같다** — `IterationSyncTest` 는 실물 두
+    문서 위에서만 도는데 그 문서는 늘 맞춰져 있어서, 판정을 무력화하는 변이가 조용히
+    산다(2026-09-06 계획 61 착수 실측 — 자기비교·가드 둘 삭제·판정 통째 삭제가
+    전수 614건에서 4/4 생존했다). 실물은 `IterationSyncTest` 가, 갈래는 `IterGapTest`
+    가 부른다.
+    """
+    a = ITER_ROW.search(metrics_text)
+    if a is None:
+        return "metrics.md 에서 `| 반복 | <수> |` 행을 못 찾았다"
+    b = ITER_LINE.search(status_text)
+    if b is None:
+        return "status.md 에서 `iteration: <수>` 줄을 못 찾았다"
+    if a.group(1) != b.group(1):
+        return ("반복 번호가 어긋났다 — metrics.md `반복` %s ≠ status.md `iteration` %s"
+                % (a.group(1), b.group(1)))
+    return None
+
+
 def step_gap(status_text, index_text):
     """스텝 축이 어긋난 자리를 한 줄로 돌려준다. 어긋남이 없으면 `None`.
 
@@ -196,19 +217,14 @@ class IterationSyncTest(unittest.TestCase):
 
     매치가 `None` 이면 비교 전에 실패한다 — 표 형식이 바뀌면 검사가 `None == None`
     위에서 조용히 통과하는 것이 여기 유일한 눈먼 자리다.
+    **판정은 `iter_gap` 이 한다** — 갈래를 실물 없이 밟으려고 뺀 것이고,
+    그것을 밟는 것은 `IterGapTest` 다.
     """
 
     def test_metrics_and_status_agree(self):
-        metrics = (DOCS / "metrics.md").read_text(encoding="utf-8")
-        status = (DOCS / "status.md").read_text(encoding="utf-8")
-        a = ITER_ROW.search(metrics)
-        b = ITER_LINE.search(status)
-        self.assertIsNotNone(a, "metrics.md 에서 `| 반복 | <수> |` 행을 못 찾았다")
-        self.assertIsNotNone(b, "status.md 에서 `iteration: <수>` 줄을 못 찾았다")
-        self.assertEqual(
-            a.group(1), b.group(1),
-            "반복 번호가 어긋났다 — metrics.md `반복` %s ≠ status.md `iteration` %s"
-            % (a.group(1), b.group(1)))
+        gap = iter_gap((DOCS / "status.md").read_text(encoding="utf-8"),
+                       (DOCS / "metrics.md").read_text(encoding="utf-8"))
+        self.assertIsNone(gap, gap)
 
 
 class StepSyncTest(unittest.TestCase):
@@ -393,6 +409,48 @@ class IterationPatternTest(unittest.TestCase):
         m = ITER_LINE.search("plan: x\niteration: 232\nctx: 62")
         self.assertIsNotNone(m, "`iteration: <수>` 줄을 못 찾았다")
         self.assertEqual("232", m.group(1))
+
+
+class IterGapTest(unittest.TestCase):
+    """`iter_gap` 의 갈래를 합성 문자열로 전부 밟는다.
+
+    `IterationPatternTest` 가 재는 것은 **정규식 둘**이고, 그 위에 얹힌 **판정**은
+    `IterationSyncTest` 가 실물 문서로만 불렀다. 두 문서는 늘 맞춰져 있어서
+    2026-09-06 실측에서 판정을 무력화하는 변이 **4종이 전수 614건에서 4/4 생존**했다 —
+    ① 대조를 자기비교로 바꾸기 ②·③ 「행·줄이 없다」 가드 삭제 ④ 판정 통째 삭제.
+    `StepGapTest`·`ArchiveMatchTest` 가 같은 자리에서 배운 것이다.
+    """
+
+    METRICS = "\n".join([
+        "| 평균 반복 | 5.3 |",
+        "| 반복 | 356 |",
+    ])
+
+    @staticmethod
+    def status(iteration):
+        return "plan: x\niteration: %s\nctx: 55\n" % iteration
+
+    def test_agreeing_docs_have_no_gap(self):
+        self.assertIsNone(
+            iter_gap(self.status("356"), self.METRICS),
+            "맞는 문서를 어긋났다고 신고했다 — 매 반복이 빨개진다")
+
+    def test_iteration_mismatch_is_reported(self):
+        gap = iter_gap(self.status("357"), self.METRICS)
+        self.assertIsNotNone(gap, "356 ≠ 357 을 통과시켰다 — 4회 재발한 그 결함이다")
+        self.assertIn("356", gap, "어느 수가 어긋났는지 안 적었다")
+        self.assertIn("357", gap, "어느 수가 어긋났는지 안 적었다")
+
+    def test_missing_metrics_row_is_reported(self):
+        # 표 모양이 바뀌면 `a` 가 `None` 이다 — 조용히 통과하면 안 된다.
+        gap = iter_gap(self.status("356"), "| 반복 수 | 356 |")
+        self.assertIsNotNone(gap, "metrics 에 행이 없는데 통과시켰다")
+        self.assertIn("metrics.md", gap, "어느 문서가 비었는지 안 적었다")
+
+    def test_missing_status_line_is_reported(self):
+        gap = iter_gap("night_iterations: 173\n", self.METRICS)
+        self.assertIsNotNone(gap, "status 에 줄이 없는데 통과시켰다")
+        self.assertIn("status.md", gap, "어느 문서가 비었는지 안 적었다")
 
 
 class ArchiveMatchTest(unittest.TestCase):
