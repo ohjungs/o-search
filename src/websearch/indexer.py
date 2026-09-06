@@ -173,7 +173,9 @@ def index_pages(db_path):
         #           색인 상태 컬럼이 생기는 recrawl 계획에서 증분으로 바꾼다
         for url, html in db.execute(
             "SELECT d.url, p.html FROM docs d JOIN pages p ON p.url = d.url "
-            "WHERE p.html LIKE '%robots%'"
+            # `&#` 갈래는 `is_noindex()` 의 사전 필터와 같은 이유다 — 후보만 넓히고
+            # 최종 판정은 그 뒤 `is_noindex()` 가 하므로 오탐이 늘지 않는다
+            "WHERE p.html LIKE '%robots%' OR p.html LIKE '%&#%'"
         ).fetchall():
             if extract.is_noindex(html):
                 db.execute("DELETE FROM docs WHERE url = ?", (url,))

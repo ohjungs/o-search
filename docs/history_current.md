@@ -187,3 +187,77 @@ append 전용이고 수정·삭제 금지다. 각 회전의 사유는 `digest.md
 - 집안일: 계획서를 `docs/plan_history_054.md` 로 아카이브하고 `digest.md` 「완료」 명부와
   `index.md` 68번 행을 갱신했다.
 - 다음: **계획 phase.** 계획 68 은 DONE 이고 다음 계획은 아직 없다.
+
+## 2026-09-06 · 반복 399 · 계획 69 `noindex-entity-prefilter` — 계획 phase
+
+- 브랜치 `loop/noindex-entity-prefilter` 를 `origin/main`(`7fcd669`)에서 땄다.
+  계획서 `docs/plan_noindex-entity-prefilter.md` · 스텝 1개(개발 1/1) · 설계 없음.
+- 근거는 **사용자 지시**(「소스 편중을 깨라」)와 `digest` 후보 `[4]`,
+  그리고 `src/websearch/extract.py:202-203` 이 스스로 적어 둔 천장 주석이다.
+  계획 60~68 아홉 계획이 `src/` 를 0줄 고쳤고, 이 계획은 제품 2줄에 착지한다.
+- **착수 탐침이 근거를 오늘 다시 쟀다**: `name="&#114;obots"`·`name="&#x72;obots"`
+  둘 다 `is_noindex()` **False** 인데 `_MetaRobotsParser` 단독은 `['noindex']`·
+  `['none']` 을 본다 — 막는 것은 파서가 아니라 사전 필터 한 줄이다.
+  정상 문서는 True(오탐 아님) · `&#` 판별자는 엔티티 문서에 있고 `&amp;` 문서에 없다.
+- **처방을 갈아 끼웠다** — 후보가 적어 둔 「필터 제거」는 모든 페이지를 한 번 더
+  파싱한다. 채택안은 필터를 `&#` 까지 넓히는 것(제품 2줄)이고, 대안 셋을 계획서
+  4절 표에 남겼다.
+- **구멍이 두 자리**인 것을 못박았다: `extract.is_noindex()`(색인 진입)와
+  `indexer.py:176` 의 `WHERE p.html LIKE '%robots%'`(이미 색인된 것 제거).
+- 탐침이 **다른 후보의 서술을 하나 뒤집었다** — `digest [8]` 의 `<nav>` 인라인
+  연접은 링크 2개에서 내비 5점 대 본문 6점으로 **본문이 이긴다**.
+- 이번 반복은 문서만 고쳤다 — `src/`·`tests/`·`e2e/`·`README.md` **0줄**.
+- 다음: **개발 phase 1/1.**
+
+## 반복 400 — 계획 69 `noindex-entity-prefilter` (개발 phase · 스텝 1/1 · 시도 0)
+
+- **한 일**: 엔티티로 인코딩된 `meta robots` name 의 색인 거부 선언이 무시되던 **두
+  자리**를 닫았다. ① `src/websearch/extract.py` `is_noindex()` 사전 필터를
+  「`robots` 있거나 **`&#` 이 있으면**」으로 넓혔다. ② `src/websearch/indexer.py` 의
+  제거 질의에 `OR p.html LIKE '%&#%'` 를 더했다. 제품 **2줄** · 파일 2개.
+- **RED 를 먼저 봤다**: 새 단언 4개 중 3개 실패(`FAILED (failures=4)`, 넷째는 README
+  건수). `test_entity_encoded_name_is_a_directive` `False is not true` ·
+  `test_entity_encoded_noindex_page_is_not_indexed` `2 != 1`(거부 문서가 색인됐다) ·
+  `test_already_indexed_page_declaring_entity_encoded_noindex_is_removed`
+  `[('http://a.test/', '', '허용 pyeongsan')] != []`. **두 자리가 각각 따로 울었다** —
+  진입만 고쳤으면 셋째가 그대로 살아남는다.
+- **오탐 방향도 심었다**(심자마자 초록인 가드): `&#38;`·`&#8212;` 만 든 본문과
+  `name="&#114;obots" content="index, follow"` 둘 다 False. 필터는 후보만 넓히고
+  판정은 `_MetaRobotsParser` 가 한다 — 그래서 넓혀도 오탐이 안 는다.
+- **빠른 길 유지**: `robots` 도 `&#` 도 없는 문서는 파싱 0회. `&#` 판별자 근거는
+  계획 phase 실측(`r` 을 내는 이름 있는 엔티티 없음).
+- **결과**: 전수 `Ran 632 tests` `OK` rc 0(맨몸 1회) · `e2e/noindex_e2e.py` rc 0 ·
+  `README.md:104` 628→**632건** · `data/crawl.db` 무변 · 스키마·재색인·새 의존성 0 ·
+  `docs/specs/` 무접촉.
+- **다음**: 테스트 phase 1/1 — 변이 두 개(`&#` 갈래 제거 · `OR` 절 제거)가 **각각 다른
+  단언**을 죽이는지 본다.
+
+## 반복 401 — 계획 69 `noindex-entity-prefilter` (테스트 phase · 스텝 1/1 · 시도 0)
+
+- **전수부터 돌렸다**: `Ran 632 tests` `OK` rc 0 (맨몸
+  `PYTHONDONTWRITEBYTECODE=1 PYTHONPYCACHEPREFIX=$(mktemp -d) PYTHONPATH=src python3 -m unittest discover -b -s tests`).
+- **갭 탐색(카테고리 ② 경계값)에서 넷을 찾아 실측했다** — 실제로 쓰이는 인코딩 변형
+  `&#82;OBOTS`(대문자 R) · `&#0114;`(0 패딩) · `&#114obots`(세미콜론 없음) · 그리고
+  `content` 쪽만 인코딩한 `content="&#110;oindex"`. **넷 다 이미 True 였다** — 제품은
+  안 고쳤고 **단언만 못박았다**(`test_entity_encoded_name_is_a_directive` 안에 4줄).
+  중요도 **8** — 미탐은 남의 색인 거부를 무시하고 색인하는 것이고, `&#` 한 조각으로
+  넓게 잡는 오늘의 필터를 나중에 `&#\d+;` 같은 모양으로 좁히면 **조용히** 되돌아간다.
+- **테스트 건수는 632 그대로다** — 새 메서드가 아니라 있는 메서드에 단언을 더했다.
+  그래서 `README.md:104` 도 손댈 게 없다.
+- **변이 3판**(저장소 밖 `mktemp -d` + `rsync` 사본 · 워킹트리 무변):
+  1. `extract.py` 사전 필터에서 `and "&#" not in lowered` 제거 → `FAILED (failures=3)`.
+     `test_entity_encoded_name_is_a_directive`(`False is not true`) ·
+     `test_entity_encoded_noindex_page_is_not_indexed`(`2 != 1`) ·
+     `..._declaring_entity_encoded_noindex_is_removed`.
+  2. `indexer.py` 제거 질의에서 `OR p.html LIKE '%&#%'` 제거 → `FAILED (failures=1)`,
+     `..._declaring_entity_encoded_noindex_is_removed` **하나만**. 계획서 예측대로
+     **두 자리가 각각 다른 단언에 걸린다** — 진입 하나만 고쳐서는 못 닫는다.
+  3. 필터를 `&#[0-9]+;` 로 **좁히는** 변이 → `FAILED (failures=2)`. 십육진
+     `&#x72;`(기존 단언)과 세미콜론 없는 `&#114obots`(이번에 심은 단언)가 죽었다 —
+     ①에서 새로 적은 주석("좁히면 미탐")이 빈말이 아님을 이 판이 증명한다.
+  **3판 전부 사망 · 생존 0.**
+- **결과**: 전수 `Ran 632 tests` `OK` rc 0 · `PYTHONPATH=src python3 e2e/noindex_e2e.py`
+  rc 0 · `git status --porcelain` 은 `M tests/test_extract.py` 하나 뿐(사본 삭제 확인) ·
+  `data/crawl.db` 무변 · `src/` **0줄** · 스키마·마이그레이션·새 의존성 0 ·
+  `docs/specs/` 무접촉.
+- **다음**: 리뷰 phase 1/1.

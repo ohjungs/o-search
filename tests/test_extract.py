@@ -547,3 +547,23 @@ class TestIsNoindex(unittest.TestCase):
         self.assertTrue(is_noindex('<meta name="robots" content="noindex"><![sqlserver]>'))
         # 오탐 방향도 본다 — 깨진 선언이 지시를 **만들어 내지도** 않는다
         self.assertFalse(is_noindex('<p>robots.txt 를 설명한다<![foo]></p>'))
+
+    def test_entity_encoded_name_is_a_directive(self):
+        # 계획 69: 사전 필터가 'robots' 낱말만 봐서 엔티티로 인코딩한 name 을 통째로
+        # 흘려보냈다 — 파서는 (HTMLParser 가 속성값을 언이스케이프하므로) 원래부터 봤다
+        self.assertTrue(is_noindex('<meta name="&#114;obots" content="noindex">'))
+        self.assertTrue(is_noindex('<meta name="&#x72;obots" content="none">'))
+        self.assertTrue(is_noindex('<meta name="&#X72;obots" content="noindex, nofollow">'))
+        # 갭 탐색(테스트 69): 실제로 쓰이는 변형 셋을 못박는다 — 오늘은 `&#` 한 조각이
+        # 전부 잡지만, 필터를 `&#\d+;` 같은 모양으로 좁히는 순간 조용히 미탐이 된다.
+        # 미탐은 남의 색인 거부를 무시하고 색인하는 것이다 — 이 축에서 가장 나쁜 실패다
+        self.assertTrue(is_noindex('<meta name="&#82;OBOTS" content="noindex">'))  # 대문자 R
+        self.assertTrue(is_noindex('<meta name="&#0114;obots" content="none">'))  # 0 패딩
+        self.assertTrue(is_noindex('<meta name="&#114obots" content="noindex">'))  # 세미콜론 없음
+        # name 이 멀쩡해도 content 를 인코딩할 수 있다 — 판정은 파서가 언이스케이프한 뒤다
+        self.assertTrue(is_noindex('<meta name="robots" content="&#110;oindex">'))
+
+    def test_char_reference_without_a_directive_is_allowed(self):
+        # 넓힌 필터가 오탐을 만들지 않는다 — 문자참조만 있는 평범한 문서는 그대로 통과다
+        self.assertFalse(is_noindex("<p>A&#38;B &#8212; 본문</p>"))
+        self.assertFalse(is_noindex('<meta name="&#114;obots" content="index, follow">'))
