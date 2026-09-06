@@ -1,63 +1,59 @@
 ---
 signal: GREEN
-phase: 개발
+phase: 테스트
 step: 2/2
 attempt: 0
-iteration: 389
+iteration: 390
 updated: 2026-09-06
-ctx: 42
+ctx: 47
 night_iterations: 190
 night_red: 2
 night_retries: 4
-plan: spec-citation-address 계획 67 (개발 2/2 완료 · 다음은 테스트 phase)
+plan: spec-citation-address 계획 67 (테스트 phase 완료 · 다음은 리뷰 phase)
 ---
 
 ## 현재 상태
 
-**계획 67 `spec-citation-address` 의 스텝 2/2(인용문 축)를 닫았다 — 개발 phase 끝.**
-같은 수집기 위에 문구·값 대조를 얹고, 인용 쪽 네 자리를 고쳤다.
-전수 **627건 · `OK` · rc 0**.
+**계획 67 `spec-citation-address` 의 테스트 phase 를 닫았다 — 다음은 리뷰다.**
+변이 3판으로 두 축을 재고, 값 대조의 **부분일치 구멍** 하나를 닫았다.
+전수 **627건 · `OK` · rc 0** — 새 단언 0개(기존 단언을 좁혔다)라 `README.md:104` 무접촉.
 
 ## 이번 스텝이 한 일
 
-**가드.** `SpecCitationTest` 의 수집을 `_citations()` 로 빼고(주소 축과 공유)
-`test_spec_quotes_match_cited_lines` 를 더했다. 인용 **뒤**에 따옴표로 옮겨 적은
-문구는 대상 줄 범위 안에 실재해야 하고, 인용을 주석으로 단 상수는 값 표기 중
-하나가 그 범위 안에 있어야 한다(`5.0` 은 사양에 `5` 로 적혀 정규화한다).
-대조 건수 **≥ 5** 도 단언한다 — 추출기가 깨지면 0건 대조 위에서 초록이 된다.
-따옴표를 인용 **앞**에서 안 보는 것이 핵심이다: 인용을 통째로 품은 실패 메시지
-(`"JS 0KB 계약 위반 (concept.md:51)"`)를 사양 문구로 오인하지 않는다.
+**탐침이 먼저 갭을 쟀다.** 인용 **18건** 중 의미 축(문구·값) 대조가 붙는 것은 **7건**
+(문구 2 · 값 5). 그리고 `e2e/design_check.py:33`(JS 예산 `50`)은 사양 **129·135·146·166행**
+넷에 옮겨도 초록이었다 — `50` 이 `500ms` 안에 **부분일치**하기 때문이다.
+`e2e/perf_crawl.py:53`(`5.0`)은 한 자리 수라 표면이 더 넓다.
 
-**TDD RED.** 가드만 심은 판이 **3자리 4건** RED —
-`e2e/design_check.py:33`(값 `50`·`1024` 가 50행에 없다) ·
-`e2e/quality_eval.py:34`(문구 「상위 10건」 + 값 `10`) ·
-`tests/test_quality_eval.py:153`(문구 「80% 이상」). 계획서 2절 P2 가 정적 판독으로
-예고한 넷과 파일·줄까지 같다. 맞는 인용은 한 건도 안 빨개졌다 — 오탐 0.
+**TDD RED.** `# concept.md:51` → `:129`(전혀 다른 항목 「근거 문단 p95 500ms」) 변이가
+고치기 전 `Ran 2 · OK` **생존**. `_has_number()`(경계 정규식 `(?<![0-9.])N(?![0-9])`)로
+`any(n in cited)` 를 갈자 같은 변이가 `failures=1` 로 **사망**
+(「상수 값 ['1024', '50'] 이 사양 129행 어디에도 없다」). 거짓 초록 착지점 **4 → 0** ·
+무변이 대조군 오탐 0. 주석 「문구 2 · 값 7」의 값 수도 실측대로 **5** 로 고쳤다.
 
-**네 자리를 고쳤다.** `:50` → `:51` ×2(JS 예산은 51행) · `:22` → `:23` ×2
-(합격선 문구는 23행). `e2e/design_check.py:33` · `tests/test_serve.py:918` ·
-`e2e/quality_eval.py:34` · `tests/test_quality_eval.py:153`.
-`tests/test_serve.py:918` 은 가드가 못 무는 자리지만(메시지가 인용을 품는다)
-정적으로 틀린 것이 확인돼 같이 고쳤다. **`docs/specs/concept.md` 는 무변.**
+**완료 기준 C7 사망 · C6 확인.** C7(수집 정규식을 `concept\.mdX:` 로 깨기) → `failures=2`
+(「인용을 0건밖에 못 모았다」, 두 테스트 다 하한에서 죽는다). C6(빈 줄 검사만 지우고
+C1 `50-54`→`49-54` 재현) → `Ran 2 · OK` 로 **C1 이 되살아났다** — 그 자리를 무는 것은
+그 단언 하나뿐이고 다른 축이 대신 안 문다. 변이 **3판**(예산 4판 이내) · 전수 **1회**.
 
-**변이 2판, 둘 다 죽었다(완료 기준 C4·C5).** C4 주소 되돌리기(`:51`→`:50`) rc 1 ·
-C5 인용문만 바꾸기(「상위 10건」→「상위 20건」) rc 1 · 복구 후 `OK`.
-C6·C7 은 테스트 phase 가 잰다.
+**범위 밖은 안 고치고 등재했다.** 인용 18건 중 **11건이 의미 축 무검사**다. 그중
+`tests/test_serve.py:918` 은 이번 계획이 고친 자리인데도 인용이 실패 메시지 **안**에 있어
+「인용 뒤 따옴표」 추출기가 구조적으로 못 문다. 처방은 테스트가 아니라 **소스 표기**라
+`digest.md` 「다음 계획 후보」에 **[6]** 으로만 남겼다.
 
-**건수 못이 또 물었다.** 새 단언 1개라 626 → **627**. 첫 전수를
-`test_verification_counts_match_reality` 가 `(626, 21) != (627, 21)` 로 잡았고
-`README.md:104` 을 627 로 고쳐 초록으로 갔다(같은 커밋).
+**회전.** `history_current.md` 가 상한 **300줄**에 정확히 닿아 계획 66 다섯 항목
+(반복 382~386)을 `docs/history_068.md` 로 밀고 `digest.md` 아카이브 명부에 등재했다
+(`ArchiveIndexTest`). 남은 `history_current.md` **172줄**.
 
-**범위**: `src/` 0줄 · `docs/specs/` 무변 · `data/crawl.db` 무변 · 재색인 0 ·
+**범위**: `src/` 0줄 · `e2e/` 0줄 · `docs/specs/` 무변 · `data/crawl.db` 무변 · 재색인 0 ·
 스키마 0 · 새 의존성 0(stdlib) · PR #7 무접촉(`gh` 0회) ·
-`--no-verify`·`--force`·`--amend`·`rebase` 0회 · `main` 직접 커밋 0회.
-바꾼 것은 `tests/test_docs.py`(+52/-11) · `e2e/design_check.py`·`e2e/quality_eval.py`·
-`tests/test_serve.py`·`tests/test_quality_eval.py` 각 1줄 · `README.md` 1줄.
+`--no-verify`·`--force`·`--amend`·`rebase` 0회 · `main` 직접 커밋 0회 ·
+변이는 전부 실행 전후로 복원해 `git diff` 로 확인했다.
+바꾼 것은 `tests/test_docs.py` 하나(+13/-2) 와 문서(`status`·`history`·`digest`·`metrics`).
 
 ## 다음
 
-**테스트 phase.** 완료 기준 C6(가드의 빈 줄 검사만 지우면 C1 이 되살아나야 한다)·
-C7(수집 정규식을 못 물게 깨면 하한 단언이 문다)을 변이로 잰다. 문구 축에도 같은
-질문이 있다 — `MIN_CHECKS` 하한과 「인용 뒤만 본다」 규칙을 깨는 변이다.
-`docs/history_current.md` **정확히 300줄 = 상한**. 다음 반복은 한 줄이라도 더 쓰기 전에
-`docs/history_068.md` 로 회전하고 `digest.md` 아카이브 명부에 등재한다.
+**리뷰 phase.** diff 가 테스트 한 파일이라 볼 것은 셋이다 — ① 경계 정규식이 사양의 다른
+표기(`1,000만` 처럼 쉼표가 낀 수 · `4.5:1` 의 뒤따르는 `:1`)를 오탐으로 만들지 않는가
+(오늘 7건 전부 초록이라 실측은 통과) · ② `_has_number` 를 `staticmethod` 로 둔 자리가
+맞나 · ③ `digest [6]` 의 처방이 다음 계획으로 열릴 만한가.

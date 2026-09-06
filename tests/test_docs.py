@@ -271,8 +271,19 @@ class SpecCitationTest(unittest.TestCase):
     # 인용을 주석으로 단 상수 — 값 표기가 사양 문장 안에 그대로 있어야 한다.
     CONST = re.compile(r"^\s*[A-Z_][A-Z0-9_]*\s*=\s*([^#]+)")
     NUM = re.compile(r"[0-9]+(?:\.[0-9]+)?")
-    # 오늘 문구 2 · 값 7. 추출기가 깨지면 0건 대조 위에서 조용히 초록이 된다.
+    # 오늘 문구 2 · 값 5. 추출기가 깨지면 0건 대조 위에서 조용히 초록이 된다.
     MIN_CHECKS = 5
+
+    @staticmethod
+    def _has_number(cited, num):
+        """숫자 하나가 **온전한 수로** 사양 줄에 있나.
+
+        부분일치는 대조를 통째로 무르게 만든다 — `50` 은 `500ms` 안에도 있어서
+        JS 예산 인용을 전혀 다른 항목(근거 문단 p95)에 옮겨도 초록이었다.
+        앞뒤로 숫자·소수점이 붙지 않은 자리만 센다.
+        """
+        return re.search(r"(?<![0-9.])%s(?![0-9])" % re.escape(num),
+                         cited) is not None
 
     def _citations(self):
         """`(경로, 줄번호, 줄, 인용 끝 위치, 시작행, 끝행)` 전수."""
@@ -341,7 +352,7 @@ class SpecCitationTest(unittest.TestCase):
             checks += 1
             with self.subTest(label + " 값"):
                 self.assertTrue(
-                    any(n in cited for n in nums),
+                    any(self._has_number(cited, n) for n in nums),
                     "%s 의 상수 값 %s 이 사양 %d행 어디에도 없다"
                     % (label, sorted(nums), start))
         self.assertGreaterEqual(
