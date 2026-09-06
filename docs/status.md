@@ -1,60 +1,57 @@
 ---
-signal: DONE
-phase: e2e
-step: 2/2
+signal: GREEN
+phase: 계획
+step: 0/1
 attempt: 0
-iteration: 392
+iteration: 393
 updated: 2026-09-06
-ctx: 63
-night_iterations: 190
+ctx: 58
+night_iterations: 191
 night_red: 2
 night_retries: 4
-plan: spec-citation-address 계획 67 (e2e phase 완료 · DONE · 다음 계획은 아직 없다)
+plan: spec-citation-anchor 계획 68 (계획 phase 완료 · 계획서 등재까지 · 개발은 다음 반복)
 ---
 
 ## 현재 상태
 
-**계획 67 `spec-citation-address` 를 닫았다 — 통과 · DONE.**
-전수 **`Ran 627 tests in 15.860s` · `OK` · rc 0** 1회, 실물 사본 대조군 **4판**
-(U0 성한 원본 + 변이 3판). 산출물은 `docs/e2e/spec-citation-address/result.md`.
-**다음 계획은 아직 없다** — 다음 반복이 계획 phase 로 연다.
+**계획 68 `spec-citation-anchor` 를 열었다 — 계획서 `docs/plan_spec-citation-anchor.md` ·
+`index.md` 68번 행 등재 · 브랜치 `loop/passage-cost-band` · 기점 `66f95a3`.**
+개발은 다음 반복 몫이다. 저장소는 이번 반복에서 문서만 바뀌었다.
 
 ## 이번 스텝이 한 일
 
-**U1 — 사양에 줄 하나를 끼우니 12건이 죽는다.** 사본의 `docs/specs/concept.md` 21행 자리에
-항목 한 줄을 넣어 아래 주소를 통째로 한 칸 밀었다. `test_spec_citations_point_at_real_lines`
-다수와 `test_spec_quotes_match_cited_lines` 가 함께 울고, 라벨에 `tests/test_serve.py:914` ·
-`e2e/design_check.py:2` 처럼 **고칠 파일과 줄이 통째로** 찍힌다. **앞 phase 들이 잰 변이
-(C1~C7)는 전부 인용 쪽을 비트는 것이었고, 사양 쪽을 미는 변이는 오늘이 처음이다** — 이 계획이
-존재하는 이유로 적은 전제를 그 방향에서 처음 샀다.
+**탐색 6순위 — `digest ## 다음 계획 후보 (테스트 phase 갭, 8점 미만)` 의 `[6]`**
+「`concept.md:<N>` 인용 18건 중 11건은 «주소가 빈 줄이 아니다» 말고 아무도 안 잰다」.
+계획 67 이 어제 자를 세운 바로 그 파일의 다음 칸이라 여는 조건이 왔다.
 
-**U2·U3 — 리뷰 스텝(`e8291e9`)이 산 것을 실행으로 갈랐다.** `PHRASE` 의 따옴표 종류를
-`"` → `'` 로 바꿔 문구 축을 통째로 죽이는 같은 편집을, 하한만 다르게 두 판 돌렸다.
-`MIN_CHECKS 6` 이면 **`FAILED (failures=1)` · rc 1**(「대조를 5건밖에 못 했다」 ·
-`5 not greater than or equal to 6`)이고, 리뷰 이전 값 `5` 로 되돌리면 **`Ran 30 · OK · rc 0`
-으로 그대로 나간다.** 리뷰가 「하한이 값 축의 크기(5)와 같아 문구 추출기만 죽는 날 조용하다」고
-정적으로 적은 판정이 오늘 실행으로 확인됐다 — **생존→사망이 뒤집힌 자리를 눈으로 봤다.**
+**착수 탐침 3판(+ 무변이 대조군)이 항목의 기록을 그대로 재현했다.** 저장소 밖 사본에서만
+편집하고 심은 뒤 `diff -u` 로 확인했다 — M0 무변이 `Ran 627` `OK` rc 0(오탐 0) ·
+**M1** 앵커 없는 인용을 이웃 줄로 밀기(`e2e/perf_crawl.py` 1행 `:44`→`:45`) `Ran 627` **`OK`**
+**생존** · **M2 양성 대조** 값 앵커가 있는 자리를 같은 식으로 밀기(`e2e/design_check.py` 33행
+`:51`→`:50`) **`FAILED (failures=1)`** · **M3 처방** 같은 밀림에 문구 조각을 동행시키니
+**`FAILED (failures=1)`** — **처방이 실제로 재는 것을 등재 전에 확인했다**(`digest [7]`
+「기록된 답을 실행 전에 다시 재라」의 다음 적용).
 
-**U0 — 오탐 0.** 성한 원본에서 `Ran 30 tests in 0.020s` · `OK` · rc 0.
+**정적으로 센 것**: 앵커 있음 7(문구 2 · 값 5) · **없음 11**(`tests/test_serve.py` 다섯 ·
+`e2e/perf_crawl.py` 넷 · `e2e/design_check.py` 둘 · `e2e/quality_eval.py` 하나).
+문자열 안 인용 3자리는 이스케이프가 성립하지 않고 **바깥 따옴표를 작은따옴표로 돌리면**
+추출기가 문다(정규식을 그 줄에 태워 확인).
 
-**면제 근거를 갈아끼웠다.** 계획 61~66 은 「`git diff … -- src/ e2e/` 가 빈손」을 근거로 21종
-재실행을 0회로 뒀는데, **이 계획은 `e2e/` 를 건드렸다.** 그래서 빈손 논법을 복사하지 않고
-네 줄을 세어서 댔다 — `e2e/design_check.py` 셋(docstring · `JS_BUDGET` 주석 · `print` 헤더
-라벨)과 `e2e/quality_eval.py` 하나(`TOP_N` 주석)뿐이고 **판정 로직·임계값·HTTP 표면은 0줄**,
-그 문자열을 읽는 소비자는 새 가드 `SpecCitationTest` 하나이며 627 안에서 초록이다.
-`src/`·`docs/specs/`·`data/` 는 빈손이고 `data/crawl.db` sha256 `85c96744…5bda18` 무변.
+**설계 트리거 판정 — 생략.** 새 모듈 0 · 공개 인터페이스 0 · 데이터 구조 0 · 되돌리기는 커밋
+하나 revert 이고, 걸리는 것은 「파일 3개 이상」 하나(가드 1 + 한 줄짜리 표기 정정 4 +
+`README.md` 건수 줄)뿐이다. 갈릴 뻔한 자리 하나는 착수 탐침이 실측으로 이미 골랐다.
 
-**안 산 것도 적는다.** 값 축(`_has_number` 부분일치, `[R67-2]`)은 오늘 다시 안 쟀다 —
-테스트 phase(반복 390)가 변이 3판으로 이미 샀고, 예산 안에서 값이 남은 것은 아직 아무도 안 민
-축(U1)과 어제 정적으로만 닫은 판정(U2·U3)이었다. 21종 개별 재실행도 0회다.
+**안 산 것도 적는다.** 무앵커 11자리 각각의 문구 조각이 이웃 줄에서 다시 찾아지는지는 오늘
+안 쟀다 — 그것이 개발 스텝의 완료 기준 4이고, 예산 안에서 값이 컸던 것은 「구멍이 오늘도
+살아 있는가」(M1)와 「처방이 실제로 재는가」(M3)였다. 전수는 판마다 1회씩만 돌렸다.
 
 **범위**: `src/` 0줄 · `tests/` 0줄 · `e2e/` 0줄 · `README.md` 0줄 · `docs/specs/` 무변 ·
 `data/crawl.db` 무변 · 재색인 0 · 스키마 0 · 새 의존성 0(stdlib) · PR #7 무접촉(`gh` 0회) ·
-전수 1회 · 변이 3판 · `--no-verify`·`--force`·`--amend`·`rebase` 0회 · `main` 직접 커밋 0회.
-바꾼 것은 문서뿐이다(`e2e/spec-citation-address/result.md` 신규 · `status`·`history`·
-`metrics`·`index`·`digest` · 계획서를 `plan_history_053.md` 로 아카이브).
+전수 4회(대조군 + 변이 3판) · `--no-verify`·`--force`·`--amend`·`rebase` 0회 ·
+`main` 직접 커밋 0회. 바꾼 것은 문서뿐이다(`plan_spec-citation-anchor.md` 신설 ·
+`status.md`·`index.md`·`history_current.md`·`metrics.md`·`digest.md` 갱신).
 
 ## 다음
 
-**다음 계획은 아직 없다.** 다음 반복이 계획 phase 로 열어 후보를 고른다.
-`digest ## 후보` 와 `index.md` 11번(속도 제한 — 사람이 시점을 정한다)이 그 입력이다.
+**개발 phase.** 스텝 1/1 — `SpecCitationTest` 에 앵커 단언을 심어 **RED 11건을 기록**한 뒤
+열한 자리에 문구 조각을 동행시킨다. 완료 기준은 계획서 4절 일곱 줄이다.
