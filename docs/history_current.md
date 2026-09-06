@@ -231,3 +231,33 @@ append 전용이고 수정·삭제 금지다. 각 회전의 사유는 `digest.md
   `docs/specs/` 무접촉.
 - **다음**: 테스트 phase 1/1 — 변이 두 개(`&#` 갈래 제거 · `OR` 절 제거)가 **각각 다른
   단언**을 죽이는지 본다.
+
+## 반복 401 — 계획 69 `noindex-entity-prefilter` (테스트 phase · 스텝 1/1 · 시도 0)
+
+- **전수부터 돌렸다**: `Ran 632 tests` `OK` rc 0 (맨몸
+  `PYTHONDONTWRITEBYTECODE=1 PYTHONPYCACHEPREFIX=$(mktemp -d) PYTHONPATH=src python3 -m unittest discover -b -s tests`).
+- **갭 탐색(카테고리 ② 경계값)에서 넷을 찾아 실측했다** — 실제로 쓰이는 인코딩 변형
+  `&#82;OBOTS`(대문자 R) · `&#0114;`(0 패딩) · `&#114obots`(세미콜론 없음) · 그리고
+  `content` 쪽만 인코딩한 `content="&#110;oindex"`. **넷 다 이미 True 였다** — 제품은
+  안 고쳤고 **단언만 못박았다**(`test_entity_encoded_name_is_a_directive` 안에 4줄).
+  중요도 **8** — 미탐은 남의 색인 거부를 무시하고 색인하는 것이고, `&#` 한 조각으로
+  넓게 잡는 오늘의 필터를 나중에 `&#\d+;` 같은 모양으로 좁히면 **조용히** 되돌아간다.
+- **테스트 건수는 632 그대로다** — 새 메서드가 아니라 있는 메서드에 단언을 더했다.
+  그래서 `README.md:104` 도 손댈 게 없다.
+- **변이 3판**(저장소 밖 `mktemp -d` + `rsync` 사본 · 워킹트리 무변):
+  1. `extract.py` 사전 필터에서 `and "&#" not in lowered` 제거 → `FAILED (failures=3)`.
+     `test_entity_encoded_name_is_a_directive`(`False is not true`) ·
+     `test_entity_encoded_noindex_page_is_not_indexed`(`2 != 1`) ·
+     `..._declaring_entity_encoded_noindex_is_removed`.
+  2. `indexer.py` 제거 질의에서 `OR p.html LIKE '%&#%'` 제거 → `FAILED (failures=1)`,
+     `..._declaring_entity_encoded_noindex_is_removed` **하나만**. 계획서 예측대로
+     **두 자리가 각각 다른 단언에 걸린다** — 진입 하나만 고쳐서는 못 닫는다.
+  3. 필터를 `&#[0-9]+;` 로 **좁히는** 변이 → `FAILED (failures=2)`. 십육진
+     `&#x72;`(기존 단언)과 세미콜론 없는 `&#114obots`(이번에 심은 단언)가 죽었다 —
+     ①에서 새로 적은 주석("좁히면 미탐")이 빈말이 아님을 이 판이 증명한다.
+  **3판 전부 사망 · 생존 0.**
+- **결과**: 전수 `Ran 632 tests` `OK` rc 0 · `PYTHONPATH=src python3 e2e/noindex_e2e.py`
+  rc 0 · `git status --porcelain` 은 `M tests/test_extract.py` 하나 뿐(사본 삭제 확인) ·
+  `data/crawl.db` 무변 · `src/` **0줄** · 스키마·마이그레이션·새 의존성 0 ·
+  `docs/specs/` 무접촉.
+- **다음**: 리뷰 phase 1/1.
