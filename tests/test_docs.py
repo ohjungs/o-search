@@ -519,6 +519,45 @@ class IterGapTest(unittest.TestCase):
         self.assertIn("status.md", gap, "어느 문서가 비었는지 안 적었다")
 
 
+class ArchivePatternTest(unittest.TestCase):
+    """`ARCHIVE` 자신을 리터럴로 붙든다 — 아래 `DocCitationTest` 는 자기를 못 잰다.
+
+    `ARCHIVE` 는 **어느 문서를 줄번호 검사에서 뺄지**를 혼자 정하는데, 넓히는 변이
+    셋(`$` 제거 · `re.I` · `[0-9]+`→`[0-9]*`)도 이름 하나를 빼 좁히는 변이 하나도
+    전수 620건에서 죽은 단언 0 이었다(2026-09-06 실측). `DocHeadPatternTest` 가
+    `DOC_HEAD` 에 하는 일과 같다 — 판정 대상을 실물이 아니라 코드 안에 고정한다.
+    """
+
+    # 아카이브로 인정해야 하는 꼴 — **실물 목록이 아니라 접두어 셋의 모양**이다.
+    # 실물 아카이브가 늘거나 줄어도 이 셋은 안 움직인다.
+    CAUGHT = (
+        "history_001.md",
+        "plan_history_049.md",
+        "design_history_046.md",
+    )
+    # 아카이브가 아닌 꼴 — 판정을 넓히는 변이는 여기서 죽는다.
+    NOT_CAUGHT = (
+        "history_current.md",       # 살아 있는 기록 — 빠지면 검사 밖으로 나간다
+        "history_001.md.bak.md",    # 끝을 안 묶으면(`$` 제거) 잡힌다
+        "history_.md",              # 번호가 없다(`[0-9]+`→`[0-9]*` 가 여기서 죽는다)
+        "HISTORY_001.MD",           # 대소문자를 흘리면(`re.I`) 잡힌다
+        "digest.md",
+        "index.md",
+    )
+
+    def test_pattern_catches_archive_names(self):
+        for name in self.CAUGHT:
+            with self.subTest(name=name):
+                self.assertRegex(name, ARCHIVE,
+                                 "아카이브를 검사 대상으로 끌어들인다 — 판정이 좁아졌다")
+
+    def test_pattern_leaves_live_docs(self):
+        for name in self.NOT_CAUGHT:
+            with self.subTest(name=name):
+                self.assertNotRegex(name, ARCHIVE,
+                                    "살아 있는 문서를 검사에서 뺀다 — 판정이 넓어졌다")
+
+
 class ArchiveMatchTest(unittest.TestCase):
     """`done_section`·`indexed` 를 합성 `digest` 로 붙든다 — 위 검사는 자기를 못 잰다.
 

@@ -198,3 +198,33 @@ append 전용이고 수정·삭제 금지다. 각 회전의 사유는 `digest.md
   러너 위반 0(누적 38 유지) · `night_iterations` 는 대화형이라 187 그대로 뒀다.
 - 다음: **개발 phase 1/1** — `ArchivePatternTest` 를 `ArchiveMatchTest` 옆에 세운다
   (리터럴 표 한 벌 + 메서드 둘 · 제품 `src/` 0줄 · `README.md` 건수 줄 동반 수정).
+
+## 2026-09-06 17:35 | archive-scope-cover | 개발 1/1 | 시도0
+
+- 한 일: `tests/test_docs.py` **한 파일 39줄 추가**(`README.md` +1 −1). `ArchivePatternTest`
+  를 `ArchiveMatchTest` 바로 위에 세웠다 — `CAUGHT` 셋(`history_001.md`·
+  `plan_history_049.md`·`design_history_046.md`) · `NOT_CAUGHT` 여섯
+  (`history_current.md`·`history_001.md.bak.md`·`history_.md`·`HISTORY_001.MD`·
+  `digest.md`·`index.md`) · `subTest` 로 도는 메서드 둘. 실물 파일 목록이 아니라 **모양**을
+  고정해서 실물 아카이브가 늘거나 줄어도 아홉은 안 움직인다.
+- 검증: `rules/dev.md` 0절대로 **RED 를 이 반복에서 직접 봤다** — 테스트를 먼저 넣고 돌리니
+  `AssertionError: Tuples differ: (620, 21) != (622, 21)` 로 `test_readme` 가 즉시 울었고,
+  같은 커밋에서 `README.md:104` 를 620 → **622** 로 고쳤다. **계획 63 이 무접촉이라 못 본
+  가드가 이번엔 설계대로 울었다.**
+- 검증: 완료 기준 **9/9**. 저장소 밖 `mock.patch.object` 하네스로 변이마다 전수를 다시 돌려
+  ① M3(`$` 제거) → `history_001.md.bak.md` 1건 ② M4(`re.I`) → `HISTORY_001.MD` 1건
+  ③ M5(`[0-9]*`) → `history_.md` 1건 ④ M11(`design_history` 제거) → `design_history_046.md`
+  1건. **어제 넷 다 생존하던 자리가 넷 다 죽는다.**
+- 검증: 감지력 무회귀(기준 5)를 **추정하지 않고 쟀다** — M10(접두 확대)은 `DocCitationTest`
+  1건을 그대로 죽이고 새 단언 셋을 더 죽여 **4**, M1·M2·M8(`APPEND_TARGETS`+`CITATION` 을
+  함께 간 소스 편향 변이)은 어제와 같은 **1·2·3**, 계획 63 이 세운 앵커 변이 다섯
+  (A1a·A1b `STEP_LINE` · A2 `PLAN_SLUG` · A3 `ITER_ROW` · A4 `STEP_ROW`)도 **각 1건** 그대로.
+  M0 무변이 대조군 **0**(오탐 0) · 양성 대조 `^ZZZ_[0-9]+\.md$` 는 `CAUGHT` 셋 +
+  `DocCitationTest` 로 **4**.
+- 검증: 전수 맨몸 `Ran 622 tests in 15.461s` · `OK` · **rc 0**. 범위 무접촉 —
+  `git diff --stat ba53783 HEAD -- src/ e2e/ docs/specs/ data/` 빈손 · `data/crawl.db`
+  sha256 `85c96744…5bda18` 무변 · 재색인 0 · 제품 `src/` **0줄**. 러너 리다이렉션·파이프
+  위반 0(누적 38 유지) · `night_iterations` 는 대화형이라 187 그대로.
+- 다음: **테스트 phase 1/1.** 남은 자리 둘을 status 에 이름으로 적어 뒀다 — ① `ARCHIVE` 는
+  `.match()` 로만 불려 `^` 가 잉여라 **M6 은 여전히 등가 변이**(재는 쪽이 아니라 지우는 쪽이
+  답이고 계획 밖) ② `APPEND_TARGETS` 축은 계획서 5절이 이유를 적어 닫아 뒀다 — 다시 안 연다.
