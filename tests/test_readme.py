@@ -61,6 +61,13 @@ QUALITY_BAND = (
     ("비텍스트 대비 배수", r"은 ([\d.]+)배\)", "design_check", "MIN_CONTRAST_NONTEXT", 1),
 )
 
+# 위 표 자신의 «모양». README 에는 표가 셋(일꾼·종료 코드·합격선)이라 **제목으로 잘라야**
+# 엉뚱한 표를 잰다. 제목 줄 + 머리 줄 + 구분 줄을 건너뛰고 그 뒤 `|` 줄만 묶는다.
+BAND_TABLE = re.compile(
+    r"^## 잘하고 있나 재는 자\n+\|.*\n\|[-| ]+\|\n((?:\|.*\n)+)", re.MULTILINE)
+# 셋째 칸(「무엇으로 재나」)의 백틱 안 경로. `〃` 행은 안 걸리고 윗 행 값을 이어받는다.
+METER_CELL = re.compile(r"`([^`]+)`\s*\|\s*$")
+
 
 class ReadmeCommandsTest(unittest.TestCase):
     def setUp(self):
@@ -151,6 +158,46 @@ class QualityBandTest(unittest.TestCase):
                     decimal.Decimal(found[0]) * scale, decimal.Decimal(str(actual)),
                     "README 「%s」=%s (×%s) 가 %s.%s=%s 와 다르다"
                     % (label, found[0], scale, module, const, actual))
+
+
+class BandTableShapeTest(unittest.TestCase):
+    """`QualityBandTest` 가 **아홉 수치**를 재는 동안, 표 자신의 «모양»은 아무도 안 쟀다.
+
+    그래서 표에 여덟 번째 행을 끼워도, 셋째 칸이 실재하지 않는 파일(`quality_evals.py`)을
+    가리키게 개명해도 전수가 초록이었다. `QUALITY_BAND` 는 리터럴 아홉 줄이라 자기가 모르는
+    행을 볼 수 없고, 셋째 칸의 경로는 어느 단언도 읽지 않았다.
+
+    여기 있는 것이 그 둘이다 — 값이 아니라 **행이 대조에 물려 있는가**와
+    **가리키는 측정기가 실재하는가**만 잰다.
+    """
+
+    def setUp(self):
+        block = BAND_TABLE.search(README.read_text(encoding="utf-8"))
+        self.assertTrue(block, "README 「잘하고 있나 재는 자」 표를 못 잘라냈다")
+        self.rows = block.group(1).splitlines()
+        # 행 목록이 비면 아래 루프가 빈손 위에서 조용히 통과한다.
+        self.assertTrue(self.rows, "표에 데이터 행이 하나도 없다")
+
+    def test_every_band_row_is_covered(self):
+        # 어느 밴드 정규식에도 안 걸리는 행 = 합격선이 대조 밖에 있는 행이다.
+        for row in self.rows:
+            with self.subTest(row=row):
+                self.assertTrue(
+                    any(re.search(p, row) for _, p, _, _, _ in QUALITY_BAND),
+                    "이 행의 합격선을 `QUALITY_BAND` 가 아무것도 안 잰다: %s" % row)
+
+    def test_every_band_row_names_an_existing_meter(self):
+        path = None
+        for row in self.rows:
+            with self.subTest(row=row):
+                found = METER_CELL.search(row)
+                if found:
+                    path = found.group(1)
+                # `〃` 를 건너뛰면 그렇게 적힌 행이 영영 안 재지는 눈먼 자리가 된다.
+                self.assertTrue(path, "첫 행부터 이어받을 측정기 경로가 없다: %s" % row)
+                self.assertTrue(
+                    (README.parent / path).is_file(),
+                    "표가 가리키는 측정기가 없다: %s (행: %s)" % (path, row))
 
 
 if __name__ == "__main__":
