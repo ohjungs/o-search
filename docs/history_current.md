@@ -144,3 +144,34 @@ append 전용이고 수정·삭제 금지다. 각 회전의 사유는 `digest.md
   **0회**(누적 38 유지) · 변이는 전부 저장소 밖(코드는 메모리 · 문서는 임시 복사본).
 - 다음: **계획 61 DONE.** 아카이브 `plan_history_047.md` · `index.md` 61번 완료 ·
   `digest` 완료 등재 + 닫힌 후보 항목 삭제. 다음 반복은 계획 phase 다.
+## 2026-09-06 12:00 | head-anchor-cover | 계획 0/1 | 시도0
+- 한 일: 계획 61 이 반복 360 에 DONE 으로 닫혀 활성 계획이 0 이라 **탐색 → 계획 62 등재**를
+  돌았다. `discover.md` 1절 1~5순위를 실측으로 훑고(전수 `Ran 618 tests in 15.892s` `OK`
+  rc 0 맨몸 · 린터/타입체커 설정 0개 · `TODO`/`FIXME`/`HACK` 이 `src`·`tests`·`e2e`·
+  `scripts` 에 1건인데 `tests/test_indexer.py:759` 의 **파서 입력 문자열 안** ·
+  `docs/candidates.md` 없음 · `docs/patches/` 없음 · `digest ## 보류` 절이 비어 0건 ·
+  `gh issue list --state open` 0건 rc 0) **전부 0건**이라 6순위로 내려가
+  `digest ## 다음 계획 후보 (테스트 phase 갭)` 의 `[6]` 을 열었다. 계획서
+  `docs/plan_head-anchor-cover.md` · `index.md` 62번 행 등재.
+- 결과: **착수 탐침이 기록된 답을 다시 쟀고 이번엔 항목이 맞았다**(`digest [7]` 열세 번째
+  적용 · 저장소 파일 무변경 · 하네스는 저장소 밖 · `git status --short` 빈손).
+  **M0** 무변이 `Ran 618 · 죽은 단언 0` · **M1** `ITER_LINE` 앵커 제거 → **생존**(죽은
+  단언 0) · **M2** `DocHeadTest` 판정 `^# \S` → `^` → **생존**(죽은 단언 0) ·
+  **M3 양성 대조** 같은 판정을 `^ZZZ` 로 → **실패 3**(subTest 셋)이라 패치가 그 메서드에
+  실제로 꽂혔음이 증명됐다. `night_iterations: 90` 단언이 앵커를 재는 줄로 보이지만
+  실제로 막는 것은 **복수형 `s`** 라는 항목의 진단도 정규식 단독 실행으로 확인했다 —
+  `"x iteration: 1"`·`"iteration: 1x"` 는 앵커가 있으면 매치 없음, M1 이면 둘 다 매치다.
+- 결과: **처방은 순수 함수가 아니라 상수+리터럴이다.** `step_gap`·`iter_gap` 관용구는
+  «두 문서를 대조하는 판정» 을 뺄 때 쓴 것이고, 여기 판정은 문서 하나의 첫 줄에 정규식
+  하나를 대는 것이라 뺄 몸통이 없다. 축이 정규식이면 저장소의 선례는 `CITATION` +
+  `CitationPatternTest`(`CAUGHT`/`NOT_CAUGHT`) 쪽이다 — 그래서 **설계 생략(트리거 0)**,
+  저울질할 대안이 남지 않았다.
+- 집안일: `git ls-remote origin loop/passage-cost-band` = `d763317c9d2f…` 로 반복 360
+  커밋이 원격에 정상 반영돼 있다. `origin/main` 은 계획 56(`d1fe3e9`)까지고 PR 0건 —
+  만들지도 조회하지도 않았다. `docs/digest.md` 는 실측 **200줄**(상한 200 정각)이라
+  후보 `[6]` 항목에 **줄을 더하지 않고 같은 줄 끝에** 연 사실만 이어 붙였다.
+  러너 규율 위반 **0회**(누적 38 유지) · 회전 없음(146 → 이 항목 뒤 177줄, 상한 300).
+- 다음: **개발 1/1.** `tests/test_docs.py` 에서 ① `IterationPatternTest` 에 리터럴 두 줄
+  (`"x iteration: 1"`·`"iteration: 1x"`)을 더하고 ② `r"^# \S"` 를 모듈 상수 `DOC_HEAD` 로
+  올려 `DocHeadPatternTest`(CAUGHT 3 · NOT_CAUGHT 6)를 세운다. `rules/dev.md` 0절대로
+  **RED 를 눈으로 먼저 본다**. 건드릴 파일은 `tests/test_docs.py`·`README.md` 둘뿐이다.
