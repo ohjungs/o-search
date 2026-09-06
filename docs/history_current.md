@@ -187,3 +187,24 @@ append 전용이고 수정·삭제 금지다. 각 회전의 사유는 `digest.md
 - 집안일: 계획서를 `docs/plan_history_054.md` 로 아카이브하고 `digest.md` 「완료」 명부와
   `index.md` 68번 행을 갱신했다.
 - 다음: **계획 phase.** 계획 68 은 DONE 이고 다음 계획은 아직 없다.
+
+## 2026-09-06 · 반복 399 · 계획 69 `noindex-entity-prefilter` — 계획 phase
+
+- 브랜치 `loop/noindex-entity-prefilter` 를 `origin/main`(`7fcd669`)에서 땄다.
+  계획서 `docs/plan_noindex-entity-prefilter.md` · 스텝 1개(개발 1/1) · 설계 없음.
+- 근거는 **사용자 지시**(「소스 편중을 깨라」)와 `digest` 후보 `[4]`,
+  그리고 `src/websearch/extract.py:202-203` 이 스스로 적어 둔 천장 주석이다.
+  계획 60~68 아홉 계획이 `src/` 를 0줄 고쳤고, 이 계획은 제품 2줄에 착지한다.
+- **착수 탐침이 근거를 오늘 다시 쟀다**: `name="&#114;obots"`·`name="&#x72;obots"`
+  둘 다 `is_noindex()` **False** 인데 `_MetaRobotsParser` 단독은 `['noindex']`·
+  `['none']` 을 본다 — 막는 것은 파서가 아니라 사전 필터 한 줄이다.
+  정상 문서는 True(오탐 아님) · `&#` 판별자는 엔티티 문서에 있고 `&amp;` 문서에 없다.
+- **처방을 갈아 끼웠다** — 후보가 적어 둔 「필터 제거」는 모든 페이지를 한 번 더
+  파싱한다. 채택안은 필터를 `&#` 까지 넓히는 것(제품 2줄)이고, 대안 셋을 계획서
+  4절 표에 남겼다.
+- **구멍이 두 자리**인 것을 못박았다: `extract.is_noindex()`(색인 진입)와
+  `indexer.py:176` 의 `WHERE p.html LIKE '%robots%'`(이미 색인된 것 제거).
+- 탐침이 **다른 후보의 서술을 하나 뒤집었다** — `digest [8]` 의 `<nav>` 인라인
+  연접은 링크 2개에서 내비 5점 대 본문 6점으로 **본문이 이긴다**.
+- 이번 반복은 문서만 고쳤다 — `src/`·`tests/`·`e2e/`·`README.md` **0줄**.
+- 다음: **개발 phase 1/1.**
