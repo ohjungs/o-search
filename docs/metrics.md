@@ -11,8 +11,8 @@
 
 | | 값 |
 |---|---|
-| 반복 | 401 |
-| 계획 (완료/폐기/보류) | 53 / 0 / 0 (진행 0) |
+| 반복 | 403 |
+| 계획 (완료/폐기/보류) | 54 / 0 / 0 (진행 0) |
 | 재시도 | 4 |
 | RED | 1 |
 
@@ -26,17 +26,35 @@
 | 설계 | 24 (생략 6) |
 | 개발 | 92 |
 | 테스트 | 54 |
-| 리뷰 | 54 |
+| 리뷰 | 55 |
 | e2e | 44 |
 
 ## 리뷰 정확도 — 80점 임계 검증용
 
 | | 값 |
 |---|---|
-| 발견 후보 | 243 |
-| 80점 미만으로 버림 | 77 (spec-citation-address 3 + readme-band-cover 1 + 기보류 중복 5 + search-api 2 + crawl-delay 3 + quality-eval 3 + non-ascii-url 2 + cooldown-burn 3 + crawl-politeness 1 + graceful-interrupt 2 + deadline-stop 3 + indexer-interrupt 5 + indexer-lock 2 + docs-citation-guard 2 + focus-contrast 2 + focus-ring-presence 3 + passage-api 17 + focus-rule-scope 2 + runner-quiet 2 + hidden-passage 10 + focus-ring-combinator 2 + passage-db-state 5 + db-state-invariant 1 + passage-cost-axis 3 + endtag-cut-cover 2 + iter-gap-cover 1 + head-anchor-cover 3) |
-| 보고함 | 147 |
-| **그중 실제로 고친 것** | 102 (spec-citation-address 1건 — 리뷰 1 이 [R67-1] `MIN_CHECKS` 하한 5 가 **값 축의 크기와 같아** 문구 추출기만 죽는 날(7→5) 그대로 초록인 것을 6 으로 올려 자동 수정(같은 스텝이 주석의 「값 7」을 실측 5 로 고치면서 하한이 한 축에 딱 붙어 버린 자리다 · 단언 무변) / readme-band-cover 2건 — 리뷰 1 이 [R65-1] 합격선 비교의 오른쪽이 float 상수라 이진 정확값이 아닌 합격선에서 **문서와 상수가 일치해도 RED** 인 것을 `decimal.Decimal(str(actual))` 한 줄로 자동 수정(못이 없는 축 `TARGET_RATE` 5.0→5.1 로 도달 가능임을 실측 · 수정 후 아홉 변이 전부 그대로 죽는다)·[R65-2] 새 검사가 `e2e/*.py` 다섯을 실제로 임포트하는데 파일 docstring 은 「임포트하지 않고 찾기만 한다」로 남아 있던 것을 자동 수정 — 둘 다 단언 무변 / archive-scope-cover 1건 — 리뷰 1 이 [R64-1] 새 `ArchivePatternTest` docstring 이 `DocCitationTest` 를 「아래」로 가리키는데 실제로는 위인 것을 자동 수정(바로 밑 `ArchiveMatchTest` 의 「위 검사는」 관용구를 방향만 뒤집어 복사했다 · 단언 무변) / iter-gap-cover 1건 — 리뷰 1 이 [R61-1] `status.md` 의 「`history_current.md` 는 80줄」이 실제 105줄과 어긋난 것을 자동 수정(회전 판단이 읽는 숫자다) / endtag-cut-cover 2건 — 리뷰 1 이 [R59-1] 「`<p>` 가 남은 `<li>` 를 암묵적으로 닫아 준다」는 거꾸로 읽은 표 서술(`_IMPLIED_END["li"]` 는 `{"li"}`)·[R59-2] 「표를 어떻게 고치든 잡는다」를 「어느 줄을 **지우든**」으로 좁힘(`span` 줄을 더하면 뚫리지만 명세에 `</span>` 생략이 없다) 자동 수정 — 둘 다 주석만, 단언 무변 / passage-cost-band 1건 — e2e phase 가 [R58-1] 「한가할 때 0.951~0.996」 의 하한을 표본이 **두 계획 연속** 벗어난 것을 관용구째 바꿔 수정(오늘 20표본 0.935~0.968 → 좁은 범위를 지우고 ① 의 20표본 0.917~0.974 로 합침 · 한 파일이 idle 범위를 두 벌 갖던 구조가 원인) / passage-cost-axis 3건 — e2e phase 가 [R57-1] 계수 0.95 의 거짓 부등호(오늘 재측 0.974 라 리뷰가 제안한 0.97 도 깨져 **1.00** 으로)·[R57-2] 낡은 «배정치 1/3» 주석·[R57-3] 설계 계약의 ①-b 누락과 「② 가 ① 을 붙든다」 과장 자동 수정 / loader-isolation 3건 — 리뷰 1 이 [R56-1] 「누출이 프로세스 경계를 넘는다」 오류·[R56-2] 변이 E 의 증거 오귀속·[R56-3] ③ 의 「검사 불가」 과장을 `digest.md` 에서 자동 수정 / db-state-invariant 2건 — 리뷰 1 이 [R55-1] `_drop_column` 이 다시 만드는 표가 제약을 잃는다는 천장 누락·[R55-2] README 가 잃은 비텍스트 명암비 3:1 자동 수정 / passage-html-column 2건 — 리뷰 1 이 [R54-1] 새 `ponytail:` 주석의 거짓 천장·[R54-2] 재현 안 되는 8배 계수 자동 수정 / passage-db-state 1건 — 리뷰 1 이 [R53-1] `subTest` 범위 자동 수정 / hidden-passage 8건 — 개발 2 가 2건, 개발 3 이 [R51-3]·[R51-4] 2건, 리뷰 3 이 설계 문서 모순 1건, 개발 4 가 [R51-5] 1건, 리뷰 4 가 [R4-1]·[R4-2] 2건 자동 수정 / focus-ring-combinator 3건 — 리뷰 1 이 [R52-1] 천장 주석·[R52-2] docstring 계수·[R52-3] 계획서 완료 기준 모순 자동 수정) |
+| 발견 후보 | 246 |
+| 80점 미만으로 버림 | 80 (noindex-entity-prefilter 3 + spec-citation-address 3 + readme-band-cover 1 + 기보류 중복 5 + search-api 2 + crawl-delay 3 + quality-eval 3 + non-ascii-url 2 + cooldown-burn 3 + crawl-politeness 1 + graceful-interrupt 2 + deadline-stop 3 + indexer-interrupt 5 + indexer-lock 2 + docs-citation-guard 2 + focus-contrast 2 + focus-ring-presence 3 + passage-api 17 + focus-rule-scope 2 + runner-quiet 2 + hidden-passage 10 + focus-ring-combinator 2 + passage-db-state 5 + db-state-invariant 1 + passage-cost-axis 3 + endtag-cut-cover 2 + iter-gap-cover 1 + head-anchor-cover 3) |
+| 보고함 | 148 |
+| **그중 실제로 고친 것** | 103 (noindex-entity-prefilter 1건 — 리뷰 1 이 [R69-1] 넓힌 제거 질의의 주석이 «오탐이 늘지 않는다» 만 적고 **대가**는 안 적은 것을 실측 배수(x1.22~x3.64)로 자동 수정 · 단언 무변 · 제품 동작 무변 / spec-citation-address 1건 — 리뷰 1 이 [R67-1] `MIN_CHECKS` 하한 5 가 **값 축의 크기와 같아** 문구 추출기만 죽는 날(7→5) 그대로 초록인 것을 6 으로 올려 자동 수정(같은 스텝이 주석의 「값 7」을 실측 5 로 고치면서 하한이 한 축에 딱 붙어 버린 자리다 · 단언 무변) / readme-band-cover 2건 — 리뷰 1 이 [R65-1] 합격선 비교의 오른쪽이 float 상수라 이진 정확값이 아닌 합격선에서 **문서와 상수가 일치해도 RED** 인 것을 `decimal.Decimal(str(actual))` 한 줄로 자동 수정(못이 없는 축 `TARGET_RATE` 5.0→5.1 로 도달 가능임을 실측 · 수정 후 아홉 변이 전부 그대로 죽는다)·[R65-2] 새 검사가 `e2e/*.py` 다섯을 실제로 임포트하는데 파일 docstring 은 「임포트하지 않고 찾기만 한다」로 남아 있던 것을 자동 수정 — 둘 다 단언 무변 / archive-scope-cover 1건 — 리뷰 1 이 [R64-1] 새 `ArchivePatternTest` docstring 이 `DocCitationTest` 를 「아래」로 가리키는데 실제로는 위인 것을 자동 수정(바로 밑 `ArchiveMatchTest` 의 「위 검사는」 관용구를 방향만 뒤집어 복사했다 · 단언 무변) / iter-gap-cover 1건 — 리뷰 1 이 [R61-1] `status.md` 의 「`history_current.md` 는 80줄」이 실제 105줄과 어긋난 것을 자동 수정(회전 판단이 읽는 숫자다) / endtag-cut-cover 2건 — 리뷰 1 이 [R59-1] 「`<p>` 가 남은 `<li>` 를 암묵적으로 닫아 준다」는 거꾸로 읽은 표 서술(`_IMPLIED_END["li"]` 는 `{"li"}`)·[R59-2] 「표를 어떻게 고치든 잡는다」를 「어느 줄을 **지우든**」으로 좁힘(`span` 줄을 더하면 뚫리지만 명세에 `</span>` 생략이 없다) 자동 수정 — 둘 다 주석만, 단언 무변 / passage-cost-band 1건 — e2e phase 가 [R58-1] 「한가할 때 0.951~0.996」 의 하한을 표본이 **두 계획 연속** 벗어난 것을 관용구째 바꿔 수정(오늘 20표본 0.935~0.968 → 좁은 범위를 지우고 ① 의 20표본 0.917~0.974 로 합침 · 한 파일이 idle 범위를 두 벌 갖던 구조가 원인) / passage-cost-axis 3건 — e2e phase 가 [R57-1] 계수 0.95 의 거짓 부등호(오늘 재측 0.974 라 리뷰가 제안한 0.97 도 깨져 **1.00** 으로)·[R57-2] 낡은 «배정치 1/3» 주석·[R57-3] 설계 계약의 ①-b 누락과 「② 가 ① 을 붙든다」 과장 자동 수정 / loader-isolation 3건 — 리뷰 1 이 [R56-1] 「누출이 프로세스 경계를 넘는다」 오류·[R56-2] 변이 E 의 증거 오귀속·[R56-3] ③ 의 「검사 불가」 과장을 `digest.md` 에서 자동 수정 / db-state-invariant 2건 — 리뷰 1 이 [R55-1] `_drop_column` 이 다시 만드는 표가 제약을 잃는다는 천장 누락·[R55-2] README 가 잃은 비텍스트 명암비 3:1 자동 수정 / passage-html-column 2건 — 리뷰 1 이 [R54-1] 새 `ponytail:` 주석의 거짓 천장·[R54-2] 재현 안 되는 8배 계수 자동 수정 / passage-db-state 1건 — 리뷰 1 이 [R53-1] `subTest` 범위 자동 수정 / hidden-passage 8건 — 개발 2 가 2건, 개발 3 이 [R51-3]·[R51-4] 2건, 리뷰 3 이 설계 문서 모순 1건, 개발 4 가 [R51-5] 1건, 리뷰 4 가 [R4-1]·[R4-2] 2건 자동 수정 / focus-ring-combinator 3건 — 리뷰 1 이 [R52-1] 천장 주석·[R52-2] docstring 계수·[R52-3] 계획서 완료 기준 모순 자동 수정) |
+
+**앞 phase 가 「안 쟀다」를 보고하지 않고 넘긴 축을 리뷰가 처음 주웠다 (2026-09-07 noindex-entity-prefilter, 반복 402).**
+테스트 phase 는 변이 3판을 전부 죽이고 GREEN 을 냈는데, 그 3판은 **전부 「기능이 붙들려
+있나」축**이고 「이 필터가 얼마를 먹나」는 한 판도 없었다. 직전 status 가 스스로 「볼 자리
+②」로 적어 두고도 값을 안 냈다. 리뷰가 임시 DB 로 재니 **단건 x44.5 · 제거 루프 x1.22~x3.64**
+로 실재했다 — 다만 **결론은 통과**다(이미 적혀 있는 전수 스캔 천장의 상수 배이고 검색 경로 0).
+`metrics.md` 가 다섯 번 적어 온 「성능 지적은 다섯 번 중 다섯 번 틀렸다」와 **반대 칸**이다:
+그때는 백지 패스가 **없는 비용을 지어냈고**, 이번은 앞 phase 가 **있는 비용을 안 쟀다**.
+갈린 것은 재현 스크립트의 유무다 — 이번 숫자는 전부 `timeit`·임시 DB 로 재현했고 코퍼스
+모양(3000문서 × 30KB · 태그밀도 낮은 블로그 글)을 숫자 옆에 적었다(`project.md:205` 규칙).
+**굳힌다: 「x배 늘어도 안전하다」는 판정도 «x 를 실제로 잰 뒤에» 하는 말이다** — 이번 diff 의
+주석은 x 를 모르는 채 「오탐이 늘지 않는다」로 안전을 주장했고, 그 문장은 참인데도 읽는 사람을
+**비용도 안 는다**로 데려간다(반복 319 의 「천장 주석의 안전 주장은 실측 대상」과 같은 자리,
+이번엔 **주장이 참인데 축이 다른** 경우다). 기각 3건도 전부 실측이다 — `&#` 판별자 충분성은
+`html.entities.html5` 전수(ASCII 글자를 내는 명명 엔티티 1개 · `robots` 글자를 내는 것 **0개**),
+`OR` 절 SQL 안전성은 정적 판독, 형제 호출자는 `grep` 으로 둘뿐임을 확인했다.
+**등재 1건에는 처방 실측을 붙였다**(반복 331 규칙) — `</head>` 컷은 **x893** 이지만 body 안
+`meta robots` 를 놓친다(True → False 실측). **싼 처방일수록 천장을 같이 재야 등재할 수 있다.**
 
 **앞 phase 의 「잠복이라 안 연다」 판정이 처음으로 뒤집혔다 (2026-09-06 readme-band-cover, 반복 380).**
 후보 **3** → 확증 2(둘 다 자동 수정) · 기각 1, 고친 줄 **2**. 값이 있는 쪽 `[R65-1]` 은 새 결함이
