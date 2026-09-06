@@ -198,3 +198,31 @@ append 전용이고 수정·삭제 금지다. 각 회전의 사유는 `digest.md
   함께 올려 `StepSyncTest` 가 확인). 다음 갭 후보는 계획서 5절이 남긴
   `ITER_ROW`·`STEP_ROW`·`STEP_LINE`·`PLAN_SLUG` 의 앵커 — **오늘 재지 않았다.**
   `digest.md` 는 200줄 정각이라 한 줄도 안 더했다 · 회전 없음(201줄, 상한 300).
+## 2026-09-06 14:00 | head-anchor-cover | 테스트 1/1 | 시도0
+- 한 일: 새 테스트를 쓰는 자리가 아니라 **빠뜨린 것을 찾고 전체를 돌리는** 자리다
+  (`rules/test.md` 1·3·6절). ① 완료 기준 1~4 의 변이를 개발 phase 와 **다른 프로세스에서**
+  다시 걸었고 ② 계획서 5절이 남긴 네 정규식의 앵커를 처음으로 쟀다. 저장소는 한 바이트도
+  안 고쳤다 — 스크래치패드 하네스가 `mock.patch.object` 로 모듈 속성만 갈았다.
+- 결과: **완료 기준 재측 4/4 그대로다** — 대조군 `Ran 620` 죽은 단언 **0** ·
+  M1(`ITER_LINE` 앵커 제거) **사망 1** `IterationPatternTest.test_status_line_needs_the_whole_line` ·
+  M2(`DOC_HEAD`→`^`) **사망 1** `DocHeadPatternTest.test_pattern_leaves_non_h1_heads` ·
+  M3 양성 대조(`^ZZZ`) **사망 2** `DocHeadPatternTest.test_pattern_catches_document_heads`
+  + `DocHeadTest.test_append_targets_start_with_h1` · M5(`ITER_ROW` 넓힘) **사망 2**.
+  `\S` 를 지우는 변이 둘(`^# `·`^#`)도 새로 걸어 봤고 **둘 다 사망 1**(같은 이름)이라
+  `NOT_CAUGHT` 의 `"#제목"`·`"# "` 이 실제로 그 글자를 붙들고 있다.
+- 결과: **갭 하나 — 계획 62 가 닫은 구멍의 형제가 정규식 넷에 그대로 있다. 점수 [6].**
+  `STEP_LINE`(`^`·`$`) · `PLAN_SLUG`(`^`) · `ITER_ROW`(`^`) · `STEP_ROW`(`^`) 를 지우는 변이가
+  **4/4 전수 620건에서 생존**했다(`ARCHIVE` 의 `^…$` 도 생존하나 `.match()` 라 `^` 가 잉여).
+  배선 의심을 먼저 껐다(`digest [6]`) — 같은 상수를 `^ZZZ` 로 죽이면 각각 **6·6·4·1건**이
+  죽는다. `StepPatternTest` 의 `STEP_LINE.search("step: 1")` 이 막던 것도 앵커가 아니라
+  **`N/M` 모양**이라 `ITER_LINE` 의 `night_iterations: 90` 과 같은 착시였다.
+- 판정: **8 미만이라 이 스텝에서 닫지 않는다**(`rules/test.md` 4절). 앵커는 오늘 넷 다 참이고
+  구멍은 「앞으로 넓히는 편집이 조용히 산다」는 잠복이며, 계획서 5절이 **미리 「있으면 digest
+  후보로 남긴다」로 선언한 범위 밖**이다. 여는 조건은 「그 정규식 넷 중 하나를 손대는 날」.
+- 결과: 전수 **맨몸** `Ran 620 tests in 15.889s` · `OK` · **rc 0** ·
+  범위 무접촉(`git diff --stat d763317 HEAD -- src/ e2e/ docs/specs/ data/` **빈손** ·
+  `data/crawl.db` sha256 `85c96744…5bda18` 무변) · 러너 규율 위반 **0회**(누적 38 유지).
+- 다음: **리뷰 1/1.** `digest.md` 는 200줄 정각이었으므로 후보 한 줄을 더하면서 룰대로
+  **가장 오래된 완료 항목 하나**(계획 55 `db-state-invariant`)를 지워 200줄을 지켰다 —
+  원본은 `plan_history_041.md` 와 아카이브 명부에 그대로 있다. `history_current.md`
+  회전 없음(228줄, 상한 300).
