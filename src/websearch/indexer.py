@@ -174,7 +174,9 @@ def index_pages(db_path):
         for url, html in db.execute(
             "SELECT d.url, p.html FROM docs d JOIN pages p ON p.url = d.url "
             # `&#` 갈래는 `is_noindex()` 의 사전 필터와 같은 이유다 — 후보만 넓히고
-            # 최종 판정은 그 뒤 `is_noindex()` 가 하므로 오탐이 늘지 않는다
+            # 최종 판정은 그 뒤 `is_noindex()` 가 하므로 오탐이 늘지 않는다.
+            # 늘어나는 것은 **후보 수**다 — 3000문서×30KB 임시 DB 실측으로 이 루프 전체가
+            # x1.22(`robots` 55% 코퍼스) ~ x3.64(10%). 위 ponytail 의 증분화가 그대로 답이다
             "WHERE p.html LIKE '%robots%' OR p.html LIKE '%&#%'"
         ).fetchall():
             if extract.is_noindex(html):
