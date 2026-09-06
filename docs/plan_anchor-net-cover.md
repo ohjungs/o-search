@@ -176,6 +176,14 @@
 6. **전수 초록 맨몸** — `PYTHONDONTWRITEBYTECODE=1 PYTHONPYCACHEPREFIX=$(mktemp -d)
    PYTHONPATH=src python3 -m unittest discover -b -s tests` 가 `OK` rc 0 이고
    건수가 620 → **늘어난 수**로 바뀌며 `README.md` 의 「단위 N건」이 같은 수다.
+   **정정 — 2026-09-06 테스트 phase(반복 368).** 「늘어난 수」는 3절의 처방과
+   어긋난 예측이었다: 처방이 **기존 시험 메서드에 단언을 더하고 합성 표에 행을
+   끼우는 것**이라 메서드 수가 안 는다. 실제는 **620 무변**이고 `README.md` 의
+   「단위 620건」이 이미 같은 수다. **기준의 뜻(전수 초록 + README 일치)은 그대로
+   요구하고 건수 증가 요구만 무효**로 한다 — 수를 맞추려 시험을 쪼개는 것은
+   계수기를 위한 편집이다. README 대조가 살아 있는 것은 이 phase 가 쟀다:
+   `test_readme.UNIT_COUNT` 를 「못 뽑는 꼴」과 「다른 수를 뽑는 꼴」로 각각 갈면
+   `test_verification_counts_match_reality` 가 **각각 1건씩 죽는다**.
 7. **범위 무접촉** — `git diff --stat 1752ecc HEAD -- src/ e2e/ docs/specs/ data/` 가
    **빈손**이고 `data/crawl.db` sha256 이 `85c96744…5bda18` 그대로다.
 8. **`status.md` 의 `step`·`plan` 이 `index.md` 63번 행과 매 커밋 함께 움직인다**
