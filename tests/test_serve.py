@@ -915,7 +915,7 @@ XSS_PAGES = {
 def assert_page_basics(t, body):
     t.assertIn('<html lang="ko"', body, "lang 이 없으면 스크린리더가 언어를 못 고른다")
     t.assertIn('name="viewport"', body, "viewport meta 가 없으면 360px 에서 가로 스크롤이 난다")
-    t.assertNotIn("<script", body.lower(), "JS 0KB 계약 위반 (concept.md:50)")
+    t.assertNotIn("<script", body.lower(), "JS 0KB 계약 위반 (concept.md:51)")
     # 스크린리더 사용자가 화면을 훑는 첫 수단이 제목 계층이다. h2 만 있고 h1 이
     # 없으면 결과 목록이 무엇에 속한 목록인지 말해주는 것이 아무것도 없다.
     t.assertIn("<h1", body, "h1 이 없다 — 제목 계층이 h2 부터 시작한다")

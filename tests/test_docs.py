@@ -265,23 +265,35 @@ class SpecCitationTest(unittest.TestCase):
     ROOTS = ("src", "tests", "e2e")
     # 오늘 18건이다. 정규식이 좁아지면 0건 수집 위에서 조용히 초록이 된다.
     MIN_HITS = 14
+    # 인용과 같은 줄, 인용 **뒤**에 따옴표로 옮겨 적은 문구. 앞을 안 보는 것은
+    # 인용을 통째로 품은 실패 메시지를 사양 문구로 오인하지 않기 위해서다.
+    PHRASE = re.compile(r'"([^"\n]+)"')
+    # 인용을 주석으로 단 상수 — 값 표기가 사양 문장 안에 그대로 있어야 한다.
+    CONST = re.compile(r"^\s*[A-Z_][A-Z0-9_]*\s*=\s*([^#]+)")
+    NUM = re.compile(r"[0-9]+(?:\.[0-9]+)?")
+    # 오늘 문구 2 · 값 7. 추출기가 깨지면 0건 대조 위에서 조용히 초록이 된다.
+    MIN_CHECKS = 5
 
-    def test_spec_citations_point_at_real_lines(self):
-        spec = DOCS / "specs" / "concept.md"
-        lines = spec.read_text(encoding="utf-8").split("\n")
+    def _citations(self):
+        """`(경로, 줄번호, 줄, 인용 끝 위치, 시작행, 끝행)` 전수."""
         hits = []
         for root in self.ROOTS:
             for path in sorted((DOCS.parent / root).rglob("*.py")):
                 text = path.read_text(encoding="utf-8")
                 for no, line in enumerate(text.split("\n"), 1):
                     for m in self.CITE.finditer(line):
-                        hits.append((path, no, int(m.group(1)),
+                        hits.append((path, no, line, m.end(), int(m.group(1)),
                                      int(m.group(2) or m.group(1))))
         self.assertGreaterEqual(
             len(hits), self.MIN_HITS,
             "인용을 %d건밖에 못 모았다 — 수집 정규식이 깨졌다 (0건 수집 = 거짓 초록)"
             % len(hits))
-        for path, no, start, end in hits:
+        return hits
+
+    def test_spec_citations_point_at_real_lines(self):
+        spec = DOCS / "specs" / "concept.md"
+        lines = spec.read_text(encoding="utf-8").split("\n")
+        for path, no, _line, _pos, start, end in self._citations():
             label = "%s:%d" % (path.relative_to(DOCS.parent), no)
             with self.subTest(label):
                 self.assertLessEqual(
@@ -292,6 +304,49 @@ class SpecCitationTest(unittest.TestCase):
                     lines[start - 1].strip(),
                     "%s 가 대는 사양 %d행이 빈 줄이다 — 인용 쪽 주소가 밀렸다"
                     % (label, start))
+
+    def test_spec_quotes_match_cited_lines(self):
+        """주소가 실재해도 **다른 항목**을 가리키면 여전히 거짓말이다.
+
+        주소 축(위)은 빈 줄만 문다. 사양은 한 항목이 여러 줄이라 한 칸 밀린
+        주소가 멀쩡한 이웃 줄에 착지한다 — 2026-09-06 실측에서 네 자리가
+        그랬다(JS 예산은 50행이 아니라 51행, 합격선은 22행이 아니라 23행).
+        인용 쪽이 옮겨 적은 문구와 상수 값을 대상 줄에서 되찾아 그 착지를 문다.
+        """
+        lines = (DOCS / "specs" / "concept.md").read_text(
+            encoding="utf-8").split("\n")
+        checks = 0
+        for path, no, line, pos, start, end in self._citations():
+            if end > len(lines):
+                continue                      # 주소 축이 이미 문 자리다
+            cited = "\n".join(lines[start - 1:end])
+            label = "%s:%d" % (path.relative_to(DOCS.parent), no)
+            for phrase in self.PHRASE.findall(line[pos:]):
+                checks += 1
+                with self.subTest(label + " 문구"):
+                    self.assertIn(
+                        phrase, cited,
+                        '%s 가 "%s" 를 사양 %d행에서 옮겼다는데 그 줄엔 없다'
+                        % (label, phrase, start))
+            const = self.CONST.match(line)
+            if not const:
+                continue
+            nums = set()
+            for tok in self.NUM.findall(const.group(1)):
+                nums.add(tok)
+                if "." in tok:                # `5.0` 은 사양에 `5` 로 적힌다
+                    nums.add(tok.rstrip("0").rstrip("."))
+            if not nums:
+                continue
+            checks += 1
+            with self.subTest(label + " 값"):
+                self.assertTrue(
+                    any(n in cited for n in nums),
+                    "%s 의 상수 값 %s 이 사양 %d행 어디에도 없다"
+                    % (label, sorted(nums), start))
+        self.assertGreaterEqual(
+            checks, self.MIN_CHECKS,
+            "대조를 %d건밖에 못 했다 — 문구·값 추출기가 깨졌다" % checks)
 
 
 class IterationSyncTest(unittest.TestCase):

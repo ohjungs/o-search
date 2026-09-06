@@ -30,7 +30,7 @@ import urllib.request
 
 from websearch import indexer, serve
 
-JS_BUDGET = 50 * 1024      # concept.md:50 — gzip 기준
+JS_BUDGET = 50 * 1024      # concept.md:51 — gzip 기준
 MIN_CONTRAST = 4.5         # concept.md:53
 MIN_CONTRAST_NONTEXT = 3.0 # WCAG 2.1 SC 1.4.11 — 비텍스트 UI 지시자. concept.md 는 텍스트만 적었다
 MOBILE_WIDTH = 360         # concept.md:54

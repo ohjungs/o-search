@@ -31,7 +31,7 @@ sys.path.insert(0, os.path.join(
 from websearch.indexer import index_pages, search  # noqa: E402
 from websearch.store import Store  # noqa: E402
 
-TOP_N = 10        # `concept.md:22` "상위 10건"
+TOP_N = 10        # `concept.md:23` "상위 10건"
 THRESHOLD = 80    # % — 같은 줄의 합격선. 경계는 통과 쪽이다("80% 이상")
 PER_LANG = 20     # 언어별 질의 수. 다르면 분모가 달라져 숫자를 비교할 수 없다
 LANG_NAMES = {"ko": "한국어", "en": "영어"}

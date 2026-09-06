@@ -150,7 +150,7 @@ class TestVerdict(QualityEvalCase):
         self.assertNotIn("순위 밖", out)
 
     def test_exactly_80_percent_passes(self):
-        # 경계는 통과 쪽이다 — `concept.md:22` 가 "80% 이상"이다
+        # 경계는 통과 쪽이다 — `concept.md:23` 가 "80% 이상"이다
         code, out = self.run_eval(queries=self.misdirect(KO_BASELINE - 16))
         self.assertEqual(code, 0, out)
         self.assertIn("한국어 16/20 (80%)", out)
