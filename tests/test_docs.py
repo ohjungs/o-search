@@ -272,7 +272,9 @@ class SpecCitationTest(unittest.TestCase):
     CONST = re.compile(r"^\s*[A-Z_][A-Z0-9_]*\s*=\s*([^#]+)")
     NUM = re.compile(r"[0-9]+(?:\.[0-9]+)?")
     # 오늘 문구 2 · 값 5. 추출기가 깨지면 0건 대조 위에서 조용히 초록이 된다.
-    MIN_CHECKS = 5
+    # 하한이 5 면 **값 축의 크기와 같아** 문구 추출기만 죽는 날(7→5) 그대로 초록이다.
+    # 두 축 중 하나가 통째로 죽는 것을 물려면 큰 축보다 하나 위여야 한다.
+    MIN_CHECKS = 6
 
     @staticmethod
     def _has_number(cited, num):
