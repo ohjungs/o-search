@@ -46,6 +46,18 @@ ARCHIVE = re.compile(r"^(?:history|plan_history|design_history)_[0-9]+\.md$")
 # 아래 `IterationPatternTest` 가 이 둘을 합성 표로 고정한다.
 ITER_ROW = re.compile(r"^\| 반복 \| ([0-9]+) \|", re.M)
 ITER_LINE = re.compile(r"^iteration: ([0-9]+)$", re.M)
+# 기록 문서의 머리. 첫 줄 하나에만 대므로 `re.M` 은 없다 — `^` 는 문자열 머리다.
+# `\S` 가 `#제목`·`# `(제목 없는 H1)를 가른다. 아래 `DocHeadPatternTest` 가 이것을
+# 합성 리터럴로 고정한다(실물 문서는 늘 맞는 모양이라 자기를 못 잰다).
+DOC_HEAD = re.compile(r"^# \S")
+# 스텝 번호가 사는 두 자리. `index.md` 는 행이 수십 개라 **`plan:` 슬러그로 집는다** —
+# 상태 칸(`진행`/`완료`)은 안 본다(`docs/design_index-step-sync.md` 「결정」).
+# 행 패턴은 슬러그를 `re.escape` 해 끼우므로 상수는 템플릿이다. 이름 뒤 ` | ` 를
+# 요구해 **접두 일치를 막는다** — 아니면 `plan_index-step-sync-2` 가 대신 통과한다.
+# 아래 `StepPatternTest` 가 이 셋을 합성 표로 고정한다.
+STEP_LINE = re.compile(r"^step: ([0-9]+/[0-9]+)$", re.M)
+PLAN_SLUG = re.compile(r"^plan: ([A-Za-z0-9_-]+)", re.M)
+STEP_ROW = r"^\| plan_%s \| [^|]* \| [^|]* \| ([0-9]+/[0-9]+) \|"
 
 
 def done_section(digest_text):
@@ -72,6 +84,64 @@ def indexed(name, section):
     return re.search(r"(?<![A-Za-z_])" + re.escape(name), section) is not None
 
 
+def step_row(slug):
+    """`index.md` 에서 이 슬러그의 계획 행을 무는 정규식."""
+    return re.compile(STEP_ROW % re.escape(slug), re.M)
+
+
+def iter_gap(status_text, metrics_text):
+    """반복 축이 어긋난 자리를 한 줄로 돌려준다. 어긋남이 없으면 `None`.
+
+    **몸통을 함수로 뺀 이유는 `step_gap` 과 같다** — `IterationSyncTest` 는 실물 두
+    문서 위에서만 도는데 그 문서는 늘 맞춰져 있어서, 판정을 무력화하는 변이가 조용히
+    산다(2026-09-06 계획 61 착수 실측 — 자기비교·가드 둘 삭제·판정 통째 삭제가
+    전수 614건에서 4/4 생존했다). 실물은 `IterationSyncTest` 가, 갈래는 `IterGapTest`
+    가 부른다.
+    """
+    a = ITER_ROW.search(metrics_text)
+    if a is None:
+        return "metrics.md 에서 `| 반복 | <수> |` 행을 못 찾았다"
+    b = ITER_LINE.search(status_text)
+    if b is None:
+        return "status.md 에서 `iteration: <수>` 줄을 못 찾았다"
+    if a.group(1) != b.group(1):
+        return ("반복 번호가 어긋났다 — metrics.md `반복` %s ≠ status.md `iteration` %s"
+                % (a.group(1), b.group(1)))
+    return None
+
+
+def step_gap(status_text, index_text):
+    """스텝 축이 어긋난 자리를 한 줄로 돌려준다. 어긋남이 없으면 `None`.
+
+    **몸통을 함수로 뺀 이유**: `StepSyncTest` 는 실물 문서 위에서만 도는데 그 문서는
+    늘 맞춰져 있어서, 검사가 문서에만 붙어 있으면 «비교를 무력화하는 변이»가 전부
+    조용히 산다(2026-09-06 계획 60 테스트 phase 실측 — 변이 6종이 전수 609건에서
+    6/6 생존했다). `done_section`·`indexed` 가 `ArchiveMatchTest` 를 위해 나온 것과
+    같은 이유다. 실물은 `StepSyncTest` 가, 갈래는 `StepGapTest` 가 부른다.
+    """
+    s = STEP_LINE.search(status_text)
+    if s is None:
+        return "status.md 에서 `step: <N/M>` 줄을 못 찾았다"
+    p = PLAN_SLUG.search(status_text)
+    if p is None:
+        return "status.md 에서 `plan: <슬러그>` 줄을 못 찾았다"
+    slug = p.group(1)
+    if slug == "null":
+        # 하네스 템플릿의 초기 상태. 대조할 행이 없으니 초기값 자신을 요구한다.
+        if s.group(1) != "0/0":
+            return ("`plan: null` 인데 `step` 이 %s 다 — 계획 없이 스텝만 흘렀다"
+                    % s.group(1))
+        return None
+    r = step_row(slug).search(index_text)
+    if r is None:
+        return ("index.md 에서 `| plan_%s |` 행의 스텝 칸을 못 읽었다 — 등재가 빠졌거나"
+                " 표의 열 모양이 바뀌었다(스텝을 넷째 칸으로 가정한다)" % slug)
+    if r.group(1) != s.group(1):
+        return ("스텝이 어긋났다 — index.md `plan_%s` %s ≠ status.md `step` %s"
+                % (slug, r.group(1), s.group(1)))
+    return None
+
+
 class DocHeadTest(unittest.TestCase):
     def test_append_targets_start_with_h1(self):
         for name in APPEND_TARGETS:
@@ -81,9 +151,48 @@ class DocHeadTest(unittest.TestCase):
                 self.assertTrue(path.is_file(), "기록 문서를 못 찾았다: %s" % path)
                 first = path.read_text(encoding="utf-8").split("\n", 1)[0]
                 self.assertRegex(
-                    first, r"^# \S",
+                    first, DOC_HEAD,
                     "%s 의 첫 줄이 H1 이 아니다 — 머리가 본문에 빨려 들어갔다: %r"
                     % (name, first))
+
+
+class DocHeadPatternTest(unittest.TestCase):
+    """`DOC_HEAD` 자신을 리터럴로 붙든다 — 위 검사는 자기를 못 잰다.
+
+    실물 세 문서가 늘 H1 로 시작해서, 판정을 `^` 로 넓혀도 `DocHeadTest` 는 조용히
+    초록이다(2026-09-06 실측: 전수 618건에서 죽은 단언 0). `CitationPatternTest` 가
+    같은 자리에서 배운 것이라 관용구를 그대로 베낀다 — 판정 대상을 문서가 아니라
+    **코드 안에 고정**한다.
+    """
+
+    # 머리로 인정해야 하는 꼴 — 실물을 베끼지 않는 **합성 리터럴**이다.
+    # 실물 제목이 바뀌어도 이 셋은 안 움직인다(그것이 두 층을 가른 목적이다).
+    # 실물 첫 줄을 재는 것은 위 `DocHeadTest` 몫이다.
+    CAUGHT = (
+        "# 아카이브 요약",
+        "# 계획 색인",
+        "# 기록 (현재)",
+    )
+    # 머리가 아닌 꼴 — 판정을 넓히는 변이는 여기서 죽는다.
+    NOT_CAUGHT = (
+        "## 완료",              # H2 는 머리가 아니다
+        "#제목",                # 공백이 없으면 마크다운 제목이 아니다
+        "# ",                   # 제목 없는 H1
+        "",                     # 빈 첫 줄
+        "- [6] **항목**",       # 이 파일이 존재하게 만든 그 사고의 모양
+        "  # 들여쓴 머리",      # 들여쓰면 1번 줄의 머리가 아니다
+    )
+
+    def test_pattern_catches_document_heads(self):
+        for line in self.CAUGHT:
+            with self.subTest(line=line):
+                self.assertRegex(line, DOC_HEAD, "머리를 머리로 안 읽는다 — 검사가 좁아졌다")
+
+    def test_pattern_leaves_non_h1_heads(self):
+        for line in self.NOT_CAUGHT:
+            with self.subTest(line=line):
+                self.assertNotRegex(line, DOC_HEAD,
+                                    "머리가 아닌 것을 머리로 읽는다 — 판정이 넓어졌다")
 
 
 class CitationPatternTest(unittest.TestCase):
@@ -151,19 +260,148 @@ class IterationSyncTest(unittest.TestCase):
 
     매치가 `None` 이면 비교 전에 실패한다 — 표 형식이 바뀌면 검사가 `None == None`
     위에서 조용히 통과하는 것이 여기 유일한 눈먼 자리다.
+    **판정은 `iter_gap` 이 한다** — 갈래를 실물 없이 밟으려고 뺀 것이고,
+    그것을 밟는 것은 `IterGapTest` 다.
     """
 
     def test_metrics_and_status_agree(self):
-        metrics = (DOCS / "metrics.md").read_text(encoding="utf-8")
-        status = (DOCS / "status.md").read_text(encoding="utf-8")
-        a = ITER_ROW.search(metrics)
-        b = ITER_LINE.search(status)
-        self.assertIsNotNone(a, "metrics.md 에서 `| 반복 | <수> |` 행을 못 찾았다")
-        self.assertIsNotNone(b, "status.md 에서 `iteration: <수>` 줄을 못 찾았다")
+        gap = iter_gap((DOCS / "status.md").read_text(encoding="utf-8"),
+                       (DOCS / "metrics.md").read_text(encoding="utf-8"))
+        self.assertIsNone(gap, gap)
+
+
+class StepSyncTest(unittest.TestCase):
+    """`index.md` 의 계획 행 스텝 칸과 `status.md` 의 `step` 이 같은가.
+
+    `IterationSyncTest` 가 닫은 것은 `반복`↔`iteration` 축뿐이라 **스텝 칸은 아무도
+    안 붙들었다** — `digest ## 반복 실패` 의 「스텝을 커밋하면서 `index.md` 의 숫자를
+    안 올린다」가 **4회** 재발했고, 최근 30커밋 실측에서도 11건이 어긋난 채 갔다.
+    어긋나는 방향은 11/11 전부 `index.md` 가 뒤처지는 쪽이다.
+
+    **집는 방법은 `plan:` 슬러그다**(안 D). 상태 칸(`진행`/`완료`)을 보는 안은 계획
+    커밋과 index 등재 커밋이 갈린 자리에서 오탐이거나 침묵이었다 —
+    슬러그로 집으면 행이 있거나(대조한다) 없거나(그것이 결함이다) 둘 중 하나다.
+
+    셋 다 매치가 `None` 이면 비교 전에 실패한다 — 조용히 지나가는 갈래는 0개다.
+    **판정은 `step_gap` 이 한다** — 갈래를 실물 없이 밟으려고 뺀 것이고,
+    그것을 밟는 것은 `StepGapTest` 다.
+    """
+
+    def test_index_row_and_status_agree(self):
+        gap = step_gap((DOCS / "status.md").read_text(encoding="utf-8"),
+                       (DOCS / "index.md").read_text(encoding="utf-8"))
+        self.assertIsNone(gap, gap)
+
+
+class StepPatternTest(unittest.TestCase):
+    """`STEP_LINE`·`PLAN_SLUG`·`STEP_ROW` 자신을 합성 표로 붙든다.
+
+    `StepSyncTest` 는 실물 문서 위에서만 도는데, 문서를 맞춰 놓으면 **넓어지는 변이가
+    조용히 산다** — 아무 행이나 잡아도, 접두로 넓혀도 초록이다. `IterationPatternTest`·
+    `CitationPatternTest` 가 같은 자리에서 배운 것이라 검사 대상을 코드에 고정한다.
+
+    표는 ① 다른 슬러그 행을 **앞에** ② 접두가 같은 더 긴 슬러그 행을 **앞에** 둔다 —
+    넓힌 정규식은 엉뚱한 수를 집는다. ③ 대상 행의 상태 칸은 `완료` 다: 안 D 는 상태를
+    안 보므로 그래도 잡혀야 한다. ④ **줄 중간에서 시작하는 잡음 행**을 대상 행 앞에
+    둔다 — `^` 를 지운 변이는 이 행의 `8/8` 을 집는다(2026-09-06 실측: 앵커를 지우는
+    변이 넷이 전수 620건에서 4/4 생존했다). ①과 ④의 수를 다르게 두는 것이 조건이다:
+    같은 수면 「슬러그를 안 본다」와 「`^` 가 죽었다」가 한 값으로 겹쳐 실패 메시지가
+    범인을 못 가린다.
+    """
+
+    TABLE = "\n".join([
+        "| plan_endtag-cut-cover | 완료 | loop/x | 9/9 | 통과 |",
+        "| plan_index-step-sync-2 | 진행 | loop/x | 3/7 | 미정 |",
+        "| 메모 | 아래는 옛 행 | plan_index-step-sync | 완료 | loop/x | 8/8 | 미정 |",
+        "| plan_index-step-sync | 완료 | loop/x | 1/1 | 미정 |",
+    ])
+
+    def test_row_is_picked_by_exact_slug(self):
+        m = step_row("index-step-sync").search(self.TABLE)
+        self.assertIsNotNone(m, "슬러그의 행을 못 찾았다 — 행 패턴이 죽었다")
         self.assertEqual(
-            a.group(1), b.group(1),
-            "반복 번호가 어긋났다 — metrics.md `반복` %s ≠ status.md `iteration` %s"
-            % (a.group(1), b.group(1)))
+            "1/1", m.group(1),
+            "남의 행을 물었다 — `9/9` 면 슬러그를 안 보고 앞 행을, `3/7` 이면 "
+            "`plan_index-step-sync-2` 를 접두로, `8/8` 이면 `^` 가 죽어 줄 중간의 "
+            "잡음 행을 집었다")
+
+    def test_absent_slug_matches_nothing(self):
+        # 행이 없으면 `None` 이라야 위 검사가 «등재 누락» 으로 실패할 수 있다.
+        self.assertIsNone(step_row("no-such-plan").search(self.TABLE),
+                          "없는 슬러그의 행을 잡았다 — 슬러그를 안 보고 있다")
+
+    def test_status_lines_need_the_whole_line(self):
+        m = STEP_LINE.search("attempt: 0\nstep: 1/1\niteration: 352")
+        self.assertIsNotNone(m, "`step: <N/M>` 줄을 못 찾았다")
+        self.assertEqual("1/1", m.group(1))
+        self.assertIsNone(STEP_LINE.search("step: 1"),
+                          "`N/M` 이 아닌 것을 스텝으로 읽었다")
+        # 위 세 줄은 형식만 잰다 — 앵커를 지워도 그대로 초록이라, 앵커를 실제로 재는
+        # 것은 아래 둘이다(`IterationPatternTest` 의 `ITER_LINE` 과 같은 관용구).
+        self.assertIsNone(STEP_LINE.search("x step: 1/1"),
+                          "줄 중간에 붙은 꼴을 물었다 — `^` 가 죽었다")
+        self.assertIsNone(STEP_LINE.search("step: 1/1x"),
+                          "꼬리가 붙은 꼴을 물었다 — `$` 가 죽었다")
+        m = PLAN_SLUG.search("step: 1/1\nplan: index-step-sync 계획 60 (설계 완료)")
+        self.assertIsNotNone(m, "`plan: <슬러그>` 줄을 못 찾았다")
+        self.assertEqual("index-step-sync", m.group(1),
+                         "슬러그 뒤의 설명까지 이름으로 읽었다")
+        self.assertEqual("null", PLAN_SLUG.search("plan: null").group(1))
+        self.assertIsNone(PLAN_SLUG.search("x plan: a"),
+                          "줄 중간에 붙은 꼴을 물었다 — `^` 가 죽었다")
+
+
+class StepGapTest(unittest.TestCase):
+    """`step_gap` 의 갈래를 합성 문자열로 전부 밟는다.
+
+    `StepPatternTest` 가 재는 것은 **정규식 셋**이고, 그 위에 얹힌 **판정**은
+    `StepSyncTest` 가 실물 문서로만 불렀다. 문서는 늘 맞춰져 있어서
+    2026-09-06 실측에서 판정을 무력화하는 변이 **6종이 전수 609건에서 6/6 생존**했다 —
+    ① null 갈래 기대값 비틀기 ② null 갈래 삭제 ③ 대조를 자기비교로 바꾸기
+    ④ 「index 에 행이 없다」 가드 삭제 ⑤·⑥ 「status 에 줄이 없다」 가드 삭제.
+    `CitationPatternTest`·`ArchiveMatchTest` 가 같은 자리에서 배운 것이고,
+    설계서가 적은 「조용히 지나가는 갈래는 0개다」를 실제로 재는 것이 여기다.
+    """
+
+    # 접두가 같은 더 긴 슬러그 행을 앞에 둔다 — `StepPatternTest.TABLE` 과 같은 뜻.
+    INDEX = "\n".join([
+        "| plan_index-step-sync-2 | 진행 | loop/x | 3/7 | 미정 |",
+        "| plan_index-step-sync | 진행 | loop/x | 1/1 | 미정 |",
+    ])
+
+    @staticmethod
+    def status(step, plan):
+        return "attempt: 0\nstep: %s\nplan: %s\nctx: 62\n" % (step, plan)
+
+    def test_agreeing_docs_have_no_gap(self):
+        self.assertIsNone(
+            step_gap(self.status("1/1", "index-step-sync 계획 60"), self.INDEX),
+            "맞는 문서를 어긋났다고 신고했다 — 매 반복이 빨개진다")
+
+    def test_step_mismatch_is_reported(self):
+        gap = step_gap(self.status("1/1", "index-step-sync"),
+                       self.INDEX.replace("| 1/1 |", "| 0/1 |"))
+        self.assertIsNotNone(gap, "index 가 0/1 인데 통과시켰다 — 4회 재발한 그 결함이다")
+        self.assertIn("0/1", gap, "어느 수가 어긋났는지 안 적었다")
+
+    def test_missing_index_row_is_reported(self):
+        gap = step_gap(self.status("1/1", "no-such-plan"), self.INDEX)
+        self.assertIsNotNone(gap, "index 에 행이 없는데 통과시켰다 — 등재 누락이 샌다")
+        self.assertIn("no-such-plan", gap, "어느 슬러그가 없는지 안 적었다")
+
+    def test_null_plan_requires_the_zero_step(self):
+        self.assertIsNone(step_gap(self.status("0/0", "null"), self.INDEX),
+                          "`plan: null` + `step: 0/0` 은 하네스 템플릿의 정상 상태다")
+        gap = step_gap(self.status("1/1", "null"), self.INDEX)
+        self.assertIsNotNone(gap, "`plan: null` 인데 스텝이 흘렀다 — 안 잡혔다")
+        self.assertIn("1/1", gap, "흘러간 스텝을 안 적었다")
+
+    def test_missing_status_lines_are_reported(self):
+        # 머리 형식이 바뀌면 `None` 위에서 조용히 통과하는 것이 유일한 눈먼 자리다.
+        self.assertIsNotNone(step_gap("plan: index-step-sync\n", self.INDEX),
+                             "`step:` 줄이 없는데 통과시켰다")
+        self.assertIsNotNone(step_gap("step: 1/1\n", self.INDEX),
+                             "`plan:` 줄이 없는데 통과시켰다")
 
 
 class ArchiveIndexTest(unittest.TestCase):
@@ -204,12 +442,15 @@ class IterationPatternTest(unittest.TestCase):
     설계 계약이 적어 둔 *"이웃 세 행은 안 문다"* 를 여기서 잰다.
 
     아래 표는 이웃을 **일부러 앞에 둔다** — 넓힌 정규식은 엉뚱한 수를 집는다.
+    네 번째 행은 **줄 중간에서 시작하는 잡음 행**이다 — `^` 를 지운 변이는 `999` 를
+    집는다(2026-09-06 실측: 그 변이가 전수 620건에서 살아 있었다).
     """
 
     TABLE = "\n".join([
         "| phase | 반복 수 |",
         "| 반복 상한 | 0 |",
         "| 평균 반복 | 5.3 |",
+        "| 메모 | 아래는 옛 행 | 반복 | 999 |",
         "| 반복 | 232 |",
     ])
 
@@ -219,15 +460,102 @@ class IterationPatternTest(unittest.TestCase):
         self.assertEqual(
             "232", m.group(1),
             "이웃 행을 물었다 — `| 반복 수 |`·`| 반복 상한 |`·`| 평균 반복 |` 은 "
-            "반복 번호가 아니다")
+            "반복 번호가 아니고, `999` 면 `^` 가 죽어 줄 중간의 잡음 행을 집은 것이다")
 
     def test_status_line_needs_the_whole_line(self):
-        # `night_iterations:` 는 실제로 같은 프런트매터에 산다.
+        # `night_iterations:` 는 실제로 같은 프런트매터에 산다. 다만 이 줄이 막는 것은
+        # 앵커가 아니라 **복수형 `s`**(`iterations: ` ≠ `iteration: `)다 — 앵커를 지워도
+        # 그대로 초록이라, 앵커를 실제로 재는 것은 아래 두 줄이다.
         self.assertIsNone(ITER_LINE.search("night_iterations: 90"),
                           "`night_iterations` 를 `iteration` 으로 읽었다")
+        self.assertIsNone(ITER_LINE.search("x iteration: 1"),
+                          "줄 중간에 붙은 꼴을 물었다 — `^` 가 죽었다")
+        self.assertIsNone(ITER_LINE.search("iteration: 1x"),
+                          "꼬리가 붙은 꼴을 물었다 — `$` 가 죽었다")
         m = ITER_LINE.search("plan: x\niteration: 232\nctx: 62")
         self.assertIsNotNone(m, "`iteration: <수>` 줄을 못 찾았다")
         self.assertEqual("232", m.group(1))
+
+
+class IterGapTest(unittest.TestCase):
+    """`iter_gap` 의 갈래를 합성 문자열로 전부 밟는다.
+
+    `IterationPatternTest` 가 재는 것은 **정규식 둘**이고, 그 위에 얹힌 **판정**은
+    `IterationSyncTest` 가 실물 문서로만 불렀다. 두 문서는 늘 맞춰져 있어서
+    2026-09-06 실측에서 판정을 무력화하는 변이 **4종이 전수 614건에서 4/4 생존**했다 —
+    ① 대조를 자기비교로 바꾸기 ②·③ 「행·줄이 없다」 가드 삭제 ④ 판정 통째 삭제.
+    `StepGapTest`·`ArchiveMatchTest` 가 같은 자리에서 배운 것이다.
+    """
+
+    METRICS = "\n".join([
+        "| 평균 반복 | 5.3 |",
+        "| 반복 | 356 |",
+    ])
+
+    @staticmethod
+    def status(iteration):
+        return "plan: x\niteration: %s\nctx: 55\n" % iteration
+
+    def test_agreeing_docs_have_no_gap(self):
+        self.assertIsNone(
+            iter_gap(self.status("356"), self.METRICS),
+            "맞는 문서를 어긋났다고 신고했다 — 매 반복이 빨개진다")
+
+    def test_iteration_mismatch_is_reported(self):
+        gap = iter_gap(self.status("357"), self.METRICS)
+        self.assertIsNotNone(gap, "356 ≠ 357 을 통과시켰다 — 4회 재발한 그 결함이다")
+        self.assertIn("356", gap, "어느 수가 어긋났는지 안 적었다")
+        self.assertIn("357", gap, "어느 수가 어긋났는지 안 적었다")
+
+    def test_missing_metrics_row_is_reported(self):
+        # 표 모양이 바뀌면 `a` 가 `None` 이다 — 조용히 통과하면 안 된다.
+        gap = iter_gap(self.status("356"), "| 반복 수 | 356 |")
+        self.assertIsNotNone(gap, "metrics 에 행이 없는데 통과시켰다")
+        self.assertIn("metrics.md", gap, "어느 문서가 비었는지 안 적었다")
+
+    def test_missing_status_line_is_reported(self):
+        gap = iter_gap("night_iterations: 173\n", self.METRICS)
+        self.assertIsNotNone(gap, "status 에 줄이 없는데 통과시켰다")
+        self.assertIn("status.md", gap, "어느 문서가 비었는지 안 적었다")
+
+
+class ArchivePatternTest(unittest.TestCase):
+    """`ARCHIVE` 자신을 리터럴로 붙든다 — 위 `DocCitationTest` 는 자기를 못 잰다.
+
+    `ARCHIVE` 는 **어느 문서를 줄번호 검사에서 뺄지**를 혼자 정하는데, 넓히는 변이
+    셋(`$` 제거 · `re.I` · `[0-9]+`→`[0-9]*`)도 이름 하나를 빼 좁히는 변이 하나도
+    전수 620건에서 죽은 단언 0 이었다(2026-09-06 실측). `DocHeadPatternTest` 가
+    `DOC_HEAD` 에 하는 일과 같다 — 판정 대상을 실물이 아니라 코드 안에 고정한다.
+    """
+
+    # 아카이브로 인정해야 하는 꼴 — **실물 목록이 아니라 접두어 셋의 모양**이다.
+    # 실물 아카이브가 늘거나 줄어도 이 셋은 안 움직인다.
+    CAUGHT = (
+        "history_001.md",
+        "plan_history_049.md",
+        "design_history_046.md",
+    )
+    # 아카이브가 아닌 꼴 — 판정을 넓히는 변이는 여기서 죽는다.
+    NOT_CAUGHT = (
+        "history_current.md",       # 살아 있는 기록 — 빠지면 검사 밖으로 나간다
+        "history_001.md.bak.md",    # 끝을 안 묶으면(`$` 제거) 잡힌다
+        "history_.md",              # 번호가 없다(`[0-9]+`→`[0-9]*` 가 여기서 죽는다)
+        "HISTORY_001.MD",           # 대소문자를 흘리면(`re.I`) 잡힌다
+        "digest.md",
+        "index.md",
+    )
+
+    def test_pattern_catches_archive_names(self):
+        for name in self.CAUGHT:
+            with self.subTest(name=name):
+                self.assertRegex(name, ARCHIVE,
+                                 "아카이브를 검사 대상으로 끌어들인다 — 판정이 좁아졌다")
+
+    def test_pattern_leaves_live_docs(self):
+        for name in self.NOT_CAUGHT:
+            with self.subTest(name=name):
+                self.assertNotRegex(name, ARCHIVE,
+                                    "살아 있는 문서를 검사에서 뺀다 — 판정이 넓어졌다")
 
 
 class ArchiveMatchTest(unittest.TestCase):
