@@ -46,6 +46,10 @@ ARCHIVE = re.compile(r"^(?:history|plan_history|design_history)_[0-9]+\.md$")
 # 아래 `IterationPatternTest` 가 이 둘을 합성 표로 고정한다.
 ITER_ROW = re.compile(r"^\| 반복 \| ([0-9]+) \|", re.M)
 ITER_LINE = re.compile(r"^iteration: ([0-9]+)$", re.M)
+# 기록 문서의 머리. 첫 줄 하나에만 대므로 `re.M` 은 없다 — `^` 는 문자열 머리다.
+# `\S` 가 `#제목`·`# `(제목 없는 H1)를 가른다. 아래 `DocHeadPatternTest` 가 이것을
+# 합성 리터럴로 고정한다(실물 문서는 늘 맞는 모양이라 자기를 못 잰다).
+DOC_HEAD = re.compile(r"^# \S")
 # 스텝 번호가 사는 두 자리. `index.md` 는 행이 수십 개라 **`plan:` 슬러그로 집는다** —
 # 상태 칸(`진행`/`완료`)은 안 본다(`docs/design_index-step-sync.md` 「결정」).
 # 행 패턴은 슬러그를 `re.escape` 해 끼우므로 상수는 템플릿이다. 이름 뒤 ` | ` 를
@@ -147,9 +151,46 @@ class DocHeadTest(unittest.TestCase):
                 self.assertTrue(path.is_file(), "기록 문서를 못 찾았다: %s" % path)
                 first = path.read_text(encoding="utf-8").split("\n", 1)[0]
                 self.assertRegex(
-                    first, r"^# \S",
+                    first, DOC_HEAD,
                     "%s 의 첫 줄이 H1 이 아니다 — 머리가 본문에 빨려 들어갔다: %r"
                     % (name, first))
+
+
+class DocHeadPatternTest(unittest.TestCase):
+    """`DOC_HEAD` 자신을 리터럴로 붙든다 — 위 검사는 자기를 못 잰다.
+
+    실물 세 문서가 늘 H1 로 시작해서, 판정을 `^` 로 넓혀도 `DocHeadTest` 는 조용히
+    초록이다(2026-09-06 실측: 전수 618건에서 죽은 단언 0). `CitationPatternTest` 가
+    같은 자리에서 배운 것이라 관용구를 그대로 베낀다 — 판정 대상을 문서가 아니라
+    **코드 안에 고정**한다.
+    """
+
+    # 머리로 인정해야 하는 꼴 — 실물 세 문서의 첫 줄 그대로.
+    CAUGHT = (
+        "# 아카이브 요약",      # digest.md
+        "# 계획 색인",          # index.md
+        "# 기록 (현재)",        # history_current.md
+    )
+    # 머리가 아닌 꼴 — 판정을 넓히는 변이는 여기서 죽는다.
+    NOT_CAUGHT = (
+        "## 완료",              # H2 는 머리가 아니다
+        "#제목",                # 공백이 없으면 마크다운 제목이 아니다
+        "# ",                   # 제목 없는 H1
+        "",                     # 빈 첫 줄
+        "- [6] **항목**",       # 이 파일이 존재하게 만든 그 사고의 모양
+        "  # 들여쓴 머리",      # 들여쓰면 1번 줄의 머리가 아니다
+    )
+
+    def test_pattern_catches_document_heads(self):
+        for line in self.CAUGHT:
+            with self.subTest(line=line):
+                self.assertRegex(line, DOC_HEAD, "머리를 머리로 안 읽는다 — 검사가 좁아졌다")
+
+    def test_pattern_leaves_non_h1_heads(self):
+        for line in self.NOT_CAUGHT:
+            with self.subTest(line=line):
+                self.assertNotRegex(line, DOC_HEAD,
+                                    "머리가 아닌 것을 머리로 읽는다 — 판정이 넓어졌다")
 
 
 class CitationPatternTest(unittest.TestCase):
@@ -403,9 +444,15 @@ class IterationPatternTest(unittest.TestCase):
             "반복 번호가 아니다")
 
     def test_status_line_needs_the_whole_line(self):
-        # `night_iterations:` 는 실제로 같은 프런트매터에 산다.
+        # `night_iterations:` 는 실제로 같은 프런트매터에 산다. 다만 이 줄이 막는 것은
+        # 앵커가 아니라 **복수형 `s`**(`iterations: ` ≠ `iteration: `)다 — 앵커를 지워도
+        # 그대로 초록이라, 앵커를 실제로 재는 것은 아래 두 줄이다.
         self.assertIsNone(ITER_LINE.search("night_iterations: 90"),
                           "`night_iterations` 를 `iteration` 으로 읽었다")
+        self.assertIsNone(ITER_LINE.search("x iteration: 1"),
+                          "줄 중간에 붙은 꼴을 물었다 — `^` 가 죽었다")
+        self.assertIsNone(ITER_LINE.search("iteration: 1x"),
+                          "꼬리가 붙은 꼴을 물었다 — `$` 가 죽었다")
         m = ITER_LINE.search("plan: x\niteration: 232\nctx: 62")
         self.assertIsNotNone(m, "`iteration: <수>` 줄을 못 찾았다")
         self.assertEqual("232", m.group(1))

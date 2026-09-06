@@ -175,3 +175,26 @@ append 전용이고 수정·삭제 금지다. 각 회전의 사유는 `digest.md
   (`"x iteration: 1"`·`"iteration: 1x"`)을 더하고 ② `r"^# \S"` 를 모듈 상수 `DOC_HEAD` 로
   올려 `DocHeadPatternTest`(CAUGHT 3 · NOT_CAUGHT 6)를 세운다. `rules/dev.md` 0절대로
   **RED 를 눈으로 먼저 본다**. 건드릴 파일은 `tests/test_docs.py`·`README.md` 둘뿐이다.
+## 2026-09-06 13:00 | head-anchor-cover | 개발 1/1 | 시도0
+- 한 일: `tests/test_docs.py` 에 모듈 상수 `DOC_HEAD`(`ITER_LINE` 아래)와
+  `DocHeadPatternTest`(CAUGHT 3 · NOT_CAUGHT 6)를 `CitationPatternTest` 관용구 그대로 세우고,
+  `DocHeadTest` 는 `assertRegex(first, DOC_HEAD, …)` 로 바꿔 실물 셋을 재는 자리로 남겼다.
+  `IterationPatternTest` 에는 앵커를 실제로 재는 리터럴 두 줄(`"x iteration: 1"`·
+  `"iteration: 1x"`)과 「기존 단언이 막던 것은 앵커가 아니라 복수형 `s`」라는 주석을 더했다.
+  만진 파일은 그 파일과 `README.md`(단위 건수 줄) **둘뿐** — 계획서 「건드릴 파일」과 같다.
+- TDD 0절: **RED 를 눈으로 먼저 봤다** — 상수 없이 새 클래스와 `assertRegex(first, DOC_HEAD, …)`
+  만 넣고 전수를 돌려 `NameError: name 'DOC_HEAD' is not defined` **×12**(새 클래스 9 ·
+  `DocHeadTest` subTest 3)와 `test_readme` 의 `(618, 21) != (620, 21)` 을 본 뒤 구현했다.
+- 결과: 전수 `Ran 620 tests in 15.792s` · `OK` · rc 0(맨몸) · 대조군 죽은 단언 **0**.
+  변이 재측 **M1 사망 1**(`IterationPatternTest.test_status_line_needs_the_whole_line`) ·
+  **M2(`DOC_HEAD`→`^`) 사망 6**(전부 `DocHeadPatternTest.test_pattern_leaves_non_h1_heads` 의
+  subTest) · **M3 양성 대조(`^ZZZ`) 사망 6**(`DocHeadTest` 실물 3 + 패턴 CAUGHT 3) ·
+  **M5(`ITER_ROW` 넓힘) 여전히 사망 2**. **M2 와 M3 이 서로 다른 이름을 죽여** 두 층의 귀속이
+  확인됐다 — 넓히는 변이는 합성 갈래가, 죽이는 변이는 실물 검사가 잡는다.
+- 결과: 범위 무접촉 — `git diff --stat d763317 HEAD -- src/ e2e/ docs/specs/ data/` **빈손** ·
+  `data/crawl.db` sha256 `85c96744…5bda18` 무변 · 변이는 전부 저장소 밖(스크래치패드 하네스가
+  `mock.patch.object` 로 모듈 속성만 갈았다) · 러너 규율 위반 **0회**(누적 38 유지).
+- 다음: **테스트 1/1.** 완료 기준 7개를 오늘 전부 충족했다(7 은 `index.md` 62번 행을 `1/1` 로
+  함께 올려 `StepSyncTest` 가 확인). 다음 갭 후보는 계획서 5절이 남긴
+  `ITER_ROW`·`STEP_ROW`·`STEP_LINE`·`PLAN_SLUG` 의 앵커 — **오늘 재지 않았다.**
+  `digest.md` 는 200줄 정각이라 한 줄도 안 더했다 · 회전 없음(201줄, 상한 300).
