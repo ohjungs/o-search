@@ -189,6 +189,22 @@
 8. **`status.md` 의 `step`·`plan` 이 `index.md` 63번 행과 매 커밋 함께 움직인다**
    (계획 60 이 세운 `StepSyncTest` 의 네 번째 시험대).
 
+**e2e 실측 — 2026-09-06 · 반복 370 · 8/8 충족** (`docs/e2e/anchor-net-cover/result.md`).
+하나씩 다시 쟀다: 1 M1a·M1b 가 각각 `Ran 620 · failures=1` 로 `test_status_lines_
+need_the_whole_line` 을 죽인다 · 2 M2 도 같은 시험 1건 · 3 M3 → `test_only_the_exact_
+row_matches` 1건 · 4 M4 → `test_row_is_picked_by_exact_slug` 1건 · 5 M0 대조군 `OK`
+(오탐 0)이고 계획 62 의 `ITER_LINE` 변이 둘이 각각 1건씩 그대로 죽는다(감지력 무회귀) ·
+6 맨몸 전수 `Ran 620 tests in 15.874s · OK · rc 0` 이고 `README.md` 「단위 620건」·
+「e2e 시나리오 21종」이 실물과 일치 · 7 범위 diff 빈손 · `data/crawl.db` sha256 무변 ·
+8 `status.md` `step: 1/1` ↔ `index.md` 63번 행 `1/1`, 그리고 실물 복사본에서 두 값을
+서로 반대 방향으로 어긋내면 `StepSyncTest` 가 양쪽 다 문다.
+
+**6번의 정정도 유효성을 다시 쟀다 — 단언을 안 낮췄다.** `test_readme.UNIT_COUNT` 를
+「못 뽑는 꼴」·「다른 수를 뽑는 꼴」로, `E2E_COUNT` 를 「다른 수를 뽑는 꼴」로 갈면
+`test_verification_counts_match_reality` 가 **각각 1건씩** 죽고 무변이 대조군은 `OK`
+다. 정정이 지운 것은 「메서드 수가 는다」는 예측 하나뿐이고 「전수 초록 + README 일치」는
+세 갈래로 살아 있다.
+
 ## 5. 하지 않을 것
 
 - **`ARCHIVE` 의 `^…$`** — 오늘 탐침에서 이것도 죽은 단언 0 이지만 `.match()` 로만
