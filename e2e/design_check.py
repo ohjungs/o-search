@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""컨셉 디자인 4축(`docs/specs/concept.md:50-54`)을 실제 응답 바이트로 판정한다.
+"""컨셉 디자인 4축(`docs/specs/concept.md:50-54` — "화면은 둘뿐" 이하)을 실제 응답 바이트로 판정한다.
 
     1. 결과 페이지 LCP 1.5s 이하    2. JS 번들 50KB(gzip) 이하
     3. 대비 — 텍스트 4.5:1 · 비텍스트 3:1   4. 모바일(360px)에서 가로 스크롤 없음
@@ -441,7 +441,7 @@ def main():
             server.shutdown()
             server.server_close()
 
-    print("컨셉 디자인 4축 (docs/specs/concept.md:50-54)\n")
+    print('컨셉 디자인 4축 (docs/specs/concept.md:50-54 — "화면은 둘뿐" 이하)\n')
     try:
         css = stylesheet(results)
     except ValueError as exc:

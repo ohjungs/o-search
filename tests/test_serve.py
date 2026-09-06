@@ -911,18 +911,18 @@ XSS_PAGES = {
                             "<body><p>김치 김치 김치</p></body></html>",
 }
 
-# 홈·결과 두 화면에 공통으로 요구하는 것 (concept.md:50-54 디자인 축)
+# 홈·결과 두 화면에 공통으로 요구하는 것 (concept.md:50-54 디자인 축 — "화면은 둘뿐")
 def assert_page_basics(t, body):
     t.assertIn('<html lang="ko"', body, "lang 이 없으면 스크린리더가 언어를 못 고른다")
     t.assertIn('name="viewport"', body, "viewport meta 가 없으면 360px 에서 가로 스크롤이 난다")
-    t.assertNotIn("<script", body.lower(), "JS 0KB 계약 위반 (concept.md:51)")
+    t.assertNotIn("<script", body.lower(), 'JS 0KB 계약 위반 (concept.md:51 — "JS 번들 50KB")')
     # 스크린리더 사용자가 화면을 훑는 첫 수단이 제목 계층이다. h2 만 있고 h1 이
     # 없으면 결과 목록이 무엇에 속한 목록인지 말해주는 것이 아무것도 없다.
     t.assertIn("<h1", body, "h1 이 없다 — 제목 계층이 h2 부터 시작한다")
 
 
 class TestHomePage(ServeTestCase):
-    """GET / — 검색 홈. concept.md:50 의 첫 번째 화면."""
+    """GET / — 검색 홈. concept.md:50 의 첫 번째 화면 — "검색 홈(검색창 하나)"."""
 
     def test_home_is_html_not_404(self):
         status, body, headers = self.raw("/")
@@ -933,7 +933,7 @@ class TestHomePage(ServeTestCase):
     def test_home_has_search_input_with_accessible_name(self):
         _, body, _ = self.raw("/")
         self.assertIn('name="q"', body)
-        # 라벨이든 aria-label 이든 접근 가능한 이름이 있어야 한다 (concept.md:53)
+        # 라벨이든 aria-label 이든 접근 가능한 이름이 있어야 한다 (concept.md:53 "키보드만으로 검색·결과 이동")
         self.assertTrue("aria-label" in body or "<label" in body,
                         "검색 입력에 접근 가능한 이름이 없다")
         self.assertIn('role="search"', body)
@@ -952,7 +952,7 @@ class TestHomePage(ServeTestCase):
 
 
 class TestResultsPage(ServeTestCase):
-    """GET /?q=… — 결과 페이지. concept.md:50 의 두 번째 화면."""
+    """GET /?q=… — 결과 페이지. concept.md:50 "결과 페이지(검색창 + 결과 리스트)"."""
 
     def test_results_render_title_url_snippet(self):
         status, body, _ = self.raw("/?q=" + urllib.parse.quote("김치"))

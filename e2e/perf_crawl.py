@@ -1,4 +1,4 @@
-"""크롤 처리량 측정. concept.md:44 성능 축 2번 — 초당 5문서 이상 지속.
+"""크롤 처리량 측정. concept.md:44 성능 축 2번 — "초당 5문서 이상 지속".
 
 `e2e/perf_search.py` 가 검색 p95 에 하는 일을 크롤 처리량에 한다.
 **실제 네트워크를 치지 않는다** — 로컬 서버만 쓴다.
@@ -148,7 +148,7 @@ def run_crawl(workers, max_pages=MAX_PAGES):
 
 
 def assert_gaps_kept(label):
-    """간격을 깎아서 빨라진 것이면 통과시키면 안 된다 (concept.md:59).
+    """간격을 깎아서 빨라진 것이면 통과시키면 안 된다 (concept.md:59 — "크롤 윤리(robots·간격)").
 
     `(재는 도메인 수, 실측 최소 간격)` 을 돌려준다. **하한이 아니라 실측치를 돌려주는
     이유**: "전부 0.95s 이상" 만 찍으면 1.004s 와 3.0s 가 같은 줄로 보인다. 여유가
@@ -250,7 +250,7 @@ def main():
     assert saved == MAX_PAGES, "수집 %d, 기대 %d — 처리량 이전에 크롤이 덜 돌았다" % (
         saved, MAX_PAGES)
 
-    # ② 윤리 먼저 본다. 간격을 깎아서 빨라진 것이면 통과시키면 안 된다 (concept.md:59)
+    # ② 윤리 먼저 본다. 간격을 깎아서 빨라진 것이면 통과시키면 안 된다 (concept.md:59 — "크롤 윤리(robots·간격)")
     measured_n, lo = assert_gaps_kept("[열림]")
 
     # ③ 같은 URL 을 두 번 받으면 처리량 숫자가 부풀고 남의 서버도 두 번 맞는다
@@ -272,7 +272,7 @@ def main():
         return 0
 
     assert rate >= TARGET_RATE, (
-        "초당 %.2f문서 — concept.md:44 기준 %.1f 미달. "
+        '초당 %.2f문서 — concept.md:44 "초당 5문서 이상 지속" 기준 %.1f 미달. '
         "도메인 %d개를 순차로 받으면 1/%.1fs = 초당 %.1f문서가 상한이다"
         % (rate, TARGET_RATE, DOMAINS, LATENCY, 1 / LATENCY))
 
