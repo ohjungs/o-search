@@ -251,6 +251,117 @@ class DocCitationTest(unittest.TestCase):
             "가리킨다:\n" + "\n".join(hits))
 
 
+class SpecCitationTest(unittest.TestCase):
+    """`src`·`tests`·`e2e` 가 `concept.md:<N>` 으로 대는 주소가 실재하는 줄인가.
+
+    사양은 사람이 고치는 읽기 전용 문서인데, 줄 하나가 끼거나 빠지면 열여덟 개 주소가
+    **조용히** 한 칸씩 밀린다. 값은 다 맞고 주소만 썩는 구조라 소스만 보는 테스트가
+    구조적으로 못 본다 — 2026-09-06 실측에서 다섯 자리가 이미 빈 줄을 대고 있었다.
+    주소가 서야 그 위에 값 대조(사양 숫자 ↔ 상수)를 얹을 자리가 생긴다.
+    """
+
+    # 리터럴 안의 `\.` 때문에 이 줄 자신은 자기 정규식에 안 물린다 — 자기를 세지 않는다.
+    CITE = re.compile(r"concept\.md:([0-9]+)(?:-([0-9]+))?")
+    ROOTS = ("src", "tests", "e2e")
+    # 오늘 18건이다. 정규식이 좁아지면 0건 수집 위에서 조용히 초록이 된다.
+    MIN_HITS = 14
+    # 인용과 같은 줄, 인용 **뒤**에 따옴표로 옮겨 적은 문구. 앞을 안 보는 것은
+    # 인용을 통째로 품은 실패 메시지를 사양 문구로 오인하지 않기 위해서다.
+    PHRASE = re.compile(r'"([^"\n]+)"')
+    # 인용을 주석으로 단 상수 — 값 표기가 사양 문장 안에 그대로 있어야 한다.
+    CONST = re.compile(r"^\s*[A-Z_][A-Z0-9_]*\s*=\s*([^#]+)")
+    NUM = re.compile(r"[0-9]+(?:\.[0-9]+)?")
+    # 오늘 문구 2 · 값 5. 추출기가 깨지면 0건 대조 위에서 조용히 초록이 된다.
+    # 하한이 5 면 **값 축의 크기와 같아** 문구 추출기만 죽는 날(7→5) 그대로 초록이다.
+    # 두 축 중 하나가 통째로 죽는 것을 물려면 큰 축보다 하나 위여야 한다.
+    MIN_CHECKS = 6
+
+    @staticmethod
+    def _has_number(cited, num):
+        """숫자 하나가 **온전한 수로** 사양 줄에 있나.
+
+        부분일치는 대조를 통째로 무르게 만든다 — `50` 은 `500ms` 안에도 있어서
+        JS 예산 인용을 전혀 다른 항목(근거 문단 p95)에 옮겨도 초록이었다.
+        앞뒤로 숫자·소수점이 붙지 않은 자리만 센다.
+        """
+        return re.search(r"(?<![0-9.])%s(?![0-9])" % re.escape(num),
+                         cited) is not None
+
+    def _citations(self):
+        """`(경로, 줄번호, 줄, 인용 끝 위치, 시작행, 끝행)` 전수."""
+        hits = []
+        for root in self.ROOTS:
+            for path in sorted((DOCS.parent / root).rglob("*.py")):
+                text = path.read_text(encoding="utf-8")
+                for no, line in enumerate(text.split("\n"), 1):
+                    for m in self.CITE.finditer(line):
+                        hits.append((path, no, line, m.end(), int(m.group(1)),
+                                     int(m.group(2) or m.group(1))))
+        self.assertGreaterEqual(
+            len(hits), self.MIN_HITS,
+            "인용을 %d건밖에 못 모았다 — 수집 정규식이 깨졌다 (0건 수집 = 거짓 초록)"
+            % len(hits))
+        return hits
+
+    def test_spec_citations_point_at_real_lines(self):
+        spec = DOCS / "specs" / "concept.md"
+        lines = spec.read_text(encoding="utf-8").split("\n")
+        for path, no, _line, _pos, start, end in self._citations():
+            label = "%s:%d" % (path.relative_to(DOCS.parent), no)
+            with self.subTest(label):
+                self.assertLessEqual(
+                    end, len(lines),
+                    "%s 가 사양 %d행을 대는데 사양은 %d줄뿐이다"
+                    % (label, end, len(lines)))
+                self.assertTrue(
+                    lines[start - 1].strip(),
+                    "%s 가 대는 사양 %d행이 빈 줄이다 — 인용 쪽 주소가 밀렸다"
+                    % (label, start))
+
+    def test_spec_quotes_match_cited_lines(self):
+        """주소가 실재해도 **다른 항목**을 가리키면 여전히 거짓말이다.
+
+        주소 축(위)은 빈 줄만 문다. 사양은 한 항목이 여러 줄이라 한 칸 밀린
+        주소가 멀쩡한 이웃 줄에 착지한다 — 2026-09-06 실측에서 네 자리가
+        그랬다(JS 예산은 50행이 아니라 51행, 합격선은 22행이 아니라 23행).
+        인용 쪽이 옮겨 적은 문구와 상수 값을 대상 줄에서 되찾아 그 착지를 문다.
+        """
+        lines = (DOCS / "specs" / "concept.md").read_text(
+            encoding="utf-8").split("\n")
+        checks = 0
+        for path, no, line, pos, start, end in self._citations():
+            if end > len(lines):
+                continue                      # 주소 축이 이미 문 자리다
+            cited = "\n".join(lines[start - 1:end])
+            label = "%s:%d" % (path.relative_to(DOCS.parent), no)
+            for phrase in self.PHRASE.findall(line[pos:]):
+                checks += 1
+                with self.subTest(label + " 문구"):
+                    self.assertIn(
+                        phrase, cited,
+                        '%s 가 "%s" 를 사양 %d행에서 옮겼다는데 그 줄엔 없다'
+                        % (label, phrase, start))
+            const = self.CONST.match(line)
+            if not const:
+                continue
+            nums = set()
+            for tok in self.NUM.findall(const.group(1)):
+                nums.add(tok)
+                if "." in tok:                # `5.0` 은 사양에 `5` 로 적힌다
+                    nums.add(tok.rstrip("0").rstrip("."))
+            if not nums:
+                continue
+            checks += 1
+            with self.subTest(label + " 값"):
+                self.assertTrue(
+                    any(self._has_number(cited, n) for n in nums),
+                    "%s 의 상수 값 %s 이 사양 %d행 어디에도 없다"
+                    % (label, sorted(nums), start))
+        self.assertGreaterEqual(
+            checks, self.MIN_CHECKS,
+            "대조를 %d건밖에 못 했다 — 문구·값 추출기가 깨졌다" % checks)
+
+
 class IterationSyncTest(unittest.TestCase):
     """`metrics.md` 의 `반복` 과 `status.md` 의 `iteration` 이 같은 수인가.
 

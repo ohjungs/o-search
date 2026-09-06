@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""컨셉 디자인 4축(`docs/specs/concept.md:49-54`)을 실제 응답 바이트로 판정한다.
+"""컨셉 디자인 4축(`docs/specs/concept.md:50-54`)을 실제 응답 바이트로 판정한다.
 
     1. 결과 페이지 LCP 1.5s 이하    2. JS 번들 50KB(gzip) 이하
     3. 대비 — 텍스트 4.5:1 · 비텍스트 3:1   4. 모바일(360px)에서 가로 스크롤 없음
@@ -30,7 +30,7 @@ import urllib.request
 
 from websearch import indexer, serve
 
-JS_BUDGET = 50 * 1024      # concept.md:50 — gzip 기준
+JS_BUDGET = 50 * 1024      # concept.md:51 — gzip 기준
 MIN_CONTRAST = 4.5         # concept.md:53
 MIN_CONTRAST_NONTEXT = 3.0 # WCAG 2.1 SC 1.4.11 — 비텍스트 UI 지시자. concept.md 는 텍스트만 적었다
 MOBILE_WIDTH = 360         # concept.md:54
@@ -441,7 +441,7 @@ def main():
             server.shutdown()
             server.server_close()
 
-    print("컨셉 디자인 4축 (docs/specs/concept.md:49-54)\n")
+    print("컨셉 디자인 4축 (docs/specs/concept.md:50-54)\n")
     try:
         css = stylesheet(results)
     except ValueError as exc:

@@ -1,59 +1,60 @@
 ---
 signal: DONE
 phase: e2e
-step: 1/1
+step: 2/2
 attempt: 0
-iteration: 386
+iteration: 392
 updated: 2026-09-06
-ctx: 38
+ctx: 63
 night_iterations: 190
 night_red: 2
 night_retries: 4
-plan: readme-shape-cover — 계획 66 (e2e 1/1 완료 · DONE · 다음 계획은 아직 없다)
+plan: spec-citation-address 계획 67 (e2e phase 완료 · DONE · 다음 계획은 아직 없다)
 ---
 
 ## 현재 상태
 
-**계획 66 을 e2e 로 닫았다 — 전수 `Ran 625 tests in 15.899s` · `OK` · rc 0, 대조군 3판
-기대대로. `docs/e2e/readme-shape-cover/result.md`.**
+**계획 67 `spec-citation-address` 를 닫았다 — 통과 · DONE.**
+전수 **`Ran 627 tests in 15.860s` · `OK` · rc 0** 1회, 실물 사본 대조군 **4판**
+(U0 성한 원본 + 변이 3판). 산출물은 `docs/e2e/spec-citation-address/result.md`.
+**다음 계획은 아직 없다** — 다음 반복이 계획 phase 로 연다.
 
-**예산을 먼저 못박고 들어왔다** — 같은 계획의 리뷰 스텝에서 앞선 두 시도가 변이 실험에
-들어가 산출물 없이 48분·39분 정지했다(`digest ## 반복 실패` 2회). 그래서 이 반복은
-**전수 1회 · 변이 2판 · 도구 호출 25회 이내**로 상한을 정하고 그 안에서 끝냈다.
+## 이번 스텝이 한 일
 
-## 대조군 판 — 판정 줄
+**U1 — 사양에 줄 하나를 끼우니 12건이 죽는다.** 사본의 `docs/specs/concept.md` 21행 자리에
+항목 한 줄을 넣어 아래 주소를 통째로 한 칸 밀었다. `test_spec_citations_point_at_real_lines`
+다수와 `test_spec_quotes_match_cited_lines` 가 함께 울고, 라벨에 `tests/test_serve.py:914` ·
+`e2e/design_check.py:2` 처럼 **고칠 파일과 줄이 통째로** 찍힌다. **앞 phase 들이 잰 변이
+(C1~C7)는 전부 인용 쪽을 비트는 것이었고, 사양 쪽을 미는 변이는 오늘이 처음이다** — 이 계획이
+존재하는 이유로 적은 전제를 그 방향에서 처음 샀다.
 
-저장소 밖 `mktemp -d` 사본만 편집했고, 심기 전 앵커 줄이 정확히 1개인지 먼저 단언했다
-(`digest [8]` BSD `sed` 거짓 초록 대응 — 오늘은 파이썬 줄 편집). 끝난 뒤 워킹트리 빈손.
+**U2·U3 — 리뷰 스텝(`e8291e9`)이 산 것을 실행으로 갈랐다.** `PHRASE` 의 따옴표 종류를
+`"` → `'` 로 바꿔 문구 축을 통째로 죽이는 같은 편집을, 하한만 다르게 두 판 돌렸다.
+`MIN_CHECKS 6` 이면 **`FAILED (failures=1)` · rc 1**(「대조를 5건밖에 못 했다」 ·
+`5 not greater than or equal to 6`)이고, 리뷰 이전 값 `5` 로 되돌리면 **`Ran 30 · OK · rc 0`
+으로 그대로 나간다.** 리뷰가 「하한이 값 축의 크기(5)와 같아 문구 추출기만 죽는 날 조용하다」고
+정적으로 적은 판정이 오늘 실행으로 확인됐다 — **생존→사망이 뒤집힌 자리를 눈으로 봤다.**
 
-| 판 | 편집 | 판정 줄 | 어느 단언이 물었나 |
-|---|---|---|---|
-| U0 | 손 안 댐 (성한 원본) | `Ran 8 tests in 0.157s` · `OK` · rc 0 | — (오탐 0) |
-| U1 | 표에 여덟 번째 행 끼움 (셋째 칸은 실재 파일) | `FAILED (failures=1)` · rc 1 | `test_every_band_row_is_covered` |
-| U2 | 셋째 칸 개명 오타 `quality_eval.py`→`quality_evals.py` | `FAILED (failures=1)` · rc 1 | `test_every_band_row_names_an_existing_meter` |
+**U0 — 오탐 0.** 성한 원본에서 `Ran 30 tests in 0.020s` · `OK` · rc 0.
 
-**착수 탐침(반복 382)에서 U1·U2 는 둘 다 `Ran 6 · OK · rc 0` 으로 생존했다.** 계획 66 이
-연 구멍이 정확히 그 둘이고, 오늘 **각각 1건씩, 서로 다른 단언에서** 죽는다. `subTest`
-라벨에 문제의 행 원문이 통째로 찍힌다.
+**면제 근거를 갈아끼웠다.** 계획 61~66 은 「`git diff … -- src/ e2e/` 가 빈손」을 근거로 21종
+재실행을 0회로 뒀는데, **이 계획은 `e2e/` 를 건드렸다.** 그래서 빈손 논법을 복사하지 않고
+네 줄을 세어서 댔다 — `e2e/design_check.py` 셋(docstring · `JS_BUDGET` 주석 · `print` 헤더
+라벨)과 `e2e/quality_eval.py` 하나(`TOP_N` 주석)뿐이고 **판정 로직·임계값·HTTP 표면은 0줄**,
+그 문자열을 읽는 소비자는 새 가드 `SpecCitationTest` 하나이며 627 안에서 초록이다.
+`src/`·`docs/specs/`·`data/` 는 빈손이고 `data/crawl.db` sha256 `85c96744…5bda18` 무변.
 
-## 21종은 재실행하지 않았다 — 그 값이 0 이라는 근거
+**안 산 것도 적는다.** 값 축(`_has_number` 부분일치, `[R67-2]`)은 오늘 다시 안 쟀다 —
+테스트 phase(반복 390)가 변이 3판으로 이미 샀고, 예산 안에서 값이 남은 것은 아직 아무도 안 민
+축(U1)과 어제 정적으로만 닫은 판정(U2·U3)이었다. 21종 개별 재실행도 0회다.
 
-`git diff --stat 3566374 HEAD -- src/ e2e/ docs/specs/ data/` 가 **빈손**이다(계획 66
-직전 커밋부터 HEAD 까지). 계획 65 e2e(반복 381)가 21/21 rc 0 을 산 뒤로 프로세스 밖에서
-달라진 것이 없다. `ls e2e/*.py` **21** · `data/crawl.db` sha256 `85c96744…5bda18` 무변.
-**재실행 안 한 것을 「통과」로 적지 않았다** — `result.md` 0절에 근거로 적었다.
-
-## 범위·집안일
-
-`src/` 0줄 · `tests/` 0줄 · `e2e/` 0줄 · `README.md` 0줄 · `docs/specs/` 무변 ·
-`data/crawl.db` 무변 · 재색인 0 · 스키마 0 · 새 의존성 0(stdlib) · PR #7 무접촉 ·
-`gh` **0회** · `--no-verify`·`--force`·`--amend`·`rebase` 0회 · 러너 리다이렉션 0회.
-계획서를 `docs/plan_history_052.md` 로 아카이브했고 `docs/index.md` 행을 완료로 닫았다.
-`history_current.md` 는 상한 아래라 회전 없음. `digest.md` 는 한 줄 더하고 완료 항목
-한 줄(계획 62 — 63 이 같은 축을 덮는다)을 뺐다.
+**범위**: `src/` 0줄 · `tests/` 0줄 · `e2e/` 0줄 · `README.md` 0줄 · `docs/specs/` 무변 ·
+`data/crawl.db` 무변 · 재색인 0 · 스키마 0 · 새 의존성 0(stdlib) · PR #7 무접촉(`gh` 0회) ·
+전수 1회 · 변이 3판 · `--no-verify`·`--force`·`--amend`·`rebase` 0회 · `main` 직접 커밋 0회.
+바꾼 것은 문서뿐이다(`e2e/spec-citation-address/result.md` 신규 · `status`·`history`·
+`metrics`·`index`·`digest` · 계획서를 `plan_history_053.md` 로 아카이브).
 
 ## 다음
 
-**다음 계획은 아직 없다.** 계획 66 이 닫혔고 활성 계획 0 이다 — 다음 반복은 탐색
-(`rules/discover.md`)부터 시작한다. `digest ## 후보` 에 남아 있는 여는 조건들
-(`test_readme.py` 항목 `[5]` · `concept.md` 세 번째 사본 `[7]③`)이 첫 자리다.
+**다음 계획은 아직 없다.** 다음 반복이 계획 phase 로 열어 후보를 고른다.
+`digest ## 후보` 와 `index.md` 11번(속도 제한 — 사람이 시점을 정한다)이 그 입력이다.
