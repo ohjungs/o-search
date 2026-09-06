@@ -102,6 +102,26 @@ class TestIndexPages(unittest.TestCase):
         self.assertEqual(self._docs(), [])
         self.assertEqual(search(self.db_path, "pyeongsan"), [])
 
+    def test_entity_encoded_noindex_page_is_not_indexed(self):
+        # 계획 69: 진입 사전 필터가 엔티티로 인코딩한 name 을 놓쳐 거부 문서를 색인했다
+        self._seed([
+            ("http://a.test/", '<meta name="&#114;obots" content="noindex"><p>거부</p>'),
+            ("http://b.test/", "<p>허용</p>"),
+        ])
+        self.assertEqual(index_pages(self.db_path), 1)
+        self.assertEqual([row[0] for row in self._docs()], ["http://b.test/"])
+
+    def test_already_indexed_page_declaring_entity_encoded_noindex_is_removed(self):
+        # 두 번째 자리 — 제거 질의의 LIKE '%robots%' 는 인코딩된 문서를 후보로도 안 뽑았다
+        self._seed([("http://a.test/", "<p>허용 pyeongsan</p>")])
+        self.assertEqual(index_pages(self.db_path), 1)
+        Store(self.db_path).upsert(
+            "http://a.test/", '<meta name="&#x72;obots" content="none"><p>허용 pyeongsan</p>', 200
+        )
+        self.assertEqual(index_pages(self.db_path), 0)
+        self.assertEqual(self._docs(), [])
+        self.assertEqual(search(self.db_path, "pyeongsan"), [])
+
     def test_removal_pass_survives_null_html_and_missing_page(self):
         # 갭 탐색: 제거 경로가 크롤 실패 행(html NULL)과 pages 에서 사라진 색인 행을 만난다
         self._seed([("http://a.test/", None), ("http://b.test/", "<p>robots 낱말만 있는 본문</p>")])

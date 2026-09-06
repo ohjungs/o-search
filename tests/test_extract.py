@@ -547,3 +547,15 @@ class TestIsNoindex(unittest.TestCase):
         self.assertTrue(is_noindex('<meta name="robots" content="noindex"><![sqlserver]>'))
         # 오탐 방향도 본다 — 깨진 선언이 지시를 **만들어 내지도** 않는다
         self.assertFalse(is_noindex('<p>robots.txt 를 설명한다<![foo]></p>'))
+
+    def test_entity_encoded_name_is_a_directive(self):
+        # 계획 69: 사전 필터가 'robots' 낱말만 봐서 엔티티로 인코딩한 name 을 통째로
+        # 흘려보냈다 — 파서는 (HTMLParser 가 속성값을 언이스케이프하므로) 원래부터 봤다
+        self.assertTrue(is_noindex('<meta name="&#114;obots" content="noindex">'))
+        self.assertTrue(is_noindex('<meta name="&#x72;obots" content="none">'))
+        self.assertTrue(is_noindex('<meta name="&#X72;obots" content="noindex, nofollow">'))
+
+    def test_char_reference_without_a_directive_is_allowed(self):
+        # 넓힌 필터가 오탐을 만들지 않는다 — 문자참조만 있는 평범한 문서는 그대로 통과다
+        self.assertFalse(is_noindex("<p>A&#38;B &#8212; 본문</p>"))
+        self.assertFalse(is_noindex('<meta name="&#114;obots" content="index, follow">'))

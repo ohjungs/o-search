@@ -208,3 +208,26 @@ append 전용이고 수정·삭제 금지다. 각 회전의 사유는 `digest.md
   연접은 링크 2개에서 내비 5점 대 본문 6점으로 **본문이 이긴다**.
 - 이번 반복은 문서만 고쳤다 — `src/`·`tests/`·`e2e/`·`README.md` **0줄**.
 - 다음: **개발 phase 1/1.**
+
+## 반복 400 — 계획 69 `noindex-entity-prefilter` (개발 phase · 스텝 1/1 · 시도 0)
+
+- **한 일**: 엔티티로 인코딩된 `meta robots` name 의 색인 거부 선언이 무시되던 **두
+  자리**를 닫았다. ① `src/websearch/extract.py` `is_noindex()` 사전 필터를
+  「`robots` 있거나 **`&#` 이 있으면**」으로 넓혔다. ② `src/websearch/indexer.py` 의
+  제거 질의에 `OR p.html LIKE '%&#%'` 를 더했다. 제품 **2줄** · 파일 2개.
+- **RED 를 먼저 봤다**: 새 단언 4개 중 3개 실패(`FAILED (failures=4)`, 넷째는 README
+  건수). `test_entity_encoded_name_is_a_directive` `False is not true` ·
+  `test_entity_encoded_noindex_page_is_not_indexed` `2 != 1`(거부 문서가 색인됐다) ·
+  `test_already_indexed_page_declaring_entity_encoded_noindex_is_removed`
+  `[('http://a.test/', '', '허용 pyeongsan')] != []`. **두 자리가 각각 따로 울었다** —
+  진입만 고쳤으면 셋째가 그대로 살아남는다.
+- **오탐 방향도 심었다**(심자마자 초록인 가드): `&#38;`·`&#8212;` 만 든 본문과
+  `name="&#114;obots" content="index, follow"` 둘 다 False. 필터는 후보만 넓히고
+  판정은 `_MetaRobotsParser` 가 한다 — 그래서 넓혀도 오탐이 안 는다.
+- **빠른 길 유지**: `robots` 도 `&#` 도 없는 문서는 파싱 0회. `&#` 판별자 근거는
+  계획 phase 실측(`r` 을 내는 이름 있는 엔티티 없음).
+- **결과**: 전수 `Ran 632 tests` `OK` rc 0(맨몸 1회) · `e2e/noindex_e2e.py` rc 0 ·
+  `README.md:104` 628→**632건** · `data/crawl.db` 무변 · 스키마·재색인·새 의존성 0 ·
+  `docs/specs/` 무접촉.
+- **다음**: 테스트 phase 1/1 — 변이 두 개(`&#` 갈래 제거 · `OR` 절 제거)가 **각각 다른
+  단언**을 죽이는지 본다.

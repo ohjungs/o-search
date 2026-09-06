@@ -1,62 +1,63 @@
 ---
 signal: GREEN
-phase: plan
-step: 0/1
+phase: test
+step: 1/1
 attempt: 0
-iteration: 399
+iteration: 400
 updated: 2026-09-06
 ctx: 55
-night_iterations: 194
+night_iterations: 195
 night_red: 2
 night_retries: 4
-plan: noindex-entity-prefilter 계획 69 (계획 phase 완료 · 개발 1/1 대기)
+plan: noindex-entity-prefilter 계획 69 (개발 1/1 완료 · 테스트 phase 대기)
 ---
 
 ## 현재 상태
 
-**계획 69 `noindex-entity-prefilter` 를 열었다 — 계획 phase 완료 · GREEN.**
-브랜치 `loop/noindex-entity-prefilter`(기점 `7fcd669` = `origin/main`) ·
-계획서 `docs/plan_noindex-entity-prefilter.md` · 스텝 **1개**(개발 1/1) · 설계 없음.
-이번 반복은 **계획서와 기록 문서만** 만들었다 — `src/`·`tests/`·`e2e/`·`README.md`
-**0줄**.
+**계획 69 `noindex-entity-prefilter` 개발 1/1 끝냈다 · GREEN.**
+브랜치 `loop/noindex-entity-prefilter` · 계획서 `docs/plan_noindex-entity-prefilter.md` ·
+스텝 **1개**를 전부 닫았다. **아홉 계획 만에 `src/` 에 착지했다** — 제품 **2줄**,
+고친 파일 2개(`src/websearch/extract.py`·`src/websearch/indexer.py`).
 
 ## 이번 phase 가 산 것
 
-**아홉 계획 만에 제품에 착지하는 계획이다.** 계획 60~68 은 전부 문서·사양 인용·검사
-가드였고 `src/` 를 0줄 고쳤다. 계획 69 가 고칠 자리는 `src/websearch/extract.py` 의
-`is_noindex()` 사전 필터와 `src/websearch/indexer.py:176` 의 제거 질의 —
-**제품 2줄**이다.
+**엔티티로 인코딩된 `meta robots` name 의 색인 거부 선언이 두 자리 모두에서 먹는다.**
 
-**착수 근거를 오늘 다시 쟀다.** `<meta name="&#114;obots" content="noindex">` 에서
-`is_noindex()` 는 **False**(십육진 `&#x72;obots`·`content="none"` 도 False)인데
-`_MetaRobotsParser` 단독은 같은 문서에서 `['noindex']`·`['none']` 을 본다 — 막는 것은
-파서가 아니라 `extract.py:204` 의 `if "robots" not in html_text.lower()` 한 줄이다.
-정상 문서(`name="robots"`)는 True 라 오탐이 아니라 **누락**이고, 색인 거부는 크롤
-윤리 축이라 오탐보다 무겁다.
+1. `extract.is_noindex()` 의 사전 필터가 `robots` 낱말 **또는 `&#`** 이면 파싱한다.
+   `<meta name="&#114;obots" content="noindex">`(십육진 `&#x72;`·대문자 `&#X72;` 포함)가
+   이제 True 다. 판정은 예전처럼 `_MetaRobotsParser` 가 하고 — HTMLParser 가 속성값을
+   이미 언이스케이프한다 — 필터는 그 파서까지 데려가는 일만 한다.
+2. `indexer.py` 의 제거 질의에 같은 갈래(`OR p.html LIKE '%&#%'`)를 더했다. 이미 색인된
+   문서가 뒤늦게 인코딩된 거부를 달아도 후보로 뽑혀 제거된다.
 
-**처방을 갈아 끼웠다.** `digest [4]` 가 적어 둔 원래 처방은 「필터를 뺀다」인데,
-그러면 모든 페이지를 색인마다 한 번 더 파싱한다. 판별자를 `'&#'` 로 잡으면 십진·
-십육진 문자참조가 전부 걸리고(`r` 을 내는 이름 있는 엔티티는 없다) `&amp;` 만 든
-문서에는 `&#` 이 없어 **빠른 길이 유지된다** — 실측으로 둘 다 확인했다.
-「기록된 답을 실행 전에 다시 재라」의 여섯 번째 적용이다.
+**빠른 길은 그대로다.** `robots` 도 `&#` 도 없는 평범한 문서는 파싱 0회로 지나간다.
+`&#` 을 판별자로 고른 근거는 계획 phase 실측이다 — `r` 을 내는 이름 있는 엔티티가 없어
+십진·십육진 문자참조가 전부 걸리고, `&amp;` 만 든 문서에는 `&#` 이 없다.
 
-**구멍이 두 자리인 것을 계획에 못박았다.** 색인 진입(`extract.is_noindex()`)만
-고치면 이미 색인된 문서는 `LIKE '%robots%'` 가 못 집어 그대로 남는다.
+**오탐은 늘지 않는다.** 두 자리 모두 필터는 **후보를 넓히는 자**이고 최종 판정은 그 뒤의
+`is_noindex()` 가 한다. 그 방향도 단언으로 못박았다(`&#38;`·`&#8212;` 만 든 본문,
+`name="&#114;obots" content="index, follow"` 둘 다 False).
 
-## 남긴 것 (막지 않음)
+## TDD
 
-`http-equiv` 변형(`digest [5]`)과 head 제한 오탐(`digest [4]`)은 별도 축이라 5절
-「하지 않을 것」에 넣었다. 후보 목록의 src 착지 항목 중 **`<nav>` 인라인 연접**
-(`digest [8]`)은 오늘 탐침이 서술을 **뒤집었다** — 링크 2개짜리 예시에서 내비
-블록은 점수 5, 본문 문단은 6 으로 **본문이 이긴다**. 그 항목이 「여전히 내비가
-이긴다」고 적은 것은 링크 수에 달린 진술이라, 여는 날 링크 수 축으로 다시 재야 한다.
+**RED 를 눈으로 봤다** — 새 단언 4개 중 3개가 실패했다(`FAILED (failures=4)`,
+넷째는 README 건수).
+`test_entity_encoded_name_is_a_directive` `False is not true` ·
+`test_entity_encoded_noindex_page_is_not_indexed` `2 != 1`(거부 문서가 색인됐다) ·
+`test_already_indexed_page_declaring_entity_encoded_noindex_is_removed`
+`[('http://a.test/', '', '허용 pyeongsan')] != []`(제거 질의가 후보로도 안 뽑았다).
+**두 자리가 각각 따로 울었다** — 진입만 고쳤으면 셋째가 살아남았을 자리다.
+제품 2줄을 넣고 GREEN.
 
 ## 검증
 
-전수 **`Ran 628 tests` · `OK` · rc 0**(맨몸 1회) ·
-`git diff --stat 7fcd669 HEAD -- src/ tests/ e2e/ README.md docs/specs/ data/` **빈손** ·
-`metrics.md` 「반복 399」 = 이 파일 `iteration: 399`.
+전수 **`Ran 632 tests` · `OK` · rc 0**(맨몸 1회) ·
+`PYTHONPATH=src python3 e2e/noindex_e2e.py` rc 0 ·
+`README.md:104` 「단위 628건」→**632건** · `data/crawl.db` 무변(`git status --porcelain`
+에 없다) · 스키마·마이그레이션·재색인·새 의존성 **0** · `docs/specs/` 무접촉.
 
 ## 다음
 
-**개발 phase 1/1.** 계획서 3절의 완료 기준 다섯을 그대로 받는다.
+**테스트 phase 1/1.** 변이는 두 자리로 자연스럽다 — 필터의 `&#` 갈래를 빼는 변이와
+제거 질의의 `OR` 절을 빼는 변이가 **각각 다른 단언**을 죽여야 한다. 저장소 밖
+`mktemp -d` 사본에서 최대 3판.

@@ -199,9 +199,12 @@ class _MetaRobotsParser(_Parser):
 
 def is_noindex(html_text):
     """<meta name="robots"> 가 noindex 또는 none 을 선언하면 True (색인 거부)."""
-    # ponytail: 원문에 'robots' 가 없으면 파싱조차 안 한다. 천장 — name 을 엔티티로
-    #           인코딩한 문서(&#114;obots)는 놓친다. 실물에서 보이면 필터를 뺀다
-    if "robots" not in html_text.lower():
+    # ponytail: 원문에 'robots' 도 문자참조도 없으면 파싱조차 안 한다. `&#` 갈래가
+    #           엔티티로 인코딩한 name(&#114;obots·&#x72;obots)을 파서까지 데려간다 —
+    #           속성값 언이스케이프는 HTMLParser 가 이미 한다. 천장 — 명명 엔티티로는
+    #           'r' 을 못 쓰므로 `&#` 이면 충분하다. 오탐은 안 는다(판정은 파서가 한다)
+    lowered = html_text.lower()
+    if "robots" not in lowered and "&#" not in lowered:
         return False
     parser = _MetaRobotsParser()
     parser.feed(html_text)
