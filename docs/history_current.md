@@ -166,3 +166,35 @@ append 전용이고 수정·삭제 금지다. 각 회전의 사유는 `digest.md
   오래된 완료 항목(계획 57)을 지워 **200줄 정각**. 러너 위반 0(누적 38 유지).
 - 다음: **계획 63 DONE · 활성 계획 0.** 다음 반복은 계획 phase — 후보 탐색은 이 반복에서
   하지 않았다.
+
+## 2026-09-06 19:30 | archive-scope-cover | 계획 0/1 | 시도0
+- 한 일: 계획 64 `archive-scope-cover` 를 탐색·등재했다. 산출물은 계획서
+  `docs/plan_archive-scope-cover.md` · `docs/index.md` 64번 행 · `docs/status.md`
+  (GREEN · 개발 · 0/1 · 반복 371) · `docs/metrics.md`(반복 371 · 진행 1) ·
+  `docs/digest.md` 의 `[5]` 항목 정정(줄 수 200 정각 유지 — 새 줄 없이 덧붙였다).
+- 결과: **1~5순위 실측 0건** — 전수 맨몸 `Ran 620 tests in 15.877s` · `OK` · rc 0 ·
+  린터/타입체커 설정 파일 0개 · 코드 `TODO` 0(1건은 `tests/test_indexer.py:759` 의 파서
+  입력 문자열 안) · `docs/candidates.md`·`docs/patches/` 없음 · `digest ## 보류` 0건 ·
+  `gh issue list --state open` 0건 rc 0 · 활성 계획 0. **6순위 `[5]`** 를 열었고 더 높은
+  점수는 전부 여는 조건 미도래다.
+- 결과: **착수 탐침이 기록을 뒤집었다**(`digest [7]` 열다섯 번째 적용). 저장소 밖
+  `mock.patch.object` 하네스로 전수를 변이마다 다시 돌렸다 — `ARCHIVE` 축은
+  M3(`$` 제거)·M4(`re.I`)·M5(`[0-9]*`)에 더해 **기록에 없던 M11(`design_history` 이름
+  빼기)까지 넷이 `Ran 620 · 죽은 단언 0`** 으로 살고, 양성 대조(`^ZZZ_[0-9]+\.md$`)가
+  `DocCitationTest` 1건을 죽여 배선을 증명했다. M11 은 `design_history_*.md` 가 오늘
+  `docs/` 에 **33개** 실재해 도달성이 항목의 서술보다 훨씬 높다.
+- 결과: 반대로 항목이 값을 뒀던 **①(`APPEND_TARGETS`)은 하네스 인공물**이었다 —
+  `CITATION` 이 임포트 시점에 그 상수에서 파생되므로 소스 편집과 같게 둘을 함께 갈면
+  M1 **1건** · M2 **2건** · M8(이름 오타) **3건**이 죽는다. 살아남는 M7(넓히기)은 검사를
+  더 조일 뿐이고 그 처방은 거울 단언이라 행동을 안 잰다. **축 하나를 버리고 `ARCHIVE`
+  에만 서기로 계획서 5절에 못박았고, 다음 탐색이 다시 열지 않도록 digest 에 적었다.**
+- 결과: 처방 리터럴 아홉이 갈래를 실제로 가르는 것도 미리 쟀다 — 실물은 `CAUGHT` 3/3
+  통과 · `NOT_CAUGHT` 6/6 거절(**오탐 0**)이고 M3·M4·M5·M10·M11 이 각각 다른 이름에서
+  물린다. **설계 생략 — 트리거 0**(새 모듈 0 · 제품 인터페이스 무변 · 파일 2개 ·
+  되돌리기가 커밋 하나 revert · 대안은 저장소가 네 번 고른 관용구라 안 갈린다).
+- 결과: 범위 무접촉 — `src/`·`e2e/`·`docs/specs/`·`data/` 무변경 · `data/crawl.db`
+  sha256 `85c96744…5bda18` 무변 · `README.md` 무접촉(건수는 개발 커밋에서 움직인다).
+  변이는 전부 메모리라 워킹트리가 열두 판 내내 `git status --porcelain` 빈손이었다.
+  러너 위반 0(누적 38 유지) · `night_iterations` 는 대화형이라 187 그대로 뒀다.
+- 다음: **개발 phase 1/1** — `ArchivePatternTest` 를 `ArchiveMatchTest` 옆에 세운다
+  (리터럴 표 한 벌 + 메서드 둘 · 제품 `src/` 0줄 · `README.md` 건수 줄 동반 수정).
