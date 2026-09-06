@@ -251,6 +251,49 @@ class DocCitationTest(unittest.TestCase):
             "가리킨다:\n" + "\n".join(hits))
 
 
+class SpecCitationTest(unittest.TestCase):
+    """`src`·`tests`·`e2e` 가 `concept.md:<N>` 으로 대는 주소가 실재하는 줄인가.
+
+    사양은 사람이 고치는 읽기 전용 문서인데, 줄 하나가 끼거나 빠지면 열여덟 개 주소가
+    **조용히** 한 칸씩 밀린다. 값은 다 맞고 주소만 썩는 구조라 소스만 보는 테스트가
+    구조적으로 못 본다 — 2026-09-06 실측에서 다섯 자리가 이미 빈 줄을 대고 있었다.
+    주소가 서야 그 위에 값 대조(사양 숫자 ↔ 상수)를 얹을 자리가 생긴다.
+    """
+
+    # 리터럴 안의 `\.` 때문에 이 줄 자신은 자기 정규식에 안 물린다 — 자기를 세지 않는다.
+    CITE = re.compile(r"concept\.md:([0-9]+)(?:-([0-9]+))?")
+    ROOTS = ("src", "tests", "e2e")
+    # 오늘 18건이다. 정규식이 좁아지면 0건 수집 위에서 조용히 초록이 된다.
+    MIN_HITS = 14
+
+    def test_spec_citations_point_at_real_lines(self):
+        spec = DOCS / "specs" / "concept.md"
+        lines = spec.read_text(encoding="utf-8").split("\n")
+        hits = []
+        for root in self.ROOTS:
+            for path in sorted((DOCS.parent / root).rglob("*.py")):
+                text = path.read_text(encoding="utf-8")
+                for no, line in enumerate(text.split("\n"), 1):
+                    for m in self.CITE.finditer(line):
+                        hits.append((path, no, int(m.group(1)),
+                                     int(m.group(2) or m.group(1))))
+        self.assertGreaterEqual(
+            len(hits), self.MIN_HITS,
+            "인용을 %d건밖에 못 모았다 — 수집 정규식이 깨졌다 (0건 수집 = 거짓 초록)"
+            % len(hits))
+        for path, no, start, end in hits:
+            label = "%s:%d" % (path.relative_to(DOCS.parent), no)
+            with self.subTest(label):
+                self.assertLessEqual(
+                    end, len(lines),
+                    "%s 가 사양 %d행을 대는데 사양은 %d줄뿐이다"
+                    % (label, end, len(lines)))
+                self.assertTrue(
+                    lines[start - 1].strip(),
+                    "%s 가 대는 사양 %d행이 빈 줄이다 — 인용 쪽 주소가 밀렸다"
+                    % (label, start))
+
+
 class IterationSyncTest(unittest.TestCase):
     """`metrics.md` 의 `반복` 과 `status.md` 의 `iteration` 이 같은 수인가.
 

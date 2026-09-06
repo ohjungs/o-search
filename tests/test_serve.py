@@ -911,7 +911,7 @@ XSS_PAGES = {
                             "<body><p>김치 김치 김치</p></body></html>",
 }
 
-# 홈·결과 두 화면에 공통으로 요구하는 것 (concept.md:49-54 디자인 축)
+# 홈·결과 두 화면에 공통으로 요구하는 것 (concept.md:50-54 디자인 축)
 def assert_page_basics(t, body):
     t.assertIn('<html lang="ko"', body, "lang 이 없으면 스크린리더가 언어를 못 고른다")
     t.assertIn('name="viewport"', body, "viewport meta 가 없으면 360px 에서 가로 스크롤이 난다")
@@ -922,7 +922,7 @@ def assert_page_basics(t, body):
 
 
 class TestHomePage(ServeTestCase):
-    """GET / — 검색 홈. concept.md:49 의 첫 번째 화면."""
+    """GET / — 검색 홈. concept.md:50 의 첫 번째 화면."""
 
     def test_home_is_html_not_404(self):
         status, body, headers = self.raw("/")
@@ -952,7 +952,7 @@ class TestHomePage(ServeTestCase):
 
 
 class TestResultsPage(ServeTestCase):
-    """GET /?q=… — 결과 페이지. concept.md:49 의 두 번째 화면."""
+    """GET /?q=… — 결과 페이지. concept.md:50 의 두 번째 화면."""
 
     def test_results_render_title_url_snippet(self):
         status, body, _ = self.raw("/?q=" + urllib.parse.quote("김치"))
