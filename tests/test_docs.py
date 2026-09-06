@@ -287,6 +287,23 @@ class SpecCitationTest(unittest.TestCase):
         return re.search(r"(?<![0-9.])%s(?![0-9])" % re.escape(num),
                          cited) is not None
 
+    @classmethod
+    def _anchors(cls, line, pos):
+        """인용이 같은 줄에 데리고 있는 앵커 — `(문구들, 값들)`.
+
+        `pos` 는 인용이 끝난 자리다. 문구는 그 뒤 큰따옴표 안, 값은 그 줄이
+        상수 대입일 때의 숫자다. 대조 축과 의무 축이 **같은 추출기를 본다** —
+        갈라 놓으면 한쪽만 죽는 날 다른 쪽이 조용히 통과한다.
+        """
+        nums = set()
+        const = cls.CONST.match(line)
+        if const:
+            for tok in cls.NUM.findall(const.group(1)):
+                nums.add(tok)
+                if "." in tok:                # `5.0` 은 사양에 `5` 로 적힌다
+                    nums.add(tok.rstrip("0").rstrip("."))
+        return cls.PHRASE.findall(line[pos:]), nums
+
     def _citations(self):
         """`(경로, 줄번호, 줄, 인용 끝 위치, 시작행, 끝행)` 전수."""
         hits = []
@@ -334,21 +351,14 @@ class SpecCitationTest(unittest.TestCase):
                 continue                      # 주소 축이 이미 문 자리다
             cited = "\n".join(lines[start - 1:end])
             label = "%s:%d" % (path.relative_to(DOCS.parent), no)
-            for phrase in self.PHRASE.findall(line[pos:]):
+            phrases, nums = self._anchors(line, pos)
+            for phrase in phrases:
                 checks += 1
                 with self.subTest(label + " 문구"):
                     self.assertIn(
                         phrase, cited,
                         '%s 가 "%s" 를 사양 %d행에서 옮겼다는데 그 줄엔 없다'
                         % (label, phrase, start))
-            const = self.CONST.match(line)
-            if not const:
-                continue
-            nums = set()
-            for tok in self.NUM.findall(const.group(1)):
-                nums.add(tok)
-                if "." in tok:                # `5.0` 은 사양에 `5` 로 적힌다
-                    nums.add(tok.rstrip("0").rstrip("."))
             if not nums:
                 continue
             checks += 1
@@ -360,6 +370,23 @@ class SpecCitationTest(unittest.TestCase):
         self.assertGreaterEqual(
             checks, self.MIN_CHECKS,
             "대조를 %d건밖에 못 했다 — 문구·값 추출기가 깨졌다" % checks)
+
+    def test_every_citation_carries_an_anchor(self):
+        """앵커 없는 인용은 한 칸 밀려 이웃 항목에 착지해도 조용하다.
+
+        위의 두 자는 **옮겨 적은 것이 있는 인용만** 잰다 — 주소 축은 빈 줄만 물고
+        대조 축은 문구·값이 있는 줄만 돈다. 2026-09-06 실측에서 인용 열여덟 중
+        **열둘**이 그 밖이었고, `e2e/perf_crawl.py:1` 의 주소를 `:44`→`:45` 로
+        민 변이가 전수 초록으로 살아남았다. 앵커를 의무로 만들어 그 밖을 없앤다.
+        """
+        for path, no, line, pos, _start, _end in self._citations():
+            label = "%s:%d" % (path.relative_to(DOCS.parent), no)
+            with self.subTest(label):
+                phrases, nums = self._anchors(line, pos)
+                self.assertTrue(
+                    phrases or nums,
+                    "%s 에 사양에서 옮겨 적은 것이 없다 — 인용 뒤 같은 줄에 "
+                    "큰따옴표로 사양 문구 조각을 적어라" % label)
 
 
 class IterationSyncTest(unittest.TestCase):
