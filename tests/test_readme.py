@@ -8,7 +8,9 @@
 단위 테스트가 소스만 보면 이런 종류는 영원히 안 잡힌다 — 깨진 것이 코드가 아니라
 **코드와 문서 사이**라서 그렇다. 그래서 문서를 입력으로 읽는 검사가 여기 하나 있다.
 
-네트워크도 서브프로세스도 안 쓴다. `find_spec` 은 모듈을 임포트하지 않고 찾기만 한다.
+네트워크도 서브프로세스도 안 쓴다. 명령 검사의 `find_spec` 은 모듈을 임포트하지 않고
+찾기만 하고, 아래 합격선 대조만 `e2e/*.py` 를 실제로 임포트한다 — 그 모듈들은 임포트
+시점에 상수만 세우고 서버도 DB 도 안 연다.
 """
 
 import decimal
@@ -142,9 +144,11 @@ class QualityBandTest(unittest.TestCase):
                     "README 에서 「%s」 수치를 정확히 하나 못 뽑았다: %r (정규식 %s)"
                     % (label, found, pattern))
                 actual = getattr(importlib.import_module(module), const)
-                # 부동소수를 피해 Decimal 로 환산한다 — `0.3 * 1000 != 300` 이 되지 않게.
+                # 양쪽 다 Decimal 로 재운다. 환산이 `0.3 * 1000 != 300` 이 되지 않게,
+                # 그리고 상수가 이진 정확값이 아닐 때(5.1·4.6 …) `Decimal('5.1') != 5.1`
+                # 로 **맞는데도 빨개지지** 않게 — 상수는 `str()` 을 거쳐 십진으로 읽는다.
                 self.assertEqual(
-                    decimal.Decimal(found[0]) * scale, actual,
+                    decimal.Decimal(found[0]) * scale, decimal.Decimal(str(actual)),
                     "README 「%s」=%s (×%s) 가 %s.%s=%s 와 다르다"
                     % (label, found[0], scale, module, const, actual))
 
