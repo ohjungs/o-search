@@ -1,63 +1,70 @@
 ---
 signal: GREEN
-phase: 리뷰
+phase: e2e
 step: 1/1
 attempt: 0
-iteration: 363
+iteration: 364
 updated: 2026-09-06
-ctx: 46
-night_iterations: 180
+ctx: 44
+night_iterations: 181
 night_red: 2
 night_retries: 4
-plan: head-anchor-cover 계획 62 (테스트 1/1 완료 · 다음은 리뷰 1/1)
+plan: head-anchor-cover 계획 62 (리뷰 1/1 완료 · 다음은 e2e 1/1)
 ---
 
 ## 현재 상태
 
-**계획 62 의 테스트 1/1 을 닫았다 — 완료 기준 재측 4/4 그대로고, 갭 하나를
-찾아 `digest` 에 [6] 으로 등재했다.** 테스트 phase 는 새 테스트를 쓰는 자리가
-아니라 빠뜨린 것을 찾고 전체를 돌리는 자리다(`rules/test.md` 1·3·6절).
-저장소 코드는 **한 바이트도 안 고쳤다** — 변이는 전부 저장소 밖 스크래치패드
-하네스가 `mock.patch.object` 로 모듈 속성만 갈아 끼운 것이다.
+**계획 62 의 리뷰 1/1 을 닫았다 — 후보 3건이 전부 80점 미만이라 보고 0 · 자동 수정 0 ·
+승인 필요 0 이고 개발 phase 로 반려하지 않는다.** 저장소 코드는 이 반복에서 한 바이트도
+안 고쳤다(기록 문서만 갱신).
 
-## 완료 기준 재측 — 다른 프로세스에서 다시 걸었다
+## 리뷰 — 백지 → 대조 두 패스
 
-| 변이 | 결과 |
-|---|---|
-| **M0** 무변이 대조군 | `Ran 620` — 죽은 단언 **0** |
-| **M1** `ITER_LINE` 앵커 제거 | **사망 1** — `IterationPatternTest.test_status_line_needs_the_whole_line` |
-| **M2** `DOC_HEAD` → `^` | **사망 1** — `DocHeadPatternTest.test_pattern_leaves_non_h1_heads` |
-| **M3** 양성 대조 `^ZZZ` | **사망 2** — `DocHeadPatternTest.test_pattern_catches_document_heads` + `DocHeadTest` |
-| **M5** `ITER_ROW` 넓힘(계획 61) | **여전히 사망 2** — `IterationPatternTest` + `IterGapTest` |
-| **M6·M7** `DOC_HEAD` 의 `\S` 제거(`^# `·`^#`) | **각각 사망 1** — `NOT_CAUGHT` 의 `"#제목"`·`"# "` 이 그 글자를 붙든다 |
+대상은 `git diff e774608..HEAD -- tests/test_docs.py README.md`(+51/−3, 제품 `src/` 0줄).
+짧은 경로라 세션을 나누지 않고 순서대로 두 패스를 했다(`rules/review.md` 0절).
 
-M2·M3 이 서로 다른 이름을 죽여 두 층의 귀속이 다시 확인됐다.
+**패스 A(백지)** — diff 와 `tests/test_docs.py` 만 열고 봤다.
 
-## 갭 탐색 — 후보 하나, 점수 [6]
+- `DOC_HEAD` 에 `re.M` 이 없는 것이 옳다 — `DocHeadTest` 가 대는 것은
+  `split("\n", 1)[0]` 인 **한 줄**이라 `^` 는 문자열 머리여야 한다. `re.M` 을 붙이는
+  변이는 아무것도 안 죽이지만 그것은 **등가 변이**(입력에 개행이 없다)라 갭이 아니다.
+- 새 두 시험이 실제로 도는 경로가 있다 — 전수가 618 → **620** 으로 늘었고
+  `README.md` 의 「단위 620건」이 같은 수다(`test_readme.py` 가 붙든다).
+- `assertRegex`/`assertNotRegex` 는 컴파일된 패턴을 그대로 받는다 — 인라인 문자열을
+  상수로 바꾸면서 실패 메시지가 `DOC_HEAD.pattern` 으로 찍힐 뿐 판정은 무변이다.
 
-**계획 62 가 `ITER_LINE` 에서 닫은 구멍의 형제가 정규식 넷에 그대로 있다.**
-`STEP_LINE`(`^`·`$`) · `PLAN_SLUG`(`^`) · `ITER_ROW`(`^`) · `STEP_ROW`(`^`) 를
-지우는 변이가 **4/4 전수 620건에서 생존**했다(`ARCHIVE` 도 생존하나 `.match()` 라
-`^` 가 잉여). 배선 의심을 먼저 껐다 — 같은 상수를 `^ZZZ` 로 죽이면 각각
-**6·6·4·1건**이 죽는다. `StepPatternTest` 의 `STEP_LINE.search("step: 1")` 이 막던
-것도 앵커가 아니라 **`N/M` 모양**이라 `night_iterations: 90` 과 같은 착시였다.
+**패스 B(대조)** — 계획서·`CLAUDE.md`·git 이력.
 
-**8 미만이라 이 스텝에서 닫지 않는다**(`rules/test.md` 4절). 앵커는 오늘 넷 다
-참이고 구멍은 「앞으로 넓히는 편집이 조용히 산다」는 잠복이며, 계획서 5절이
-**미리 「있으면 digest 후보로 남긴다」로 선언한 범위 밖**이다.
-**여는 조건은 「그 정규식 넷 중 하나를 손대는 날」** — 계획 61 → 62 의 계승과 같다.
+- 계획서 7절의 위험(「`NOT_CAUGHT` 이 과하면 오탐 방향이 뒤집힌다」)을 **리뷰가 직접
+  다시 쟀다**: 현재 판정 `^# \S` 가 `NOT_CAUGHT` 여섯을 **6/6 거절** · `CAUGHT` 셋을
+  **3/3 인정**. 판정을 넓히는 M2(`^`)면 여섯이 **6/6 통과**해 죽는다. 새 리터럴 둘
+  (`"x iteration: 1"`·`"iteration: 1x"`)도 앵커 없는 `ITER_LINE` 에서 **둘 다** 매치돼
+  M1 을 죽인다. 개발·테스트 phase 가 적은 수치가 **세 번째 프로세스에서 그대로 재현**됐다.
+- 설계 생략 사유가 맞다 — 새 파일 0 · 새 모듈 0 · 제품 인터페이스 무변.
+  계획서 5절의 「하지 않을 것」도 지켜졌다(`STEP_LINE`·`PLAN_SLUG`·`ITER_ROW`·`STEP_ROW`
+  앵커는 손대지 않고 `digest` 에 `[6]` 으로만 남았다).
+- 렌즈 4·5 — 계획 60·61 리뷰가 세운 두 규율(실물 판정과 합성 리터럴을 **두 층으로
+  가른다** · 축이 다른 판정을 공통 헬퍼로 합치지 않는다)을 이 diff 가 그대로 따른다.
+  파일 머리 주석의 「제목 문구는 안 본다」도 안 깨진다 — `CAUGHT` 는 합성 리터럴이라
+  실물 제목을 바꿔도 아무 시험이 안 움직인다.
+
+**버린 후보 3건(전부 80 미만)**: ① `DOC_HEAD` 가 반복/스텝 상수 사이에 앉은 배치(가독성,
+각 주석이 자기 상수 바로 위라 오해 없음) · ② `re.M` 부재를 붙드는 단언 없음(등가 변이) ·
+③ `CAUGHT` 옆 주석이 실물 문서 이름을 달아 「제목이 바뀌면 고쳐야 한다」로 읽힐 여지
+(고칠 필요가 실제로는 없고, 고쳐도 시험은 안 움직인다).
 
 ## 검증
 
-전수 **맨몸** `Ran 620 tests in 15.889s` · `OK` · **rc 0**.
+전수 **맨몸** `Ran 620 tests in 15.933s` · `OK` · **rc 0**.
 범위 무접촉 — `git diff --stat d763317 HEAD -- src/ e2e/ docs/specs/ data/` **빈손** ·
-`data/crawl.db` sha256 `85c96744…5bda18` 무변.
+`data/crawl.db` sha256 `85c96744…5bda18` 무변 · `git status --porcelain` 빈손(커밋 전).
 
 ## 다음
 
-**리뷰 1/1.** 볼 것은 계획 62 의 diff(`tests/test_docs.py` · `README.md`) 하나다 —
-`NOT_CAUGHT` 여섯 줄이 판정을 바꾸지 않는지(계획서 7절의 위험), `DOC_HEAD` 를
-상수로 올린 것이 `DocHeadTest` 의 실물 판정을 약화시키지 않았는지를 본다.
+**e2e 1/1.** 이 계획은 제품 `src/` 를 0줄 고쳤고 바뀐 것이 문서 가드 테스트뿐이라,
+e2e phase 가 볼 것은 새 시험이 **실물 문서 위에서 여전히 옳은 판정을 내리는지**다 —
+`APPEND_TARGETS` 세 문서의 첫 줄을 실제로 읽어 `DOC_HEAD` 가 붙드는지, 그리고
+전수·시나리오 21종이 맨몸에서 초록인지를 확인한다.
 
 ## 한도
 
@@ -66,8 +73,6 @@ M2·M3 이 서로 다른 이름을 죽여 두 층의 귀속이 다시 확인됐�
 - `--force`·`--amend`·`rebase` 없음. 스텝 하나 = 커밋 하나.
 - 러너에 리다이렉션·파이프를 안 붙인다 — 오늘도 위반 **0회**(누적 38 유지).
 - `PYTHONDONTWRITEBYTECODE=1` 과 `PYTHONPYCACHEPREFIX=$(mktemp -d)` 를 함께 준다.
-- `docs/digest.md` 는 200줄 정각이라, 후보 한 줄을 더하면서 `rules/docs.md` 3절대로
-  **가장 오래된 완료 항목**(계획 55 `db-state-invariant`)을 지워 200줄을 지켰다 —
-  원본은 `plan_history_041.md` 와 `## 완료` 첫 줄의 아카이브 명부에 그대로 있다.
-- 회전은 없다 — `history_current.md` 는 **228줄**(상한 300), 다음 회전 번호는
+- `docs/digest.md` 는 **200줄 정각**이다 — 이 반복은 등재할 후보가 없어 한 줄도 안 건드렸다.
+- 회전은 없다 — `history_current.md` 는 **246줄**(상한 300), 다음 회전 번호는
   `history_064.md` 다.
