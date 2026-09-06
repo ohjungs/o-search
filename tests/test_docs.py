@@ -302,12 +302,15 @@ class StepPatternTest(unittest.TestCase):
 
     표는 ① 다른 슬러그 행을 **앞에** ② 접두가 같은 더 긴 슬러그 행을 **앞에** 둔다 —
     넓힌 정규식은 엉뚱한 수를 집는다. ③ 대상 행의 상태 칸은 `완료` 다: 안 D 는 상태를
-    안 보므로 그래도 잡혀야 한다.
+    안 보므로 그래도 잡혀야 한다. ④ **줄 중간에서 시작하는 잡음 행**을 대상 행 앞에
+    둔다 — `^` 를 지운 변이는 이 행의 `9/9` 를 집는다(2026-09-06 실측: 앵커를 지우는
+    변이 넷이 전수 620건에서 4/4 생존했다).
     """
 
     TABLE = "\n".join([
         "| plan_endtag-cut-cover | 완료 | loop/x | 9/9 | 통과 |",
         "| plan_index-step-sync-2 | 진행 | loop/x | 3/7 | 미정 |",
+        "| 메모 | 아래는 옛 행 | plan_index-step-sync | 완료 | loop/x | 9/9 | 미정 |",
         "| plan_index-step-sync | 완료 | loop/x | 1/1 | 미정 |",
     ])
 
@@ -330,11 +333,19 @@ class StepPatternTest(unittest.TestCase):
         self.assertEqual("1/1", m.group(1))
         self.assertIsNone(STEP_LINE.search("step: 1"),
                           "`N/M` 이 아닌 것을 스텝으로 읽었다")
+        # 위 세 줄은 형식만 잰다 — 앵커를 지워도 그대로 초록이라, 앵커를 실제로 재는
+        # 것은 아래 둘이다(`IterationPatternTest` 의 `ITER_LINE` 과 같은 관용구).
+        self.assertIsNone(STEP_LINE.search("x step: 1/1"),
+                          "줄 중간에 붙은 꼴을 물었다 — `^` 가 죽었다")
+        self.assertIsNone(STEP_LINE.search("step: 1/1x"),
+                          "꼬리가 붙은 꼴을 물었다 — `$` 가 죽었다")
         m = PLAN_SLUG.search("step: 1/1\nplan: index-step-sync 계획 60 (설계 완료)")
         self.assertIsNotNone(m, "`plan: <슬러그>` 줄을 못 찾았다")
         self.assertEqual("index-step-sync", m.group(1),
                          "슬러그 뒤의 설명까지 이름으로 읽었다")
         self.assertEqual("null", PLAN_SLUG.search("plan: null").group(1))
+        self.assertIsNone(PLAN_SLUG.search("x plan: a"),
+                          "줄 중간에 붙은 꼴을 물었다 — `^` 가 죽었다")
 
 
 class StepGapTest(unittest.TestCase):
@@ -428,12 +439,15 @@ class IterationPatternTest(unittest.TestCase):
     설계 계약이 적어 둔 *"이웃 세 행은 안 문다"* 를 여기서 잰다.
 
     아래 표는 이웃을 **일부러 앞에 둔다** — 넓힌 정규식은 엉뚱한 수를 집는다.
+    네 번째 행은 **줄 중간에서 시작하는 잡음 행**이다 — `^` 를 지운 변이는 `999` 를
+    집는다(2026-09-06 실측: 그 변이가 전수 620건에서 살아 있었다).
     """
 
     TABLE = "\n".join([
         "| phase | 반복 수 |",
         "| 반복 상한 | 0 |",
         "| 평균 반복 | 5.3 |",
+        "| 메모 | 아래는 옛 행 | 반복 | 999 |",
         "| 반복 | 232 |",
     ])
 

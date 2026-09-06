@@ -63,3 +63,26 @@ append 전용이고 수정·삭제 금지다. 각 회전의 사유는 `digest.md
   리터럴 세 줄을 더하고 ② `IterationPatternTest.TABLE`·`StepPatternTest.TABLE` 에
   잡음 행을 하나씩 끼운다. `rules/dev.md` 0절대로 **RED 를 눈으로 먼저 본다**. 건드릴
   파일은 `tests/test_docs.py`·`README.md` 둘뿐이고 `StepGapTest.INDEX` 는 안 건드린다.
+
+## 2026-09-06 16:20 | anchor-net-cover | 개발 1/1 | 시도0
+
+- 한 일: `tests/test_docs.py` **한 파일 15줄(+1 −1)**. ① `StepPatternTest.
+  test_status_lines_need_the_whole_line` 에 앵커 리터럴 셋(`"x step: 1/1"`·
+  `"step: 1/1x"`·`"x plan: a"` 가 전부 `None`) ② `IterationPatternTest.TABLE` 과
+  `StepPatternTest.TABLE` 에 **줄 중간에서 시작하는 잡음 행**을 정확한 행 앞에 하나씩.
+- 검증: `rules/dev.md` 0절 2번을 남의 관찰로 안 대신했다 — **편집 전에** 이 반복에서
+  M0·M1a·M1b·M2·M3·M4 를 다시 돌려 `Ran 620 · OK · 죽은 단언 0` **6/6 생존**을 보고,
+  다섯 줄을 넣고 같은 여섯을 다시 돌려 **M1a·M1b·M2·M3·M4 가 1건씩 사망**(빨강이
+  정확히 새로 넣은 줄에서 났다) · **M0 은 여전히 0(오탐 0)**. 감지력 무회귀로 계획 62
+  의 `ITER_LINE` 앵커 변이 둘이 각각 1건씩 그대로 죽이고, 양성 대조는 **6·6·5·4**.
+  전수 맨몸 `Ran 620 tests · OK · rc 0`. 하네스는 저장소 밖 `mock.patch.object`.
+- 계획서와 어긋난 것 하나: 완료 기준 6번이 「건수가 620 → 늘어난 수」라고 적었는데
+  실제는 **620 그대로**다. 처방이 기존 시험에 단언을 더하는 것이라 메서드 수가 안
+  변한 것이고, 계수기를 맞추려 시험을 쪼개지 않았다. `README.md:104` 의 「단위 620건」
+  이 이미 맞아 **`README.md` 무접촉**. 나머지 기준 7개는 그대로 충족.
+- 범위: `git diff --stat HEAD -- src/ e2e/ docs/specs/ data/` **빈손** · `data/crawl.db`
+  sha256 `85c96744…5bda18` 무변 · `ARCHIVE`·`StepGapTest.INDEX` 무접촉 ·
+  `test_absent_slug_matches_nothing` 여전히 `None`. `status.step` 과 `index.md`
+  63번 행이 함께 `1/1` 로 움직였다. 러너 리다이렉션·파이프 위반 0(누적 38 유지).
+- 다음: **테스트 phase.** 남은 앵커 자리는 `ARCHIVE` 의 `^…$`(`.match()` 로만 불려
+  앵커가 안 재진다 — 계획서 5절이 이름으로 미뤘다)와 `APPEND_TARGETS` 쪽이다.
