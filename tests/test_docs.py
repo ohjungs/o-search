@@ -520,7 +520,7 @@ class IterGapTest(unittest.TestCase):
 
 
 class ArchivePatternTest(unittest.TestCase):
-    """`ARCHIVE` 자신을 리터럴로 붙든다 — 아래 `DocCitationTest` 는 자기를 못 잰다.
+    """`ARCHIVE` 자신을 리터럴로 붙든다 — 위 `DocCitationTest` 는 자기를 못 잰다.
 
     `ARCHIVE` 는 **어느 문서를 줄번호 검사에서 뺄지**를 혼자 정하는데, 넓히는 변이
     셋(`$` 제거 · `re.I` · `[0-9]+`→`[0-9]*`)도 이름 하나를 빼 좁히는 변이 하나도
