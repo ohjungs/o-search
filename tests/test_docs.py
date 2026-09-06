@@ -58,6 +58,19 @@ DOC_HEAD = re.compile(r"^# \S")
 STEP_LINE = re.compile(r"^step: ([0-9]+/[0-9]+)$", re.M)
 PLAN_SLUG = re.compile(r"^plan: ([A-Za-z0-9_-]+)", re.M)
 STEP_ROW = r"^\| plan_%s \| [^|]* \| [^|]* \| ([0-9]+/[0-9]+) \|"
+# 후보 절이 계획을 가리키는 포인터. 「… **→ 2026-09-06 계획 68 `slug` 로 열었다**」
+# 꼴만 문다. 조사 셋(`로`·`으로`·`를`)은 실물에 다 있고, **슬러그 백틱을 요구하는
+# 것이 부정문을 가르는 자리다** — 「계획 49 범위 밖이라 안 열었다」에는 백틱 슬러그가
+# 없어서 안 물린다(2026-09-07 실측: 후보 두 절의 `열었다` 11자리 중 9자리가 포인터,
+# 나머지 둘이 그 부정문이다). 아래 `StrikeGapTest` 가 갈래를 합성 문자열로 밟는다.
+STRIKE_POINTER = re.compile(r"계획 [0-9]+ `([A-Za-z0-9_-]+)` (?:로|으로|를) 열었다")
+# 같은 계획 행의 **상태 칸**. `STEP_ROW` 는 넷째 칸을 보고 이쪽은 둘째 칸을 본다.
+PLAN_ROW = r"^\| plan_%s \| ([^|]*) \|"
+# 후보 두 절의 머리. `## 다음 계획 후보` 와 `## 다음 계획 후보 (테스트 phase 갭 …)`.
+CANDIDATE_HEAD = "## 다음 계획 후보"
+# 오늘 실물의 포인터 수는 9다. 추출기가 0을 내면 판정이 조용한 초록이 되므로
+# 하한을 못으로 박는다. 후보가 닫히며 포인터는 늘기만 하니 하한은 안전하다.
+STRIKE_POINTER_FLOOR = 9
 
 
 def done_section(digest_text):
@@ -139,6 +152,49 @@ def step_gap(status_text, index_text):
     if r.group(1) != s.group(1):
         return ("스텝이 어긋났다 — index.md `plan_%s` %s ≠ status.md `step` %s"
                 % (slug, r.group(1), s.group(1)))
+    return None
+
+
+def candidate_pointers(digest_text):
+    """후보 두 절의 목록 줄에서 `(슬러그, 취소선 여부)` 를 뽑는다.
+
+    **절로 자르는 것이 설계의 결정이다**(`done_section` 과 같은 이유) — 파일 전체를
+    보면 `## 완료` 절의 서술이 후보 포인터처럼 읽혀 판정이 흐려진다.
+    """
+    out = []
+    in_section = False
+    for line in digest_text.split("\n"):
+        if line.startswith("## "):
+            in_section = line.startswith(CANDIDATE_HEAD)
+            continue
+        if not in_section or not line.startswith("- "):
+            continue
+        for slug in STRIKE_POINTER.findall(line):
+            out.append((slug, line.startswith("- ~~")))
+    return out
+
+
+def strike_gap(digest_text, index_text):
+    """닫힌 후보인데 취소선이 없는 자리를 한 줄로 돌려준다. 없으면 `None`.
+
+    **몸통을 함수로 뺀 이유는 `step_gap`·`iter_gap` 과 같다** — 실물 두 문서는 늘
+    맞춰져 있어서 판정을 무력화하는 변이가 조용히 산다. 실물은 `StrikeSyncTest` 가,
+    갈래는 `StrikeGapTest` 가 부른다.
+
+    **대조하는 두 쪽이 서로 다른 문서다** — `digest` 후보 줄의 취소선 ↔ `index.md`
+    계획 행의 상태 칸. 계획이 `완료` 인데 후보 줄이 살아 있으면 다음 탐색이 닫힌
+    항목을 열린 것으로 센다(계획 38 이 실제로 그렇게 오염됐다).
+    """
+    for slug, struck in candidate_pointers(digest_text):
+        row = re.search(PLAN_ROW % re.escape(slug), index_text, re.M)
+        if row is None:
+            return ("index.md 에서 `| plan_%s |` 행을 못 찾았다 — 후보 줄이 가리키는"
+                    " 계획이 등재에 없다" % slug)
+        if row.group(1).strip() != "완료":
+            continue  # 진행 중인 계획을 가리키는 줄은 아직 열려 있는 것이 맞다.
+        if not struck:
+            return ("닫힌 후보에 취소선이 없다 — index.md `plan_%s` 는 `완료` 인데"
+                    " digest 후보 줄이 `- ~~` 로 시작하지 않는다" % slug)
     return None
 
 
@@ -744,6 +800,69 @@ class ArchiveMatchTest(unittest.TestCase):
     def test_missing_section_is_not_a_pass(self):
         # 절 이름이 바뀌면 빈 텍스트 위에서 조용히 통과하는 대신 `None` 이 온다.
         self.assertIsNone(done_section("# 다이제스트\n## 완료된 것\n- 없다"))
+
+
+class StrikeSyncTest(unittest.TestCase):
+    """닫힌 계획을 가리키는 후보 줄에 취소선이 그어져 있나.
+
+    취소선과 「닫혔다 — 계획 NN `slug`, 날짜」는 손으로 긋는 규약이고 **그것을 재는
+    단언이 오늘까지 0개였다**. 안 그으면 다음 반복의 탐색이 닫힌 항목을 후보로 다시
+    센다 — `DocHeadTest` 가 적어 둔 계획 38 오염과 같은 결과이고, 거기는 머리가
+    깨져서였다면 여기는 규약을 안 지켜서다.
+
+    **판정은 `strike_gap` 이 한다** — 갈래를 실물 없이 밟는 것은 `StrikeGapTest` 다.
+    """
+
+    def test_closed_candidates_are_struck_through(self):
+        gap = strike_gap((DOCS / "digest.md").read_text(encoding="utf-8"),
+                         (DOCS / "index.md").read_text(encoding="utf-8"))
+        self.assertIsNone(gap, gap)
+
+    def test_pointer_extractor_still_bites(self):
+        # 추출기가 0을 내면 위 단언은 «볼 것이 없어» 초록이다. 하한을 박아 둔다.
+        found = candidate_pointers((DOCS / "digest.md").read_text(encoding="utf-8"))
+        self.assertGreaterEqual(
+            len(found), STRIKE_POINTER_FLOOR,
+            "후보 포인터가 %d개로 줄었다 — 포인터 문구가 바뀌었거나 추출기가 죽었다"
+            % len(found))
+
+
+class StrikeGapTest(unittest.TestCase):
+    """`strike_gap` 의 갈래를 합성 문자열로 밟는다.
+
+    실물은 고치면 초록이 되어 갈래가 한 번씩만 지나간다. 특히 **오탐 축**(진행 중인
+    계획을 가리키는 열린 줄)은 실물에 표본이 없어 여기서만 밟힌다.
+    """
+
+    INDEX = ("| plan_done-one | 완료 | loop/x | 1/1 | 통과 | 설명 |\n"
+             "| plan_running-one | 진행 | loop/y | 0/1 | — | 설명 |\n")
+
+    def digest(self, line):
+        return "# 다이제스트\n## 완료\n- 딴 절\n%s\n- 없다\n" % (
+            "## 다음 계획 후보\n" + line)
+
+    def test_struck_closed_candidate_is_quiet(self):
+        self.assertIsNone(
+            strike_gap(self.digest("- ~~[6] 무엇~~ — **→ 2026-09-06 계획 70 "
+                                   "`done-one` 로 열었다**"), self.INDEX))
+
+    def test_unstruck_closed_candidate_is_a_gap(self):
+        gap = strike_gap(self.digest("- [6] 무엇 — **→ 2026-09-06 계획 70 "
+                                     "`done-one` 로 열었다**"), self.INDEX)
+        self.assertIsNotNone(gap)
+        self.assertIn("done-one", gap)
+
+    def test_running_plan_is_not_bitten(self):
+        # 오탐 축 — 진행 중인 계획을 가리키는 줄은 아직 열려 있는 것이 맞다.
+        self.assertIsNone(
+            strike_gap(self.digest("- [6] 무엇 — **→ 2026-09-07 계획 71 "
+                                   "`running-one` 를 열었다**"), self.INDEX))
+
+    def test_pointer_to_an_unlisted_plan_is_a_gap(self):
+        gap = strike_gap(self.digest("- [6] 무엇 — **→ 2026-09-07 계획 72 "
+                                     "`no-such-plan` 으로 열었다**"), self.INDEX)
+        self.assertIsNotNone(gap)
+        self.assertIn("no-such-plan", gap)
 
 
 if __name__ == "__main__":
