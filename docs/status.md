@@ -1,72 +1,75 @@
 ---
-signal: GREEN
-phase: 리뷰
-step: 1/1
+signal: DONE
+phase: e2e
+step: 0/0
 attempt: 0
-iteration: 374
+iteration: 375
 updated: 2026-09-06
-ctx: 52
+ctx: 55
 night_iterations: 187
 night_red: 2
 night_retries: 4
-plan: archive-scope-cover 계획 64 (리뷰 1/1 완료 · low 1건 자동 수정 · 다음은 e2e)
+plan: null
 ---
 
 ## 현재 상태
 
-**백지 패스가 지적 하나를 냈고 그 자리에서 고쳤다 — low · 신뢰도 100 · 판정 0줄 무변.**
-새 클래스 docstring 이 `DocCitationTest` 를 「**아래**」라고 가리키는데 실제로는 **위**다
-(`tests/test_docs.py:233` vs `522`). 바로 밑의 `ArchiveMatchTest` 가 같은 관용구를
-「**위** 검사는 자기를 못 잰다」로 쓰고 있어 **방향만 뒤집힌 복사**다. critical/high **0건**
-이라 개발 phase 로 안 돌아간다.
+**계획 64 `archive-scope-cover` 를 e2e 1/1 로 닫았다 — 통과 · 완료 기준 9/9 · 활성 계획 0.**
+e2e 21종을 전부 맨몸으로 다시 돌려 **rc 0 · 21/21** 이고, 전수는 `Ran 622 tests in
+15.941s` · `OK` · rc 0 이다. 결과는 `docs/e2e/archive-scope-cover/result.md`.
 
-## 검증 — 앞 phase 가 「했다」고 적은 것을 직접 다시 걸었다
+## e2e 결과
 
-계획·status 를 열기 전에 diff 만 보는 패스 A 를 먼저 끝냈고, 그다음 대조했다.
-변이는 전부 저장소 밖 `mock.patch.object`(코드는 메모리에서만) ·
-`PYTHONDONTWRITEBYTECODE=1 PYTHONPYCACHEPREFIX=$(mktemp -d)` 동반.
+**새 e2e 파일 0개를 「해당 없음」으로 넘기지 않고 근거 셋으로 쟀다**(`rules/e2e.md` 3절) —
+프로세스 밖 변화 0(`src/`·`e2e/`·`docs/specs/`·`data/` diff **빈손**) · 새 클래스가
+`tests/` 안이라 네 수단(웹 UI·HTTP API·CLI·라이브러리) 어디에도 걸 곳이 없다
+(`src/` 에 `tests` 를 import 하는 줄 **0건**) · 새로 만들면 전수 명령과 겹쳐 「1회만」이
+깨진다. 계획 61·62·63 이 밟은 자리와 같고 형식도 같다.
 
-| 변이 | 반복 373 이 적은 값 | 리뷰 재측 | 죽은 자리 |
-|---|---|---|---|
-| M0 무변이 대조군 | 0 | **0** | 오탐 0 |
-| M3 `$` 제거 · M4 `re.I` · M5 `[0-9]*` | 1·1·1 | **1·1·1** | `ArchivePatternTest.test_pattern_leaves_live_docs` |
-| M11 `design_history` 제거 | 1 | **1** | `…test_pattern_catches_archive_names` |
-| M10 `_[0-9]+`→`.*` | 4 | **4** | `DocCitationTest` + 새 단언 |
-| P 양성 대조 `^ZZZ_[0-9]+\.md$` | 4 | **4** | `CAUGHT` 셋 + `DocCitationTest` |
-| M6 `^` 제거 · G3 `\.`→`.` · G4 순서 | 0·0·0 | **0·0·0** | 등가 — 아래에서 따로 판정 |
+**대신 사용자 관점 검증을 실행했다.** 실물 `docs/` 를 `mktemp -d` 로 복사해 **같은 인용
+한 줄을 일곱 자리에** 넣었다 — 어디에 넣느냐가 곧 `ARCHIVE` 가 혼자 정하는 축이다.
+아카이브 셋(`history_065.md`·`design_history_099.md`·`plan_history_099.md`)은 **조용하고**
+(`Ran 28 · OK`), 아카이브처럼 생겼지만 아닌 둘(`history_001.md.bak.md`·`history_.md`)과
+살아 있는 `index.md` 는 **운다**. **오늘 계획이 산 자리가 그 「운다」다** — 이 계획 전이라면
+판정은 같았겠지만 `ARCHIVE` 가 `$` 나 수량자를 잃어도 아무도 안 울어서, 그 둘이 조용해지는
+날을 막을 자가 없었다.
 
-**여덟 줄이 한 건도 안 움직였다.** 전수는 재측 열 판 내내 `Ran 622` 로 같았다.
+**대조군이 처음엔 빨갰고 그것이 오늘의 회전을 검사했다.** `history_065.md` 를 만든 직후
+`digest.md` 명부에 이름을 넣기 전 상태에서 `ArchiveIndexTest` 가 「명부에 없다」로 울었다 —
+계획 64 의 형제 가드가 이번 회전 절차 자체를 문 것이고, 명부를 채우자 초록으로 돌아왔다.
 
-**등가 셋은 건수가 아니라 논거를 다시 걸었다 — 셋 다 성립한다.**
-`ARCHIVE` 의 소비자는 `tests/test_docs.py:238` `ARCHIVE.match(path.name)` **하나뿐**이다.
-① **M6**: `.match()` 가 위치 0에 앵커하므로 `^` 는 잉여다. ② **G3**: 순회가 `DOCS.glob("*.md")`
-(같은 줄 237)라 `md` 앞 글자는 **언제나 점**이고, 점이 아닌 입력은 도달 불가다. ③ **G4**:
-`^` 뒤 세 대안은 접두어(`plan_`·`design_`)가 갈려 **서로 배타**라 순서가 결과를 못 바꾼다.
-셋 다 「구멍이 아니라 등가」가 맞고, 답은 재는 것이 아니라 지우는 것이다.
+**완료 기준 9/9 를 열여덟 판으로 다시 쟀다.** M0 대조군 `Ran 622 · 죽은 단언 0`(오탐 0) ·
+**M3**(`$` 제거)·**M4**(`re.I`)·**M5**(`[0-9]*`) → `ArchivePatternTest.test_pattern_leaves_
+live_docs` 각 1건 · **M11**(`design_history` 제거) → `…test_pattern_catches_archive_names`
+1건 · **M10**(접두 확대) 4건 · **M1·M2·M8**(`APPEND_TARGETS` 축) 1·2·3건 · 계획 60~63 의
+앵커 변이 **일곱**도 각 1건(감지력 무회귀). 기준선은 8축 전부 회귀 0 이라
+`docs/project.md` 를 한 줄도 안 갱신했다.
 
-## 앞 phase 가 넘긴 판단 둘 — 둘 다 「안 연다」
+## 계획서가 「안 잰다」로 남긴 등가 주장을 실행으로 확인했다
 
-① **`assertRegex`(=`search`) vs 제품 `.match()`.** 술어를 맞추지 않는다. `^` 가 붙어 있는
-동안 둘은 **같은 함수**이고, 갈리는 유일한 경우는 `^` 를 지웠을 때인데 그것이 바로 M6 —
-제품에서 등가인 변이다. 즉 술어를 맞춰도 **새로 죽는 변이가 0** 이라 값이 없다
-(`severity.md` 4절 「이미 충분히 덮는 단언을 더 조일 수 있다」). 다만 status 가 적어 둔
-「시험이 제품보다 엄격한 쪽」은 절반만 맞다 — `assertNotRegex` 는 엄격한 쪽이지만
-`assertRegex` 는 **느슨한** 쪽이다. 오늘 값이 같은 이유는 엄격도가 아니라 `^` 다.
-② **등가 셋을 지우는 편집.** 안 연다 — 직교 편집이고 계획 64 밖이다(계획서 5절).
+M6(`ARCHIVE` 에서 `^` 제거)은 계획 5절이 **완전 등가**라 뺀 변이다. 오늘 같은 판에 세우니
+`Ran 622 · 죽은 단언 0` 이고, **바로 그 판에서** 양성 대조(`^ZZZ_[0-9]+\.md$`)는 4건을
+죽인다. 하네스가 죽어서 0 이 아니라 살아 있는데도 0 이다 — 등가라는 말이 「안 재도 된다」의
+근거로 서려면 이 두 줄이 함께 있어야 한다.
 
-## 계획 대조 (패스 B)
+## e2e 가 잡은 것 — 없음
 
-계획서 4절 완료 기준을 직접 다시 쟀다 — `ArchivePatternTest` 2메서드 · `CAUGHT` 3 ·
-`NOT_CAUGHT` 6 · 배선 증명(P 가 `DocCitationTest` 를 죽인다) · 제품 `src/` **0줄** ·
-`README.md:104` **622** = 실측 622 · 만진 파일 둘(`tests/test_docs.py`·`README.md`) ·
-`git diff --stat` 에 `docs/specs/`·`data/`·`src/`·`e2e/` **0건**. 전부 참이다.
+diff 의 주장(소비자가 `ARCHIVE.match()` 한 곳뿐 · `src/` 가 `tests` 를 안 읽는다 ·
+리터럴 아홉이 실물에서 오탐 0)을 실물과 다시 대조했다 — **어긋난 곳 0**.
 
-**전수 판정 줄(맨몸, 리다이렉션 0):** `Ran 622 tests in 15.828s` · `OK` · **rc 0**.
+## 검증
+
+전수 **맨몸** `Ran 622 tests in 15.941s` · `OK` · **rc 0**.
+e2e 21종 개별 실행 **전부 rc 0**. `ls e2e/*.py` **21개** ↔ `README.md` 「e2e 시나리오 21종」 ·
+`README.md:104` 「단위 622건」 ↔ 실제 622.
+범위 무접촉 — `git diff --stat ba53783 HEAD -- src/ e2e/ docs/specs/ data/` **빈손** ·
+`data/crawl.db` sha256 `85c96744…5bda18` 무변.
 
 ## 다음
 
-**e2e phase — 스텝 1/1.** 이번 계획은 문서 검사 상수의 단위 시험이라 새 e2e 파일을
-안 만든다고 계획서 5절이 적어 뒀다 — e2e 는 21종 전수 rc 0 과 완료 기준 대조가 몫이다.
+**활성 계획 0 — 다음 반복은 계획 phase 다.** 후보 탐색은 이 반복에서 하지 않았다.
+계획 64 가 소비한 `[5]` 는 테스트 phase 가 이미 취소선으로 닫았고, 그 항목의 ① 도
+「하네스 인공물이라 다시 열지 않는다」로 닫혀 있다.
 
 ## 한도
 
@@ -75,9 +78,9 @@ plan: archive-scope-cover 계획 64 (리뷰 1/1 완료 · low 1건 자동 수정
 - `--force`·`--amend`·`rebase` 없음. 스텝 하나 = 커밋 하나.
 - 러너에 리다이렉션·파이프를 안 붙인다 — 오늘도 위반 **0회**(누적 38 유지).
 - `PYTHONDONTWRITEBYTECODE=1` 과 `PYTHONPYCACHEPREFIX=$(mktemp -d)` 를 함께 준다.
-- 변이는 저장소 밖에서만 — 코드는 메모리(`mock.patch.object`). 워킹트리에 남은 것은
-  이번 지적의 한 글자 수정과 문서 셋뿐이다.
-- **`night_iterations` 는 187 그대로 둔다** — 이 반복은 대화형이라 야간 예산을 안 쓴다.
-- `data/crawl.db` 무변경 · 재색인 0 · `docs/specs/` 읽기만 · 의존성 추가 0(stdlib).
-- 회전은 이번에도 없다 — `history_current.md` 는 **292줄**(항목 9)로 상한 300 아래다.
-  **다음 반복이 넘긴다** — e2e phase 가 append 하기 전에 `history_065.md` 로 회전한다.
+- 변이는 저장소 밖에서만 — 코드는 메모리(`mock.patch.object`), 문서는 `mktemp -d` 복사본.
+- `docs/digest.md` 는 **200줄 정각**이다 — 완료 한 줄을 더하면서 가장 오래된 완료 항목
+  하나(계획 58 `passage-cost-band` · 원본 `plan_history_044.md`)를 지워 정각을 지켰다.
+- **회전했다** — 이 기록을 붙이면 상한 300 을 넘어 계획 63 의 반복 기록 다섯(반복 366~370)을
+  `history_065.md` 로 밀었다. `history_current.md` 는 **187줄**(항목 5)이고 다음 회전
+  번호는 `history_066.md` 다.
