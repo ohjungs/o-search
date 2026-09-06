@@ -303,14 +303,16 @@ class StepPatternTest(unittest.TestCase):
     표는 ① 다른 슬러그 행을 **앞에** ② 접두가 같은 더 긴 슬러그 행을 **앞에** 둔다 —
     넓힌 정규식은 엉뚱한 수를 집는다. ③ 대상 행의 상태 칸은 `완료` 다: 안 D 는 상태를
     안 보므로 그래도 잡혀야 한다. ④ **줄 중간에서 시작하는 잡음 행**을 대상 행 앞에
-    둔다 — `^` 를 지운 변이는 이 행의 `9/9` 를 집는다(2026-09-06 실측: 앵커를 지우는
-    변이 넷이 전수 620건에서 4/4 생존했다).
+    둔다 — `^` 를 지운 변이는 이 행의 `8/8` 을 집는다(2026-09-06 실측: 앵커를 지우는
+    변이 넷이 전수 620건에서 4/4 생존했다). ①과 ④의 수를 다르게 두는 것이 조건이다:
+    같은 수면 「슬러그를 안 본다」와 「`^` 가 죽었다」가 한 값으로 겹쳐 실패 메시지가
+    범인을 못 가린다.
     """
 
     TABLE = "\n".join([
         "| plan_endtag-cut-cover | 완료 | loop/x | 9/9 | 통과 |",
         "| plan_index-step-sync-2 | 진행 | loop/x | 3/7 | 미정 |",
-        "| 메모 | 아래는 옛 행 | plan_index-step-sync | 완료 | loop/x | 9/9 | 미정 |",
+        "| 메모 | 아래는 옛 행 | plan_index-step-sync | 완료 | loop/x | 8/8 | 미정 |",
         "| plan_index-step-sync | 완료 | loop/x | 1/1 | 미정 |",
     ])
 
@@ -319,8 +321,9 @@ class StepPatternTest(unittest.TestCase):
         self.assertIsNotNone(m, "슬러그의 행을 못 찾았다 — 행 패턴이 죽었다")
         self.assertEqual(
             "1/1", m.group(1),
-            "남의 행을 물었다 — 앞선 다른 슬러그 행이나 `plan_index-step-sync-2` 를 "
-            "접두로 집었다")
+            "남의 행을 물었다 — `9/9` 면 슬러그를 안 보고 앞 행을, `3/7` 이면 "
+            "`plan_index-step-sync-2` 를 접두로, `8/8` 이면 `^` 가 죽어 줄 중간의 "
+            "잡음 행을 집었다")
 
     def test_absent_slug_matches_nothing(self):
         # 행이 없으면 `None` 이라야 위 검사가 «등재 누락» 으로 실패할 수 있다.
@@ -457,7 +460,7 @@ class IterationPatternTest(unittest.TestCase):
         self.assertEqual(
             "232", m.group(1),
             "이웃 행을 물었다 — `| 반복 수 |`·`| 반복 상한 |`·`| 평균 반복 |` 은 "
-            "반복 번호가 아니다")
+            "반복 번호가 아니고, `999` 면 `^` 가 죽어 줄 중간의 잡음 행을 집은 것이다")
 
     def test_status_line_needs_the_whole_line(self):
         # `night_iterations:` 는 실제로 같은 프런트매터에 산다. 다만 이 줄이 막는 것은
