@@ -1,100 +1,72 @@
 ---
 signal: GREEN
 phase: 개발
-step: 0/1
+step: 1/1
 attempt: 0
-iteration: 382
+iteration: 383
 updated: 2026-09-06
-ctx: 48
+ctx: 52
 night_iterations: 187
 night_red: 2
 night_retries: 4
-plan: readme-shape-cover — 계획 66 (계획 완료 · 설계 생략 · 다음은 개발 1/1)
+plan: readme-shape-cover — 계획 66 (개발 1/1 완료 · 다음은 테스트 phase)
 ---
 
 ## 현재 상태
 
-**계획 66 `readme-shape-cover` 를 등재했다.** 계획서는 `docs/plan_readme-shape-cover.md` 다.
-계획 65 가 닫은 것은 「README 에 적힌 아홉 수치가 `e2e/*.py` 상수와 같은가」 한 축이고,
-**표 자신의 «모양»** — 행이 늘어나는 것과 셋째 칸이 실재하지 않는 파일을 가리키는 것 —
-은 오늘도 아무도 안 잰다. `digest [7]` 의 ①·④ 를 한 계획으로 묶는다(digest 자신이
-「같은 「표 구조」 축이라 한 계획으로 묶는 편이 싸다」로 적어 뒀다).
+**계획 66 스텝 1/1 을 개발했다 — README 표의 «모양» 축 단언 둘이 들어갔다.**
+고친 파일은 둘뿐이다(`tests/test_readme.py` +47 · `README.md` -1/+1). 제품 `src/` 0줄 ·
+`e2e/` 0줄. 단위 **623 → 625건**.
 
-**닫을 것 둘.**
-① README 「잘하고 있나 재는 자」 표에 **여덟 번째 행을 끼워도 조용하다** — `QUALITY_BAND`
-는 리터럴 아홉 줄이라 자기가 모르는 행을 셀 방법이 없고, 새 합격선은 **대조 없이** 들어온다.
-④ 표의 **셋째 칸(측정기 파일 이름)이 실재하는지 아무도 안 잰다** — 임포트하는 것은 튜플
-자신의 셋째 원소(`"quality_eval"` 리터럴)이지 README 의 칸이 아니고, `E2E_COUNT` 대조는
-파일 **개수**만 센다. **이 파일이 존재하는 이유(『README 가 없는 모듈 `websearch.cli` 를
-안내한 채 푸시됐다』)와 정확히 같은 모양의 구멍**이다.
+- `BAND_TABLE` — 「잘하고 있나 재는 자」 표를 **제목으로 잘라** 데이터 행만 뽑는다.
+  README 에 표가 셋이라 제목으로 안 자르면 엉뚱한 표를 잰다.
+- `METER_CELL` — 셋째 칸의 백틱 안 경로. `〃` 행은 안 걸리고 윗 행 값을 이어받는다.
+- `BandTableShapeTest` — `QualityBandTest` 다음, `if __name__` 가드 **앞**.
+  `setUp` 이 표를 못 자르거나 행이 0 이면 먼저 죽는다(빈손 위 조용한 통과 차단).
+  `test_every_band_row_is_covered` · `test_every_band_row_names_an_existing_meter`.
 
-## 착수 탐침 — 두 구멍이 오늘도 살아 있다
+## TDD 빨간 줄을 눈으로 봤다
 
-저장소 밖 사본(`.git`·`data/` 제외)에 편집을 **실물 파일로** 심었다. 워킹트리는 무변경이고
-(`git status --porcelain` 빈손) 러너에 리다이렉션·파이프는 0회다. 매 판
-`PYTHONDONTWRITEBYTECODE=1 PYTHONPYCACHEPREFIX=$(mktemp -d)` 를 함께 줬다.
+클래스만 넣고 전수를 돌리니 `Ran 625` · `FAILED (failures=1)` · rc 1 이고 죽은 것이
+`test_verification_counts_match_reality` 였다 — `(623, 21) != (625, 21)`. 계획 4절 8번이
+「같은 커밋에서 안 고치면 즉시 빨개진다, **그것이 설계대로다**」로 예고한 그 줄이다.
+`README.md:104` 을 `625` 로 고쳐 초록으로 되돌렸다.
+
+## 변이 여덟 판 — 완료 기준 1·2·3·5·6·7·8 통과, 4 는 성립하지 않았다
+
+저장소 밖 사본에 편집을 **실물 파일로** 심었다(심기 전 `count(원문) == 1` 단언 —
+`digest [8]` BSD sed 대응). 각 판 `-p test_readme.py` · `Ran 8` ·
+`PYTHONDONTWRITEBYTECODE=1 PYTHONPYCACHEPREFIX=$(mktemp -d)`.
 
 | 판 | 무엇을 심었나 | 결과 |
 |---|---|---|
-| **기준선** | 저장소 원본 · 전수 | `Ran 623 tests in 15.724s` · `OK` · rc 0 |
-| **M0** | 사본 무변이 · `test_readme.py` | `Ran 6` · `OK` · rc 0 (오탐 0) |
-| **U1** | 표에 `\| 새 축 \| 뭔가 7배 이상 \| e2e/design_check.py \|` 추가 | `Ran 6` · `OK` · rc 0 — **생존** |
-| **U2** | 셋째 칸 `quality_eval` → `quality_evals` 오타 | `Ran 6` · `OK` · rc 0 — **생존** |
+| **M0** | 무변이 | `OK` · rc 0 — **오탐 0** |
+| **U1** | 표에 여덟 번째 행 추가 | `test_every_band_row_is_covered` **1건** |
+| **U2** | 셋째 칸 → `quality_evals.py` | `test_every_band_row_names_an_existing_meter` **1건** |
+| **U3** | 표 제목 개명(잘라내기 죽이기) | **둘 다** (2건) |
+| **U4** | 커버 판정을 `True` 로 고정 | `OK` · rc 0 — **안 죽었다** |
+| **U4′** | U1 + 판정 무력화 | `OK` · rc 0 — **생존(귀속 증명)** |
+| **M0b** | 셋째 칸 → 실재하는 `perf_crawl.py` | `OK` · rc 0 — **정당한 편집을 안 막는다** |
+| **R1** | 표에서 행 삭제 | 기존 `test_readme_bands_match_e2e_constants` 2건 — **회귀 0** |
 
-**전수는 기준선 한 판만 돌렸다.** U1·U2 가 건드리는 것은 README 텍스트뿐이고 그것을 읽는
-단언은 `tests/test_readme.py` 에만 있어 `-p test_readme.py` 6건으로 충분하다(계획 65 e2e 도
-같은 이유로 `Ran 6` 으로 쟀다).
+**완료 기준 4번(U4)이 계획서에 적힌 대로는 성립하지 않는다.** 「판정을 참으로 고정하면
+1건 이상 죽는다」인데, README 가 성한 트리에서는 판정을 무력화해도 **죽을 것이 없다**.
+그 항목이 재려던 것은 「판정이 실제로 판정하는가」이고, 그것은 **U4′ = U1 + 무력화**가
+잰다 — 생존이므로 U1 에서 죽은 것은 곁가지가 아니라 커버 단언 자신이었다.
+`digest [7]`(「기록된 것을 실행 전에 다시 재라」)의 **네 번째** 사례이고, 계획 65 의
+`len(QUALITY_BAND)` 7≠9 와 같은 모양이다 — **진단은 옳았고 처방이 그때의 추정이었다.**
 
-**digest 의 처방 한 줄을 정정했다.** `[7]①` 은 처방을 「표 행 수를 `len(QUALITY_BAND)` 와
-대조」로 적어 뒀는데 **그대로는 성립하지 않는다** — 표는 **일곱 행**이고 밴드는 **아홉**이다
-(첫 행과 마지막 행이 각각 수치 둘을 담는다). 상수 `7` 을 적는 안은 그것이야말로 거울이라,
-방향을 「각 행이 밴드 하나 이상에 물리는가」로 바꿔 적었다. **진단은 옳았고 처방이 그때의
-추정이었다** — `digest [7]`(「기록된 답을 실행 전에 다시 재라」)의 세 번째 사례다.
+## 범위·집안일
 
-**기점을 `origin/main` 으로 다시 쟀다.** 사람이 `bff2580` 로 병합해 `QualityBandTest` 는
-이미 `main` 안에 있다(`git show origin/main:tests/test_readme.py | grep -c QUALITY_BAND` → 2 ·
-`git diff --stat origin/main HEAD -- tests/test_readme.py README.md` **빈손**). 계획 58 이
-「기점은 `main` 이 아니라 아카이브 커밋」으로 판단했던 근거는 오늘 안 쓴다.
-
-## 1~5순위도 그대로 쟀다
-
-전수 맨몸 `Ran 623 tests in 15.724s` · `OK` · rc 0 · 린터/타입체커 설정 파일 **0개** ·
-`TODO`/`FIXME`/`HACK` 이 `src/`·`tests/`·`e2e/` 에 **1건**인데 `tests/test_indexer.py:759`
-의 **파서 입력 문자열 안**(계획 65 와 같은 건) · `docs/candidates.md` 부재 ·
-`docs/patches/` 부재 · `digest ## 보류 (승인 대기)` **0건**(본문이 통째로 HTML 주석) ·
-활성 계획 0. **`gh` 는 한 번도 안 불렀다** — 이번 반복의 하드 제약이라 이슈 목록은 안 쟀다.
-
-## 설계 생략
-
-**트리거 0.** 새 모듈·파일 0(기존 `tests/test_readme.py` 안) · 공개 인터페이스 0 ·
-데이터 구조·스키마 0 · 파일 **2개**(`tests/test_readme.py` · `README.md` 의 건수 한 줄) ·
-되돌리기 쉬움. **대안이 안 갈린다** — digest 처방(행 수 대조)은 7≠9 로 성립하지 않고,
-상수 7 을 적는 안은 거울이라 값이 0 이다. 남는 갈래가 하나다.
-
-## 검증
-
-- 문서를 고친 **뒤** 전수 맨몸 **`Ran 623 tests in 15.895s` · `OK` · rc 0**
-  (리다이렉션·파이프 0회 · 판정 줄을 눈으로 봤다). 착수 탐침의 기준선도 같은 명령으로
-  `Ran 623 tests in 15.724s` · `OK` · rc 0 이었다.
-- 네 동기 가드 별도 재실행 — `IterationSyncTest`·`StepSyncTest`·`StepGapTest`·
-  `ArchiveIndexTest` **`Ran 8` · `OK` · rc 0**(`metrics.md` 반복 382 ↔ `status.md`
-  `iteration: 382` · `index.md` 새 행 `0/1` ↔ `step: 0/1`).
-- 착수 탐침 **총 4판**(전수 1 · `test_readme.py` 3). 항목당 1판이고 상한 6 안이다.
-- 범위 무접촉: 제품 `src/`·`e2e/` **0줄** · `README.md` 무변 · `docs/specs/` 읽기만 ·
-  `data/crawl.db` 무변경 · 재색인 0회 · 스키마 0 · 새 의존성 0 · PR #7 무접촉(`gh` 호출 0).
-- 러너 규율 위반 **0회**(누적 38 유지).
+전수 최종 **`Ran 625 tests in 15.841s` · `OK` · rc 0**(맨몸 · 리다이렉션 0회). 네 동기
+가드(`IterationSyncTest`·`StepSyncTest`·`StepGapTest`·`ArchiveIndexTest`) 포함이다.
+`docs/specs/` 무변 · `data/crawl.db` 무변 · 재색인 0회 · 스키마 0 · 새 의존성 0 ·
+PR #7 무접촉 · `gh` 0회.
+`history_current.md` 가 287줄 + 이번 항목으로 상한 300 을 넘어 여섯 항목(반복 376~381)을
+`docs/history_067.md` 로 회전했고 **`digest.md` 아카이브 명부에 등재**했다(계획 64 e2e 가
+명부 누락으로 대조군이 빨개진 선례). `digest.md` 는 200줄 정각 유지 — 기존 줄에 덧붙였다.
 
 ## 다음
 
-**개발 1/1** — `tests/test_readme.py` 의 `QualityBandTest` 다음(그리고
-`if __name__ == "__main__"` 가드 **앞**)에 `BandTableShapeTest` 를 붙인다. 셋을 넣는다:
-표 데이터 행을 제목으로 잘라내는 정규식 하나 · 각 행이 `QUALITY_BAND` 정규식 하나 이상에
-걸리는지 보는 커버 단언 · 셋째 칸 경로를 뽑아 `(README.parent / 경로).is_file()` 로 거는
-실재 단언(`〃` 는 건너뛰지 말고 **윗 행 경로를 이어받는다**). 전수가 623 → **625** 가 되므로
-`README.md:104` 의 건수 한 줄을 **같은 커밋에서** 고친다.
-
-## 한도
-
-`docs/digest.md` 200줄 정각 유지(이번 반복에 한 줄도 안 더했다) ·
-`docs/history_current.md` 는 7항목 / 상한 20, **287줄 / 상한 300** — 이번 반복은 회전 미달이나
-다음 반복이 한 항목만 더 붙여도 넘는다. **다음 반복의 집안일은 회전이다.**
+**테스트 phase.** 계획 4절 완료 기준을 다시 재되 **4번은 U4′ 로 읽는다** — 그 정정이
+이 반복의 산출물 중 하나다.
