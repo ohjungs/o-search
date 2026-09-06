@@ -1,61 +1,86 @@
 ---
 signal: GREEN
-phase: 개발
+phase: 테스트
 step: 1/1
 attempt: 0
-iteration: 372
+iteration: 373
 updated: 2026-09-06
 ctx: 46
 night_iterations: 187
 night_red: 2
 night_retries: 4
-plan: archive-scope-cover 계획 64 (개발 1/1 완료 · 완료 기준 9/9 · 다음은 테스트)
+plan: archive-scope-cover 계획 64 (테스트 1/1 완료 · 8점 이상 갭 0 · 다음은 리뷰)
 ---
 
 ## 현재 상태
 
-**계획 64 `archive-scope-cover` 개발 1/1 완료 — 완료 기준 9/9 · 다음은 테스트.**
-`tests/test_docs.py` 에 `ArchivePatternTest` 를 `ArchiveMatchTest` 바로 위에 세웠다
-(**한 파일 39줄 추가 · 리터럴 아홉 + 메서드 둘**). `ARCHIVE` 가 혼자 정하던 「무엇을
-검사 대상에서 뺄지」가 이제 실물 파일 목록이 아니라 **합성 리터럴**에 붙들린다.
+**계획 64 `archive-scope-cover` 테스트 1/1 완료 — 8점 이상 갭 0 · 코드 0줄 추가 ·
+다음은 리뷰.** `rules/test.md` 3절 일곱 카테고리를 이번 변경(`ArchivePatternTest` +
+`ARCHIVE` 축)에 대조했고, 새로 쓴 것 없이 **재는 것으로만** 끝났다 — 갭 탐색을
+말이 아니라 변이 25판으로 했다.
 
-## 검증 — RED 를 이 반복에서 직접 봤다
+## 검증 — 전수 25판, 전부 저장소 밖 `mock.patch.object`
 
-`rules/dev.md` 0절대로 테스트를 먼저 넣고 돌렸다. 첫 줄이 빨갛게 왔다 —
-`AssertionError: Tuples differ: (620, 21) != (622, 21) : README 의 (단위, e2e) 숫자가
-실제와 다르다`(`test_readme.test_verification_counts_match_reality`). 계획 63 은 메서드가
-안 늘어 이 줄이 무접촉이었지만 이번엔 **설계대로 즉시 울었고**, 같은 커밋에서
-`README.md:104` 를 620 → **622** 로 고쳤다.
+코드는 메모리에서만 갈았다 · 워킹트리 `git status --porcelain` 빈손 ·
+`PYTHONDONTWRITEBYTECODE=1 PYTHONPYCACHEPREFIX=$(mktemp -d)` 동반.
 
-**변이 판정은 전부 저장소 밖 `mock.patch.object` 하네스**(코드는 메모리 · 워킹트리
-`git status --porcelain` 빈손 · 전수를 변이마다 다시 돌렸다).
+**① 개발 반복의 판정을 독립 재측했다 — 하나 빼고 그대로다.**
 
-| 기준 | 변이 | 결과 |
+| 변이 | 어제(반복 372) | 오늘 | 죽은 자리 |
+|---|---|---|---|
+| M0 무변이 대조군 | 0 | **0** | 오탐 0 |
+| M3 `$` 제거 · M4 `re.I` · M5 `[0-9]*` | 1·1·1 | **1·1·1** | `ArchivePatternTest.test_pattern_leaves_live_docs` |
+| M11 `design_history` 제거 | 1 | **1** | `…test_pattern_catches_archive_names` |
+| M10 접두 확대(`_[0-9]+`→`.*`) | 4 | **4** | `DocCitationTest` 1 + 새 단언 3 |
+| M1·M2·M8 (`APPEND_TARGETS`+`CITATION`) | 1·2·3 | **1·2·3** | `CitationPatternTest`·`DocHeadTest`·`DocCitationTest` |
+| M7 넓히기 · M9 순서 | 0·0 | **0·0** | 계획 5절대로 안 연다 |
+| 계획 63 앵커 다섯 A1a·A1b·A2·A3·A4 | 각 1 | **각 1** | 무회귀 |
+| P 양성 대조 `^ZZZ_[0-9]+\.md$` | 4 | **4** | `CAUGHT` 셋 + `DocCitationTest` |
+
+**어긋난 것 하나 — M10 은 정의를 지켜야 4다.** 첫 판에서 `^.*\.md$` 로 갈았더니 6이
+나왔다(`NOT_CAUGHT` 여섯 중 `.MD` 만 살아남는다). 계획서가 적은 M10 은 접두를 남긴
+`_[0-9]+`→`.*` 이고 그것이 4다. **하네스가 계획서보다 넓게 간 것이지 감지력이 는 것이 아니다.**
+
+**② 갭 탐색 — `ARCHIVE` 를 조각마다 하나씩 갈았다**(`rules/test.md` 3절 ② 경계값).
+정규식의 어느 조각도 안 재진 채 남지 않았음을 세어서 보인다.
+
+| 조각 변이 | 죽은 단언 | 판정 |
 |---|---|---|
-| 1 | M3 `$` 제거 | **1** — `NOT_CAUGHT` 의 `history_001.md.bak.md` |
-| 2 | M4 `re.I` | **1** — `HISTORY_001.MD` |
-| 3 | M5 `[0-9]+`→`[0-9]*` | **1** — `history_.md` |
-| 4 | M11 `design_history` 이름 제거 | **1** — `CAUGHT` 의 `design_history_046.md` |
-| 5 | M10 접두 확대 | **4**(`DocCitationTest` 1 그대로 + 새 단언 3) |
-| 5 | M1 · M2 · M8 (`APPEND_TARGETS`+`CITATION`) | **1 · 2 · 3** — 어제와 같다 |
-| 5 | 계획 63 앵커 다섯(A1a·A1b·A2·A3·A4) | **각 1** — 무회귀 |
-| 6 | M0 무변이 대조군 | **0** — 오탐 0 |
-| — | P 양성 대조 `^ZZZ_[0-9]+\.md$` | **4** — `CAUGHT` 셋이 전부 죽어 배선 증명 |
+| 대안 `history` 제거 | **2** | 이미 잡힌다 |
+| 대안 `plan_history` 제거 | **2** | 이미 잡힌다 |
+| `_` 제거 | **4** | 이미 잡힌다 |
+| `md` → `md.*` | **1** | 이미 잡힌다 |
+| M6 `^` 제거 | 0 | **진짜 등가**(아래) |
+| G3 `\.` → `.` | 0 | **진짜 등가**(아래) |
+| G4 대안 순서 뒤집기 | 0 | **진짜 등가**(아래) |
 
-기준 7: 전수 **맨몸** `Ran 622 tests in 15.461s` · `OK` · **rc 0** 이고 `README.md` 의
-「단위 622건」이 실제와 같다. 기준 8: `git diff --stat ba53783 HEAD -- src/ e2e/
-docs/specs/ data/` **빈손** · `data/crawl.db` sha256 `85c96744…5bda18` 무변 · 재색인 0.
-기준 9 는 계획 phase 가 `digest [5]` 에 정정을 적어 이미 닫혔다.
+**생존 셋은 구멍이 아니라 등가다 — 근거를 각각 댄다.**
+`ARCHIVE` 의 제품 소비자는 `tests/test_docs.py:238` **하나뿐**이고(`grep` 확인) 그것이
+`ARCHIVE.match(path.name)` 이다.
+① **M6**: `re.match` 가 이미 위치 0에 앵커하므로 `^` 는 잉여다. 새 단언이 `search`
+의미로 재도 `NOT_CAUGHT` 여섯 중 `…_<숫자>.md` 로 **끝나는** 이름이 0개라 구분자가 없다.
+② **G3**: 순회가 `DOCS.glob("*.md")`(같은 줄 237)라 `path.name` 은 **언제나 `.md` 로
+끝난다** — `md` 앞 글자가 점이 아닌 입력이 도달 불가다.
+③ **G4**: `^` 뒤에서 세 대안은 서로 배타라(`plan_`·`design_` 접두가 갈린다) 순서가
+결과를 못 바꾼다.
+**셋 다 「재는 쪽이 아니라 지우는 쪽이 답」이고 그것은 계획 64 밖이다**(계획서 5절).
 
-**만진 파일은 둘뿐** — `tests/test_docs.py`(+39) · `README.md`(+1 −1).
+**③ 나머지 카테고리는 해당 없음이다.** ① 부정 경로 = `NOT_CAUGHT` 여섯이 그것이고
+실제로 M3·M4·M5·M10 이 거기서 죽는다 · ③ 격리 = 파일·시계·네트워크를 0회 만지는
+순수 리터럴 시험이다 · ④ flaky = `sleep`·랜덤·순서 단언 0 · ⑤ 보안 = 신뢰 경계 밖의
+문서 검사 상수다 · ⑥ 커버리지 = 새 public 함수 0, `ARCHIVE` 자체는 안 바뀌어 「옛
+동작만 덮는」 분기가 0 · ⑦ 동시 실행 = 서버·큐·공유 상태 무관.
+
+**전수 판정 줄(맨몸, 리다이렉션 0):** `Ran 622 tests in 13.781s` · `OK` · **rc 0**.
+
+**만진 파일은 문서 넷뿐** — `tests/test_docs.py`·`src/` 는 **0줄**.
 
 ## 다음
 
-**테스트 phase — 스텝 1/1.** 새 단언이 놓친 갭을 찾는다. 눈여겨볼 자리 둘:
-① `ARCHIVE` 는 `.match()` 로만 불려 `^` 가 잉여인데 새 단언도 `assertRegex`(=`search`)라
-**`^` 를 지우는 M6 은 여전히 등가 변이**다 — 재는 쪽이 아니라 지우는 쪽이 답이라고 계획서
-5절이 이미 적었다. ② `APPEND_TARGETS` 축은 계획서 5절이 이유를 적어 **닫아 두었다**
-(해로운 방향은 `CITATION` 파생이 이미 1·2·3건으로 죽인다 — 다시 열지 않는다).
+**리뷰 phase — 스텝 1/1.** 볼 자리 둘: ① `ArchivePatternTest` 가 `assertRegex`(=`search`)
+로 재는데 제품은 `.match()` 다 — 시험이 제품보다 **엄격한** 쪽이라 오늘 거짓 초록은
+없지만, 리뷰가 「재는 술어를 제품과 맞출 것인가」를 판단할 자리다. ② 등가 셋(`^`·`\.`·
+대안 순서)을 **지우는** 편집은 리뷰가 열지 말지 정한다 — 계획 64 는 안 연다고 적었다.
 
 ## 한도
 
@@ -64,8 +89,8 @@ docs/specs/ data/` **빈손** · `data/crawl.db` sha256 `85c96744…5bda18` 무�
 - `--force`·`--amend`·`rebase` 없음. 스텝 하나 = 커밋 하나.
 - 러너에 리다이렉션·파이프를 안 붙인다 — 오늘도 위반 **0회**(누적 38 유지).
 - `PYTHONDONTWRITEBYTECODE=1` 과 `PYTHONPYCACHEPREFIX=$(mktemp -d)` 를 함께 준다.
-- 변이는 저장소 밖에서만 — 코드는 메모리(`mock.patch.object`). 워킹트리에는 변이 열여섯
-  판 내내 계획이 허용한 두 파일 말고 아무것도 안 생겼다.
+- 변이는 저장소 밖에서만 — 코드는 메모리(`mock.patch.object`). 워킹트리에는 변이
+  스물다섯 판 내내 문서 넷 말고 아무것도 안 생겼다.
 - **`night_iterations` 는 187 그대로 둔다** — 이 반복은 대화형이라 야간 예산을 안 쓴다.
-- `docs/digest.md` 는 **200줄 정각** 유지 — 이 반복은 `digest` 무접촉이다.
+- `docs/digest.md` 는 `[5]` 항목 한 줄만 늘었다 — 줄 수는 200 정각 그대로다.
 - 회전은 없다 — `history_current.md` 는 상한 300 아래고, 다음 회전 번호는 `history_065.md` 다.
