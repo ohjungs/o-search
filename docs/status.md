@@ -1,7 +1,7 @@
 ---
-signal: DONE
-phase: e2e
-step: 4/4
+signal: GREEN
+phase: 계획
+step: 0/0
 attempt: 0
 iteration: 433
 updated: 2026-09-07
@@ -9,12 +9,15 @@ ctx: 40
 night_iterations: 0
 night_red: 0
 night_retries: 0
-plan: passage-prefer-body
+plan: null
 ---
 
 ## 현재 상태
 
-**계획 74 `passage-prefer-body` 마감.** digest 후보 `[8]`(무엇이 뽑히나)·`[6]`(이름표를
+**계획 74 `passage-prefer-body` 마감·아카이브 완료**(`plan_history_060.md` ·
+계획 73 은 `plan_history_059.md`). 다음 계획 미정 — 탐색부터 간다.
+
+**계획 74 `passage-prefer-body`.** digest 후보 `[8]`(무엇이 뽑히나)·`[6]`(이름표를
 쓰나)을 실물로 판정했다. **착수 전제가 스텝 1 에서 깨졌고, 축이 바뀌었다.**
 근거 문단 **73→96건** · 본문 문단 **41.1→81.2%** · 전수 **655 OK rc 0**.
 
