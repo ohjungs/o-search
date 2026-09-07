@@ -699,28 +699,38 @@ class TestPassages(unittest.TestCase):
         self.assertEqual([h[0] for h in indexer.passages(self.db_path, "김치")],
                          ["http://b.test/"])
 
-    def test_html_beyond_the_cap_is_not_reparsed(self):
-        # 자원 상한 — 요청 하나가 문서 10건을 **통째로 다시 파싱**한다. 안 자르면
-        # 큰 문서 열 건이 500ms 예산을 넘긴다(실측: 2.5M자 302ms ×10 = 3.0초).
-        # **천장은 «잘린 뒤의 문단은 못 찾는다»** 다 — 색인은 찾는데 근거는 못 낸다.
-        # 여기 고정해 두지 않으면 상한을 지우거나 넓히는 변이가 안 죽는다
+    def test_long_body_past_the_old_byte_cap_still_yields_a_passage(self):
+        # **축이 바뀐 자리다.** 예전 상한은 바이트(35,000)였는데 실물 웹에 그 자를
+        # 대면 92%(370/400)가 잘리고 근거의 25.5% 가 아예 안 나왔다 — 위키백과·MDN 은
+        # 앞 35KB 가 `<head>`·내비·목차라 **본문에 닿지도 못한다**(계획 74 실측).
+        # 비용을 끄는 것은 바이트가 아니라 **태그**다: ms/1k태그는 실물 4.08 · 적대적
+        # 2.78 로 거의 상수인데 ms/1k바이트는 0.052 대 0.93 으로 18배 갈린다.
+        # 태그가 적고 긴 문서는 이제 끝까지 읽는다 — 이 문서는 태그 4개다
         self._seed_and_index([
             ("http://a.test/",
-             "<title>요리</title><p>" + "봄" * indexer.MAX_PASSAGE_HTML
-             + "</p><p>김치찌개</p>"),
+             "<title>요리</title><p>" + "봄" * 200_000 + "</p><p>김치찌개</p>"),
+        ])
+        self.assertEqual(indexer.passages(self.db_path, "김치")[0][3], "김치찌개")
+
+    def test_blocks_past_the_tag_budget_are_not_reparsed(self):
+        # 자원 상한은 남아 있다 — 자가 바이트에서 태그로 바뀌었을 뿐이다.
+        # 예산을 다 쓴 뒤의 문단은 못 찾는다(색인은 통짜 본문을 보므로 문서는 나온다).
+        # 여기 고정해 두지 않으면 상한을 지우거나 넓히는 변이가 안 죽는다
+        filler = "<p>봄</p>" * indexer.MAX_PASSAGE_TAGS  # 태그 2개/개 → 예산 초과
+        self._seed_and_index([
+            ("http://a.test/", "<title>요리</title>" + filler + "<p>김치찌개</p>"),
         ])
         self.assertEqual([h[0] for h in search(self.db_path, "김치")],
-                         ["http://a.test/"])  # 색인은 통짜 본문을 보므로 문서는 나온다
+                         ["http://a.test/"])
         self.assertEqual(indexer.passages(self.db_path, "김치"), [])
 
-    def test_block_ending_exactly_at_the_cap_is_still_a_passage(self):
-        # 경계 — 캡 **직전까지는 온전히** 읽는다. 한 글자 좁히는 변이가 여기서 죽는다
-        # (마지막 글자가 정확히 캡의 끝자리라 `[:cap - 1]` 이면 '김치찌' 가 된다)
-        tail = "<p>김치찌개"  # 닫는 태그가 없다 — 캡의 끝이 곧 문자열의 끝이다
-        head = "<p>" + "봄" * (indexer.MAX_PASSAGE_HTML - len(tail) - 7) + "</p>"
-        html = head + tail
-        self.assertEqual(len(html), indexer.MAX_PASSAGE_HTML)  # 자를 것이 한 글자도 없다
-        self._seed_and_index([("http://a.test/", html)])
+    def test_block_at_the_last_allowed_tag_is_still_a_passage(self):
+        # 경계 — 예산 **안의 마지막 태그까지는** 온전히 읽는다. 한 칸 좁히는 변이가
+        # 여기서 죽는다. `<title>` 둘과 끝의 `<p>` 가 예산을 쓰므로 채움은 예산 - 3 이다
+        filler = "<p>봄</p>" * ((indexer.MAX_PASSAGE_TAGS - 3) // 2)
+        self._seed_and_index([
+            ("http://a.test/", "<title>요리</title>" + filler + "<p>김치찌개</p>"),
+        ])
         self.assertEqual(indexer.passages(self.db_path, "김치")[0][3], "김치찌개")
 
     def test_cut_inside_a_tag_does_not_leak_markup_into_the_passage(self):
@@ -823,57 +833,58 @@ class TestPassages(unittest.TestCase):
         # 이지 실측 분포가 아니다. 캡·`PASSAGE_LIMIT` 를 내리는 판단은 여전히 «긴 문서의
         # 뒷부분 근거» 쪽 몫이다(`design_passage-api.md` 갈림길 5).
         from websearch import serve
-        worst_ms = indexer.MAX_PASSAGE_HTML / 1000 * 1.00 * serve.PASSAGE_LIMIT
+        # **2026-09-07 계획 74 — 이 가드의 축도 바이트에서 태그로 옮겼다.** 위 문단이
+        # 계수가 세 번 낡았다고 적어 둔 이유가 여기 있다: 계수를 «ms/1000자» 로 잡으면
+        # 모양마다 18배 흔들려(실물 0.052 · 적대적 0.93) 어떤 리터럴도 곧 거짓이 된다.
+        # 태그로 재면 2.77~3.95 로 1.4배 안에 든다 — **재는 자를 바꾼 것이다.**
+        # ① 최악 = 예산 × 계수 × 건수. 계수 4.0 은 실물 최대 페이지를 예산까지 잘라 잰
+        # 3.952 위로 올린 값이다(적대적 `<p>` 2.773 · 속성 div 3.746 · 중첩 li+a 2.885).
+        worst_ms = indexer.MAX_PASSAGE_TAGS / 1000 * 4.0 * serve.PASSAGE_LIMIT
         self.assertLessEqual(worst_ms, 500, "%.0fms" % worst_ms)
-        # ①-b **상수 동결** — 한도를 `500/3` → `500` 으로 펴면서 ① 이 허용하는
-        # `캡 × PASSAGE_LIMIT` 이 오늘의 **+8.2% → +42.9%** 로 넓어졌다. 캡을 50,000
-        # (+43%)으로 올리는 변이를 심으면 이 테스트도 전수 605 도 **초록이다**(실측,
-        # 계획 57 테스트). 그런데 500ms 는 «재파싱 몫» 이 아니라 `GET /passages`
-        # **한 요청 전부**의 예산이고(사양 성능 5) 그 안에 사양 성능 4 의 검색 몫
-        # 300ms 가 같이 산다 — 재파싱 하나가 예산 100% 를 먹어도 되는 것이 아니다.
-        # 몫을 다시 긋는 것은 설계 판단이라(오늘 최악 350ms 가 이미 예산의 70%)
-        # 여기서는 **올리는 문만 닫아** 그 판단을 사람 앞으로 보낸다. 내리는 것은 통과다.
+        # 옛 바이트 축의 최악 모델은 350ms(예산의 70%)였다. **넓힌 것이 아니라 좁혔다** —
+        # 이 부등호가 그것을 못박는다. 품질은 오히려 올랐다(근거 73→98건 · 본문 41.1→80.6%).
+        self.assertLessEqual(worst_ms, 350, "옛 축보다 나빠졌다: %.0fms" % worst_ms)
+        # ①-b **상수 동결** — 올리는 문만 닫는다. 내리는 것은 통과다. 올리려면 사양
+        # 성능 4·5 의 예산 배정(검색 몫 300ms 가 같은 500ms 안에 산다)을 다시 판단한다.
+        # 12,000 은 실물에서 품질 이득이 **0** 이고 최악만 498ms 로 오른다(계획 74 실측).
         self.assertLessEqual(
-            indexer.MAX_PASSAGE_HTML * serve.PASSAGE_LIMIT, 35_000 * 10,
+            indexer.MAX_PASSAGE_TAGS * serve.PASSAGE_LIMIT, 8_000 * 10,
             "상수를 올렸으면 예산 배정(사양 성능 4·5)을 다시 판단한다")
-        # ② **계수 상한** — 위 1.00 은 리터럴이라 파서가 느려져도 한 글자도 안 움직인다.
-        # 그 구멍으로 계수가 0.118 → 0.352 → 0.44 로 **세 번 조용히 낡았다**. 캡을 채운
-        # 최악 모양(`<p>` 만 반복 · 333태그/1000자)을 그 자리에서 파싱해 1,000자당 ms 를
-        # 재고, 상한은 **리터럴이 아니라 예산에서 그 자리에서 유도한다** —
-        # `500 / (캡kB × 건수)` = 1.4286. 그래서 「② 가 초록 = 최악 10건 ≤ 500ms」가
-        # 참이 되고(옛 리터럴 1.60 이 열어 둔 1.4286~1.60 창이 **0** 이 된다), 캡이나
-        # `PASSAGE_LIMIT` 를 올리면 상한이 같이 내려가 ①-b 와 결이 맞는다(계획 58).
-        # 여유는 ① 이 적은 idle 20표본(0.917~0.974)의 **약 1.47배**다 — 이 범위는 ① ·
-        # `indexer.py` · `docs/project.md` 의 한 값만 쓴다. 설계 15판의 좁은 범위
-        # 0.951~0.996 을 여기 따로 적었다가 리뷰 첫 표본 0.948 · e2e 20표본 0.935~0.968 로
-        # **두 번 연속** 하한을 벗어났다(계획 57 `[R57-1]` 과 같은 종류 — 세 번째라 합쳤다).
-        # 부하를 실제로 재 봤다
-        # (2026-09-05 · 15판 · 설계 58): 반코어 부하 1.185 는 **0/15** 로 조용하고,
-        # 전코어 부하 1.730 에서 **14/15** 로 빨개진다 — 다만 그 자리는 옛 1.60 도
-        # **4/15** 로 못 견디니 상한 탓이 아니라 기계가 바쁜 것이다.
-        # 표본 3회는 min-of-1 1.211 · min-of-3 1.176 · min-of-10 1.178 에서 골랐다 —
-        # 3에서 값이 붙고 10은 스위트에 34ms 를 더 낼 뿐이다.
-        # ponytail: ① 의 1.00 과 ② 의 1.4286 사이는 아직 열려 있다 — 그러나 그 구간은
-        # **사양 안**이다(최악 ≤500ms). 열어 두는 이유는 ① 이 «오늘 값» 기록이기
-        # 때문이고, 오늘 값이 1.2 를 넘어 자리를 잡으면 그때 ① 의 리터럴을 실측으로
-        # 올린다. `time.process_time` 으로 자를 바꿔 부하를 걷어내는 길은 실측으로
-        # 기각했다 — 전코어 부하에서 1.612 vs 벽시계 1.636 으로 6% 밖에 못 줄인다.
-        worst_html = "<p>" * (indexer.MAX_PASSAGE_HTML // 3)
+        # ② **계수 상한** — ① 의 4.0 은 리터럴이라 파서가 느려져도 안 움직인다. 그 구멍으로
+        # 옛 계수가 0.118 → 0.352 → 0.44 로 세 번 조용히 낡았다. 예산을 채운 최악 모양을
+        # 그 자리에서 파싱해 재고, 상한은 **리터럴이 아니라 예산에서 유도한다**.
+        # 모양은 속성 있는 `<div>` 다 — 적대적 `<p>`(2.773)보다 실물(3.952)에 가깝다(3.746).
+        unit = '<div class="mw-parser-output a" id="b" data-k="v">봄</div>'
+        worst_html = unit * (indexer.MAX_PASSAGE_TAGS // 2)
         samples = []
         for _ in range(3):
             start = time.perf_counter()
             extract.extract_blocks(worst_html)
             samples.append((time.perf_counter() - start) * 1000)
-        per_1k = min(samples) / (len(worst_html) / 1000)
-        budget_per_1k = 500 / (indexer.MAX_PASSAGE_HTML / 1000 * serve.PASSAGE_LIMIT)
+        per_1k_tags = min(samples) / (indexer.MAX_PASSAGE_TAGS / 1000)
+        budget_per_1k = 500 / (indexer.MAX_PASSAGE_TAGS / 1000 * serve.PASSAGE_LIMIT)
         self.assertLessEqual(
-            per_1k, budget_per_1k,
-            "%.3f ms/1000자 → 최악 %d건 %.0fms (예산 500ms · 상한 %.4f). "
-            "한가할 때는 0.92~1.00 이라 1.7 근처면 «기계가 바쁨» 이고 "
-            "1.4~1.6 이면 «파서 회귀» 다" % (
-                per_1k, serve.PASSAGE_LIMIT,
-                per_1k * indexer.MAX_PASSAGE_HTML / 1000 * serve.PASSAGE_LIMIT,
+            per_1k_tags, budget_per_1k,
+            "%.3f ms/1000태그 → 최악 %d건 %.0fms (예산 500ms · 상한 %.4f). "
+            "한가할 때는 3.5~4.0 이라 6 근처면 «기계가 바쁨» 이고 "
+            "4.5~5.5 면 «파서 회귀» 다" % (
+                per_1k_tags, serve.PASSAGE_LIMIT,
+                per_1k_tags * indexer.MAX_PASSAGE_TAGS / 1000 * serve.PASSAGE_LIMIT,
                 budget_per_1k))
+
+    def test_tag_clip_is_cheap_next_to_parsing(self):
+        # 자르는 값이 파싱만큼 들면 축을 바꾼 의미가 없다. 실측 1.13MB 에 0.70ms 로
+        # 같은 페이지 파싱 66.8ms 의 1% 다 — 여기서는 **비율만** 못박는다(절대값은
+        # 기계마다 다르다). 정규식 스캔을 파서 호출로 바꾸는 변이가 이 자리에서 죽는다
+        html = '<div class="a b" id="c">봄봄봄봄봄</div>' * 20_000
+        t0 = time.perf_counter()
+        clipped = indexer._clip_by_tags(html)
+        clip_ms = (time.perf_counter() - t0) * 1000
+        t0 = time.perf_counter()
+        extract.extract_blocks(clipped)
+        parse_ms = (time.perf_counter() - t0) * 1000
+        self.assertLess(clip_ms, parse_ms / 5,
+                        "자르기 %.2fms · 파싱 %.2fms" % (clip_ms, parse_ms))
 
     def test_missing_db_raises(self):
         with self.assertRaises(FileNotFoundError):
