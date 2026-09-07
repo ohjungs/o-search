@@ -9,7 +9,7 @@ import sqlite3
 import sys
 import urllib.request
 
-from . import extract
+from . import extract, store
 
 SCHEMA = (
     "CREATE VIRTUAL TABLE IF NOT EXISTS docs "
@@ -204,7 +204,8 @@ def index_pages(db_path):
             "WHERE html IS NOT NULL AND url NOT IN (SELECT url FROM docs)"
         ).fetchall()
         indexed = 0
-        for url, html in rows:
+        for url, stored in rows:
+            html = store.page_html(stored)
             if extract.is_noindex(html):
                 continue  # 색인 거부 선언 — 크롤 윤리 축, robots.txt 와 같다
             title, body = extract.extract_text(html)
@@ -218,15 +219,17 @@ def index_pages(db_path):
         # 기색인 문서를 아예 쳐다보지 않으므로 경로가 따로 필요하다.
         # ponytail: 매 실행 색인 전수 조인. LIKE 로 후보를 SQLite 안에서 걸러 두었고,
         #           색인 상태 컬럼이 생기는 recrawl 계획에서 증분으로 바꾼다
-        for url, html in db.execute(
-            "SELECT d.url, p.html FROM docs d JOIN pages p ON p.url = d.url "
-            # `&#` 갈래는 `is_noindex()` 의 사전 필터와 같은 이유다 — 후보만 넓히고
-            # 최종 판정은 그 뒤 `is_noindex()` 가 하므로 오탐이 늘지 않는다.
-            # 늘어나는 것은 **후보 수**다 — 3000문서×30KB 임시 DB 실측으로 이 루프 전체가
-            # x1.22(`robots` 55% 코퍼스) ~ x3.64(10%). 위 ponytail 의 증분화가 그대로 답이다
-            "WHERE p.html LIKE '%robots%' OR p.html LIKE '%&#%'"
+        # **SQL 사전 필터(`LIKE '%robots%'`)를 여기서 걷어냈다.** 압축분은 BLOB 이라
+        # `LIKE` 가 영영 매치되지 않고, 그러면 이 회수 경로가 **조용히 죽는다**(초록불인
+        # 채로 noindex 선언을 무시한다 — 크롤 윤리 축이라 조용한 실패가 가장 나쁘다).
+        # **결과는 안 바뀐다** — 걷어낸 조건이 `is_noindex()` 가 자기 첫 줄에서 이미 하는
+        # 것과 같은 검사여서(`extract.py` 의 `"robots" not in lowered and "&#" not in lowered`)
+        # 판정은 그대로고 함수를 더 자주 부를 뿐이다. 늘어난 값은 해제 0.11ms/문서다.
+        # ponytail: 위 ponytail 과 같은 답 — 색인 상태 컬럼이 생기는 recrawl 계획에서 증분으로
+        for url, stored in db.execute(
+            "SELECT d.url, p.html FROM docs d JOIN pages p ON p.url = d.url"
         ).fetchall():
-            if extract.is_noindex(html):
+            if extract.is_noindex(store.page_html(stored)):
                 db.execute("DELETE FROM docs WHERE url = ?", (url,))
         db.commit()
         return indexed
@@ -377,6 +380,7 @@ def passages(db_path, query, limit=10):
             row = db.execute("SELECT html FROM pages WHERE url = ?", (url,)).fetchone()
             if not row or not row[0]:
                 continue  # 원본이 사라진 문서 — 지어내지 않고 뺀다
+            row = (store.page_html(row[0]),)
             # 여기서는 **길이만** 정한다. 자른 자리(또는 원문 자체)에 남은 안 닫힌
             # 마크업은 `extract_blocks()` 가 파서에게 물어 버린다 — 문자열로 그 끝을
             # 찾으려던 세 판(캡·`<` 유무·`<`/`>` 비교)이 전부 절반만 맞았다.

@@ -6,8 +6,8 @@
 사용자가 하는 그대로 `python3 -m websearch.indexer` 로 색인하고,
 `python3 -m websearch.serve` 로 띄운 **화면(HTTP)** 과 CLI 질의 양쪽에서 확인한다.
 검증: ① noindex·none·엔티티 인코딩 페이지는 색인되지 않음 ② 화면과 질의에 허용 문서만
-③ 이미 색인된 문서가 뒤늦게 **엔티티 인코딩** noindex 를 달면 색인에서 빠짐(제거 질의의
-`OR p.html LIKE '%&#%'` 가 사는 자리) ④ 평범한 noindex 도 그대로 빠지고 출력으로 알림
+③ 이미 색인된 문서가 뒤늦게 **엔티티 인코딩** noindex 를 달면 색인에서 빠짐(제거 경로가
+엔티티 갈래까지 보는지) ④ 평범한 noindex 도 그대로 빠지고 출력으로 알림
 ⑤ 오탐 0 — `robots` 없이 `&#8212;` 만 든 문서와 `index, follow` 문서는 계속 색인된다
 
 실행: PYTHONPATH=src python3 e2e/noindex_e2e.py
@@ -20,6 +20,9 @@ import sys
 import tempfile
 import threading
 import urllib.request
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+from websearch.store import Store  # noqa: E402 — 위 경로 삽입 뒤라야 임포트된다
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -125,12 +128,15 @@ def main():
         assert "/entity" not in hits, "엔티티 인코딩 noindex 문서가 검색됐다: %r" % hits
 
         # 이미 색인된 문서가 뒤늦게 noindex 를 달았다. CLI 재크롤은 기수집 URL 을
-        # 건너뛰므로(digest [5], 별도 사안) pages.html 을 직접 갱신해 상황만 만든다.
+        # 건너뛰므로(digest [5], 별도 사안) pages 를 직접 갱신해 상황만 만든다.
+        #
+        # **`Store.upsert` 로 갱신하는 이유**는 raw SQL 이 «옛 저장 표현»을 쓰기 때문이다.
+        # 계획 77 이 `pages.html` 을 압축한 뒤로, 직접 UPDATE 하면 이 시나리오만 압축 안 된
+        # TEXT 를 검사하게 되어 **제품이 실제로 쓰는 경로를 안 지난다.** 계획 77 이 잡은 결함
+        # (표현에 기대는 SQL 이 조용히 죽는 것)을 잡아낸 것이 바로 «픽스처가 제품 경로를
+        # 지났다» 는 성질이라, 여기서 그 성질을 버리면 같은 부류를 다음에는 못 잡는다.
         def retract(path, html):
-            conn = sqlite3.connect(db)
-            conn.execute("UPDATE pages SET html=? WHERE url=?", (html, base + path))
-            conn.commit()
-            conn.close()
+            Store(db).upsert(base + path, html, 200)
 
         # ③ 엔티티 갈래 — 제거 질의의 `OR p.html LIKE '%&#%'` 가 사는 자리다.
         #    진입(is_noindex)만 고쳤으면 이미 색인된 이 문서는 그대로 남는다.

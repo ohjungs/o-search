@@ -32,6 +32,36 @@ class TestStore(unittest.TestCase):
         self.assertTrue(self.store.has("http://a.com/gone"))
         self.assertIsNone(self.store.get_html("http://a.com/gone"))
 
+    def test_stored_html_is_compressed(self):
+        """원본 HTML 이 DB 에서 자리를 덜 차지한다.
+
+        실물 400문서에서 `pages` 가 DB 의 **78.6%**(78.6MB · 문서당 191KB)였고,
+        컨셉 1단계(10만 문서)로 환산하면 25GB 라 단일 머신 전제가 깨진다
+        (`docs/specs/concept.md` 경량 1). 되풀이되는 마크업이라 zlib 이 6.2배를
+        접는다 — 저장된 바이트가 원문보다 작다는 것이 그 계약이다.
+        """
+        html = "<div class='x'>가나다</div>" * 400
+        self.store.upsert("http://a.com/big", html, 200)
+        stored = self.store._db.execute(
+            "SELECT html FROM pages WHERE url=?", ("http://a.com/big",)
+        ).fetchone()[0]
+        self.assertIsInstance(stored, bytes, "압축분은 BLOB 로 들어간다")
+        self.assertLess(len(stored), len(html.encode("utf-8")) // 2)
+        # 접었어도 읽는 쪽은 원문 그대로 받는다.
+        self.assertEqual(self.store.get_html("http://a.com/big"), html)
+
+    def test_rows_written_before_compression_still_read(self):
+        """옛 DB 를 그대로 읽는다 — 그래서 마이그레이션이 필요 없다.
+
+        압축 이전 행은 `html` 이 TEXT 다. 읽기가 두 꼴을 다 받으면 기존 100MB
+        코퍼스를 버리지도 변환하지도 않고, 재크롤이 자연히 갈아 끼운다.
+        """
+        self.store._db.execute(
+            "INSERT INTO pages(url, html, status) VALUES (?, ?, ?)",
+            ("http://a.com/old", "<p>옛 원문</p>", 200),
+        )
+        self.assertEqual(self.store.get_html("http://a.com/old"), "<p>옛 원문</p>")
+
 
 class TestConcurrentAccess(unittest.TestCase):
     """다른 연결이 같은 DB 를 붙들고 있어도 저장은 죽지 않는다.
