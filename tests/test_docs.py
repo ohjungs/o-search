@@ -832,6 +832,9 @@ class StrikeGapTest(unittest.TestCase):
 
     실물은 고치면 초록이 되어 갈래가 한 번씩만 지나간다. 특히 **오탐 축**(진행 중인
     계획을 가리키는 열린 줄)은 실물에 표본이 없어 여기서만 밟힌다.
+
+    마지막 하나는 판정이 아니라 **추출기의 범위**를 본다 — 하한 못은 범위가 좁아지는
+    쪽만 막고, 넓어지는 쪽은 실물에 표본이 없어 아무도 안 물었다.
     """
 
     INDEX = ("| plan_done-one | 완료 | loop/x | 1/1 | 통과 | 설명 |\n"
@@ -863,6 +866,18 @@ class StrikeGapTest(unittest.TestCase):
                                      "`no-such-plan` 으로 열었다**"), self.INDEX)
         self.assertIsNotNone(gap)
         self.assertIn("no-such-plan", gap)
+
+    def test_only_candidate_list_lines_are_counted(self):
+        # 범위를 **넓히는** 변이는 실물이 조용해 살아남았다(2026-09-07 실측: 절 자르기
+        # 제거·목록 줄 요구 제거 둘 다 638건을 통과했다). 넓어지면 남의 절과 본문
+        # 산문이 후보로 세어져 **거짓 RED** 가 된다 — 조용한 초록의 반대쪽 실패다.
+        text = ("# 다이제스트\n"
+                "## 완료\n"
+                "- 계획 68 `done-one` 로 열었다 — 닫힌 것을 여기 또 적는다\n"
+                "## 다음 계획 후보\n"
+                "산문 줄에도 계획 69 `done-one` 으로 열었다 라고 적힐 수 있다\n"
+                "- ~~[6] 무엇~~ — **→ 2026-09-06 계획 70 `done-one` 로 열었다**\n")
+        self.assertEqual(candidate_pointers(text), [("done-one", True)])
 
 
 if __name__ == "__main__":
