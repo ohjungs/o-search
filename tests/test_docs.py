@@ -75,6 +75,24 @@ CANDIDATE_HEAD = "## 다음 계획 후보"
 # 그 갈림은 `digest` 후보에 등재해 두었다(계획 70 리뷰).
 STRIKE_POINTER_FLOOR = 9
 
+# 같은 계획 행의 **다섯째 칸(e2e)**. `STEP_ROW` 는 넷째, `PLAN_ROW` 는 둘째를 보고
+# 이것은 다섯째를 본다. 슬러그로 집지 않고 **행 전부를 훑는다** — 재는 대상이
+# 「지금 진행 중인 계획」이 아니라 「이미 닫힌 47행의 부기」라서다.
+# 무는 것: (슬러그, 상태 칸, e2e 칸).
+VERDICT_ROW = re.compile(
+    r"^\| plan_([A-Za-z0-9_-]+) \| ([^|]*) \| [^|]* \| [^|]* \| ([^|]*) \|", re.M)
+# 위 정규식이 다섯째 칸까지 못 읽은 행을 세려고 머리만 따로 문다. 열 모양이 바뀌면
+# `VERDICT_ROW` 는 그 행을 **조용히 건너뛴다** — 침묵 대신 신고하게 만드는 자리다.
+VERDICT_ROW_HEAD = re.compile(r"^\| plan_", re.M)
+# e2e 칸이 판정이 아니라 **날짜뿐**인 꼴. 어휘(`통과`)를 요구하지 않는 것이 설계다 —
+# 2026-09-07 실측에서 `통과` 를 요구하면 `없음(…)`·`**새 e2e 0개**(…)` 여섯 행이
+# 거짓 RED 였다(계획서 2절). 자는 날짜 하나만 거절한다.
+VERDICT_DATE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
+# 오늘 실물의 계획 행은 **48**이다. 추출기가 0행을 내면 판정이 조용한 초록이 되므로
+# 하한을 못으로 박는다(계획 70 이 `STRIKE_POINTER_FLOOR` 에서 밟은 자리). 행은 늘기만
+# 하니 하한은 안전하고, **값 축에 딱 붙이지 않았다** — 붙이면 표를 정리하는 날 거짓 RED 다.
+VERDICT_ROW_FLOOR = 45
+
 
 def done_section(digest_text):
     """`digest.md` 의 `## 완료` 절 본문. 절이 없으면 `None` — 호출부가 실패시킨다.
@@ -198,6 +216,33 @@ def strike_gap(digest_text, index_text):
         if not struck:
             return ("닫힌 후보에 취소선이 없다 — index.md `plan_%s` 는 `완료` 인데"
                     " digest 후보 줄이 `- ~~` 로 시작하지 않는다" % slug)
+    return None
+
+
+def verdict_gap(index_text):
+    """완료 행의 e2e 칸이 판정이 아닌 자리를 한 줄로 돌려준다. 없으면 `None`.
+
+    **몸통을 함수로 뺀 이유는 `step_gap`·`iter_gap`·`strike_gap` 과 같다** — 실물
+    `index.md` 는 고치고 나면 늘 맞아서, 검사가 문서에만 붙어 있으면 판정을 무력화하는
+    변이가 조용히 산다(계획 60 실측 6/6 생존 · 계획 61 실측 4/4 생존). 실물은
+    `VerdictSyncTest` 가, 갈래는 `VerdictGapTest` 가 부른다.
+
+    **`완료` 행만 본다** — 진행 중인 계획의 e2e 칸은 아직 `—` 인 것이 맞다.
+    """
+    rows = VERDICT_ROW.findall(index_text)
+    heads = VERDICT_ROW_HEAD.findall(index_text)
+    if len(rows) != len(heads):
+        return ("index.md 의 계획 행 %d개 중 %d개만 다섯째 칸까지 읽혔다 — 표의 열"
+                " 모양이 바뀌었다(e2e 를 다섯째 칸으로 가정한다)"
+                % (len(heads), len(rows)))
+    for slug, status, verdict in rows:
+        if status.strip() != "완료":
+            continue
+        cell = verdict.strip()
+        if VERDICT_DATE.fullmatch(cell):
+            return ("e2e 칸에 판정이 아니라 날짜가 있다 — index.md `plan_%s` 의 다섯째"
+                    " 칸이 `%s` 다. 판정은 docs/e2e/<슬러그>/result.md 에 있다"
+                    % (slug, cell))
     return None
 
 
@@ -881,6 +926,79 @@ class StrikeGapTest(unittest.TestCase):
                 "산문 줄에도 계획 69 `done-one` 으로 열었다 라고 적힐 수 있다\n"
                 "- ~~[6] 무엇~~ — **→ 2026-09-06 계획 70 `done-one` 로 열었다**\n")
         self.assertEqual(candidate_pointers(text), [("done-one", True)])
+
+
+class VerdictSyncTest(unittest.TestCase):
+    """완료된 계획 행의 e2e 칸이 판정을 담고 있나.
+
+    같은 표의 넷째 칸은 계획 60(`step_gap`), 둘째 칸은 계획 70(`strike_gap`)이 붙들었는데
+    **다섯째 칸은 오늘까지 재는 자가 0개였다** — 그 사이에 `plan_noindex-entity-prefilter`
+    행이 판정 대신 날짜(`2026-09-07`)를 담은 채로 갔다. 소비자는 루프 자신이다:
+    탐색이 `index.md` 를 「이미 한 것」의 명부로 읽는데, 판정이 없는 행은 그 행만으로
+    「e2e 를 통과해서 완료인지」를 알 수 없다.
+
+    **판정은 `verdict_gap` 이 한다** — 갈래를 실물 없이 밟는 것은 `VerdictGapTest` 다.
+    """
+
+    def test_done_rows_carry_a_verdict(self):
+        gap = verdict_gap((DOCS / "index.md").read_text(encoding="utf-8"))
+        self.assertIsNone(gap, gap)
+
+    def test_row_extractor_still_bites(self):
+        # 추출기가 0을 내면 위 단언은 «볼 것이 없어» 초록이다. 하한을 박아 둔다.
+        found = VERDICT_ROW.findall((DOCS / "index.md").read_text(encoding="utf-8"))
+        self.assertGreaterEqual(
+            len(found), VERDICT_ROW_FLOOR,
+            "계획 행이 %d개로 줄었다 — 표의 열 모양이 바뀌었거나 추출기가 죽었다"
+            % len(found))
+
+
+class VerdictGapTest(unittest.TestCase):
+    """`verdict_gap` 의 갈래를 합성 표로 밟는다.
+
+    실물은 고치면 초록이 되어 갈래가 한 번씩만 지나간다. 특히 **오탐 축**(`없음(…)`·
+    `**새 e2e 0개**(…)` 인 정당한 판정)은 자를 잘못 세웠을 때만 물리므로 여기서 못을 박는다 —
+    2026-09-07 실측에서 「`통과` 를 요구한다」안은 실물 여섯 행을 거짓 RED 로 만들었다.
+    """
+
+    DONE = "| plan_%s | 완료 | loop/x | 1/1 | %s | 설명 |"
+    RUNNING = "| plan_running-one | 진행 | loop/y | 0/1 | — | 설명 |"
+
+    def index(self, *rows):
+        head = "# 색인\n\n| 계획 | 상태 | 브랜치 | 스텝 | e2e | 비고 |\n"
+        return head + "\n".join(rows) + "\n"
+
+    def test_verdict_row_is_quiet(self):
+        self.assertIsNone(verdict_gap(self.index(
+            self.DONE % ("done-one", "통과 — 전수 `Ran 639` OK rc 0"))))
+
+    def test_date_only_cell_is_a_gap(self):
+        gap = verdict_gap(self.index(self.DONE % ("dated-one", "2026-09-07")))
+        self.assertIsNotNone(gap)
+        self.assertIn("dated-one", gap)
+
+    def test_non_verdict_wording_is_not_required(self):
+        # 오탐 축 — 넷 다 `rules/e2e.md` 가 허용하는 정당한 판정이고 `통과` 가 없다.
+        for cell in ("없음(제품 코드 0줄)", "**새 e2e 0개**(기존 스크립트에 더했다)",
+                     "생략 — 문서 축", "—"):
+            with self.subTest(cell=cell):
+                self.assertIsNone(verdict_gap(self.index(self.DONE % ("x-one", cell))))
+
+    def test_date_inside_a_verdict_is_not_a_gap(self):
+        # 날짜가 **판정 안에** 있는 것은 판정이다. 칸 전체가 날짜뿐일 때만 문다.
+        self.assertIsNone(verdict_gap(self.index(
+            self.DONE % ("dated-verdict", "통과(2026-09-07)"))))
+
+    def test_running_row_is_not_bitten(self):
+        # 오탐 축 — 진행 중인 계획의 e2e 칸은 아직 비어 있는 것이 맞다.
+        self.assertIsNone(verdict_gap(self.index(self.RUNNING)))
+
+    def test_broken_column_shape_is_reported(self):
+        # 열이 하나 사라지면 `VERDICT_ROW` 는 그 행을 조용히 건너뛴다 — 침묵이 아니라
+        # 실패로 신고한다(계획서 8절의 위험).
+        gap = verdict_gap(self.index("| plan_short-one | 완료 | loop/x | 1/1 |"))
+        self.assertIsNotNone(gap)
+        self.assertIn("열", gap)
 
 
 if __name__ == "__main__":
