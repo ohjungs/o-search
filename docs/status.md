@@ -1,12 +1,12 @@
 ---
 signal: GREEN
-phase: 테스트
+phase: 리뷰
 step: 3/3
 attempt: 0
-iteration: 436
+iteration: 437
 updated: 2026-09-07
 ctx: 62
-night_iterations: 3
+night_iterations: 4
 night_red: 0
 night_retries: 0
 plan: project-const-drift
@@ -14,9 +14,10 @@ plan: project-const-drift
 
 ## 현재 상태
 
-**계획 75 `project-const-drift` 스텝 3/3 완료 — 개발 끝.** `const_gap()` + 갈래 7건 +
-실물 검사 1건. 물린 순간 오늘의 근거가 그대로 재현됐고(`MAX_PASSAGE_HTML` 35,000 ≠
-2000000) 문단을 태그 축으로 다시 써서 초록이 됐다. 단위 655 → **663건**. 다음은 테스트 phase.
+**계획 75 `project-const-drift` 테스트 phase 완료.** 새 검사가 **인용 0건이면 조용한
+초록**이던 구멍을 `CONST_CITATION_FLOOR = 1` 로 닫았다 — 변이 M5(문단을 `= 숫자` 없는
+산문으로)가 물고, 못을 0 으로 내린 M6 는 **같은 문서 상태에서 초록**이라 등가 변이가
+아니다. 단위 **664건**. 못 잰 축 둘은 digest 에 등재했다. 다음은 리뷰 phase.
 
 ## 무엇이 낡았나
 

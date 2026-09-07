@@ -269,6 +269,16 @@ CONST_CITATION = re.compile(
 # 상수가 사는 두 곳. 여기 없는 모듈을 인용하면 그 자체가 낡음이다.
 CONST_DIRS = (DOCS.parent / "src" / "websearch", DOCS.parent / "e2e")
 
+# `project.md` 가 **값까지 적어** 부르는 상수의 최소 개수. 오늘 실물은 **2**다
+# (`indexer.MAX_PASSAGE_TAGS`·`MAX_PASSAGE_HTML`). 못을 박는 이유는 `const_gap` 이
+# **인용 0건이면 조용한 초록**이기 때문이다 — 캡 문단을 다시 쓰면서 `= 숫자` 꼴을
+# 안 쓰면 검사가 아무것도 안 재면서 통과한다. 그것이 이 검사가 거짓말을 하는 유일한
+# 길이고, 계획 70·72 가 후보 포인터에서 이미 두 번 밟은 실패 유형이다.
+# **값 축에 딱 붙이지 않았다** — 2 로 박으면 문단이 상수 하나만 부르도록 정당하게
+# 줄어드는 날 거짓 RED 다(`VERDICT_ROW_FLOOR` 이 45 인 것과 같은 이유). 1 은
+# 「아무것도 안 잰다」만 문다.
+CONST_CITATION_FLOOR = 1
+
 
 def _const_value(module, name):
     """코드에서 상수의 정수 리터럴을 읽어 `(값, 사유)` 로 돌려준다.
@@ -1144,6 +1154,16 @@ class ProjectConstTest(unittest.TestCase):
     def test_project_cites_live_constants(self):
         gap = const_gap((DOCS / "project.md").read_text(encoding="utf-8"))
         self.assertIsNone(gap, gap)
+
+    def test_project_still_cites_at_least_one_constant(self):
+        # 위 단언은 인용이 0건이면 «볼 것이 없어» 초록이다. 못을 박아 둔다 —
+        # 캡 문단을 `= 숫자` 없이 다시 쓰면 검사가 아무것도 안 재면서 통과한다.
+        found = CONST_CITATION.findall((DOCS / "project.md").read_text(encoding="utf-8"))
+        self.assertGreaterEqual(
+            len(found), CONST_CITATION_FLOOR,
+            "project.md 가 값까지 적어 부르는 상수가 %d개다 — 「품질 기준」 절이"
+            " `mod.CONST` **= 숫자** 꼴을 잃었고, 그러면 이 검사는 아무것도 안 잰다"
+            % len(found))
 
 
 if __name__ == "__main__":
