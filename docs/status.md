@@ -5,7 +5,7 @@ step: 0/0
 attempt: 0
 iteration: 422
 updated: 2026-09-07
-ctx: 85
+ctx: 77
 night_iterations: 8
 night_red: 0
 night_retries: 0
@@ -57,7 +57,8 @@ plan: null
 ## 야간 지표
 
 반복 **415~422**(8회) · RED **0** · 재시도 **0** · 계획 **1 완료** · 정지 사유
-**사용자 지시 완료**. 커밋 **7**개, 전부 `loop/digest-rotate-guard`(`main` 직접 0).
+**지시 완료**. 커밋 **10**개, 전부 `loop/digest-rotate-guard`(`main` 직접 0).
+`metrics.md` 에 **`지시 완료` 칸을 신설**했다(사유·스크립트 어휘 간극은 그 절에).
 
 ## 검증 (맨몸 · 리다이렉션 0)
 
