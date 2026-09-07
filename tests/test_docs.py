@@ -336,6 +336,10 @@ HISTORY_ENTRY_CAP = 20
 # 오늘 꼴은 `### 반복`** 이다. 문구가 드리프트하면 이 자가 0을 세고 조용해지므로
 # `HistoryCapTest` 가 하한 못을 함께 박는다.
 HISTORY_ENTRY_HEAD = re.compile(r"^### 반복 ", re.M)
+# 항목 축이 «아무것도 안 재는 길»을 닫는 하한. **오늘 값(9)에 안 붙인다** —
+# 회전 직후에는 항목이 몇 개든 정당하고, 값에 못을 박으면 정당한 날 거짓 RED 다
+# (`CONST_CITATION_FLOOR` 이 2 가 아니라 1 인 것과 같은 이유).
+HISTORY_ENTRY_FLOOR = 1
 
 
 def cap_gap(text):
@@ -1248,6 +1252,35 @@ class CapGapTest(unittest.TestCase):
         # 본문이 「반복 439」를 언급해도 항목이 아니다 — 세는 것은 `### 반복` 머리다.
         body = self._text(3) + "- 반복 439 에서 쟀다\n" * 30
         self.assertIsNone(cap_gap(body))
+
+
+class HistoryCapTest(unittest.TestCase):
+    """살아 있는 `history_current.md` 가 `rules/docs.md` 3절의 상한 안인가.
+
+    **이 검사가 있는 이유는 그 상한을 지키는 것이 사람의 기억뿐이었기 때문이다** —
+    계획 72 반복 419(352줄)와 반복 440(383줄·20회) 두 번 놓쳤고, 두 번째는 상한 둘을
+    다 넘긴 채 여섯 반복을 지나갔다. 전수 664건이 그동안 조용했다.
+
+    처방은 **아카이브로 밀어내기**(`history_<NNN>.md`)라 야간 루프가 스스로 실행할 수
+    있다 — 그래서 이 못은 루프를 교착시키지 않는다. `digest.md` 200 이 여기 없는 이유는
+    그 반대다(처방이 삭제 · 계획 76 「하지 않을 것」).
+    """
+
+    def test_live_history_is_within_the_caps(self):
+        gap = cap_gap((DOCS / "history_current.md").read_text(encoding="utf-8"))
+        self.assertIsNone(gap, gap)
+
+    def test_live_history_still_has_entries_to_count(self):
+        # 위 단언은 항목이 0건이어도 «넘긴 것이 없어» 초록이다. 파일이 비거나 머리
+        # 문구가 `## 반복` 로 드리프트하면 항목 축은 아무것도 안 재면서 통과한다.
+        # 못은 **오늘 값(9)에 안 붙인다** — 회전 직후에는 항목이 몇 개든 정당하다
+        # (`CONST_CITATION_FLOOR`·`VERDICT_ROW_FLOOR` 과 같은 이유).
+        found = HISTORY_ENTRY_HEAD.findall(
+            (DOCS / "history_current.md").read_text(encoding="utf-8"))
+        self.assertGreaterEqual(
+            len(found), HISTORY_ENTRY_FLOOR,
+            "history_current.md 의 `### 반복` 항목이 %d개다 — 파일이 비었거나 항목 머리"
+            " 문구가 바뀌었고, 그러면 항목 축은 아무것도 안 잰다" % len(found))
 
 
 if __name__ == "__main__":
