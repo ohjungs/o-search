@@ -323,6 +323,44 @@ def const_gap(project_text):
     return None
 
 
+# `rules/docs.md` 3절의 `history_current.md` 상한. **여기 두 줄이 그 룰의 유일한
+# 기계 표현이다** — 룰 파일은 저장소 밖(`~/.claude/skills/loop-harness/`)에 살아 검사가
+# 읽을 수 없다. 룰이 바뀌면 이 둘을 손으로 맞춘다.
+# **`digest.md` 200 은 일부러 안 잰다**(계획 76 「하지 않을 것」) — 그쪽 처방은 오래된
+# 완료 항목 **삭제**라 무인 모드가 못 하고(`SKILL.md` 야간 금지 목록), 못을 박으면
+# 야간이 스스로 못 푸는 RED 가 된다. history 쪽은 처방이 아카이브로 **밀어내기**라
+# 야간이 실행할 수 있다 — 두 상한의 성질이 달라 한 못으로 묶지 않는다.
+HISTORY_LINE_CAP = 300
+HISTORY_ENTRY_CAP = 20
+# 항목 머리. 회전으로 밀려난 옛 파일들은 `## 반복` 꼴도 쓰지만, **살아 있는 파일의
+# 오늘 꼴은 `### 반복`** 이다. 문구가 드리프트하면 이 자가 0을 세고 조용해지므로
+# `HistoryCapTest` 가 하한 못을 함께 박는다.
+HISTORY_ENTRY_HEAD = re.compile(r"^### 반복 ", re.M)
+
+
+def cap_gap(text):
+    """`history_current.md` 가 상한을 넘은 축을 한 줄로 돌려준다. 안 넘었으면 `None`.
+
+    **두 축을 함께 본다** — 짧은 반복이 스물한 번 쌓이는 날과 긴 반복이 여섯 번 쌓이는
+    날은 다른 방식으로 같은 비용을 낸다. 이 파일은 매 반복 읽히므로 둘 다 상한이다.
+
+    **경계는 초과가 아니다.** 룰 문구가 「넘으면」이라 정확히 상한인 날은 조용하다 —
+    그날 회전을 강요하면 거짓 RED 이고, 다음 append 가 어차피 문다.
+    """
+    over = []
+    lines = len(text.splitlines())
+    if lines > HISTORY_LINE_CAP:
+        over.append("줄 수 %d > %d" % (lines, HISTORY_LINE_CAP))
+    entries = len(HISTORY_ENTRY_HEAD.findall(text))
+    if entries > HISTORY_ENTRY_CAP:
+        over.append("항목 수 %d > %d" % (entries, HISTORY_ENTRY_CAP))
+    if not over:
+        return None
+    return ("history_current.md 가 상한을 넘었다 — %s. 오래된 항목부터"
+            " `history_<NNN>.md` 로 밀어내고 `digest.md` 에 한 줄로 압축한다"
+            " (`rules/docs.md` 3절)" % " · ".join(over))
+
+
 class DocHeadTest(unittest.TestCase):
     def test_append_targets_start_with_h1(self):
         for name in APPEND_TARGETS:
@@ -1166,6 +1204,50 @@ class ProjectConstTest(unittest.TestCase):
             "project.md 가 값까지 적어 부르는 상수가 %d개다 — 「품질 기준」 절이"
             " `mod.CONST` **= 숫자** 꼴을 잃었고, 그러면 이 검사는 아무것도 안 잰다"
             % len(found))
+
+
+class CapGapTest(unittest.TestCase):
+    """`cap_gap` 의 갈래. 실물은 `HistoryCapTest` 가 부른다.
+
+    **몸통을 함수로 뺀 이유는 `iter_gap`·`step_gap`·`const_gap` 과 같다** — 실물
+    `history_current.md` 는 회전하고 나면 늘 상한 안이라, 판정을 무력화하는 변이가
+    조용히 산다(오늘 회전 직후 148줄·6회).
+    """
+
+    def _text(self, entries, filler=0):
+        body = "".join("### 반복 %d — 무엇\n- 한 일\n" % (400 + i) for i in range(entries))
+        return body + "\n" * filler
+
+    def test_inside_the_caps_is_quiet(self):
+        self.assertIsNone(cap_gap(self._text(6)))
+
+    def test_too_many_lines_is_reported(self):
+        gap = cap_gap(self._text(2, filler=HISTORY_LINE_CAP))
+        self.assertIsNotNone(gap)
+        self.assertIn("줄", gap)
+        self.assertIn(str(HISTORY_LINE_CAP + 4), gap)
+
+    def test_too_many_entries_is_reported_on_its_own(self):
+        # 줄 수는 여유가 있는데 항목만 넘는 꼴 — 축 하나가 단독으로 물어야 한다.
+        gap = cap_gap(self._text(HISTORY_ENTRY_CAP + 1))
+        self.assertIsNotNone(gap)
+        self.assertIn("항목", gap)
+        self.assertNotIn("줄 수", gap)
+
+    def test_both_axes_are_reported_together(self):
+        gap = cap_gap(self._text(HISTORY_ENTRY_CAP + 1, filler=HISTORY_LINE_CAP))
+        self.assertIn("줄 수", gap)
+        self.assertIn("항목", gap)
+
+    def test_the_boundary_is_not_over(self):
+        # 룰 문구가 「넘으면」이다. 정확히 상한인 날 회전을 강요하면 거짓 RED 다.
+        self.assertIsNone(cap_gap("\n" * HISTORY_LINE_CAP))
+        self.assertIsNone(cap_gap(self._text(HISTORY_ENTRY_CAP)))
+
+    def test_only_entry_heads_are_counted(self):
+        # 본문이 「반복 439」를 언급해도 항목이 아니다 — 세는 것은 `### 반복` 머리다.
+        body = self._text(3) + "- 반복 439 에서 쟀다\n" * 30
+        self.assertIsNone(cap_gap(body))
 
 
 if __name__ == "__main__":
