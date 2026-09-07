@@ -1,12 +1,12 @@
 ---
 signal: GREEN
-phase: 리뷰
+phase: e2e
 step: 3/3
 attempt: 0
-iteration: 437
+iteration: 438
 updated: 2026-09-07
 ctx: 62
-night_iterations: 4
+night_iterations: 5
 night_red: 0
 night_retries: 0
 plan: project-const-drift
@@ -14,10 +14,10 @@ plan: project-const-drift
 
 ## 현재 상태
 
-**계획 75 `project-const-drift` 테스트 phase 완료.** 새 검사가 **인용 0건이면 조용한
-초록**이던 구멍을 `CONST_CITATION_FLOOR = 1` 로 닫았다 — 변이 M5(문단을 `= 숫자` 없는
-산문으로)가 물고, 못을 0 으로 내린 M6 는 **같은 문서 상태에서 초록**이라 등가 변이가
-아니다. 단위 **664건**. 못 잰 축 둘은 digest 에 등재했다. 다음은 리뷰 phase.
+**계획 75 `project-const-drift` 리뷰 완료 — 후보 2 · 확증 2(둘 다 자동 수정) · 기각 0.**
+백지 패스가 둘 다 주웠다: 다시 쓴 문단의 **굵게 짝이 깨져** 반대편 문단까지 굵어진 것과,
+새 정규식 주석의 「다음 문단까지 안 샌다」가 **빈 줄을 못 본 주장**인 것. 단언은 안 건드렸고
+전수 **664 OK**. 다음은 e2e phase — 계획서 시나리오 셋.
 
 ## 무엇이 낡았나
 
