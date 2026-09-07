@@ -842,7 +842,7 @@ class TestPassages(unittest.TestCase):
         worst_ms = indexer.MAX_PASSAGE_TAGS / 1000 * 4.0 * serve.PASSAGE_LIMIT
         self.assertLessEqual(worst_ms, 500, "%.0fms" % worst_ms)
         # 옛 바이트 축의 최악 모델은 350ms(예산의 70%)였다. **넓힌 것이 아니라 좁혔다** —
-        # 이 부등호가 그것을 못박는다. 품질은 오히려 올랐다(근거 73→98건 · 본문 41.1→80.6%).
+        # 이 부등호가 그것을 못박는다. 품질은 오히려 올랐다(근거 73→96건 · 본문 41.1→81.2%).
         self.assertLessEqual(worst_ms, 350, "옛 축보다 나빠졌다: %.0fms" % worst_ms)
         # ①-b **상수 동결** — 올리는 문만 닫는다. 내리는 것은 통과다. 올리려면 사양
         # 성능 4·5 의 예산 배정(검색 몫 300ms 가 같은 500ms 안에 산다)을 다시 판단한다.
