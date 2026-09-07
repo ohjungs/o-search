@@ -1,12 +1,12 @@
 ---
 signal: GREEN
 phase: 개발
-step: 0/2
+step: 1/2
 attempt: 0
-iteration: 416
+iteration: 417
 updated: 2026-09-07
 ctx: 77
-night_iterations: 2
+night_iterations: 3
 night_red: 0
 night_retries: 0
 plan: digest-rotate-guard
@@ -14,17 +14,36 @@ plan: digest-rotate-guard
 
 ## 현재 상태
 
-**계획 72 `digest-rotate-guard` 의 설계를 마쳤다** (`docs/design_digest-rotate-guard.md`).
-갈림길은 하나였다 — 하한 못의 **모집단과 값**. 결정은 **D5: 못을 후보 절 «머리 개수»
-위에 세우고 하한 2**(`CANDIDATE_HEAD_FLOOR = 2`). 다음 스텝은 **개발 1/2**.
+**개발 1/2 완료 — 못을 옮겼다.** `tests/test_docs.py` 에서 `STRIKE_POINTER_FLOOR = 9` 를
+빼고 `CANDIDATE_HEAD_FLOOR = 2` + `candidate_heads()` 를 세웠다. 전수 **648 OK rc 0**
+(647 → 648: 못 하나를 빼고 못 하나 + 합성 갈래 하나를 더했다. `README.md` 건수도 맞췄다).
+다음 스텝은 **개발 2/2 — `digest.md` 회전**이다.
 
-**설계를 가른 탐침 둘**(커밋 안 함 · 원복함): ① 코드 상수 `CANDIDATE_HEAD` 변이 →
-**4건 RED**(합성 셋 + 실물 하나) ② **실물 문서**의 첫 후보 절 머리만 드리프트 →
-**1건 RED**, `test_pointer_extractor_still_bites` **하나뿐**. ②가 D3(못을 지운다)을
-반증한다 — 상수와 실물 문서를 잇는 자가 이 못 하나다. 가정 탐침도 참이다: 머리 수가
-회전 후에도 **2**(거짓 RED 없음)이고 머리 하나만 드리프트하면 **1**(RED)이다.
-버린 것: A(오탐 21) · B(회전 뒤 실측치 0) · C(오탐 4) · D1(값 58 — 오늘 사고의 반복) ·
-D2(값 1 — 머리 하나 드리프트를 못 문다) · D3(축이 사라진다).
+## 새 못을 다섯 판으로 밟았다 (커밋 안 함 · 전부 원복)
+
+| 판 | 무엇 | 결과 |
+|---|---|---|
+| ① | 실물 **첫** 후보 절 머리 드리프트 | **RED** `test_candidate_heads_still_found` |
+| ② | 실물 **둘째** 후보 절 머리 드리프트 | **RED** 같은 자리 |
+| ③ | **회전 시뮬레이션**(취소선 18줄 삭제) | **OK** — 거짓 RED 없음. 이 계획의 목적이다 |
+| ④ | 변이 `startswith(CANDIDATE_HEAD)` → `startswith("## ")` | **RED** 합성 `test_heads_do_not_count_other_sections` |
+| ⑤ | 변이 하한 `2` → `0` + 드리프트 | **OK — 생존** |
+
+**⑤ 는 살아남았다.** 하한 상수를 0 으로 내리면 못이 이빨을 잃고 아무도 안 운다.
+형제 못들(`VERDICT_ROW_FLOOR`)이 똑같이 갖는 성질이고, 닫으려면 «못을 지키는 못» 이
+되어 순환한다. **천장으로 적고 후보에 등재한다** — 스텝 2 가 digest 를 여는 김에 넣는다.
+
+## 설계 결정 (반복 416)
+
+**D5: 못을 후보 절 «머리 개수» 위에 세우고 하한 2**(`docs/design_digest-rotate-guard.md`).
+가른 것은 탐침 둘 — 코드 상수 변이는 합성 넷이 물지만(4건 RED), **실물 문서 드리프트는
+옛 못 하나만 물었다**(1건 RED). 상수와 실물 문서를 잇는 자가 그 못뿐이라 D3(지운다)이
+반증됐다. 버린 것: A(오탐 21) · B(회전 뒤 실측치 0) · C(오탐 4) · D1(값 58 — 오늘 사고의
+반복) · D2(값 1 — 머리 하나 드리프트를 못 문다).
+
+**설계 6절에서 한 가지를 덜어냈다** — 거기 적힌 `candidate_lines` 분리는 소비자가
+`candidate_pointers` 하나뿐이라 안 만들었다. D5 의 두 번째 소비자는 줄이 아니라 머리를
+센다. 구현 하나짜리 추상은 다음 편집이 갈라 놓을 짐이다.
 
 ## 앞 반복 요약 (반복 415, 계획 수립)
 

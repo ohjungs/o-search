@@ -68,12 +68,14 @@ STRIKE_POINTER = re.compile(r"계획 [0-9]+ `([A-Za-z0-9_-]+)` (?:로|으로|를
 PLAN_ROW = r"^\| plan_%s \| ([^|]*) \|"
 # 후보 두 절의 머리. `## 다음 계획 후보` 와 `## 다음 계획 후보 (테스트 phase 갭 …)`.
 CANDIDATE_HEAD = "## 다음 계획 후보"
-# 오늘 실물의 포인터 수는 **10**이다(개발 phase 가 `[4]` 줄에 포인터를 채워 9에서
-# 하나 늘었다). 추출기가 0을 내면 판정이 조용한 초록이 되므로 하한을 못으로 박는다.
-# 후보가 닫히며 포인터는 늘기만 하니 하한은 안전하다. **값 축에 딱 붙이지 않았다** —
-# 붙이면 문구가 하나 달라지는 날도 물지만 후보 절을 정리하는 날 거짓 RED 다.
-# 그 갈림은 `digest` 후보에 등재해 두었다(계획 70 리뷰).
-STRIKE_POINTER_FLOOR = 9
+# 후보 두 절의 **머리 개수**. 못이 여기 서 있는 이유는 이 모집단만 회전에 안 흔들려서다
+# (계획 72 설계 탐침: 회전 전후 둘 다 **2**). 옛 못은 포인터 수(9)에 붙어 있었는데
+# **포인터 10개가 10개 다 취소선**이라 닫힌 후보를 지우는 회전이 그것을 **0** 으로
+# 만들었다 — 등재돼 있던 처방 「하한을 실측치에 붙인다」가 거기서 반증됐다.
+# `assertGreaterEqual` 이라 후보 절이 셋으로 늘어도 안 막고, 하나라도 이름이 갈리면
+# 문다(설계 탐침: 어느 쪽 머리를 드리프트시켜도 2 → 1). 실물 문서와 이 상수를 잇는
+# 자는 아래 못 하나뿐이다 — 합성 갈래 넷은 문서 드리프트에 전부 조용했다.
+CANDIDATE_HEAD_FLOOR = 2
 
 # 같은 계획 행의 **다섯째 칸(e2e)**. `STEP_ROW` 는 넷째, `PLAN_ROW` 는 둘째를 보고
 # 이것은 다섯째를 본다. 슬러그로 집지 않고 **행 전부를 훑는다** — 재는 대상이
@@ -92,7 +94,8 @@ VERDICT_ROW_HEAD = re.compile(r"^\| plan_", re.M)
 # 거짓 RED 였다(계획서 2절). 자는 날짜 하나만 거절한다.
 VERDICT_DATE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
 # 오늘 실물의 계획 행은 **48**이다. 추출기가 0행을 내면 판정이 조용한 초록이 되므로
-# 하한을 못으로 박는다(계획 70 이 `STRIKE_POINTER_FLOOR` 에서 밟은 자리). 행은 늘기만
+# 하한을 못으로 박는다(계획 70 이 후보 포인터에서 밟고 계획 72 가 절 머리로 옮긴 자리).
+# 행은 늘기만
 # 하니 하한은 안전하고, **값 축에 딱 붙이지 않았다** — 붙이면 표를 정리하는 날 거짓 RED 다.
 VERDICT_ROW_FLOOR = 45
 
@@ -177,6 +180,11 @@ def step_gap(status_text, index_text):
         return ("스텝이 어긋났다 — index.md `plan_%s` %s ≠ status.md `step` %s"
                 % (slug, r.group(1), s.group(1)))
     return None
+
+
+def candidate_heads(digest_text):
+    """후보 절의 머리 줄. `candidate_pointers` 의 절 자르기와 **같은 술어**를 쓴다."""
+    return [l for l in digest_text.split("\n") if l.startswith(CANDIDATE_HEAD)]
 
 
 def candidate_pointers(digest_text):
@@ -869,12 +877,14 @@ class StrikeSyncTest(unittest.TestCase):
                          (DOCS / "index.md").read_text(encoding="utf-8"))
         self.assertIsNone(gap, gap)
 
-    def test_pointer_extractor_still_bites(self):
-        # 추출기가 0을 내면 위 단언은 «볼 것이 없어» 초록이다. 하한을 박아 둔다.
-        found = candidate_pointers((DOCS / "digest.md").read_text(encoding="utf-8"))
+    def test_candidate_heads_still_found(self):
+        # 추출기가 빈 목록을 내면 위 단언은 «볼 것이 없어» 초록이다. 못을 박아 둔다.
+        # **포인터 수가 아니라 절 머리 수에 박는다** — 포인터는 회전이 지우는 쪽이라
+        # (계획 72 실측: 10개가 10개 다 취소선) 닫힌 후보를 지우는 날 0 이 된다.
+        found = candidate_heads((DOCS / "digest.md").read_text(encoding="utf-8"))
         self.assertGreaterEqual(
-            len(found), STRIKE_POINTER_FLOOR,
-            "후보 포인터가 %d개로 줄었다 — 포인터 문구가 바뀌었거나 추출기가 죽었다"
+            len(found), CANDIDATE_HEAD_FLOOR,
+            "후보 절 머리가 %d개다 — 실물 문서의 절 이름이 `CANDIDATE_HEAD` 와 갈렸다"
             % len(found))
 
 
@@ -929,6 +939,12 @@ class StrikeGapTest(unittest.TestCase):
                 "산문 줄에도 계획 69 `done-one` 으로 열었다 라고 적힐 수 있다\n"
                 "- ~~[6] 무엇~~ — **→ 2026-09-06 계획 70 `done-one` 로 열었다**\n")
         self.assertEqual(candidate_pointers(text), [("done-one", True)])
+
+    def test_heads_do_not_count_other_sections(self):
+        # `## ` 를 아무거나 세는 변이는 실물에서 조용하다 — `digest.md` 의 `## ` 줄은
+        # 일곱이라 하한 2 를 그냥 넘긴다. 넓어지는 쪽은 여기서만 죽는다.
+        text = "# 다이제스트\n## 완료\n## 반복 실패\n## 다음 계획 후보\n- 줄\n"
+        self.assertEqual(candidate_heads(text), ["## 다음 계획 후보"])
 
 
 class VerdictSyncTest(unittest.TestCase):
