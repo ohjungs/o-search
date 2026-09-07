@@ -1,0 +1,155 @@
+# 최근 반복 기록
+
+<!--
+append 전용. 수정·삭제 금지.
+
+상한 20회 / 300줄. 넘으면 오래된 것부터 history_<NNN>.md 로 밀어내고,
+밀어낼 때 digest.md 에 1~2줄로 압축해 남긴다. (docs.md 룰)
+
+이 파일은 매 반복 읽힌다. 그래서 상한이 있다.
+-->
+
+## 형식
+
+```
+## YYYY-MM-DD HH:MM | <plan-slug> | <phase> <step> | 시도N
+- 한 일: <무엇을 했나. 파일 경로 포함>
+- 결과: <검증 결과. 테스트 12/12 통과 / 린트 0건 / 실패 출력 요약>
+- 다음: <다음 스텝 또는 정지 사유>
+```
+
+실패한 반복도 반드시 남긴다. 실패 기록이 없으면 같은 실수를 반복한다.
+
+**회전 명부는 `digest.md` 의 `## 완료` 절 «아카이브 명부» 줄이 정본이다.**
+여기 있던 스물한 회전의 서술(233줄)은 그 줄과 내용이 겹쳤고, 검사가 강제하는 명부도
+그쪽 하나뿐이라(`tests/test_docs.py` 의 `ArchiveIndexTest`) **개발 9(반복 269)가 이
+자리에서 지웠다** — 회전으로는 300줄 상한을 못 맞추던 세 반복(309 → 372 → 418줄)의
+원인이 이 명부였다. **지운 것은 머리말이지 반복 기록이 아니다** — 항목은 여전히
+append 전용이고 수정·삭제 금지다. 각 회전의 사유는 `digest.md` 의 같은 줄에, 원문은
+`history_<NNN>.md` 에 그대로 있다.
+
+## 반복 400 — 계획 69 `noindex-entity-prefilter` (개발 phase · 스텝 1/1 · 시도 0)
+
+- **한 일**: 엔티티로 인코딩된 `meta robots` name 의 색인 거부 선언이 무시되던 **두
+  자리**를 닫았다. ① `src/websearch/extract.py` `is_noindex()` 사전 필터를
+  「`robots` 있거나 **`&#` 이 있으면**」으로 넓혔다. ② `src/websearch/indexer.py` 의
+  제거 질의에 `OR p.html LIKE '%&#%'` 를 더했다. 제품 **2줄** · 파일 2개.
+- **RED 를 먼저 봤다**: 새 단언 4개 중 3개 실패(`FAILED (failures=4)`, 넷째는 README
+  건수). `test_entity_encoded_name_is_a_directive` `False is not true` ·
+  `test_entity_encoded_noindex_page_is_not_indexed` `2 != 1`(거부 문서가 색인됐다) ·
+  `test_already_indexed_page_declaring_entity_encoded_noindex_is_removed`
+  `[('http://a.test/', '', '허용 pyeongsan')] != []`. **두 자리가 각각 따로 울었다** —
+  진입만 고쳤으면 셋째가 그대로 살아남는다.
+- **오탐 방향도 심었다**(심자마자 초록인 가드): `&#38;`·`&#8212;` 만 든 본문과
+  `name="&#114;obots" content="index, follow"` 둘 다 False. 필터는 후보만 넓히고
+  판정은 `_MetaRobotsParser` 가 한다 — 그래서 넓혀도 오탐이 안 는다.
+- **빠른 길 유지**: `robots` 도 `&#` 도 없는 문서는 파싱 0회. `&#` 판별자 근거는
+  계획 phase 실측(`r` 을 내는 이름 있는 엔티티 없음).
+- **결과**: 전수 `Ran 632 tests` `OK` rc 0(맨몸 1회) · `e2e/noindex_e2e.py` rc 0 ·
+  `README.md:104` 628→**632건** · `data/crawl.db` 무변 · 스키마·재색인·새 의존성 0 ·
+  `docs/specs/` 무접촉.
+- **다음**: 테스트 phase 1/1 — 변이 두 개(`&#` 갈래 제거 · `OR` 절 제거)가 **각각 다른
+  단언**을 죽이는지 본다.
+
+## 반복 401 — 계획 69 `noindex-entity-prefilter` (테스트 phase · 스텝 1/1 · 시도 0)
+
+- **전수부터 돌렸다**: `Ran 632 tests` `OK` rc 0 (맨몸
+  `PYTHONDONTWRITEBYTECODE=1 PYTHONPYCACHEPREFIX=$(mktemp -d) PYTHONPATH=src python3 -m unittest discover -b -s tests`).
+- **갭 탐색(카테고리 ② 경계값)에서 넷을 찾아 실측했다** — 실제로 쓰이는 인코딩 변형
+  `&#82;OBOTS`(대문자 R) · `&#0114;`(0 패딩) · `&#114obots`(세미콜론 없음) · 그리고
+  `content` 쪽만 인코딩한 `content="&#110;oindex"`. **넷 다 이미 True 였다** — 제품은
+  안 고쳤고 **단언만 못박았다**(`test_entity_encoded_name_is_a_directive` 안에 4줄).
+  중요도 **8** — 미탐은 남의 색인 거부를 무시하고 색인하는 것이고, `&#` 한 조각으로
+  넓게 잡는 오늘의 필터를 나중에 `&#\d+;` 같은 모양으로 좁히면 **조용히** 되돌아간다.
+- **테스트 건수는 632 그대로다** — 새 메서드가 아니라 있는 메서드에 단언을 더했다.
+  그래서 `README.md:104` 도 손댈 게 없다.
+- **변이 3판**(저장소 밖 `mktemp -d` + `rsync` 사본 · 워킹트리 무변):
+  1. `extract.py` 사전 필터에서 `and "&#" not in lowered` 제거 → `FAILED (failures=3)`.
+     `test_entity_encoded_name_is_a_directive`(`False is not true`) ·
+     `test_entity_encoded_noindex_page_is_not_indexed`(`2 != 1`) ·
+     `..._declaring_entity_encoded_noindex_is_removed`.
+  2. `indexer.py` 제거 질의에서 `OR p.html LIKE '%&#%'` 제거 → `FAILED (failures=1)`,
+     `..._declaring_entity_encoded_noindex_is_removed` **하나만**. 계획서 예측대로
+     **두 자리가 각각 다른 단언에 걸린다** — 진입 하나만 고쳐서는 못 닫는다.
+  3. 필터를 `&#[0-9]+;` 로 **좁히는** 변이 → `FAILED (failures=2)`. 십육진
+     `&#x72;`(기존 단언)과 세미콜론 없는 `&#114obots`(이번에 심은 단언)가 죽었다 —
+     ①에서 새로 적은 주석("좁히면 미탐")이 빈말이 아님을 이 판이 증명한다.
+  **3판 전부 사망 · 생존 0.**
+- **결과**: 전수 `Ran 632 tests` `OK` rc 0 · `PYTHONPATH=src python3 e2e/noindex_e2e.py`
+  rc 0 · `git status --porcelain` 은 `M tests/test_extract.py` 하나 뿐(사본 삭제 확인) ·
+  `data/crawl.db` 무변 · `src/` **0줄** · 스키마·마이그레이션·새 의존성 0 ·
+  `docs/specs/` 무접촉.
+- **다음**: 리뷰 phase 1/1.
+
+## 반복 402 — 계획 69 `noindex-entity-prefilter` (리뷰 phase · 스텝 1/1 · 시도 0)
+
+- **판정 GREEN.** 보고 1건(자동 수정) · 기각 3건 · 등재 1건 · 제품 **2줄(주석만)**.
+- **임계경로는 비용 측정이었다.** 테스트 phase 의 변이 3판은 전부 「기능이 붙들려
+  있나」축이고 「`&#` 판별자가 얼마를 먹나」는 한 판도 없었다 — `&#` 은 `&#38;`·
+  `&#8212;` 같은 **평범한 엔티티에도 있으니** `robots` 없는 문서가 오늘부터 파서까지 간다.
+  임시 DB 로 실측했다(`data/crawl.db` **열지 않았다**):
+  - 단건 20KB(`&#` 있고 `robots` 없음) **0.041 → 1.808ms · x44.5** (≈ **+90ms/MB**)
+  - 제거 루프 3000문서 × 30KB(90MB) · `robots` 55% — **4847 → 5916ms · x1.22**(후보 1683 → 2092)
+  - 같은 코퍼스 · `robots` **10%** — **932 → 3395ms · x3.64**(후보 304 → 1163) ← 최악
+  - 색인 루프 100KB 신규 1건 — **14.20 → 26.62ms · x1.87**. 낮은 이유가 있다:
+    통과한 문서는 바로 뒤 `extract_text()` 가 **어차피 한 번 더 판다**. 새 차수가 아니라
+    있던 파싱의 배수다.
+  - SQL 쪽 몫은 작다 — 90MB 조인 질의 45 → 62ms(`robots` 55%) · 46 → 80ms(10%).
+    루프 시간의 60~98% 는 파이썬 파서다.
+- **그래도 통과다.** 최악 x3.64 는 `indexer.py:172` 가 이미 「매 실행 전수 조인」으로
+  적어 둔 천장의 **상수 배**이고 검색 경로는 **0** 이다. 사양 우선순위가 「크롤 윤리 >
+  검색 품질 > 검색 성능 > 색인 규모」(`docs/specs/concept.md:59`)라 **남의 색인 거부를
+  존중하는 값**과 색인 루프의 상수 배는 바꿀 만한 거래다.
+- **보고 `[R69-1]` — 넓힌 질의의 주석이 «오탐» 만 말하고 «대가» 를 말하지 않는다**
+  (`indexer.py:176`). 「오탐이 늘지 않는다」는 **참인데**, 읽는 사람은 비용도 안 는다로
+  읽는다. 실측 배수 두 줄을 붙였다(단언 무변 · 제품 동작 무변). 반복 319 의 「천장 주석의
+  안전 주장도 실측 대상」과 같은 자리이고, 이번은 **주장이 참인데 축이 다른** 경우다.
+- **기각 3건 — 전부 재 보고 버렸다**:
+  ① `&#` 판별자 충분성은 **참**이다. `html.entities.html5` 전수에서 ASCII 글자를 내는
+     명명 엔티티는 **1개**뿐이고 `r·o·b·o·t·s` 를 내는 것은 **0개**다(status 401 이 남긴
+     볼 자리 ①). `&#114obots`·`&#0000114;obots`·`&#X72;obots` 를 `HTMLParser` 가 전부
+     `robots` 로 푸는 것도 다시 봤고, `&#38;#114;obots` 는 올바르게 `robots` 가 **아니다**.
+  ② `OR` 절 SQL — `WHERE` 에 `AND` 가 없어 괄호 문제가 없고 `&`·`#` 은 `LIKE` 와일드카드가
+     아니라 `ESCAPE` 도 필요 없다. `html IS NULL` 은 여전히 안 뽑힌다.
+  ③ 형제 호출자 — `is_noindex()` 호출자는 `indexer.py:161`·`:180` **둘뿐**이고 diff 가 둘 다
+     덮는다. 증상이 아니라 뿌리에서 닫혔다.
+- **등재 — `digest ## 다음 계획 후보 (테스트 phase 갭, 8점 미만)` 에 중요도 4 로, 처방 실측을 붙여서**(반복 331 규칙): 파서 입력을 `</head>` 까지
+  자르면 100KB 문서가 **12.19 → 0.014ms · x893** 이다. **천장이 같이 나왔다** — `<body>`
+  안의 `<meta name="robots">` 를 놓친다(실측 True → False). 미탐이라 우선순위 최상단 축을
+  건드리므로 오늘 안 연다. **여는 조건**은 제거 루프가 증분이 된 뒤에도 전수 파싱이 예산을
+  밟는 날이다.
+- **변이 0판** — 앞 phase 가 3판으로 생존 0 을 이미 샀다. 측정은 변이가 아니다.
+- **결과**: 전수 `Ran 632 tests` `OK` rc 0(주석 수정 후 다시 1회 · 맨몸) ·
+  `PYTHONPATH=src python3 e2e/noindex_e2e.py` rc 0 · `README.md` 건수 무변(632) ·
+  `data/crawl.db` **무변·무개봉** · 스키마·마이그레이션·재색인·새 의존성 **0** ·
+  `docs/specs/` 무접촉.
+- **다음**: e2e phase 1/1.
+
+## 반복 403 — 계획 69 `noindex-entity-prefilter` (e2e phase · 스텝 1/1 · 시도 0)
+
+- **판정 통과 — 계획 69 DONE.** 결과 문서 `docs/e2e/noindex-entity-prefilter/result.md`.
+- **새 e2e 파일 0개.** 기존 `e2e/noindex_e2e.py` 가 「로컬 서버 → crawl → indexer」 관통과
+  「뒤늦은 noindex 는 색인에서 빠진다」를 이미 덮고 있었다 — **모자란 둘(엔티티 갈래 ·
+  화면 HTTP 축)만** 그 파일에 더했다(`rules/e2e.md` 5절이 허용하는 자리). 그래서
+  `README.md:105` 「e2e 21종」도 `:104` 「단위 632건」도 **안 움직인다**.
+- **관통**: 로컬 `http.server` 6페이지 → `crawl` → `indexer`(**`3 문서 색인`**) →
+  `python3 -m websearch.serve <db> --port 0` 을 진짜 서브프로세스로 띄워 `GET /?q=pyeongsan`.
+  화면에 `/open`·`/follow` **있고** `/noindex`·`/none`·**`/entity` 없다**(200 · `Traceback` 0).
+  CLI `--query` 에서도 같은 판정. 전부 `tempfile` 임시 DB · **바깥 네트워크 접속 0**.
+- **제거 축**: 이미 색인된 `/follow` 에 엔티티 인코딩 noindex 를 심고 재색인 →
+  `0 문서 색인` + **`1 문서 색인 제외`**, `/open` 은 남는다(무관한 문서까지 빠지지 않는다).
+  이어서 평범한 noindex 도 그대로 빠진다 — 옛 갈래 회귀 0.
+- **오탐 대조군을 페이지로 심었다**: `/open` 은 `robots` 없이 `&#8212;` 만 있고,
+  `/follow` 는 `content="index, follow"` 다. 둘 다 계속 색인·검색된다.
+- **변이 2판**(저장소 밖 `mktemp -d` + `rsync` 사본): ① `extract.py` 사전 필터의 `&#` 갈래
+  제거 → rc 1 `1회차 stdout: '4 문서 색인'` ② `indexer.py` 제거 질의의 `OR` 절 제거 →
+  rc 1 `엔티티 거부를 제거하지 않았다`. **각각 다른 단언에서 죽는다** — 단위(반복 401)가
+  산 판정을 파이프라인 끝에서 끝까지에서 되샀다. V0 성한 사본 rc 0(오탐 0).
+- **이번 diff 를 지나는 e2e 만 골라 돌렸다**: `noindex_e2e.py`·`indexer_e2e.py`·
+  `crawl_e2e.py` **rc 0**. 나머지 18종은 diff 가 안 닿고, `quality_eval.py`·
+  `passage_eval.py` 는 `data/crawl.db` 를 요구해 이번 하드 제약(무개봉)과 충돌한다 —
+  **안 돌린 것을 통과로 적지 않았다.**
+- **결과**: 전수 `Ran 632 tests in 15.889s` `OK` rc 0(맨몸 1회) · `data/crawl.db` sha256
+  `85c96744…5bda18` **무변·무개봉** · 스키마·마이그레이션·재색인·새 의존성 **0** ·
+  `docs/specs/` 무접촉 · `main` 직접 커밋 0 · `gh` 0회.
+- **다음**: 계획 69 DONE. 새 계획은 탐색하지 않는다.
