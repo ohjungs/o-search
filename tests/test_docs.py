@@ -1254,7 +1254,12 @@ class CapGapTest(unittest.TestCase):
 
     def test_only_entry_heads_are_counted(self):
         # 본문이 「반복 439」를 언급해도 항목이 아니다 — 세는 것은 `### 반복` 머리다.
-        body = self._text(3) + "- 반복 439 에서 쟀다\n" * 30
+        # **줄 중간의 인용도 항목이 아니다** — 이 저장소의 기록은 머리 문구를 그대로
+        # 인용하는 습관이 있고(실측: 오늘 `history_current.md` 에 2줄), `^` 앵커를
+        # 지운 변이는 그것을 항목으로 세어 **거짓 RED** 를 만든다. 앵커를 물리는
+        # 픽스처가 이 두 줄이다 (`IterationPatternTest` 가 같은 자리에서 배운 것).
+        body = (self._text(3) + "- 반복 439 에서 쟀다\n" * 30
+                + "- 머리 문구를 `### 반복 439` 로 적어 뒀다\n" * 30)
         self.assertIsNone(cap_gap(body))
 
 
