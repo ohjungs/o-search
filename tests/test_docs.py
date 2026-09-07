@@ -1225,23 +1225,27 @@ class CapGapTest(unittest.TestCase):
     def test_inside_the_caps_is_quiet(self):
         self.assertIsNone(cap_gap(self._text(6)))
 
+    # **축 이름은 통째로 단언한다.** `"줄"`·`"항목"` 만 보면 **처방 문장이 그 단언을
+    # 만족시킨다** — 처방이 「오래된 **항목**부터 ... 한 **줄**로 압축한다」이기 때문이다
+    # (반복 444 실측: 항목 축만 넘긴 메시지에도 `"줄"` 이 들어 있었다). 이름만 읽으면
+    # 축을 보는 것 같은데 실제로는 아무 메시지나 통과하던 단언이다.
     def test_too_many_lines_is_reported(self):
         gap = cap_gap(self._text(2, filler=HISTORY_LINE_CAP))
         self.assertIsNotNone(gap)
-        self.assertIn("줄", gap)
-        self.assertIn(str(HISTORY_LINE_CAP + 4), gap)
+        self.assertIn("줄 수 %d > %d" % (HISTORY_LINE_CAP + 4, HISTORY_LINE_CAP), gap)
+        self.assertNotIn("항목 수", gap)
 
     def test_too_many_entries_is_reported_on_its_own(self):
         # 줄 수는 여유가 있는데 항목만 넘는 꼴 — 축 하나가 단독으로 물어야 한다.
         gap = cap_gap(self._text(HISTORY_ENTRY_CAP + 1))
         self.assertIsNotNone(gap)
-        self.assertIn("항목", gap)
+        self.assertIn("항목 수 %d > %d" % (HISTORY_ENTRY_CAP + 1, HISTORY_ENTRY_CAP), gap)
         self.assertNotIn("줄 수", gap)
 
     def test_both_axes_are_reported_together(self):
         gap = cap_gap(self._text(HISTORY_ENTRY_CAP + 1, filler=HISTORY_LINE_CAP))
         self.assertIn("줄 수", gap)
-        self.assertIn("항목", gap)
+        self.assertIn("항목 수", gap)
 
     def test_the_boundary_is_not_over(self):
         # 룰 문구가 「넘으면」이다. 정확히 상한인 날 회전을 강요하면 거짓 RED 다.
