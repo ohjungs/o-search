@@ -175,3 +175,8 @@ append 전용이고 수정·삭제 금지다. 각 회전의 사유는 `digest.md
   후보 `[7]` 자신이 그 답을 미리 적어 뒀다("history 쪽만 먼저 못 박는 것일 수 있다").
 - 설계 생략 — 트리거 미해당 · 파일 1개 · `src/` 0줄 · `test_docs.py` 에 같은 모양의
   몸통 함수가 이미 **다섯**(`iter_gap`·`step_gap`·`strike_gap`·`verdict_gap`·`const_gap`).
+- **계획 등재를 빠뜨려 스스로 세운 못에 물렸다** — `StepSyncTest.test_index_row_and_status_agree`
+  가 「`| plan_history-cap-guard |` 행의 스텝 칸을 못 읽었다」로 빨개졌다(계획 45
+  `docs-record-guard` 가 세운 자). 같은 반복 안에서 `index.md` 행을 더해 초록.
+  **오늘 밤 두 번째로 «기록 세 파일 동기» 계열 못이 울었다**(첫째는 반복 434 의
+  `metrics.md` 반복 수) — 이 계획이 세우려는 것과 정확히 같은 부류의 자다.
