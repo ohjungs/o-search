@@ -1,12 +1,12 @@
 ---
-signal: GREEN
+signal: DONE
 phase: e2e
 step: 3/3
 attempt: 0
-iteration: 438
+iteration: 439
 updated: 2026-09-07
 ctx: 62
-night_iterations: 5
+night_iterations: 6
 night_red: 0
 night_retries: 0
 plan: project-const-drift
@@ -14,10 +14,14 @@ plan: project-const-drift
 
 ## 현재 상태
 
-**계획 75 `project-const-drift` 리뷰 완료 — 후보 2 · 확증 2(둘 다 자동 수정) · 기각 0.**
-백지 패스가 둘 다 주웠다: 다시 쓴 문단의 **굵게 짝이 깨져** 반대편 문단까지 굵어진 것과,
-새 정규식 주석의 「다음 문단까지 안 샌다」가 **빈 줄을 못 본 주장**인 것. 단언은 안 건드렸고
-전수 **664 OK**. 다음은 e2e phase — 계획서 시나리오 셋.
+**계획 75 `project-const-drift` e2e 완료 · DONE.** 시나리오 1·2 는 상수를 실제로
+변이시켜 재현했다 — 값 3,000→4,000 은 **문서 검사 4건이 빨개지고**(갈래 셋이 살아 있는
+상수를 일부러 쓴다) 메시지가 낡은 줄을 가리키며, 이름 변이는 「없는 상수」로 문다.
+시나리오 3 은 **어긋난 자리를 하나 찾았고 낡은 쪽이 코드 주석**이었다(`indexer.py:80`
+137ms vs 실측 138.10ms · `test_indexer.py:845` 가 8,000 행 숫자를 3,000 자리에 적음) —
+계획 범위 밖이라 안 고치고 digest `[5]` 에 ③ 으로 등재했다. 전수 **664 OK** · 품질
+4축 회귀 0(`perf_search`·크롤 간격은 **안 쟀다** — `src/` 0줄).
+다음은 병합·아카이브(`plan_history_061`).
 
 ## 무엇이 낡았나
 
