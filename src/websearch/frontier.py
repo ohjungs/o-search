@@ -11,8 +11,13 @@ MAX_DELAY = 30.0
 
 
 class Frontier:
-    def __init__(self, now=time.monotonic):
+    def __init__(self, now=time.monotonic, scope=None):
         self._now = now
+        # `None` 이면 제한 없음 — **오늘의 기본값이자 제품의 기본값**이다(concept 의
+        # 「열린 웹 검색엔진」은 링크를 따라 밖으로 나가는 것이 곧 기능이다).
+        # 집합이면 그 도메인만 받는다. 거르는 자리를 `add` 하나로 두는 것이 설계다 —
+        # 호출부(시드·발견된 링크)마다 걸면 새 호출부가 생기는 날 조용히 샌다.
+        self._scope = scope
         self._queues = collections.OrderedDict()  # domain -> deque[url]
         self._seen = set()
         self._last_fetch = {}  # domain -> 시각
@@ -58,6 +63,9 @@ class Frontier:
             domain = domain_key(url)  # add 의 인자 이름이 urls 라 함수를 직접 들여온다
             if domain in self._dropped:
                 continue
+            if self._scope is not None and domain not in self._scope:
+                continue  # 범위 밖. `_seen` 에도 안 넣는다 — 범위는 기억이 아니라 규칙이다
+
             self._seen.add(url)
             self._queues.setdefault(domain, collections.deque()).append(url)
 

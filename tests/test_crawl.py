@@ -43,7 +43,7 @@ PAGES = {
 
 class TestCrawl(unittest.TestCase):
     def _run(self, seeds, max_pages, blocked=("http://a.com/blocked",), delays=None,
-             workers=8, deadline=None):
+             workers=8, deadline=None, same_site=False):
         fetched = []
         self.fetch_times = []  # (url, 그때의 가짜 시각) — 간격 계약을 여기서 잰다
 
@@ -74,7 +74,8 @@ class TestCrawl(unittest.TestCase):
             ms = mock.Mock(side_effect=lambda s: clock.__setitem__("t", clock["t"] + s))
             n = crawl.crawl(seeds, max_pages, db_path=":memory:",
                             robots_cache=robots, now=lambda: clock["t"],
-                            workers=workers, deadline=deadline, sleep=ms)
+                            workers=workers, deadline=deadline, sleep=ms,
+                            same_site=same_site)
         return n, fetched, ms
 
     def test_crawls_seed_and_follows_links(self):
@@ -2102,3 +2103,63 @@ class TestUnopenableDb(unittest.TestCase):
         out = buf.getvalue()
         self.assertNotIn("Traceback", out)
         self.assertEqual(len(out.strip().split("\n")), 1)
+
+
+def _run_scoped(seeds, max_pages, same_site):
+    """`TestCrawl._run` 을 그대로 빌린다 — 같은 픽스처·같은 가짜여야 대조군이 성립한다."""
+    runner = TestCrawl("test_crawls_seed_and_follows_links")
+    n, fetched, _ = runner._run(seeds, max_pages, same_site=same_site)
+    return n, fetched
+
+
+class TestSameSiteScope(unittest.TestCase):
+    """`--same-site` — 발견된 링크를 **시드 도메인**으로 가둔다.
+
+    **기본값은 안 바꾼다.** concept 의 「열린 웹 검색엔진」은 링크를 따라 밖으로 나가는
+    것이 제품이다 — 가두는 것은 목적이 있을 때만 켜는 손잡이다(코퍼스를 만들 때처럼
+    무엇을 받아 오는지 알아야 하는 경우). 그래서 이 클래스의 대조군이
+    `TestCrawl.test_crawls_seed_and_follows_links`(밖으로 나간다)이고, 여기 셋과
+    합쳐야 계약이 양쪽으로 못박힌다.
+
+    가두는 자리는 `Frontier.add` **하나**다 — 시드와 발견된 링크가 둘 다 거기로
+    모인다. 호출부마다 거르면 새 호출부가 생기는 날 조용히 샌다.
+    """
+
+    def test_scope_keeps_the_crawl_inside_the_seed_domains(self):
+        # 대조군과 같은 픽스처: a.com 이 b.com 을 링크한다. 범위를 켜면 b.com 은 안 간다.
+        n, fetched = _run_scoped(["http://a.com/"], max_pages=10, same_site=True)
+        self.assertNotIn("http://b.com/", fetched, "범위 밖 도메인을 받아 왔다")
+        self.assertIn("http://a.com/1", fetched, "같은 도메인 링크까지 막았다 — 너무 좁다")
+
+    def test_every_seed_domain_is_in_scope(self):
+        """시드가 여럿이면 **그 전부**가 범위다. 첫 시드만 넣는 변이가 여기서 죽는다."""
+        n, fetched = _run_scoped(["http://a.com/", "http://b.com/"],
+                                 max_pages=10, same_site=True)
+        self.assertIn("http://b.com/", fetched, "둘째 시드의 도메인이 범위에서 빠졌다")
+
+    def test_scope_off_is_todays_behaviour(self):
+        """**대조군 2 — 끈 상태.** 기본값 경로가 바뀌지 않았다는 것을 같은 자에서 잰다."""
+        n, fetched = _run_scoped(["http://a.com/"], max_pages=10, same_site=False)
+        self.assertIn("http://b.com/", fetched, "기본 동작이 바뀌었다 — 회귀다")
+
+
+class TestSameSiteFlag(unittest.TestCase):
+    """CLI 가 `--same-site` 를 **시드로 오해하지 않는다.**
+
+    `crawl.main` 의 `unknown` 가드는 남은 `-` 를 전부 거절한다(rc 2). 플래그를 파싱만
+    하고 `args` 에서 빼지 않으면 **크롤이 시작조차 못 한다** — 그 자리를 잰다.
+    """
+
+    def test_flag_is_not_read_as_a_seed(self):
+        with mock.patch("websearch.crawl.crawl", return_value=0) as fake:
+            rc = crawl.main(["prog", "http://a.com/", "--same-site"])
+        self.assertEqual(rc, 0, "플래그를 모르는 인자로 읽었다")
+        self.assertEqual(fake.call_args.args[0], ["http://a.com/"],
+                         "플래그가 시드 목록에 섞였다")
+        self.assertIs(fake.call_args.kwargs["same_site"], True)
+
+    def test_without_the_flag_scope_is_off(self):
+        with mock.patch("websearch.crawl.crawl", return_value=0) as fake:
+            rc = crawl.main(["prog", "http://a.com/"])
+        self.assertEqual(rc, 0)
+        self.assertIs(fake.call_args.kwargs["same_site"], False)
