@@ -1,12 +1,12 @@
 ---
 signal: GREEN
 phase: 개발
-step: 0/3
+step: 1/3
 attempt: 0
-iteration: 434
+iteration: 435
 updated: 2026-09-07
 ctx: 62
-night_iterations: 1
+night_iterations: 2
 night_red: 0
 night_retries: 0
 plan: project-const-drift
@@ -14,8 +14,9 @@ plan: project-const-drift
 
 ## 현재 상태
 
-**계획 75 `project-const-drift` 착수.** 탐색 8순위 전수에서 나온 실측 근거 하나로 열었다.
-설계 생략(트리거 미해당 · `src/` 0줄 · 파일 2개). 다음은 스텝 1 개발.
+**계획 75 `project-const-drift` 스텝 1/3 완료.** `const_gap()` 순수 함수와 갈래 7건.
+변이 4종(판정 무력화 · `= 숫자` 요구 제거 · 없는 상수 묵인 · 쉼표 무시)이 전부 죽는다.
+단위 655 → **662건**. 다음은 스텝 2 — 살아 있는 `project.md` 에 물린다(오늘은 RED 가 정상).
 
 ## 무엇이 낡았나
 

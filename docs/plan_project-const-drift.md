@@ -52,7 +52,7 @@
   `PYTHONPATH=src python3 -m unittest discover -b tests` 통과.
 - **건드릴 파일**: `tests/test_docs.py`
 - **의존**: 없음
-- **상태**: 대기
+- **상태**: 완료
 
 ### 2. 살아 있는 `project.md` 에 물린다 — 오늘은 빨개야 한다
 - **완료 기준**: `ProjectConstTest.test_project_cites_live_constants` 추가.
@@ -85,3 +85,7 @@
    `indexer.py` 와 한 글자도 안 어긋난다.
 
 ## 기록
+
+- 2026-09-07 스텝 1 완료 — `const_gap()`·`_const_value()` + `ConstGapTest` 7건.
+  임포트가 아니라 소스의 정수 리터럴을 읽는다(인용 대상이 `e2e/` 에도 살 수 있다).
+  변이 4종 전부 죽음. 단위 655 → 662건, README 의 건수 가드가 그 자리에서 울어 함께 고쳤다.

@@ -259,6 +259,58 @@ def verdict_gap(index_text):
     return None
 
 
+# `docs/project.md` 가 인용한 코드 상수. **`= 숫자` 가 붙은 인용만 문다** —
+# `` `design_check.PAIRS` `` 처럼 값을 안 적은 인용까지 물면 문서가 상수를 못 부른다.
+# 백틱과 `=` 사이에 줄바꿈·들여쓰기·굵게(`**= 35,000자**`)가 낀 꼴이 실물이라 함께 받는다.
+# 사이는 공백만 건널 수 있어서 다음 문단의 `=` 까지 새지 않는다.
+# ponytail: 괄호 표기(`fetcher.MAX_BYTES`(2MB))는 안 문다. 그 꼴이 늘면 그때 넓힌다.
+CONST_CITATION = re.compile(
+    r"`([a-z_]+)\.([A-Z][A-Z0-9_]+)`\s*(?:\*\*\s*)?=\s*(\d[\d,_]*\d|\d)")
+# 상수가 사는 두 곳. 여기 없는 모듈을 인용하면 그 자체가 낡음이다.
+CONST_DIRS = (DOCS.parent / "src" / "websearch", DOCS.parent / "e2e")
+
+
+def _const_value(module, name):
+    """코드에서 상수의 정수 리터럴을 읽어 `(값, 사유)` 로 돌려준다.
+
+    **임포트가 아니라 소스를 읽는다** — 인용 대상은 `e2e/` 에도 살 수 있고 그쪽은
+    임포트에 부작용이 있다. 문서가 인용하는 것은 대입문의 리터럴 그 자체이기도 하다.
+    ponytail: 정수 리터럴만 읽는다. 식으로 바뀌면 「못 읽었다」로 보고한다 —
+    조용히 통과시키는 것보다 낫다.
+    """
+    for base in CONST_DIRS:
+        path = base / (module + ".py")
+        if not path.exists():
+            continue
+        found = re.search(r"^%s\s*=\s*(\d[\d_]*)\b" % re.escape(name),
+                          path.read_text(encoding="utf-8"), re.M)
+        if found is None:
+            return None, "`%s.py` 에 `%s = <정수>` 가 없다" % (module, name)
+        return int(found.group(1).replace("_", "")), None
+    return None, "`%s.py` 를 src/websearch 에서도 e2e 에서도 못 찾았다" % module
+
+
+def const_gap(project_text):
+    """`project.md` 가 인용한 상수가 코드와 어긋난 자리를 한 줄로 돌려준다. 없으면 `None`.
+
+    **몸통을 함수로 뺀 이유는 `step_gap`·`iter_gap`·`verdict_gap` 과 같다** — 실물은
+    `ProjectConstTest` 가, 갈래는 `ConstGapTest` 가 부른다.
+
+    재는 것은 **상수 값 하나**다. 문단이 그 값에서 유도한 숫자(최악 ms·계수·p95)는
+    코드에 없어서 못 잰다 — 상수가 닻이고, 닻이 움직이면 사람이 그 문단을 다시 읽는다.
+    """
+    for module, name, cited in CONST_CITATION.findall(project_text):
+        value, why = _const_value(module, name)
+        if why is not None:
+            return "project.md 가 `%s.%s` 를 인용하는데 %s" % (module, name, why)
+        want = int(cited.replace(",", "").replace("_", ""))
+        if want != value:
+            return ("project.md 가 `%s.%s` 를 %s 라고 적었는데 코드는 %d 다 —"
+                    " 그 값에서 유도한 숫자도 함께 낡았는지 문단을 다시 읽는다"
+                    % (module, name, cited, value))
+    return None
+
+
 class DocHeadTest(unittest.TestCase):
     def test_append_targets_start_with_h1(self):
         for name in APPEND_TARGETS:
@@ -1027,6 +1079,52 @@ class VerdictGapTest(unittest.TestCase):
         gap = verdict_gap(self.index("| plan_short-one | 완료 | loop/x | 1/1 |"))
         self.assertIsNotNone(gap)
         self.assertIn("열", gap)
+
+
+class ConstGapTest(unittest.TestCase):
+    """`const_gap` 의 갈래. 실물은 `ProjectConstTest` 가 부른다.
+
+    **몸통을 함수로 뺀 이유는 `step_gap`·`strike_gap`·`verdict_gap` 과 같다** —
+    실물 `project.md` 는 고치고 나면 늘 맞아서, 판정을 무력화하는 변이가 조용히 산다.
+
+    살아 있는 상수(`indexer.MAX_PASSAGE_TAGS`)를 일부러 쓴다. 가짜 이름으로만 재면
+    **인용을 해석하는 배선**은 재도 **코드에서 값을 읽어 오는 배선**은 안 재게 된다.
+    """
+
+    def test_agreeing_citation_is_quiet(self):
+        self.assertIsNone(const_gap("`indexer.MAX_PASSAGE_TAGS` **= 3,000** 태그"))
+
+    def test_stale_value_is_reported(self):
+        gap = const_gap("`indexer.MAX_PASSAGE_TAGS` **= 35,000자**가 자른다")
+        self.assertIsNotNone(gap)
+        self.assertIn("MAX_PASSAGE_TAGS", gap)
+        self.assertIn("3000", gap.replace(",", ""))
+
+    def test_citation_without_a_number_is_not_bitten(self):
+        # 실물 두 꼴이다. 값을 안 적은 인용까지 물면 문서가 상수를 못 부른다.
+        self.assertIsNone(const_gap("`design_check.PAIRS` 에 짝을 안 적으면 종료 2 다"))
+        self.assertIsNone(const_gap("`fetcher.MAX_BYTES`(2MB)까지 채운 문서 10건"))
+
+    def test_absent_constant_is_reported_not_skipped(self):
+        # **조용히 넘기면 이름을 바꾼 상수가 그대로 낡는다** — 그것이 이 검사의 절반이다.
+        gap = const_gap("`indexer.PASSAGE_TAG_CAP` = 3,000")
+        self.assertIsNotNone(gap)
+        self.assertIn("PASSAGE_TAG_CAP", gap)
+
+    def test_absent_module_is_reported(self):
+        gap = const_gap("`nosuchmod.SOME_CAP` = 5")
+        self.assertIsNotNone(gap)
+        self.assertIn("nosuchmod", gap)
+
+    def test_citation_reads_across_a_line_break(self):
+        # 실물이 이 꼴이다 — 백틱과 `**=` 사이에 줄바꿈과 들여쓰기가 들어간다.
+        self.assertIsNone(const_gap(
+            "  - `indexer.MAX_PASSAGE_TAGS`\n    **= 3,000 태그**가 자른다"))
+
+    def test_underscore_literal_in_source_is_read(self):
+        # 코드는 `3_000`, 문서는 `3,000` 이다. 두 표기를 같은 수로 못 읽으면
+        # 검사가 매번 거짓으로 빨개져 아무도 안 믿게 된다.
+        self.assertIsNone(const_gap("`indexer.MAX_PASSAGE_HTML` = 2,000,000"))
 
 
 if __name__ == "__main__":
