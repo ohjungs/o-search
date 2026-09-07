@@ -962,7 +962,11 @@ class VerdictGapTest(unittest.TestCase):
     """
 
     DONE = "| plan_%s | 완료 | loop/x | 1/1 | %s | 설명 |"
-    RUNNING = "| plan_running-one | 진행 | loop/y | 0/1 | — | 설명 |"
+    # **진행 행의 e2e 칸을 일부러 날짜로 둔다** — `—` 로 두면 날짜가 아니라서 완료
+    # 가드가 없어도 안 물리고, 그 단언은 아무것도 재지 않는다(2026-09-07 실측: `완료`
+    # 가드를 지운 변이가 647건을 그대로 통과했다). 계획 70 이 같은 자리에서 배운 것 —
+    # 범위를 **넓히는** 변이는 실물에 표본이 없어 조용히 산다.
+    RUNNING = "| plan_running-one | 진행 | loop/y | 0/1 | 2026-09-07 | 설명 |"
 
     def index(self, *rows):
         head = "# 색인\n\n| 계획 | 상태 | 브랜치 | 스텝 | e2e | 비고 |\n"
