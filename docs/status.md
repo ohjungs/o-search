@@ -55,7 +55,7 @@ Ran 647 tests in 16.017s · OK · rc 0
 `src/`·`e2e/` **0줄** · `docs/specs/` 무접촉 · `data/crawl.db` **무개봉** · 바깥 네트워크 0 ·
 `main` 직접 커밋 0 · 브랜치 `loop/index-e2e-verdict`(병합 안 함 — `rules/git.md` 1절).
 
-## 사람이 정할 것 (야간 보고서 `docs/reports/night_2026-09-07.md` 에 올렸다)
+## 사람 결정 대기 (야간 보고서 `docs/reports/night_2026-09-07.md` 에 그대로 붙였다)
 
 1. **`digest.md` 216줄 — 상한 200 초과.** 지울 수 있는 완료 항목이 여덟 줄뿐이라 산술이
    안 맞고, **무인 모드는 파일·데이터를 삭제하지 않는다**. 무엇을 버릴지가 사람 몫이다.
