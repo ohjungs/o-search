@@ -132,7 +132,7 @@ def _fetch_one(url, robots, now, floor, sleep=time.sleep, stop=None):
 
 def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None,
           now=time.monotonic, workers=WORKERS, deadline=None, sleep=time.sleep,
-          stop=None):
+          stop=None, same_site=False):
     """수집에 성공(2xx + HTML)한 페이지 수를 돌려준다. robots_cache·now·sleep 은 테스트 주입 지점.
 
     `workers=1` 이면 요청이 하나씩 떠서 순차 루프와 같은 순서로 돈다 — 되돌리기 수단이다.
@@ -177,7 +177,6 @@ def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None,
     except (sqlite3.Error, OSError) as err:
         raise StoreOpenError("DB 를 열 수 없다: %s — %s" % (db_path, err)) from err
     robots = robots_cache if robots_cache is not None else RobotsCache()
-    frontier = Frontier(now=now)
     ascii_seeds = []
     for seed in seeds:  # 시드는 CLI 가 준 것 — 버릴 때는 왜 버렸는지 알린다
         normalized = urls.normalize(seed)
@@ -205,6 +204,10 @@ def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None,
         raise NoUsableSeedsError(
             "가져올 수 있는 시드가 하나도 없다 — http:// 나 https:// 로 시작하는 "
             "주소를 준다")
+    # **범위는 살아남은 시드에서 나온다** — 버려진 시드(스킴 없음 등)의 도메인을
+    # 넣으면 크롤이 못 가는 곳을 범위라고 부르게 된다. 그래서 생성이 여기까지 내려왔다.
+    scope = {urls.domain_key(u) for u in ascii_seeds} if same_site else None
+    frontier = Frontier(now=now, scope=scope)
     frontier.add(ascii_seeds)
     saved = 0
     started = now()
@@ -343,9 +346,14 @@ def _store_result(future, url, domain, store, frontier, now, robots):
 def main(argv):
     if len(argv) < 2:
         print("usage: python3 -m websearch.crawl <seed-url> [seed-url ...] "
-              "[--max N] [--workers N] [--deadline N]", file=sys.stderr)
+              "[--max N] [--workers N] [--deadline N] [--same-site]", file=sys.stderr)
         return 2
     args = list(argv[1:])
+    # 값을 안 받는 유일한 플래그라 `flags.number_flag` 를 안 쓴다. **뽑아서 지운다** —
+    # 남겨 두면 아래 `unknown` 가드가 모르는 인자로 읽어 크롤이 시작조차 못 한다.
+    same_site = "--same-site" in args
+    while "--same-site" in args:
+        args.remove("--same-site")
     max_pages = flags.number_flag(args, "--max", 100)
     # 0 은 요청을 한 건도 안 보내고 `수집 0 페이지` rc 0 을 냈다 — 크롤이 아무것도
     # 못 찾은 것과 구별되지 않는 성공이다. `--workers`·`--deadline` 과 같은 하한을 쓴다
@@ -393,7 +401,8 @@ def main(argv):
     # 내려간 채라 특히 그렇다
     previous = signal.signal(signal.SIGINT, interrupt)
     try:
-        n = crawl(args, max_pages, workers=workers, deadline=deadline, stop=stop)
+        n = crawl(args, max_pages, workers=workers, deadline=deadline, stop=stop,
+                  same_site=same_site)
     except NoUsableSeedsError as exc:
         # 판정은 `crawl()` 이 한다 — 여기서 스킴을 다시 보면 `-` 를 거절하는 위 가드와
         # 한 덩어리가 되어 27 의 변이 M4 가 경고한 다른 계약으로 넓어진다
