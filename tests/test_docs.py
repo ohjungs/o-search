@@ -81,8 +81,11 @@ STRIKE_POINTER_FLOOR = 9
 # 무는 것: (슬러그, 상태 칸, e2e 칸).
 VERDICT_ROW = re.compile(
     r"^\| plan_([A-Za-z0-9_-]+) \| ([^|]*) \| [^|]* \| [^|]* \| ([^|]*) \|", re.M)
-# 위 정규식이 다섯째 칸까지 못 읽은 행을 세려고 머리만 따로 문다. 열 모양이 바뀌면
+# 위 정규식이 다섯째 칸까지 못 읽은 행을 세려고 머리만 따로 문다. 열이 줄면
 # `VERDICT_ROW` 는 그 행을 **조용히 건너뛴다** — 침묵 대신 신고하게 만드는 자리다.
+# **잡는 것은 열이 줄어든 쪽뿐이다** — e2e **앞에** 열을 끼우면 개수가 맞아 통과하고
+# 엉뚱한 칸을 판정으로 읽는다(2026-09-07 리뷰 실측). 그때도 조용하지는 않고 틀린
+# RED 로 운다. 헤더의 다섯째 이름을 재는 처방은 `digest.md` 후보에 등재했다.
 VERDICT_ROW_HEAD = re.compile(r"^\| plan_", re.M)
 # e2e 칸이 판정이 아니라 **날짜뿐**인 꼴. 어휘(`통과`)를 요구하지 않는 것이 설계다 —
 # 2026-09-07 실측에서 `통과` 를 요구하면 `없음(…)`·`**새 e2e 0개**(…)` 여섯 행이
@@ -232,8 +235,8 @@ def verdict_gap(index_text):
     rows = VERDICT_ROW.findall(index_text)
     heads = VERDICT_ROW_HEAD.findall(index_text)
     if len(rows) != len(heads):
-        return ("index.md 의 계획 행 %d개 중 %d개만 다섯째 칸까지 읽혔다 — 표의 열"
-                " 모양이 바뀌었다(e2e 를 다섯째 칸으로 가정한다)"
+        return ("index.md 의 계획 행 %d개 중 %d개만 다섯째 칸까지 읽혔다 — 열이"
+                " 줄었거나 행 표기가 관례를 벗어났다(칸 구분은 공백 한 칸이다)"
                 % (len(heads), len(rows)))
     for slug, status, verdict in rows:
         if status.strip() != "완료":
@@ -982,9 +985,12 @@ class VerdictGapTest(unittest.TestCase):
         self.assertIn("dated-one", gap)
 
     def test_non_verdict_wording_is_not_required(self):
-        # 오탐 축 — 넷 다 `rules/e2e.md` 가 허용하는 정당한 판정이고 `통과` 가 없다.
+        # 오탐 축 — 셋 다 `rules/e2e.md` 가 허용하는 정당한 판정이고 `통과` 가 없다.
+        # **`—` 와 빈 칸은 일부러 여기 없다** — 그것은 정당한 판정이 아니라 이 자가
+        # 못 무는 **천장**이고(계획 71 계획서 8절), 여기 적으면 천장을 「옳다」고
+        # 못박는 것이 된다. 여는 조건은 날짜 아닌 비판정이 실물에 나타나는 날이다.
         for cell in ("없음(제품 코드 0줄)", "**새 e2e 0개**(기존 스크립트에 더했다)",
-                     "생략 — 문서 축", "—"):
+                     "생략 — 문서 축"):
             with self.subTest(cell=cell):
                 self.assertIsNone(verdict_gap(self.index(self.DONE % ("x-one", cell))))
 
