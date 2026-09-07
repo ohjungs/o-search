@@ -259,6 +259,70 @@ def verdict_gap(index_text):
     return None
 
 
+# `docs/project.md` 가 인용한 코드 상수. **`= 숫자` 가 붙은 인용만 문다** —
+# `` `design_check.PAIRS` `` 처럼 값을 안 적은 인용까지 물면 문서가 상수를 못 부른다.
+# 백틱과 `=` 사이에 줄바꿈·들여쓰기·굵게(`**= 35,000자**`)가 낀 꼴이 실물이라 함께 받는다.
+# 사이는 공백만 건널 수 있다 — **빈 줄도 공백이라** 인용 바로 뒤 문단이 `= 숫자` 로
+# 시작하면 거기까지 간다(실측). 산문에 그 꼴이 없어 실물은 안 새고, 새더라도 값이
+# 어긋나 **시끄럽게 빨개지지** 조용히 통과하지는 않는다.
+# ponytail: 괄호 표기(`fetcher.MAX_BYTES`(2MB))는 안 문다. 그 꼴이 늘면 그때 넓힌다.
+CONST_CITATION = re.compile(
+    r"`([a-z_]+)\.([A-Z][A-Z0-9_]+)`\s*(?:\*\*\s*)?=\s*(\d[\d,_]*\d|\d)")
+# 상수가 사는 두 곳. 여기 없는 모듈을 인용하면 그 자체가 낡음이다.
+CONST_DIRS = (DOCS.parent / "src" / "websearch", DOCS.parent / "e2e")
+
+# `project.md` 가 **값까지 적어** 부르는 상수의 최소 개수. 오늘 실물은 **2**다
+# (`indexer.MAX_PASSAGE_TAGS`·`MAX_PASSAGE_HTML`). 못을 박는 이유는 `const_gap` 이
+# **인용 0건이면 조용한 초록**이기 때문이다 — 캡 문단을 다시 쓰면서 `= 숫자` 꼴을
+# 안 쓰면 검사가 아무것도 안 재면서 통과한다. 그것이 이 검사가 거짓말을 하는 유일한
+# 길이고, 계획 70·72 가 후보 포인터에서 이미 두 번 밟은 실패 유형이다.
+# **값 축에 딱 붙이지 않았다** — 2 로 박으면 문단이 상수 하나만 부르도록 정당하게
+# 줄어드는 날 거짓 RED 다(`VERDICT_ROW_FLOOR` 이 45 인 것과 같은 이유). 1 은
+# 「아무것도 안 잰다」만 문다.
+CONST_CITATION_FLOOR = 1
+
+
+def _const_value(module, name):
+    """코드에서 상수의 정수 리터럴을 읽어 `(값, 사유)` 로 돌려준다.
+
+    **임포트가 아니라 소스를 읽는다** — 인용 대상은 `e2e/` 에도 살 수 있고 그쪽은
+    임포트에 부작용이 있다. 문서가 인용하는 것은 대입문의 리터럴 그 자체이기도 하다.
+    ponytail: 정수 리터럴만 읽는다. 식으로 바뀌면 「못 읽었다」로 보고한다 —
+    조용히 통과시키는 것보다 낫다.
+    """
+    for base in CONST_DIRS:
+        path = base / (module + ".py")
+        if not path.exists():
+            continue
+        found = re.search(r"^%s\s*=\s*(\d[\d_]*)\b" % re.escape(name),
+                          path.read_text(encoding="utf-8"), re.M)
+        if found is None:
+            return None, "`%s.py` 에 `%s = <정수>` 가 없다" % (module, name)
+        return int(found.group(1).replace("_", "")), None
+    return None, "`%s.py` 를 src/websearch 에서도 e2e 에서도 못 찾았다" % module
+
+
+def const_gap(project_text):
+    """`project.md` 가 인용한 상수가 코드와 어긋난 자리를 한 줄로 돌려준다. 없으면 `None`.
+
+    **몸통을 함수로 뺀 이유는 `step_gap`·`iter_gap`·`verdict_gap` 과 같다** — 실물은
+    `ProjectConstTest` 가, 갈래는 `ConstGapTest` 가 부른다.
+
+    재는 것은 **상수 값 하나**다. 문단이 그 값에서 유도한 숫자(최악 ms·계수·p95)는
+    코드에 없어서 못 잰다 — 상수가 닻이고, 닻이 움직이면 사람이 그 문단을 다시 읽는다.
+    """
+    for module, name, cited in CONST_CITATION.findall(project_text):
+        value, why = _const_value(module, name)
+        if why is not None:
+            return "project.md 가 `%s.%s` 를 인용하는데 %s" % (module, name, why)
+        want = int(cited.replace(",", "").replace("_", ""))
+        if want != value:
+            return ("project.md 가 `%s.%s` 를 %s 라고 적었는데 코드는 %d 다 —"
+                    " 그 값에서 유도한 숫자도 함께 낡았는지 문단을 다시 읽는다"
+                    % (module, name, cited, value))
+    return None
+
+
 class DocHeadTest(unittest.TestCase):
     def test_append_targets_start_with_h1(self):
         for name in APPEND_TARGETS:
@@ -1027,6 +1091,81 @@ class VerdictGapTest(unittest.TestCase):
         gap = verdict_gap(self.index("| plan_short-one | 완료 | loop/x | 1/1 |"))
         self.assertIsNotNone(gap)
         self.assertIn("열", gap)
+
+
+class ConstGapTest(unittest.TestCase):
+    """`const_gap` 의 갈래. 실물은 `ProjectConstTest` 가 부른다.
+
+    **몸통을 함수로 뺀 이유는 `step_gap`·`strike_gap`·`verdict_gap` 과 같다** —
+    실물 `project.md` 는 고치고 나면 늘 맞아서, 판정을 무력화하는 변이가 조용히 산다.
+
+    살아 있는 상수(`indexer.MAX_PASSAGE_TAGS`)를 일부러 쓴다. 가짜 이름으로만 재면
+    **인용을 해석하는 배선**은 재도 **코드에서 값을 읽어 오는 배선**은 안 재게 된다.
+    """
+
+    def test_agreeing_citation_is_quiet(self):
+        self.assertIsNone(const_gap("`indexer.MAX_PASSAGE_TAGS` **= 3,000** 태그"))
+
+    def test_stale_value_is_reported(self):
+        gap = const_gap("`indexer.MAX_PASSAGE_TAGS` **= 35,000자**가 자른다")
+        self.assertIsNotNone(gap)
+        self.assertIn("MAX_PASSAGE_TAGS", gap)
+        self.assertIn("3000", gap.replace(",", ""))
+
+    def test_citation_without_a_number_is_not_bitten(self):
+        # 실물 두 꼴이다. 값을 안 적은 인용까지 물면 문서가 상수를 못 부른다.
+        self.assertIsNone(const_gap("`design_check.PAIRS` 에 짝을 안 적으면 종료 2 다"))
+        self.assertIsNone(const_gap("`fetcher.MAX_BYTES`(2MB)까지 채운 문서 10건"))
+
+    def test_absent_constant_is_reported_not_skipped(self):
+        # **조용히 넘기면 이름을 바꾼 상수가 그대로 낡는다** — 그것이 이 검사의 절반이다.
+        gap = const_gap("`indexer.PASSAGE_TAG_CAP` = 3,000")
+        self.assertIsNotNone(gap)
+        self.assertIn("PASSAGE_TAG_CAP", gap)
+
+    def test_absent_module_is_reported(self):
+        gap = const_gap("`nosuchmod.SOME_CAP` = 5")
+        self.assertIsNotNone(gap)
+        self.assertIn("nosuchmod", gap)
+
+    def test_citation_reads_across_a_line_break(self):
+        # 실물이 이 꼴이다 — 백틱과 `**=` 사이에 줄바꿈과 들여쓰기가 들어간다.
+        self.assertIsNone(const_gap(
+            "  - `indexer.MAX_PASSAGE_TAGS`\n    **= 3,000 태그**가 자른다"))
+
+    def test_underscore_literal_in_source_is_read(self):
+        # 코드는 `3_000`, 문서는 `3,000` 이다. 두 표기를 같은 수로 못 읽으면
+        # 검사가 매번 거짓으로 빨개져 아무도 안 믿게 된다.
+        self.assertIsNone(const_gap("`indexer.MAX_PASSAGE_HTML` = 2,000,000"))
+
+
+class ProjectConstTest(unittest.TestCase):
+    """살아 있는 `project.md` 가 인용한 상수가 오늘의 코드와 같은지 본다.
+
+    **이 검사가 있는 이유는 그 자리가 세 번 낡았기 때문이다** — 계획 57·58 은
+    `project.md` 의 캡 문단을 손으로 맞췄고(`e6f375c` 「기록 자리 둘을 오늘 값으로
+    맞춘다」) 계획 74 는 자를 바이트에서 태그로 갈면서 코드와 `test_indexer.py` 만
+    고치고 문서를 잊었다. `MAX_PASSAGE_HTML` **= 35,000자**라고 적힌 채 실제 값은
+    2,000,000 이었다.
+
+    **`project.md` 는 루프가 매 반복 읽는 네 파일 중 하나**이고 「품질 기준」 절이
+    판단의 눈금이다. 거짓 눈금은 코드 버그처럼 터지지 않고 **판단에 조용히 든다** —
+    소스만 보는 테스트로는 영원히 안 잡힌다(`DocCitationTest` 와 같은 부류다).
+    """
+
+    def test_project_cites_live_constants(self):
+        gap = const_gap((DOCS / "project.md").read_text(encoding="utf-8"))
+        self.assertIsNone(gap, gap)
+
+    def test_project_still_cites_at_least_one_constant(self):
+        # 위 단언은 인용이 0건이면 «볼 것이 없어» 초록이다. 못을 박아 둔다 —
+        # 캡 문단을 `= 숫자` 없이 다시 쓰면 검사가 아무것도 안 재면서 통과한다.
+        found = CONST_CITATION.findall((DOCS / "project.md").read_text(encoding="utf-8"))
+        self.assertGreaterEqual(
+            len(found), CONST_CITATION_FLOOR,
+            "project.md 가 값까지 적어 부르는 상수가 %d개다 — 「품질 기준」 절이"
+            " `mod.CONST` **= 숫자** 꼴을 잃었고, 그러면 이 검사는 아무것도 안 잰다"
+            % len(found))
 
 
 if __name__ == "__main__":
