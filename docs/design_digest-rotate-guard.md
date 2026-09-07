@@ -88,6 +88,13 @@ D5 가 참이라고 가정하는 것: **회전은 목록 줄을 지우지 절 �
 같은 절 정의를 쓰게 하기 위해서고, 순회를 복사하면 다음 편집이 한쪽만 고친다.
 머리 세기는 같은 술어(`line.startswith(CANDIDATE_HEAD)`)를 쓴다.
 
+> **구현이 이 문단에서 의도적으로 이탈했다 (반복 417).** `candidate_lines` 를 안
+> 만들었다. D5 의 둘째 소비자는 줄이 아니라 **머리**를 세므로 그 추상의 소비자는
+> `candidate_pointers` 하나뿐이고, 구현 하나짜리 추상은 다음 편집이 갈라 놓을 짐이다.
+> 실제로 쓴 것은 같은 술어를 공유하는 세 줄짜리 `candidate_heads()` 다. 이 문단을
+> 지우지 않고 남기는 이유는 **설계가 무엇을 예상했고 어디서 틀렸는지**가 기록이라서다.
+> (반복 420 리뷰 렌즈 1 — 「계약을 바꿨으면 설계 문서도 함께 고친다」에 걸려 적었다.)
+
 - `STRIKE_POINTER_FLOOR` 제거 · `CANDIDATE_HEAD_FLOOR = 2` 추가
 - `StrikeSyncTest.test_pointer_extractor_still_bites` → `test_candidate_heads_still_found`
 - **무변경**: `strike_gap` 판정 · `StrikeGapTest` 네 갈래 · `CANDIDATE_HEAD` 값
