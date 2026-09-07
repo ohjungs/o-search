@@ -603,4 +603,4 @@ plan_history_<NNN>.md 를 다 열어볼 필요가 없게 하는 것이 목적이
     산출물은 `docs/plan_history_041.md` · `docs/design_history_041.md`.
 11. 속도 제한 — 미착수. 사양 `## 사람이 정할 것` 1번이라 **가정(IP 당 분당 60회)이
     초안**이다. 사람이 시점을 정한다.
-| plan_digest-rotate-guard | 진행 | loop/digest-rotate-guard | 1/2 | — | **72.** 근거 **측정값** — `digest.md` 216줄로 `rules/docs.md` 3절 상한 200 초과. 출처는 `discover.md` 0절(사용자 지시). 회전(취소선 18줄 + 완료 요약 7줄)과 그 회전이 밟는 하한 못 `STRIKE_POINTER_FLOOR` 를 **한 계획 안에서** 닫는다 — 따로 돌리면 사이 반복이 빨간 저장소를 물려받는다(실측: 18줄 삭제 시 647 중 `test_pointer_extractor_still_bites` 1건만 실패). 등재 처방 **B 는 실측으로 반증**(포인터 10/10 이 취소선이라 회전 뒤 실측치가 0 — 하한 0 은 못의 목적 자체를 무효화). 설계 있음(대안 갈림) |
+| plan_digest-rotate-guard | 진행 | loop/digest-rotate-guard | 2/2 | — | **72.** 근거 **측정값** — `digest.md` 216줄로 `rules/docs.md` 3절 상한 200 초과. 출처는 `discover.md` 0절(사용자 지시). 회전(취소선 18줄 + 완료 요약 7줄)과 그 회전이 밟는 하한 못 `STRIKE_POINTER_FLOOR` 를 **한 계획 안에서** 닫는다 — 따로 돌리면 사이 반복이 빨간 저장소를 물려받는다(실측: 18줄 삭제 시 647 중 `test_pointer_extractor_still_bites` 1건만 실패). 등재 처방 **B 는 실측으로 반증**(포인터 10/10 이 취소선이라 회전 뒤 실측치가 0 — 하한 0 은 못의 목적 자체를 무효화). 설계 있음(대안 갈림) |
