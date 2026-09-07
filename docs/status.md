@@ -1,12 +1,12 @@
 ---
 signal: GREEN
-phase: 설계
+phase: 개발
 step: 0/2
 attempt: 0
-iteration: 415
+iteration: 416
 updated: 2026-09-07
 ctx: 77
-night_iterations: 1
+night_iterations: 2
 night_red: 0
 night_retries: 0
 plan: digest-rotate-guard
@@ -14,10 +14,23 @@ plan: digest-rotate-guard
 
 ## 현재 상태
 
-**계획 72 `digest-rotate-guard` 를 세웠다.** 근거는 측정값이다 — `docs/digest.md` 가
-**216줄**로 `rules/docs.md` 3절의 상한 **200** 을 넘었다. 출처는 `discover.md` 0절
-(사용자 지시)이고, 그 지시가 반복 414 가 「사람 결정 대기」로 올린 셋 중 첫째를
-결정했다(닫힌 기록에 한한 삭제 위임 포함). 다음 스텝은 **설계**다.
+**계획 72 `digest-rotate-guard` 의 설계를 마쳤다** (`docs/design_digest-rotate-guard.md`).
+갈림길은 하나였다 — 하한 못의 **모집단과 값**. 결정은 **D5: 못을 후보 절 «머리 개수»
+위에 세우고 하한 2**(`CANDIDATE_HEAD_FLOOR = 2`). 다음 스텝은 **개발 1/2**.
+
+**설계를 가른 탐침 둘**(커밋 안 함 · 원복함): ① 코드 상수 `CANDIDATE_HEAD` 변이 →
+**4건 RED**(합성 셋 + 실물 하나) ② **실물 문서**의 첫 후보 절 머리만 드리프트 →
+**1건 RED**, `test_pointer_extractor_still_bites` **하나뿐**. ②가 D3(못을 지운다)을
+반증한다 — 상수와 실물 문서를 잇는 자가 이 못 하나다. 가정 탐침도 참이다: 머리 수가
+회전 후에도 **2**(거짓 RED 없음)이고 머리 하나만 드리프트하면 **1**(RED)이다.
+버린 것: A(오탐 21) · B(회전 뒤 실측치 0) · C(오탐 4) · D1(값 58 — 오늘 사고의 반복) ·
+D2(값 1 — 머리 하나 드리프트를 못 문다) · D3(축이 사라진다).
+
+## 앞 반복 요약 (반복 415, 계획 수립)
+
+근거는 측정값이다 — `docs/digest.md` 가 **216줄**로 `rules/docs.md` 3절의 상한 **200** 을
+넘었다. 출처는 `discover.md` 0절(사용자 지시)이고, 그 지시가 반복 414 가 「사람 결정
+대기」로 올린 셋 중 첫째를 결정했다(닫힌 기록에 한한 삭제 위임 포함).
 
 ## 계획 phase 가 잰 것 — 처방 넷 중 셋이 실측으로 떨어졌다
 
