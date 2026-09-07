@@ -1,12 +1,12 @@
 ---
 signal: GREEN
-phase: 개발
-step: 1/3
+phase: 테스트
+step: 3/3
 attempt: 0
-iteration: 435
+iteration: 436
 updated: 2026-09-07
 ctx: 62
-night_iterations: 2
+night_iterations: 3
 night_red: 0
 night_retries: 0
 plan: project-const-drift
@@ -14,9 +14,9 @@ plan: project-const-drift
 
 ## 현재 상태
 
-**계획 75 `project-const-drift` 스텝 1/3 완료.** `const_gap()` 순수 함수와 갈래 7건.
-변이 4종(판정 무력화 · `= 숫자` 요구 제거 · 없는 상수 묵인 · 쉼표 무시)이 전부 죽는다.
-단위 655 → **662건**. 다음은 스텝 2 — 살아 있는 `project.md` 에 물린다(오늘은 RED 가 정상).
+**계획 75 `project-const-drift` 스텝 3/3 완료 — 개발 끝.** `const_gap()` + 갈래 7건 +
+실물 검사 1건. 물린 순간 오늘의 근거가 그대로 재현됐고(`MAX_PASSAGE_HTML` 35,000 ≠
+2000000) 문단을 태그 축으로 다시 써서 초록이 됐다. 단위 655 → **663건**. 다음은 테스트 phase.
 
 ## 무엇이 낡았나
 

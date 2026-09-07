@@ -1127,5 +1127,24 @@ class ConstGapTest(unittest.TestCase):
         self.assertIsNone(const_gap("`indexer.MAX_PASSAGE_HTML` = 2,000,000"))
 
 
+class ProjectConstTest(unittest.TestCase):
+    """살아 있는 `project.md` 가 인용한 상수가 오늘의 코드와 같은지 본다.
+
+    **이 검사가 있는 이유는 그 자리가 세 번 낡았기 때문이다** — 계획 57·58 은
+    `project.md` 의 캡 문단을 손으로 맞췄고(`e6f375c` 「기록 자리 둘을 오늘 값으로
+    맞춘다」) 계획 74 는 자를 바이트에서 태그로 갈면서 코드와 `test_indexer.py` 만
+    고치고 문서를 잊었다. `MAX_PASSAGE_HTML` **= 35,000자**라고 적힌 채 실제 값은
+    2,000,000 이었다.
+
+    **`project.md` 는 루프가 매 반복 읽는 네 파일 중 하나**이고 「품질 기준」 절이
+    판단의 눈금이다. 거짓 눈금은 코드 버그처럼 터지지 않고 **판단에 조용히 든다** —
+    소스만 보는 테스트로는 영원히 안 잡힌다(`DocCitationTest` 와 같은 부류다).
+    """
+
+    def test_project_cites_live_constants(self):
+        gap = const_gap((DOCS / "project.md").read_text(encoding="utf-8"))
+        self.assertIsNone(gap, gap)
+
+
 if __name__ == "__main__":
     unittest.main()
