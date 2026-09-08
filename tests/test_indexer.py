@@ -102,6 +102,41 @@ class TestIndexPages(unittest.TestCase):
         self.assertEqual(self._docs(), [])
         self.assertEqual(search(self.db_path, "pyeongsan"), [])
 
+    def test_unchanged_pages_are_not_rechecked_on_every_run(self):
+        """재검사는 **다시 받아 온 문서만** 본다.
+
+        이 루프는 「뒤늦게 noindex 를 선언한 문서를 뺀다」는 목적이라, 그 선언은
+        **재크롤로 `pages.html` 이 갈렸을 때만** 생긴다. 그런데 전 문서를 매 실행
+        훑고 있었다 — 실물 400문서에서 문서당 10.21ms 라 **10만 문서면 신규 0건이어도
+        매 실행 17분**이다(`docs/e2e/index-watermark/result.md`).
+
+        **행동으로 잰다**: `fetched_at` 을 **지난 색인보다 확실히 과거**로 돌려 두고
+        `html` 만 noindex 로 바꾼다. 전수를 훑으면 이 문서가 빠지고, 워터마크를 보면 남는다.
+
+        **과거 시각을 명시하는 이유**는 `datetime('now')` 가 초 단위라서다. 「갱신을
+        안 했다」를 «같은 초»로 표현하면 시계 해상도에 기댄 테스트가 되고, 경계를
+        `>=` 로 두는 한(구현 주석 참조) 그건 정당하게 재검사된다. 재는 것은 시계가
+        아니라 **계약** — 「이번 실행보다 먼저 받아 온 문서는 다시 안 본다」다.
+
+        실제 재크롤은 `Store.upsert` 를 지나 `fetched_at` 이 갱신되므로 이 구멍으로
+        새지 않는다 — `test_already_indexed_page_that_declares_noindex_is_removed`
+        가 그 갈래를 붙든다. 둘이 한 쌍이라 한쪽만 보면 방향을 잃는다.
+        """
+        self._seed([("http://a.test/", "<p>허용 pyeongsan</p>")])
+        self.assertEqual(index_pages(self.db_path), 1)
+        db = sqlite3.connect(self.db_path)
+        self.addCleanup(db.close)
+        db.execute(
+            "UPDATE pages SET html = ?, fetched_at = '2020-01-01 00:00:00' WHERE url = ?",
+            ('<meta name="robots" content="noindex">', "http://a.test/"),
+        )  # 받아 온 시각은 지난 색인보다 과거 — 재크롤이 아니라는 뜻이다
+        db.commit()
+        self.assertEqual(index_pages(self.db_path), 0)
+        self.assertEqual(
+            [row[0] for row in self._docs()], ["http://a.test/"],
+            "받아 온 적 없는 문서를 다시 훑었다 — 재검사가 전수다",
+        )
+
     def test_entity_encoded_noindex_page_is_not_indexed(self):
         # 계획 69: 진입 사전 필터가 엔티티로 인코딩한 name 을 놓쳐 거부 문서를 색인했다
         self._seed([
