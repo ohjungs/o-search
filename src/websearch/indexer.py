@@ -198,6 +198,9 @@ def index_pages(db_path):
             db.execute("BEGIN")
             db.execute("DROP TABLE docs")
         db.execute(SCHEMA)
+        # `pages.fetched_at` 이 `datetime('now')`(UTC) 라 워터마크도 같은 시계를 쓴다.
+        # 파이썬 시계를 쓰면 타임존·해상도가 어긋나 비교가 조용히 틀린다.
+        started_at = db.execute("SELECT datetime('now')").fetchone()[0]
         # ponytail: 전표 스캔. 10만 문서에서 느려지면 pages 에 색인 상태 컬럼을 둔다
         rows = db.execute(
             "SELECT url, html FROM pages "
@@ -225,12 +228,41 @@ def index_pages(db_path):
         # **결과는 안 바뀐다** — 걷어낸 조건이 `is_noindex()` 가 자기 첫 줄에서 이미 하는
         # 것과 같은 검사여서(`extract.py` 의 `"robots" not in lowered and "&#" not in lowered`)
         # 판정은 그대로고 함수를 더 자주 부를 뿐이다. 늘어난 값은 해제 0.11ms/문서다.
-        # ponytail: 위 ponytail 과 같은 답 — 색인 상태 컬럼이 생기는 recrawl 계획에서 증분으로
-        for url, stored in db.execute(
-            "SELECT d.url, p.html FROM docs d JOIN pages p ON p.url = d.url"
-        ).fetchall():
+        # **워터마크로 «다시 받아 온 문서»만 본다.** 이 루프의 목적은 뒤늦은 noindex 선언을
+        # 잡는 것이고, 그 선언은 재크롤로 `pages.html` 이 갈렸을 때만 생긴다. 전수를 훑던
+        # 옛 모양은 실물 400문서에서 문서당 10.21ms 라 **10만 문서면 신규 0건이어도 매
+        # 실행 17분**이었다 — 색인 규모 1단계(컨셉 기능 4)를 막던 고정비다.
+        #
+        # **`docs` 에 열을 못 더해서 별도 표를 둔다** — FTS5 가상 테이블이라 열을 늘리면
+        # 기존 색인을 통째로 다시 만들어야 한다(위 `_docs_sql` 재구축 경로가 그것이다).
+        #
+        # **새 워터마크는 «끝난 시각»이 아니라 «시작 시각»이다.** 도는 중에 크롤러가 넣은
+        # 행은 이번에 봤을 수도 못 봤을 수도 있는데, 끝난 시각을 적으면 그 창의 문서가
+        # 영영 재검사에서 빠진다. 시작 시각이면 다음 실행이 한 번 더 본다 — 재검사는
+        # 여러 번 해도 결과가 같으므로(멱등) 덜 보는 쪽이 아니라 더 보는 쪽으로 기운다.
+        db.execute("CREATE TABLE IF NOT EXISTS index_meta (key TEXT PRIMARY KEY, value TEXT)")
+        mark = db.execute(
+            "SELECT value FROM index_meta WHERE key = 'recheck_watermark'"
+        ).fetchone()
+        # 워터마크가 없으면 **전수**다 — 옛 DB 의 첫 실행이 그렇고, 그래야 이 기능이
+        # 생기기 전에 들어온 뒤늦은 선언도 한 번은 걷힌다.
+        sql = "SELECT d.url, p.html FROM docs d JOIN pages p ON p.url = d.url"
+        args = ()
+        if mark:
+            # **`>` 가 아니라 `>=` 인 이유**는 `datetime('now')` 가 초 단위라서다. 색인
+            # 시작과 재크롤이 **같은 초**에 걸리면 `>` 는 그 문서를 영영 놓친다 — 실측으로
+            # 테스트 셋이 여기서 빨갛게 났다. `>=` 는 경계의 1초를 매번 다시 볼 뿐이고,
+            # 그 값은 그 초에 받아 온 문서 수만큼이다. 놓치는 쪽보다 더 보는 쪽을 고른다.
+            sql += " WHERE p.fetched_at >= ?"
+            args = (mark[0],)
+        for url, stored in db.execute(sql, args).fetchall():
             if extract.is_noindex(store.page_html(stored)):
                 db.execute("DELETE FROM docs WHERE url = ?", (url,))
+        db.execute(
+            "INSERT INTO index_meta(key, value) VALUES ('recheck_watermark', ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            (started_at,),
+        )
         db.commit()
         return indexed
     finally:
