@@ -131,3 +131,61 @@ class TestConcurrentAccess(unittest.TestCase):
         self.store.upsert("http://c.com/", "v1", 200)
         rows = self._other_connection().execute("SELECT count(*) FROM pages").fetchone()
         self.assertEqual(rows[0], 2)  # setUp 의 a.com + 이 테스트의 c.com
+
+
+class TestFreshness(unittest.TestCase):
+    """「저장돼 있나」가 아니라 「아직 신선한가」 — 사양 기능 5 의 30일이 여기 산다.
+
+    **시각 비교를 SQLite 에 맡긴 것이 계약이다** (`docs/design_recrawl.md` 계약 1).
+    `upsert` 가 `datetime('now')`(UTC)로 박으므로 읽는 쪽이 파이썬 시계를 쓰면
+    타임존·해상도가 어긋나 비교가 조용히 틀린다 — 계획 78 이 그 자리에서 실제로
+    한 번 빨개졌다.
+    """
+
+    def setUp(self):
+        self.store = Store(":memory:")
+
+    def _aged(self, url, days, status=200):
+        """그 URL 을 `days` 일 전에 받아 둔 상태로 만든다."""
+        self.store.upsert(url, "<html/>" if status < 400 else None, status)
+        self.store._db.execute("UPDATE pages SET fetched_at=datetime('now', ?) WHERE url=?",
+                               ("-%d days" % days, url))
+        self.store._db.commit()
+
+    def test_never_fetched_url_is_not_fresh(self):
+        # `has` 가 False 이던 자리와 같은 답이어야 한다 — 안 그러면 시드부터 안 나간다
+        self.assertFalse(self.store.is_fresh("http://a.com/"))
+
+    def test_just_fetched_is_fresh(self):
+        self.store.upsert("http://a.com/", "<html/>", 200)
+        self.assertTrue(self.store.is_fresh("http://a.com/"))
+
+    def test_success_goes_stale_after_thirty_days(self):
+        self._aged("http://a.com/old", 31)
+        self._aged("http://a.com/new", 29)
+        self.assertFalse(self.store.is_fresh("http://a.com/old"))
+        self.assertTrue(self.store.is_fresh("http://a.com/new"))
+
+    def test_failure_goes_stale_at_half_that(self):
+        self._aged("http://a.com/gone", 16, status=404)
+        self._aged("http://a.com/gone2", 14, status=404)
+        self.assertFalse(self.store.is_fresh("http://a.com/gone"))
+        self.assertTrue(self.store.is_fresh("http://a.com/gone2"))
+
+    def test_the_two_periods_are_actually_different(self):
+        """같은 20일인데 성공은 신선하고 실패는 낡았다 — 주기가 둘인 계약이다.
+
+        실패를 성공과 같은 30일로 두면 일시 장애가 그만큼 오래 결손으로 남고,
+        같은 빈도로 두면 죽은 URL 을 영원히 같은 속도로 두드린다
+        (`plan_recrawl.md` 2절 정책 1).
+        """
+        self._aged("http://a.com/ok", 20, status=200)
+        self._aged("http://a.com/err", 20, status=500)
+        self.assertTrue(self.store.is_fresh("http://a.com/ok"))
+        self.assertFalse(self.store.is_fresh("http://a.com/err"))
+
+    def test_redirect_range_counts_as_failure_period(self):
+        # 2xx 만 성공이다 — 3xx 는 `fetcher` 가 따라가므로 저장될 일이 드물지만,
+        # 저장됐다면 그것은 「본문을 못 받았다」다
+        self._aged("http://a.com/moved", 20, status=301)
+        self.assertFalse(self.store.is_fresh("http://a.com/moved"))

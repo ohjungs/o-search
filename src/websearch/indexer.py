@@ -1,7 +1,8 @@
 """수집 페이지를 FTS5 역색인에 넣고 질의한다.
 
-재실행은 증분이다 — 새 문서만 색인한다. 다만 색인 거부(meta robots noindex)를
-뒤늦게 선언한 문서를 빼기 위해 매 실행 색인 전체를 한 번 훑는다.
+재실행은 증분이다 — 새 문서는 넣고, **다시 받아 온 문서**(워터마크 이후 `fetched_at`)는
+갱신·삭제를 반영한다. 워터마크가 없는 첫 실행만 색인 전체를 한 번 훑어 뒤늦은
+색인 거부(meta robots noindex) 선언을 걷는다.
 """
 import os
 import re
@@ -176,6 +177,24 @@ def _docs_sql(db):
     return row[0] if row else None
 
 
+# 「없어졌다」의 표준 표현. 5xx·`status 0` 은 여기 없다 — 그것은 「그때 못 받았다」라
+# 일시 장애를 영구 삭제로 만들지 않는다(`plan_recrawl.md` 2절 정책 1).
+_GONE = (404, 410)
+
+
+def _insert_doc(db, url, html):
+    """추출해 `docs` 에 한 행을 넣는다.
+
+    **넣는 자리가 둘이라 여기 하나다** — 신규 색인과 갱신. 한쪽만 고치면 색인 본문의
+    규칙이 문서가 처음 들어온 경로에 따라 갈린다.
+    """
+    title, body = extract.extract_text(html)
+    db.execute(
+        "INSERT INTO docs(title, body, title_ng, body_ng, url) VALUES (?, ?, ?, ?, ?)",
+        (title, body, _bigrams(title), _bigrams(body), url),
+    )
+
+
 def index_pages(db_path):
     """미색인 pages 행을 추출·삽입하고 넣은 문서 수를 돌려준다.
 
@@ -206,30 +225,28 @@ def index_pages(db_path):
             "SELECT url, html FROM pages "
             "WHERE html IS NOT NULL AND url NOT IN (SELECT url FROM docs)"
         ).fetchall()
-        indexed = 0
-        for url, stored in rows:
-            html = store.page_html(stored)
-            if extract.is_noindex(html):
-                continue  # 색인 거부 선언 — 크롤 윤리 축, robots.txt 와 같다
-            title, body = extract.extract_text(html)
-            db.execute(
-                "INSERT INTO docs(title, body, title_ng, body_ng, url) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (title, body, _bigrams(title), _bigrams(body), url),
-            )
-            indexed += 1
-        # 이미 색인된 문서가 뒤늦게 noindex 를 선언했으면 뺀다. 위 증분 조건이
-        # 기색인 문서를 아예 쳐다보지 않으므로 경로가 따로 필요하다.
-        # ponytail: 매 실행 색인 전수 조인. LIKE 로 후보를 SQLite 안에서 걸러 두었고,
-        #           색인 상태 컬럼이 생기는 recrawl 계획에서 증분으로 바꾼다
+        # 이미 색인된 문서가 뒤늦게 noindex 를 선언했으면 빼고, 본문이 갈렸으면 갈아
+        # 끼운다. 위 증분 조건이 기색인 문서를 아예 쳐다보지 않으므로 경로가 따로 필요하다.
+        #
+        # **신규 색인 루프보다 먼저 도는 이유는 값이다.** 방금 넣은 문서도 `fetched_at`
+        # 이 워터마크보다 뒤라 이 집합에 든다 — 뒤에 두면 **모든 신규 문서가 매 실행 두
+        # 번** 추출된다. 앞에 두면 아직 `docs` 에 없어 조인이 안 잡는다(상태를 들고
+        # 다니지 않고 순서로 푼다). `rows` 는 이 루프보다 먼저 떠 두므로 여기서 지운
+        # 행이 아래에서 되살아나지도 않는다.
+        # ponytail: 매 실행 색인 전수 조인. 아래 워터마크가 이미 «다시 받아 온 문서» 로
+        #           집합을 좁혔고, 조인 자체를 증분으로 바꾸려면 `docs` 에 색인 상태
+        #           열이 필요한데 그건 스키마 변경이다 — 계획 80 이 열지 않고 남겼다.
+        #           **URL 당 `DELETE` 도 같은 전수 스캔**이다(실측 4만 문서 3.35ms/건 ·
+        #           1천 0.09ms — 코퍼스 크기에 선형). 여는 조건은 둘 다 같다
         # **SQL 사전 필터(`LIKE '%robots%'`)를 여기서 걷어냈다.** 압축분은 BLOB 이라
         # `LIKE` 가 영영 매치되지 않고, 그러면 이 회수 경로가 **조용히 죽는다**(초록불인
         # 채로 noindex 선언을 무시한다 — 크롤 윤리 축이라 조용한 실패가 가장 나쁘다).
         # **결과는 안 바뀐다** — 걷어낸 조건이 `is_noindex()` 가 자기 첫 줄에서 이미 하는
         # 것과 같은 검사여서(`extract.py` 의 `"robots" not in lowered and "&#" not in lowered`)
         # 판정은 그대로고 함수를 더 자주 부를 뿐이다. 늘어난 값은 해제 0.11ms/문서다.
-        # **워터마크로 «다시 받아 온 문서»만 본다.** 이 루프의 목적은 뒤늦은 noindex 선언을
-        # 잡는 것이고, 그 선언은 재크롤로 `pages.html` 이 갈렸을 때만 생긴다. 전수를 훑던
+        # **워터마크로 «다시 받아 온 문서»만 본다.** 이 루프는 넷을 한다 — 뒤늦은 noindex
+        # 선언 회수 · 404·410 삭제 · 본문 갱신 · 본문 없는 재수신 보존. 넷 다 재크롤로
+        # `pages.html`·`status` 가 갈렸을 때만 생기므로 집합이 같다. 전수를 훑던
         # 옛 모양은 실물 400문서에서 문서당 10.21ms 라 **10만 문서면 신규 0건이어도 매
         # 실행 17분**이었다 — 색인 규모 1단계(컨셉 기능 4)를 막던 고정비다.
         #
@@ -246,7 +263,7 @@ def index_pages(db_path):
         ).fetchone()
         # 워터마크가 없으면 **전수**다 — 옛 DB 의 첫 실행이 그렇고, 그래야 이 기능이
         # 생기기 전에 들어온 뒤늦은 선언도 한 번은 걷힌다.
-        sql = "SELECT d.url, p.html FROM docs d JOIN pages p ON p.url = d.url"
+        sql = "SELECT d.url, p.html, p.status FROM docs d JOIN pages p ON p.url = d.url"
         args = ()
         if mark:
             # **`>` 가 아니라 `>=` 인 이유**는 `datetime('now')` 가 초 단위라서다. 색인
@@ -255,9 +272,40 @@ def index_pages(db_path):
             # 그 값은 그 초에 받아 온 문서 수만큼이다. 놓치는 쪽보다 더 보는 쪽을 고른다.
             sql += " WHERE p.fetched_at >= ?"
             args = (mark[0],)
-        for url, stored in db.execute(sql, args).fetchall():
-            if extract.is_noindex(store.page_html(stored)):
+        for url, stored, status in db.execute(sql, args).fetchall():
+            html = store.page_html(stored)
+            # `mark and` — 마크 없는 전수 실행은 삭제를 안 한다. **그래도 404 를 놓치지
+            # 않는 이유**는 마크 없는 DB 가 곧 「재크롤이 없던 시절의 색인」이라서다:
+            # `fetcher` 가 4xx 를 `html=None` 으로 만들고(`fetcher.py:52`) 색인은 `html
+            # IS NOT NULL` 만 넣으므로, 그 시절 `docs` 에 404 로 뒤집힌 행은 생길 수 없다.
+            if mark and status in _GONE:
+                # 없어졌다. **`pages` 행은 안 지운다** — 지우면 「404 를 받았다」는 사실이
+                # 사라져 다음 크롤이 이 URL 을 새 것으로 다시 줍고, 삭제가 망각이 되어
+                # 루프가 돈다. 묘비로 남기고 검색에서만 뺀다.
                 db.execute("DELETE FROM docs WHERE url = ?", (url,))
+            elif html is None:
+                # 다시 받았는데 본문이 없다 — 5xx·`status 0`·비 HTML. **일시 장애를
+                # 영구 삭제로 만들지 않는다.** 이 갈래가 `is_noindex` 앞이어야 하는
+                # 이유는 그 함수 첫 줄이 `html_text.lower()` 라서다(`None` 이면 터진다).
+                continue
+            elif extract.is_noindex(html):
+                db.execute("DELETE FROM docs WHERE url = ?", (url,))
+            elif mark:
+                # 갱신. 다시 받아 왔으니 본문이 갈렸을 수 있다 — `docs` 는 FTS5 라
+                # 지우고 넣는 것이 이 저장소의 관용구다(`_docs_sql` 재구축 경로와 같다).
+                # **마크가 있을 때만 한다**: 마크가 없으면 이 집합이 전수라, 재추출
+                # 문서당 23.81ms 가 10만 문서에서 39.7분이 된다(실물 60문서 실측).
+                # 마크가 있으면 집합이 「다시 받아 온 문서」뿐이고, `upsert` 가 언제나
+                # `fetched_at` 을 박으므로 그 밖은 안 바뀐 것이 보장된다.
+                db.execute("DELETE FROM docs WHERE url = ?", (url,))
+                _insert_doc(db, url, html)
+        indexed = 0
+        for url, stored in rows:
+            html = store.page_html(stored)
+            if extract.is_noindex(html):
+                continue  # 색인 거부 선언 — 크롤 윤리 축, robots.txt 와 같다
+            _insert_doc(db, url, html)
+            indexed += 1
         db.execute(
             "INSERT INTO index_meta(key, value) VALUES ('recheck_watermark', ?) "
             "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
@@ -466,7 +514,8 @@ def main(argv):
             # 색인이 조용히 줄어들면 "아무 일도 없었음" 과 구분할 수 없다
             removed = before + indexed - _doc_count(db_path)
             if removed:
-                print("%d 문서 색인 제외 — noindex 선언" % removed)
+                # 사유를 단정하지 않는다 — 빠지는 길이 noindex 선언과 404·410 둘이다
+                print("%d 문서 색인 제외 — noindex 선언 또는 삭제(404·410)" % removed)
         else:
             hits = search(db_path, query, limit=10)
             if not hits:
