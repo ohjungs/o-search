@@ -197,6 +197,24 @@ class TestIndexPages(unittest.TestCase):
         self.assertEqual([(row[0], row[1]) for row in self._docs()],
                          [("http://a.test/", "새")], "제목도 함께 간다 · 행은 하나뿐이다")
 
+    def test_recrawled_page_yields_its_new_paragraph_as_evidence(self):
+        """갱신이 근거 문단(`passages`)까지 간다 — 옛 문단은 근거로 안 나온다.
+
+        `search` 와 `passages` 의 재료가 다르다 — 앞은 `docs.body`, 뒤는 `pages.html` 을
+        질의 때 다시 판다. 갱신이 `docs` 행만 갈아 끼우므로 **둘이 갈릴 수 있는 자리**가
+        여기다. 옛 본문이 근거로 나오면 사양 기능 8(근거 정확도)이 무너진다.
+        """
+        self._seed([("http://a.test/", "<title>옛</title><p>pyeongsan 옛 문단</p>")])
+        self.assertEqual(index_pages(self.db_path), 1)
+        Store(self.db_path).upsert(
+            "http://a.test/", "<title>새</title><p>gwangju 새 문단</p>", 200)
+        index_pages(self.db_path)
+        self.assertEqual([(u, text) for u, _t, _pos, text in
+                          indexer.passages(self.db_path, "gwangju")],
+                         [("http://a.test/", "gwangju 새 문단")])
+        self.assertEqual(indexer.passages(self.db_path, "pyeongsan"), [],
+                         "옛 본문은 검색에서 빠졌으니 근거로도 안 나온다")
+
     def test_refetch_without_html_leaves_the_index_alone(self):
         """다시 받았는데 본문이 없으면 **그대로 둔다** — 일시 장애는 삭제가 아니다.
 
@@ -315,6 +333,24 @@ class TestIndexPages(unittest.TestCase):
             with self.assertRaises(KeyboardInterrupt):
                 index_pages(self.db_path)
         self.assertEqual([row[0] for row in self._docs()], ["http://a.test/"])
+
+    def test_interrupted_update_does_not_lose_the_document(self):
+        """갱신 도중 끊겨도 문서가 색인에서 **사라지지 않는다**.
+
+        갱신은 `DELETE` 다음 `INSERT` 라 그 사이에서 끊기면 문서가 통째로 검색에서
+        빠진다 — 신규 색인이 끊길 때(위 테스트)와 달리 **있던 것을 잃는** 모양이다.
+        오늘은 암묵 트랜잭션이 둘을 함께 되돌려 참이고, 중간 commit 이 끼면 거짓이 된다.
+        """
+        self._seed([("http://a.test/", "<title>옛</title><p>pyeongsan 옛 본문</p>")])
+        self.assertEqual(index_pages(self.db_path), 1)
+        Store(self.db_path).upsert(
+            "http://a.test/", "<title>새</title><p>gwangju 새 본문</p>", 200)
+        with mock.patch.object(indexer.extract, "extract_text",
+                               side_effect=KeyboardInterrupt):
+            with self.assertRaises(KeyboardInterrupt):
+                index_pages(self.db_path)
+        self.assertEqual([h[0] for h in search(self.db_path, "pyeongsan")],
+                         ["http://a.test/"], "갱신이 끊기면서 문서를 통째로 잃었다")
 
 
 class TestSchemaDrift(unittest.TestCase):
