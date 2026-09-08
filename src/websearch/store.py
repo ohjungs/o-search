@@ -12,6 +12,15 @@ CREATE TABLE IF NOT EXISTS pages (
 )
 """
 
+# 재방문 주기. 사양 기능 5 (`docs/specs/concept.md:31` "30일 이내에 재방문")가 이 숫자다.
+# **실패를 절반으로 가른 이유**는 4xx·5xx·`status 0` 이 「없는 문서」가 아니라 「그때
+# 못 받은 문서」이기 때문이다 — 성공과 같은 30일로 두면 일시 장애가 그만큼 오래
+# 결손으로 남고, 더 짧게 두면 죽은 URL 을 성공과 같은 빈도로 두드린다.
+# ponytail: 연속 실패 백오프는 안 한다. `pages` 에 실패 횟수를 둘 열이 없고 실물
+# 코퍼스에 실패 행이 0건이라 지금 정하면 숫자를 지어내는 것이다 — 실패가 쌓이면 그때 연다.
+FRESH_DAYS = 30
+RETRY_DAYS = 15
+
 
 # 원본 HTML 은 DB 의 **78.6%** 였다 (실물 400문서 · 문서당 191KB · 파일 전체 250KB/문서).
 # 컨셉 1단계 10만 문서면 25GB, 2단계 100만이면 250GB 라 「2단계까지 단일 머신」
@@ -69,6 +78,24 @@ class Store:
 
     def has(self, url):
         return self._db.execute("SELECT 1 FROM pages WHERE url=?", (url,)).fetchone() is not None
+
+    def is_fresh(self, url):
+        """이 URL 을 **지금 다시 받을 필요가 없나**. 없는 URL 은 신선하지 않다.
+
+        **시각 비교를 SQLite 가 한다** — `upsert` 가 `datetime('now')`(UTC)로 박으므로
+        읽는 쪽이 파이썬 시계를 쓰면 타임존·해상도가 어긋나 비교가 조용히 틀린다
+        (계획 78 이 `indexer.py:201` 에서 실제로 겪었다). 질의 하나·왕복 하나·시계 하나다.
+
+        `has` 와 합치지 않은 이유는 호출자 둘의 뜻이 다르기 때문이다 — 리다이렉트
+        도착지 중복 검사(`crawl.py`)는 「이번 실행에서 이미 저장됐나」라, 신선도를
+        섞으면 그 의미가 조용히 바뀐다.
+        """
+        row = self._db.execute(
+            "SELECT 1 FROM pages WHERE url=? AND fetched_at >= datetime("
+            "    'now', CASE WHEN status BETWEEN 200 AND 299 THEN ? ELSE ? END)",
+            (url, "-%d days" % FRESH_DAYS, "-%d days" % RETRY_DAYS),
+        ).fetchone()
+        return row is not None
 
     def get_html(self, url):
         row = self._db.execute("SELECT html FROM pages WHERE url=?", (url,)).fetchone()

@@ -255,3 +255,20 @@ append 전용이고 수정·삭제 금지다. 각 회전의 사유는 `digest.md
 - `store.has` 는 안 건드린다 — 호출자 둘(`crawl.py:250` 「지금 받을까」 · `:337` 「이미
   저장됐나」)의 뜻이 달라 합치면 뒤쪽이 조용히 바뀐다. 술어를 더한다.
 
+
+### 반복 470 — 계획 80 개발 1/3 · 팝 지점의 문을 「저장됐나」에서 「신선한가」로 바꾼다
+
+- `store.is_fresh()` 추가 + `crawl.py:250` 배선. 시각 비교는 SQLite 가 한다
+  (`CASE WHEN status BETWEEN 200 AND 299`) — 파이썬 시계를 안 쓰는 이유는 계획 78 이다.
+  `store.has` 는 그대로 뒀다(호출자 둘의 뜻이 다르다). 상수는 `store.FRESH_DAYS`=30 ·
+  `RETRY_DAYS`=15 이고 `project.md` 가 값까지 인용해 `ProjectConstTest` 가 문다.
+- TDD: 신선도 6건 + 크롤 배선 4건을 먼저 빨갛게 봤다(6 error · 2 fail). 전수 **695 OK**.
+- **변이 셋을 직접 돌렸다** — `FRESH_DAYS` 31 → `ProjectConstTest` 빨강 · 실패 주기를
+  30일로 합침 → 4건 빨강 · `crawl` 을 다시 `has` 로 → 2건 빨강.
+- **깨진 쪽이 테스트였던 자리 하나**: `TestCooldownBurn` 의 `skipping_store` 가 `store.has`
+  를 가려 「저장돼 있어 안 보낸다」를 흉내 냈다. 팝 지점의 문이 바뀌었으니 가짜도
+  `is_fresh` 를 가려야 한다 — 제품 동작이 아니라 이음매를 고쳤다.
+- **변이 검사가 pyc 를 오염시켜 20분을 태웠다.** `RETRY_DAYS`→`FRESH_DAYS` 는 **길이가
+  같아** 파일 크기가 안 변하고 되돌림이 같은 초에 일어나 타임스탬프 검증이 「안 바뀜」으로
+  읽었다. 되돌린 뒤에도 4건이 빨갰다. `project.md` 가 시키는 대로 변이 실행 자체에
+  `PYTHONDONTWRITEBYTECODE=1` 을 걸었어야 했다(검증에만 걸었다).

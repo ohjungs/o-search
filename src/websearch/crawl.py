@@ -247,7 +247,9 @@ def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None,
                 url = frontier.next(exclude=busy)
                 if url is None:
                     break
-                if store.has(url):
+                # 「저장돼 있나」가 아니라 「아직 신선한가」다 — 이 한 줄이 재방문을
+                # 연다(사양 기능 5). 성공 30일·실패 15일은 `store` 의 두 상수다
+                if store.is_fresh(url):
                     continue
                 domain = urls.domain_key(url)
                 busy.add(domain)

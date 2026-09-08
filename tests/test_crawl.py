@@ -344,7 +344,8 @@ class TestNonAsciiUrl(unittest.TestCase):
         #
         # **동시 크롤은 "이미 떠 있는 요청" 까지는 못 막는다** — 리다이렉트가
         # 어디로 갈지는 응답이 와야 알고, 그때 다른 워커는 이미 나갔다.
-        # 큐에 남아 있는 URL 은 그대로 막힌다(제출 전 `store.has(url)`).
+        # 큐에 남아 있는 URL 은 그대로 막힌다(제출 전 `store.is_fresh(url)` — 방금
+        # 저장했으니 신선하다).
         # workers=1 은 되돌리기 수단이자 **옛 보장이 살아 있다는 증거**다.
         with mock.patch.dict(REDIRECTS, {"http://a.com/moved2": "http://b.com/가"}), \
              mock.patch.dict(PAGES, {"http://b.com/가": "leaf"}):
@@ -618,8 +619,10 @@ class TestCooldownBurn(unittest.TestCase):
 
         def skipping_store(path):
             store = real_store(path)
-            has = store.has
-            store.has = lambda u: u in skip or has(u)
+            # 팝 지점의 문은 `is_fresh` 다(계획 80) — 「이미 신선해서 안 보낸다」가
+            # 여기서 흉내 내는 상황이고, `has` 를 가리면 아무것도 안 막는다
+            is_fresh = store.is_fresh
+            store.is_fresh = lambda u: u in skip or is_fresh(u)
             return store
 
         with mock.patch("websearch.crawl.fetcher") as mf, \
@@ -2163,3 +2166,62 @@ class TestSameSiteFlag(unittest.TestCase):
             rc = crawl.main(["prog", "http://a.com/"])
         self.assertEqual(rc, 0)
         self.assertIs(fake.call_args.kwargs["same_site"], False)
+
+
+class TestRecrawlFreshness(unittest.TestCase):
+    """같은 DB 로 다시 돌리면 **낡은 것만** 다시 나간다 (계획 80 스텝 1).
+
+    지금까지 팝 지점의 문은 `store.has` 라 **상태 불문·시각 불문**으로 막았다 —
+    같은 DB 로 재실행하면 시드부터 스킵돼 0페이지로 끝났고, 사양 기능 5 의
+    「30일 이내 재방문」이 영영 못 일어났다.
+
+    **여기서만 실제 파일 DB 를 쓴다** — `:memory:` 는 크롤이 열 때마다 새 DB 라
+    「이전 실행이 남긴 것」을 표현할 수 없다.
+    """
+
+    PAGES = {"http://a.test/": "leaf"}  # 링크가 없어야 나간 요청이 시드 하나로 세진다
+
+    def _sent(self, days, status=200):
+        """`days` 일 전에 받아 둔 시드로 다시 크롤하고, 실제로 나간 요청을 돌려준다."""
+        sent = []
+        clock = {"t": 1000.0}
+
+        def fake_fetch(url, **kw):
+            sent.append(url)
+            return FetchResult(200, self.PAGES.get(url), url)
+
+        robots = mock.Mock()
+        robots.allowed = lambda url: True
+        robots.delay = lambda url: None
+        robots.known_delay = robots.delay
+
+        with tempfile.TemporaryDirectory() as tmp:
+            db = os.path.join(tmp, "prev.db")
+            seed = "http://a.test/"
+            before = crawl.Store(db)
+            before.upsert(seed, "<html/>" if status < 400 else None, status)
+            before._db.execute("UPDATE pages SET fetched_at=datetime('now', ?) WHERE url=?",
+                               ("-%d days" % days, seed))
+            before._db.commit()
+            with mock.patch("websearch.crawl.fetcher") as mf, \
+                 mock.patch("sys.stderr", io.StringIO()):
+                mf.fetch = sending(fake_fetch)
+                mf.RETRIES = fetcher.RETRIES
+                crawl.crawl([seed], 10, db_path=db, robots_cache=robots,
+                            now=lambda: clock["t"], workers=1,
+                            sleep=lambda s: clock.__setitem__("t", clock["t"] + s))
+        return sent
+
+    def test_stale_success_goes_out_again(self):
+        self.assertEqual(self._sent(31), ["http://a.test/"],
+                         "30일이 지난 문서를 다시 안 받으면 갱신·삭제가 영영 안 일어난다")
+
+    def test_fresh_success_stays_home(self):
+        self.assertEqual(self._sent(29), [],
+                         "신선한 문서를 다시 받으면 크롤 예산이 같은 자리를 맴돈다")
+
+    def test_stale_failure_goes_out_again(self):
+        self.assertEqual(self._sent(16, status=404), ["http://a.test/"])
+
+    def test_fresh_failure_stays_home(self):
+        self.assertEqual(self._sent(14, status=404), [])
