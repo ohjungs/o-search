@@ -232,6 +232,53 @@ class TestIndexPages(unittest.TestCase):
         self.assertEqual(search(self.db_path, "gwangju"), [],
                          "마크 없는 전수에서 재추출하면 10만 문서에서 매 실행 39.7분이다")
 
+    def _pages_row(self, url):
+        db = sqlite3.connect(self.db_path)
+        self.addCleanup(db.close)
+        return db.execute("SELECT url, status FROM pages WHERE url = ?", (url,)).fetchone()
+
+    def test_page_that_came_back_404_leaves_the_index(self):
+        """없어진 문서는 검색에서 사라지고, `pages` 행은 **묘비로 남는다**.
+
+        `pages` 를 지우면 「404 를 받았다」는 사실이 사라져 다음 크롤이 그 URL 을 새
+        것으로 다시 줍는다 — 삭제가 **망각**이 되어 루프가 돈다(`plan_recrawl.md` 2절
+        정책 2). `status`·`fetched_at` 을 든 행으로 남기고 검색에서만 뺀다.
+        """
+        self._seed([("http://a.test/", "<p>pyeongsan 본문</p>")])
+        self.assertEqual(index_pages(self.db_path), 1)
+        Store(self.db_path).upsert("http://a.test/", None, 404)  # 다시 받으니 없어졌다
+        self.assertEqual(index_pages(self.db_path), 0)
+        self.assertEqual(search(self.db_path, "pyeongsan"), [])
+        self.assertEqual(self._docs(), [])
+        self.assertEqual(self._pages_row("http://a.test/"), ("http://a.test/", 404),
+                         "묘비까지 지우면 다음 크롤이 이 URL 을 새 것으로 다시 줍는다")
+
+    def test_410_is_gone_too(self):
+        # 410 은 「없어졌고 앞으로도 없다」다 — 404 와 같은 처분이 아니면 절반만 반영된다
+        self._seed([("http://a.test/", "<p>pyeongsan 본문</p>")])
+        self.assertEqual(index_pages(self.db_path), 1)
+        Store(self.db_path).upsert("http://a.test/", None, 410)
+        self.assertEqual(index_pages(self.db_path), 0)
+        self.assertEqual(self._docs(), [])
+
+    def test_gone_page_is_reported_not_silent(self):
+        """빠진 것을 알린다 — 다만 「noindex 선언」이라고 부르지 않는다.
+
+        `removed = before + indexed - after` 는 그대로 맞는다(갱신은 `DELETE`+`INSERT`
+        라 수가 안 움직이고, 삭제는 줄어든 만큼 정확히 나온다). 거짓말이 되는 것은
+        **문구 하나**뿐이라 문구만 넓힌다.
+        """
+        self._seed([("http://a.test/", "<p>첫</p>"), ("http://b.test/", "<p>둘째</p>")])
+        self.assertEqual(index_pages(self.db_path), 2)
+        Store(self.db_path).upsert("http://a.test/", None, 404)
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            self.assertEqual(indexer.main(["prog", self.db_path]), 0)
+        out = buf.getvalue()
+        self.assertIn("1 문서 색인 제외", out)
+        self.assertNotIn("색인 제외 — noindex 선언\n", out,
+                         "404 삭제를 noindex 선언이라고 부르면 원인이 틀리게 남는다")
+
     def test_freshly_indexed_page_is_not_extracted_twice(self):
         """방금 색인한 문서를 같은 실행의 갱신 경로가 다시 추출하지 않는다.
 

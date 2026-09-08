@@ -176,6 +176,11 @@ def _docs_sql(db):
     return row[0] if row else None
 
 
+# 「없어졌다」의 표준 표현. 5xx·`status 0` 은 여기 없다 — 그것은 「그때 못 받았다」라
+# 일시 장애를 영구 삭제로 만들지 않는다(`plan_recrawl.md` 2절 정책 1).
+_GONE = (404, 410)
+
+
 def _insert_doc(db, url, html):
     """추출해 `docs` 에 한 행을 넣는다.
 
@@ -253,7 +258,7 @@ def index_pages(db_path):
         ).fetchone()
         # 워터마크가 없으면 **전수**다 — 옛 DB 의 첫 실행이 그렇고, 그래야 이 기능이
         # 생기기 전에 들어온 뒤늦은 선언도 한 번은 걷힌다.
-        sql = "SELECT d.url, p.html FROM docs d JOIN pages p ON p.url = d.url"
+        sql = "SELECT d.url, p.html, p.status FROM docs d JOIN pages p ON p.url = d.url"
         args = ()
         if mark:
             # **`>` 가 아니라 `>=` 인 이유**는 `datetime('now')` 가 초 단위라서다. 색인
@@ -262,14 +267,19 @@ def index_pages(db_path):
             # 그 값은 그 초에 받아 온 문서 수만큼이다. 놓치는 쪽보다 더 보는 쪽을 고른다.
             sql += " WHERE p.fetched_at >= ?"
             args = (mark[0],)
-        for url, stored in db.execute(sql, args).fetchall():
+        for url, stored, status in db.execute(sql, args).fetchall():
             html = store.page_html(stored)
-            if html is None:
+            if mark and status in _GONE:
+                # 없어졌다. **`pages` 행은 안 지운다** — 지우면 「404 를 받았다」는 사실이
+                # 사라져 다음 크롤이 이 URL 을 새 것으로 다시 줍고, 삭제가 망각이 되어
+                # 루프가 돈다. 묘비로 남기고 검색에서만 뺀다.
+                db.execute("DELETE FROM docs WHERE url = ?", (url,))
+            elif html is None:
                 # 다시 받았는데 본문이 없다 — 5xx·`status 0`·비 HTML. **일시 장애를
                 # 영구 삭제로 만들지 않는다.** 이 갈래가 `is_noindex` 앞이어야 하는
                 # 이유는 그 함수 첫 줄이 `html_text.lower()` 라서다(`None` 이면 터진다).
                 continue
-            if extract.is_noindex(html):
+            elif extract.is_noindex(html):
                 db.execute("DELETE FROM docs WHERE url = ?", (url,))
             elif mark:
                 # 갱신. 다시 받아 왔으니 본문이 갈렸을 수 있다 — `docs` 는 FTS5 라
@@ -495,7 +505,8 @@ def main(argv):
             # 색인이 조용히 줄어들면 "아무 일도 없었음" 과 구분할 수 없다
             removed = before + indexed - _doc_count(db_path)
             if removed:
-                print("%d 문서 색인 제외 — noindex 선언" % removed)
+                # 사유를 단정하지 않는다 — 빠지는 길이 noindex 선언과 404·410 둘이다
+                print("%d 문서 색인 제외 — noindex 선언 또는 삭제(404·410)" % removed)
         else:
             hits = search(db_path, query, limit=10)
             if not hits:
