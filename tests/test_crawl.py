@@ -389,8 +389,11 @@ class TestNonAsciiUrl(unittest.TestCase):
 
         def recording_store(path):
             store = real_store(path)
-            has, upsert = store.has, store.upsert
+            has, upsert, fresh = store.has, store.upsert, store.is_fresh
             store.has = lambda u: keys.append(u) or has(u)
+            # 팝 지점의 문이 `has` 에서 `is_fresh` 로 옮겨갔다(계획 80) — 여기도 감싸지
+            # 않으면 이 자가 보는 관찰점에서 **팝 지점이 통째로 빠진다**
+            store.is_fresh = lambda u: keys.append(u) or fresh(u)
             store.upsert = lambda u, *a: keys.append(u) or upsert(u, *a)
             return store
 
@@ -2225,3 +2228,56 @@ class TestRecrawlFreshness(unittest.TestCase):
 
     def test_fresh_failure_stays_home(self):
         self.assertEqual(self._sent(14, status=404), [])
+
+
+class TestRedirectDestinationFreshness(unittest.TestCase):
+    """리다이렉트 **도착지**도 신선도로 판정한다 (반복 474 리뷰 F2).
+
+    출발지는 `pages` 에 안 남는다 — 정본이 최종 URL 이라서다. 그래서 도착지 중복
+    검사를 「저장된 적 있나」로 물으면 **낡은 도착지의 새 본문을 받아 놓고 버리고**,
+    다음 실행이 같은 요청을 또 보낸다. 리다이렉트로만 닿는 URL 에서 사양 기능 5 가
+    통째로 안 서던 자리다.
+    """
+
+    SRC, DEST = "http://a.test/moved", "http://b.test/"
+
+    def _run(self, days, body):
+        """`days` 일 전에 받아 둔 도착지를 두고 출발지를 크롤한다 → (나간 요청, 저장된 본문)."""
+        sent = []
+        clock = {"t": 1000.0}
+
+        def fake_fetch(url, **kw):
+            sent.append(url)
+            return FetchResult(200, body, self.DEST)  # 언제나 도착지로 접힌다
+
+        robots = mock.Mock()
+        robots.allowed = lambda url: True
+        robots.delay = lambda url: None
+        robots.known_delay = robots.delay
+
+        with tempfile.TemporaryDirectory() as tmp:
+            db = os.path.join(tmp, "prev.db")
+            before = crawl.Store(db)
+            before.upsert(self.DEST, "<p>옛 본문</p>", 200)
+            before._db.execute("UPDATE pages SET fetched_at=datetime('now', ?) WHERE url=?",
+                               ("-%d days" % days, self.DEST))
+            before._db.commit()
+            with mock.patch("websearch.crawl.fetcher") as mf, \
+                 mock.patch("sys.stderr", io.StringIO()):
+                mf.fetch = sending(fake_fetch)
+                mf.RETRIES = fetcher.RETRIES
+                crawl.crawl([self.SRC], 10, db_path=db, robots_cache=robots,
+                            now=lambda: clock["t"], workers=1,
+                            sleep=lambda s: clock.__setitem__("t", clock["t"] + s))
+            return sent, crawl.Store(db).get_html(self.DEST)
+
+    def test_stale_destination_keeps_the_body_it_just_fetched(self):
+        sent, html = self._run(40, "<p>새 본문</p>")
+        self.assertEqual(sent, [self.SRC], "출발지는 한 번 나간다")
+        self.assertEqual(html, "<p>새 본문</p>",
+                         "받아 놓고 버리면 다음 실행이 같은 요청을 또 보낸다")
+
+    def test_fresh_destination_is_left_alone(self):
+        _sent, html = self._run(5, "<p>새 본문</p>")
+        self.assertEqual(html, "<p>옛 본문</p>",
+                         "신선한 도착지를 덮으면 한 실행 안의 중복 방지가 무너진다")

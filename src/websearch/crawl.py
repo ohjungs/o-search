@@ -121,8 +121,9 @@ def _fetch_one(url, robots, now, floor, sleep=time.sleep, stop=None):
                                retries=fetcher.RETRIES if interval <= MAX_DELAY else 0)
     except _Interrupted:
         # 중단된 시도는 **결과가 아니다.** `FetchResult(0, None, None)` 로 돌려주면
-        # 안 받은 페이지가 status 0 으로 DB 에 박혀 다음 실행이 그 URL 을 영영
-        # 건너뛴다 — 중단이 프런티어를 오염시키면 안 된다 (설계 계약 5)
+        # 안 받은 페이지가 status 0 으로 DB 에 박혀 다음 실행이 그 URL 을 건너뛴다 —
+        # 재크롤이 생긴 뒤로 「영영」은 아니고 `RETRY_DAYS` 만큼이지만, 안 받은 것을
+        # 받았다고 적는 거짓이라는 점은 그대로다 (설계 계약 5)
         result = None
     # 훅이 한 번도 안 불렸으면 **요청이 나가지 않았다**(`Request()` 생성 실패).
     # 그때 시각을 지어내면 나가지도 않은 요청으로 도메인 쿨다운을 태운다
@@ -331,12 +332,18 @@ def _store_result(future, url, domain, store, frontier, now, robots):
     _apply_delay(frontier, domain, requested)
     # 중단으로 접힌 시도 — **시계와 간격은 걸고 지나간 뒤** 아무것도 안 박는다.
     # 이미 나간 발신이 있으면 그 쿨다운은 유효하고, 안 받은 페이지를 status 0 으로
-    # 박으면 다음 실행이 그 URL 을 영영 건너뛴다 (graceful-interrupt 계약 5)
+    # 박으면 다음 실행이 그 URL 을 `RETRY_DAYS` 만큼 건너뛴다 (graceful-interrupt
+    # 계약 5). 재크롤 전에는 이것이 「영영」이었다 — 짧아졌을 뿐 거짓은 그대로다
     if result is None:
         return 0
     # 리다이렉트면 최종 URL 이 정본. 못 바꾸면 요청한 url(프런티어를 거쳤으니 ASCII)로 저장한다
     page_url = urls.normalize(result.url or url) or url
-    if page_url != url and store.has(page_url):
+    # **여기도 「신선한가」다.** 「저장된 적 있나」로 물으면 낡은 도착지의 새 본문을
+    # **받아 놓고 버린다** — 그러고도 출발지(`url`)는 `pages` 에 안 남아 다음 실행이
+    # 같은 요청을 또 보낸다. 리다이렉트로만 닿는 URL 은 그래서 사양 기능 5 가 영영
+    # 성립하지 않았다(반복 474 리뷰 F2 · 탐침으로 재현). 같은 실행 안의 중복은 그대로
+    # 막힌다 — 방금 `upsert` 한 도착지는 신선하다.
+    if page_url != url and store.is_fresh(page_url):
         return 0
     store.upsert(page_url, result.html, result.status)
     if result.html is not None and 200 <= result.status < 300:
