@@ -313,3 +313,51 @@ class TestIntervalIsPublicNow(unittest.TestCase):
         f = Frontier()
         f.set_delay("a.test", 5.0)
         self.assertEqual(f.interval("b.test"), DOMAIN_INTERVAL)
+
+
+class EthicsFloorTest(unittest.TestCase):
+    """도메인 간격이 **사양의 윤리 하한(1초) 아래로 못 내려간다.**
+
+    2026-09-09 무인 사이클이 강제 종료되며 작업 트리에 `DOMAIN_INTERVAL = 0.05` 를
+    남겼고 — 주석이 *"내리지 않는다"* 고 적힌 그 줄이다 — **전수 706건이 전부
+    초록이었다.** 잡은 것은 검사가 아니라 사람이 diff 를 눈으로 본 것이다.
+
+    **위 단언들이 못 잡는 이유는 전부 상수를 «참조» 하기 때문이다**
+    (`assertEqual(f.interval("a.test"), DOMAIN_INTERVAL)`). 값을 내리면 단언도 같이
+    내려가 언제나 참이다 — 「간격을 지키나」는 재도 「그 간격이 윤리 하한 위인가」는
+    아무도 안 잰다. 자가 자기 축을 안 재면 조용히 초록이다.
+
+    **그래서 하한을 리터럴로 박는다.** 상수로 빼면 그 상수를 같이 내려서 다시 뚫린다 —
+    재는 쪽과 재이는 쪽이 같은 값을 공유하면 그것은 자가 아니다.
+    """
+
+    # `docs/specs/concept.md` 기능 3 — *"도메인당 요청 간격 1초 이상은 기능이 아니라
+    # **전제 조건** — 어기는 코드는 리뷰에서 RED 다"*. 사양이 준 숫자라 여기 리터럴이다.
+    # **이 줄을 고쳐서 테스트를 통과시키지 않는다.** 고칠 일이 있으면 사양을 먼저 고친다.
+    SPEC_FLOOR = 1.0
+
+    def test_the_module_default_is_not_below_the_spec_floor(self):
+        self.assertGreaterEqual(
+            DOMAIN_INTERVAL, self.SPEC_FLOOR,
+            "DOMAIN_INTERVAL 이 %s 초다 — 사양의 윤리 하한 %s 초 아래다"
+            % (DOMAIN_INTERVAL, self.SPEC_FLOOR))
+
+    def test_a_domain_never_gets_a_faster_interval_than_the_floor(self):
+        """기본값만이 아니라 **실제로 쓰이는 값**을 잰다.
+
+        상수가 1.0 이어도 `set_delay` 로 도메인마다 더 짧게 줄 수 있으면 같은 구멍이다.
+        robots 가 **더 긴** 간격을 요구하면 그것을 따르는 것이 맞고(그래서 하한만 본다),
+        **더 짧은** 요청은 예의가 아니라 남의 서버 사정일 뿐이라 안 따른다.
+
+        **이 갈래는 오늘 처음부터 초록이었다** — `set_delay` 가 `max(interval, seconds)`
+        로 단조 증가라 이미 막혀 있다. 그러니 이것은 **고친 것이 아니라 붙든 것**이고,
+        여기 적는 이유는 그 성질이 주석에만 있었기 때문이다. 주석은 리팩터링을 못 막는다.
+        """
+        f = Frontier()
+        self.assertGreaterEqual(f.interval("a.test"), self.SPEC_FLOOR)
+        f.set_delay("a.test", 0.05)  # robots 가 짧게 요구해도
+        self.assertGreaterEqual(
+            f.interval("a.test"), self.SPEC_FLOOR,
+            "robots 가 요구한 짧은 간격을 그대로 받았다 — 하한이 없다")
+        f.set_delay("b.test", 5.0)   # 더 긴 요구는 그대로 따른다
+        self.assertEqual(f.interval("b.test"), 5.0)
