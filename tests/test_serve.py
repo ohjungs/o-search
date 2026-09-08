@@ -17,6 +17,7 @@ import urllib.request
 from html import unescape as html_unescape
 
 from websearch import indexer, serve
+from websearch.store import Store
 
 PAGES = {
     "http://a.test/1": "<html><title>김치찌개 만들기</title><body>"
@@ -628,7 +629,7 @@ class TestTrustBoundary(ServeTestCase):
         self.assertEqual(status, 200)
 
     def test_unknown_path_is_404_not_traceback(self):
-        status, body, _ = self.get(urllib.parse.quote("/없는경로"))
+        status, body, _ = self.get(urllib.parse.quote("/nope"))
         self.assertEqual(status, 404)
         self.assertNotIn("Traceback", json.dumps(body))
 
@@ -1430,6 +1431,144 @@ class TestCliArgs(unittest.TestCase):
         self.assertEqual(rc, 1)
         self.assertNotIn("Traceback", err)
         self.assertIn("8000", err)
+
+
+class RateLimitWiringTest(unittest.TestCase):
+    """제한이 **실제 요청 경로**에 붙어 있나. 리미터 단위 테스트와는 다른 질문이다.
+
+    `rules/review.md` 패스 A 의 *"이 코드가 실제로 실행되는 경로가 있나"* — 클래스를
+    만들어 두고 배선을 잊으면 단위 테스트 다섯은 초록인 채로 아무것도 안 막는다.
+    """
+
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.dir.cleanup)
+        self.db = os.path.join(self.dir.name, "t.db")
+        Store(self.db).upsert("http://a.test/", "<title>가</title><p>본문</p>", 200)
+        indexer.index_pages(self.db)
+
+    def _serve(self, rate_limit):
+        server = serve.make_server(self.db, port=0, rate_limit=rate_limit)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        return "http://127.0.0.1:%d" % server.server_address[1]
+
+    def _get(self, url):
+        # 질의는 퍼센트 인코딩해서 보낸다 — 요청 라인은 ASCII 라 한글 원문 바이트를
+        # 그대로 넣으면 클라이언트가 먼저 죽는다(HTTP 규격이지 서버 결함이 아니다).
+        try:
+            with urllib.request.urlopen(url) as resp:
+                return resp.status, dict(resp.headers)
+        except urllib.error.HTTPError as exc:
+            return exc.code, dict(exc.headers)
+
+    def test_requests_past_the_limit_get_429_with_retry_after(self):
+        base = self._serve(rate_limit=2)
+        codes = [self._get(base + "/search?q=%EB%B3%B8%EB%AC%B8")[0] for _ in range(3)]
+        self.assertEqual(codes, [200, 200, 429])
+        _, headers = self._get(base + "/search?q=%EB%B3%B8%EB%AC%B8")
+        self.assertEqual(headers.get("Retry-After"), "%d" % serve.RATE_WINDOW)
+
+    def test_the_budget_is_shared_across_both_json_paths(self):
+        """한 예산이다 — 경로마다 따로 주면 두 배를 쓸 수 있다(계획서 5절)."""
+        base = self._serve(rate_limit=2)
+        self.assertEqual(self._get(base + "/search?q=%EB%B3%B8%EB%AC%B8")[0], 200)
+        self.assertEqual(self._get(base + "/passages?q=%EB%B3%B8%EB%AC%B8")[0], 200)
+        self.assertEqual(self._get(base + "/passages?q=%EB%B3%B8%EB%AC%B8")[0], 429)
+
+    def test_unknown_paths_do_not_burn_the_budget(self):
+        """오타 URL 로 자기 예산을 태우지 않는다 — 404 판정이 제한보다 앞이다."""
+        base = self._serve(rate_limit=1)
+        self.assertEqual(self._get(base + "/nope")[0], 404)
+        self.assertEqual(self._get(base + "/search?q=%EB%B3%B8%EB%AC%B8")[0], 200,
+                         "404 가 예산을 먹었다")
+
+    def test_the_screen_is_not_limited(self):
+        """화면(`/`)은 제한 밖이다 (계획서 5절). API 예산도 안 먹는다."""
+        base = self._serve(rate_limit=1)
+        for _ in range(3):
+            self.assertEqual(self._get(base + "/?q=%EB%B3%B8%EB%AC%B8")[0], 200)
+        self.assertEqual(self._get(base + "/search?q=%EB%B3%B8%EB%AC%B8")[0], 200,
+                         "화면이 API 예산을 먹었다")
+
+    def test_none_means_unlimited_not_blocked(self):
+        """측정 하네스가 쓰는 갈래. **무제한과 전면 차단을 헷갈리면 p95 대신 429 를 잰다.**"""
+        base = self._serve(rate_limit=None)
+        codes = [self._get(base + "/search?q=%EB%B3%B8%EB%AC%B8")[0] for _ in range(serve.RATE_LIMIT + 5)]
+        self.assertEqual(set(codes), {200})
+
+
+class RateLimiterTest(unittest.TestCase):
+    """공개 API 의 IP 당 분당 한도 (`docs/specs/concept.md` 「사람이 정할 것」 1).
+
+    **시계를 주입해서 잰다** — `time.sleep` 으로 창 만료를 기다리면 60초짜리 테스트가
+    되고, 짧게 줄이려고 창을 상수로 낮추면 «제품이 쓰는 값»을 안 재게 된다.
+    """
+
+    def _limiter(self, clock, limit=None):
+        return serve.RateLimiter(limit=limit or serve.RATE_LIMIT, clock=clock)
+
+    def test_allows_up_to_the_limit_then_blocks(self):
+        now = [0.0]
+        lim = self._limiter(lambda: now[0], limit=3)
+        self.assertEqual([lim.allow("1.2.3.4") for _ in range(3)], [True, True, True])
+        self.assertFalse(lim.allow("1.2.3.4"), "한도를 넘겨 통과시켰다")
+
+    def test_each_ip_has_its_own_budget(self):
+        now = [0.0]
+        lim = self._limiter(lambda: now[0], limit=1)
+        self.assertTrue(lim.allow("1.1.1.1"))
+        self.assertFalse(lim.allow("1.1.1.1"))
+        self.assertTrue(lim.allow("2.2.2.2"), "남의 IP 예산을 같이 썼다")
+
+    def test_window_slides_instead_of_resetting_on_a_boundary(self):
+        """고정 창이면 경계에서 2배 버스트가 통과한다 — 그것을 안 쓴 이유가 이 단언이다."""
+        now = [0.0]
+        lim = self._limiter(lambda: now[0], limit=2)
+        self.assertTrue(lim.allow("1.1.1.1"))          # t=0
+        now[0] = 59.0
+        self.assertTrue(lim.allow("1.1.1.1"))          # t=59 — 창 안, 둘째
+        self.assertFalse(lim.allow("1.1.1.1"))
+        now[0] = 60.5                                   # t=0 것만 만료
+        self.assertTrue(lim.allow("1.1.1.1"))
+        self.assertFalse(lim.allow("1.1.1.1"), "t=59 것까지 같이 버렸다 — 고정 창이다")
+
+    def test_idle_ips_do_not_stay_in_memory(self):
+        """창이 빈 IP 는 키째 사라진다. 상주는 «최근 1분 안에 요청한 IP» 뿐이다."""
+        now = [0.0]
+        lim = self._limiter(lambda: now[0], limit=1)
+        lim.allow("1.1.1.1")
+        self.assertEqual(lim.tracked(), 1)
+        now[0] = 61.0
+        lim.allow("2.2.2.2")
+        self.assertEqual(lim.tracked(), 1, "조용해진 IP 가 남아 메모리가 무한히 자란다")
+
+    def test_concurrent_callers_never_exceed_the_limit(self):
+        """**`ThreadingHTTPServer` 라 여기는 공유 상태다** (`serve.py` 의 서버 생성).
+
+        읽고-세고-쓰는 사이에 다른 스레드가 끼면 한도를 넘겨 통과시킨다. 단위 테스트로
+        진짜 레이스를 재현하기는 어려우니 **계약을 고정한다** — 스레드 몇이 동시에
+        쏘든 통과 수가 한도를 **넘지 않는다**. `rules/test.md` 갭 ⑦ 이 그것이다.
+        """
+        lim = self._limiter(lambda: 0.0, limit=50)
+        passed = []
+        lock = threading.Lock()
+        start = threading.Barrier(8)
+
+        def fire():
+            start.wait()
+            for _ in range(25):
+                if lim.allow("9.9.9.9"):
+                    with lock:
+                        passed.append(1)
+
+        threads = [threading.Thread(target=fire) for _ in range(8)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        self.assertEqual(len(passed), 50, "동시 호출이 한도를 넘겼다 (200회 중 통과 수)")
 
 
 if __name__ == "__main__":

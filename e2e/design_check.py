@@ -430,7 +430,7 @@ def main():
         conn.close()
         indexer.index_pages(db)
 
-        server = serve.make_server(db, port=0)
+        server = serve.make_server(db, port=0, rate_limit=None)
         threading.Thread(target=server.serve_forever,
                          kwargs={"poll_interval": 0.01}, daemon=True).start()
         base = "http://127.0.0.1:%d" % server.server_address[1]
