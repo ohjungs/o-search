@@ -1,9 +1,9 @@
 ---
-signal: GREEN
+signal: DONE
 phase: e2e
 step: 3/3
 attempt: 0
-iteration: 475
+iteration: 476
 updated: 2026-09-08
 ctx: 34
 night_iterations: 7

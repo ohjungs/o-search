@@ -102,7 +102,7 @@ PYTHONPATH=src python3 -m websearch.indexer data/crawl.db --query 검색어
 
 ```bash
 PYTHONPATH=src python3 -m unittest discover -b -s tests   # 단위 706건
-ls e2e/*.py                                               # e2e 시나리오 21종
+ls e2e/*.py                                               # e2e 시나리오 22종
 ```
 
 e2e 는 하나씩 따로 돌린다 — `PYTHONPATH=src python3 e2e/<이름>.py`.
