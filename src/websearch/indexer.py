@@ -176,6 +176,19 @@ def _docs_sql(db):
     return row[0] if row else None
 
 
+def _insert_doc(db, url, html):
+    """추출해 `docs` 에 한 행을 넣는다.
+
+    **넣는 자리가 둘이라 여기 하나다** — 신규 색인과 갱신. 한쪽만 고치면 색인 본문의
+    규칙이 문서가 처음 들어온 경로에 따라 갈린다.
+    """
+    title, body = extract.extract_text(html)
+    db.execute(
+        "INSERT INTO docs(title, body, title_ng, body_ng, url) VALUES (?, ?, ?, ?, ?)",
+        (title, body, _bigrams(title), _bigrams(body), url),
+    )
+
+
 def index_pages(db_path):
     """미색인 pages 행을 추출·삽입하고 넣은 문서 수를 돌려준다.
 
@@ -206,20 +219,14 @@ def index_pages(db_path):
             "SELECT url, html FROM pages "
             "WHERE html IS NOT NULL AND url NOT IN (SELECT url FROM docs)"
         ).fetchall()
-        indexed = 0
-        for url, stored in rows:
-            html = store.page_html(stored)
-            if extract.is_noindex(html):
-                continue  # 색인 거부 선언 — 크롤 윤리 축, robots.txt 와 같다
-            title, body = extract.extract_text(html)
-            db.execute(
-                "INSERT INTO docs(title, body, title_ng, body_ng, url) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (title, body, _bigrams(title), _bigrams(body), url),
-            )
-            indexed += 1
-        # 이미 색인된 문서가 뒤늦게 noindex 를 선언했으면 뺀다. 위 증분 조건이
-        # 기색인 문서를 아예 쳐다보지 않으므로 경로가 따로 필요하다.
+        # 이미 색인된 문서가 뒤늦게 noindex 를 선언했으면 빼고, 본문이 갈렸으면 갈아
+        # 끼운다. 위 증분 조건이 기색인 문서를 아예 쳐다보지 않으므로 경로가 따로 필요하다.
+        #
+        # **신규 색인 루프보다 먼저 도는 이유는 값이다.** 방금 넣은 문서도 `fetched_at`
+        # 이 워터마크보다 뒤라 이 집합에 든다 — 뒤에 두면 **모든 신규 문서가 매 실행 두
+        # 번** 추출된다. 앞에 두면 아직 `docs` 에 없어 조인이 안 잡는다(상태를 들고
+        # 다니지 않고 순서로 푼다). `rows` 는 이 루프보다 먼저 떠 두므로 여기서 지운
+        # 행이 아래에서 되살아나지도 않는다.
         # ponytail: 매 실행 색인 전수 조인. LIKE 로 후보를 SQLite 안에서 걸러 두었고,
         #           색인 상태 컬럼이 생기는 recrawl 계획에서 증분으로 바꾼다
         # **SQL 사전 필터(`LIKE '%robots%'`)를 여기서 걷어냈다.** 압축분은 BLOB 이라
@@ -256,8 +263,30 @@ def index_pages(db_path):
             sql += " WHERE p.fetched_at >= ?"
             args = (mark[0],)
         for url, stored in db.execute(sql, args).fetchall():
-            if extract.is_noindex(store.page_html(stored)):
+            html = store.page_html(stored)
+            if html is None:
+                # 다시 받았는데 본문이 없다 — 5xx·`status 0`·비 HTML. **일시 장애를
+                # 영구 삭제로 만들지 않는다.** 이 갈래가 `is_noindex` 앞이어야 하는
+                # 이유는 그 함수 첫 줄이 `html_text.lower()` 라서다(`None` 이면 터진다).
+                continue
+            if extract.is_noindex(html):
                 db.execute("DELETE FROM docs WHERE url = ?", (url,))
+            elif mark:
+                # 갱신. 다시 받아 왔으니 본문이 갈렸을 수 있다 — `docs` 는 FTS5 라
+                # 지우고 넣는 것이 이 저장소의 관용구다(`_docs_sql` 재구축 경로와 같다).
+                # **마크가 있을 때만 한다**: 마크가 없으면 이 집합이 전수라, 재추출
+                # 문서당 23.81ms 가 10만 문서에서 39.7분이 된다(실물 60문서 실측).
+                # 마크가 있으면 집합이 「다시 받아 온 문서」뿐이고, `upsert` 가 언제나
+                # `fetched_at` 을 박으므로 그 밖은 안 바뀐 것이 보장된다.
+                db.execute("DELETE FROM docs WHERE url = ?", (url,))
+                _insert_doc(db, url, html)
+        indexed = 0
+        for url, stored in rows:
+            html = store.page_html(stored)
+            if extract.is_noindex(html):
+                continue  # 색인 거부 선언 — 크롤 윤리 축, robots.txt 와 같다
+            _insert_doc(db, url, html)
+            indexed += 1
         db.execute(
             "INSERT INTO index_meta(key, value) VALUES ('recheck_watermark', ?) "
             "ON CONFLICT(key) DO UPDATE SET value = excluded.value",

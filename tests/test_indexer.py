@@ -178,6 +178,83 @@ class TestIndexPages(unittest.TestCase):
         self.assertEqual(index_pages(self.db_path), 0)
         self.assertEqual([row[0] for row in self._docs()], ["http://a.test/"])
 
+    def test_recrawled_page_replaces_its_indexed_body(self):
+        """재크롤로 본문이 갈리면 색인이 **갈아 끼워진다** (계획 80 · 사양 기능 5).
+
+        어제까지는 `docs` 에 이미 있는 URL 을 증분 질의가 아예 안 봐서, 같은 URL 의
+        `pages.html` 을 갈고 재색인해도 **새 본문이 영영 0건**이었다. 갱신이 사는
+        자리는 워터마크 루프다 — 그 집합이 정확히 「다시 받아 온 색인 문서」다.
+        """
+        self._seed([("http://a.test/", "<title>옛</title><p>pyeongsan 옛 본문</p>")])
+        self.assertEqual(index_pages(self.db_path), 1)
+        Store(self.db_path).upsert(
+            "http://a.test/", "<title>새</title><p>gwangju 새 본문</p>", 200)
+        self.assertEqual(index_pages(self.db_path), 0,
+                         "갱신은 **신규 색인 수**가 아니다 — 반환 계약은 안 바뀐다")
+        self.assertEqual([h[0] for h in search(self.db_path, "gwangju")], ["http://a.test/"])
+        self.assertEqual(search(self.db_path, "pyeongsan"), [],
+                         "옛 본문이 남아 있으면 갱신이 아니라 덧쓰기다")
+        self.assertEqual([(row[0], row[1]) for row in self._docs()],
+                         [("http://a.test/", "새")], "제목도 함께 간다 · 행은 하나뿐이다")
+
+    def test_refetch_without_html_leaves_the_index_alone(self):
+        """다시 받았는데 본문이 없으면 **그대로 둔다** — 일시 장애는 삭제가 아니다.
+
+        5xx·`status 0`·비 HTML 은 `fetcher` 가 `html=None` 으로 저장한다. 이 갈래가
+        `is_noindex` **앞**에 서야 하는 이유는 그 함수 첫 줄이 `html_text.lower()` 라
+        `None` 이면 `AttributeError` 이기 때문이다 — 재크롤이 열리기 전에는 색인된
+        문서의 `html` 이 NULL 이 되는 길이 없어서 안 터지던 잠복 크래시다.
+        """
+        self._seed([("http://a.test/", "<p>pyeongsan 본문</p>")])
+        self.assertEqual(index_pages(self.db_path), 1)
+        Store(self.db_path).upsert("http://a.test/", None, 503)  # 다시 받았지만 못 받았다
+        self.assertEqual(index_pages(self.db_path), 0)
+        self.assertEqual([h[0] for h in search(self.db_path, "pyeongsan")],
+                         ["http://a.test/"], "일시 장애가 색인을 지웠다")
+
+    def test_without_a_watermark_the_pass_only_sweeps_noindex(self):
+        """워터마크가 없으면(옛 DB 의 첫 실행) 갱신을 안 한다.
+
+        갱신이 「안 바뀐 것을 다시 추출하지 않는다」에 기대는데, 그 보장을 주는 것이
+        워터마크다(`store.upsert` 가 언제나 `fetched_at` 을 박으므로 워터마크 이전
+        문서는 안 바뀐 것이 보장된다). 마크가 없으면 전수가 되고, 전수 재추출은 실물
+        기준 문서당 23.81ms — 10만 환산 39.7분으로 계획 78 이 지운 고정비가 돌아온다.
+        """
+        self._seed([("http://a.test/", "<title>옛</title><p>pyeongsan 옛 본문</p>")])
+        self.assertEqual(index_pages(self.db_path), 1)
+        db = sqlite3.connect(self.db_path)
+        self.addCleanup(db.close)
+        db.execute("DELETE FROM index_meta WHERE key = 'recheck_watermark'")
+        db.commit()
+        Store(self.db_path).upsert(
+            "http://a.test/", "<title>새</title><p>gwangju 새 본문</p>", 200)
+        self.assertEqual(index_pages(self.db_path), 0)
+        self.assertEqual(search(self.db_path, "gwangju"), [],
+                         "마크 없는 전수에서 재추출하면 10만 문서에서 매 실행 39.7분이다")
+
+    def test_freshly_indexed_page_is_not_extracted_twice(self):
+        """방금 색인한 문서를 같은 실행의 갱신 경로가 다시 추출하지 않는다.
+
+        새 문서도 `fetched_at` 이 워터마크보다 뒤라 그 집합에 든다 — 막지 않으면
+        **모든 신규 문서가 매 실행 두 번** 추출되고, 갱신이 신규 색인의 비용을 두 배로
+        만든다. 결과는 같아서 단언으로는 안 보이고 값으로만 보이는 종류의 낭비다.
+        """
+        self._seed([("http://a.test/", "<p>첫</p>")])
+        self.assertEqual(index_pages(self.db_path), 1)  # 워터마크를 만든다
+        db = sqlite3.connect(self.db_path)
+        self.addCleanup(db.close)
+        # 첫 문서를 워터마크 **앞**으로 밀어 둔다. 경계가 `>=` 라 같은 초에 받은 문서는
+        # 정당하게 한 번 더 보이고(구현 주석), 그러면 이 자가 재는 것이 흐려진다
+        db.execute("UPDATE pages SET fetched_at = '2020-01-01 00:00:00'")
+        db.commit()
+        self._seed([("http://b.test/", "<p>둘째</p>")])
+        real = indexer.extract.extract_text
+        with mock.patch.object(indexer.extract, "extract_text",
+                               side_effect=real) as extracted:
+            self.assertEqual(index_pages(self.db_path), 1)
+        self.assertEqual(len(extracted.call_args_list), 1,
+                         "신규 문서를 두 번 추출했다 — 갱신 경로가 방금 넣은 행을 다시 본다")
+
     def test_interrupted_incremental_run_indexes_nothing(self):
         # 재구축이 아닌 평소 경로. main 의 안내 "색인은 바뀌지 않았다" 는 이쪽에서도
         # 참이어야 한다 — 오늘은 암묵 트랜잭션 덕에 참이고, 중간 commit 이 하나라도
