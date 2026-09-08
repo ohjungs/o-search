@@ -228,7 +228,7 @@ def main(argv=None):
             return 2
         print("%d문서 색인 (블록 %d개) / 질의 %d개 × %d회"
               % (indexed, sum(n for _, n in blocks), len(queries), args.repeat))
-        server = serve.make_server(db_path, port=0)
+        server = serve.make_server(db_path, port=0, rate_limit=None)
         threading.Thread(target=server.serve_forever,
                          kwargs={"poll_interval": 0.01}, daemon=True).start()
         base = "http://127.0.0.1:%d" % server.server_address[1]

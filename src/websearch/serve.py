@@ -12,10 +12,13 @@
 e2e/perf_search.py 가 재는 p95 가 "어느 코드의 p95 인지 헤더에 달리게" 된다
 (docs/design_search-ui.md 갈림길 1). /search 의 응답은 화면이 붙은 뒤에도 그대로다.
 """
+import collections
 import html
 import http.server
 import json
 import sys
+import threading
+import time
 import urllib.parse
 
 from . import flags, indexer
@@ -34,6 +37,64 @@ MAX_PASSAGE = 2000
 # 요청 라인을 끝내지 않는 연결은 스레드를 무기한 점유한다(슬로로리스). 깊은 OFFSET 을
 # 막으면서 이쪽을 열어두면 균형이 안 맞는다 — 이게 훨씬 싼 고갈 경로다.
 REQUEST_TIMEOUT = 10
+# 로그인이 없으므로 IP 가 유일한 손잡이다 — 남용 대응을 인증이 아니라 속도 제한으로
+# 한다는 것이 컨셉의 결정이고, 1단계 숫자도 사양이 줬다(`concept.md` 「사람이 정할 것」 1).
+RATE_LIMIT = 60
+RATE_WINDOW = 60.0
+
+
+class RateLimiter:
+    """IP 당 `limit` 회 / `RATE_WINDOW` 초. 넘으면 `allow()` 가 거짓을 준다.
+
+    **고정 창(분 단위 카운터)을 안 쓴 이유**는 창 경계에서 2배 버스트가 통과하기
+    때문이다 — 59초에 60회 쏘고 61초에 또 60회면 2초 사이 120회다. 슬라이딩 창은
+    그 구멍이 없고 값은 IP 당 `deque` 하나다.
+
+    **`threading.Lock` 이 필수인 이유**는 서버가 `ThreadingHTTPServer` 라서다. 읽고-
+    세고-쓰는 사이에 다른 스레드가 끼면 한도를 넘겨 통과시키는데, 이 결함은 테스트가
+    초록이고 리뷰도 통과한 뒤 **부하에서만** 드러난다 (`rules/dev.md` 6-1절).
+
+    **`time.monotonic` 을 쓰는 이유**는 벽시계가 NTP 보정으로 뒤로 갈 수 있어서다.
+    뒤로 가면 창이 늘어나 제한이 **조용히 풀린다.**
+
+    **메모리는 스스로 준다** — 창이 빈 IP 는 키째 지운다. 상주하는 것은 「최근
+    `RATE_WINDOW` 초 안에 요청한 IP」뿐이라 청소기를 따로 두지 않는다.
+    """
+
+    def __init__(self, limit=RATE_LIMIT, window=RATE_WINDOW, clock=time.monotonic):
+        self._limit = limit
+        self._window = window
+        self._clock = clock
+        self._hits = {}
+        self._lock = threading.Lock()
+
+    def allow(self, ip):
+        now = self._clock()
+        with self._lock:
+            seen = self._hits.get(ip)
+            if seen is None:
+                seen = self._hits[ip] = collections.deque()
+            cutoff = now - self._window
+            while seen and seen[0] <= cutoff:
+                seen.popleft()
+            # 거절도 창을 훑고 지나간다 — 그래야 계속 두드리는 IP 의 키도 조용해지면
+            # 사라진다. 거절을 창에 **넣지는** 않는다: 넣으면 두드릴수록 창이 안 비어
+            # 한도가 사실상 영구 차단이 되고, 그건 분당 60회가 아니라 다른 정책이다.
+            if len(seen) >= self._limit:
+                return False
+            seen.append(now)
+            return True
+
+    def tracked(self):
+        """지금 창에 남아 있는 IP 수. 메모리가 자라지 않는지 재는 자리다."""
+        now = self._clock()
+        with self._lock:
+            cutoff = now - self._window
+            for ip in [k for k, v in self._hits.items() if not v or v[-1] <= cutoff]:
+                del self._hits[ip]
+            return len(self._hits)
+
+
 # JSON 응답 스키마의 버전(사양 기능 9). `_send` 한 곳에서 붙어 200·400·404·500·503 이
 # 전부 갖는다 — 호출부마다 붙이면 다섯 벌이고 언젠가 하나가 빠진다.
 # **화면(`_send_html`)에는 안 붙는다** — 계약은 기계가 읽고 화면은 사람이 읽는다.
@@ -240,8 +301,19 @@ def _error_page(reason, query=""):
                    % (html.escape(reason), SEARCHBOX % (html.escape(query, quote=True), "")))
 
 
-def make_server(db_path, port=8000):
+def make_server(db_path, port=8000, rate_limit=RATE_LIMIT):
     """검색 서버를 만들어 돌려준다. serve_forever() 는 부르는 쪽 몫이다."""
+
+    # **서버 하나에 리미터 하나다** — 핸들러는 요청마다 새로 만들어지므로 여기 두지
+    # 않으면 창이 매 요청 비어 제한이 아무것도 안 막는다. 서버가 죽으면 창도 죽는 것이
+    # 맞다: 영속화는 다중 인스턴스 이야기고 컨셉 2단계까지 단일 머신이다(계획서 5절).
+    #
+    # **`rate_limit=None` 은 무제한이다.** 이 갈래가 필요한 이유는 측정 하네스가
+    # p95 를 재려고 질의를 수백 번 쏘기 때문이다 — 제한에 걸리면 재는 것이 검색 지연이
+    # 아니라 리미터가 된다(`passage_eval` 이 실제로 429 를 받아 「잴 수 없다」로 죽었다).
+    # **매직 0 이 아니라 `None` 인 이유**는 `limit=0` 이 「한 번도 허용 안 함」으로도
+    # 읽히기 때문이다. 무제한과 전면 차단을 같은 값으로 쓰면 언젠가 뒤집힌다.
+    limiter = RateLimiter(limit=rate_limit) if rate_limit is not None else None
 
     class Handler(http.server.BaseHTTPRequestHandler):
         # do_POST 등은 정의하지 않는다 — stdlib 이 501 을 낸다. 스텁을 두면
@@ -255,6 +327,17 @@ def make_server(db_path, port=8000):
                 return
             if parts.path not in ("/search", "/passages"):
                 self._send(404, {"error": "없는 경로: %s" % parts.path})
+                return
+            # **없는 경로 판정 뒤에 잰다.** 앞에 두면 오타 URL 을 두드리는 것만으로 예산이
+            # 닳아, 정상 소비자가 자기 오타로 자기를 막는다. 화면(`/`)은 위에서 이미
+            # 돌아갔다 — 제한은 API 축이다(계획서 5절).
+            if limiter is not None and not limiter.allow(self.client_address[0]):
+                # `Retry-After` 는 초 단위 정수다(RFC 9110). 창이 슬라이딩이라 「가장 오래된
+                # 요청이 빠지는 시각」이 더 정확하지만, 그걸 주려면 락 안에서 창 머리를 꺼내
+                # 리미터의 계약을 넓혀야 한다. 창 길이는 **항상 충분히 기다리는 쪽**이라
+                # 안전한 반올림이고, 값이 필요해지면 그때 계약을 넓힌다.
+                self._send(429, {"error": "요청이 너무 잦다 — 분당 %d회까지다" % RATE_LIMIT},
+                           headers={"Retry-After": "%d" % RATE_WINDOW})
                 return
             # 두 JSON 경로가 **같은 사다리 한 벌**을 쓴다 — 갈래마다 try 를 두면
             # 400·500·503 판정이 세 벌이 되고, 계획 47 이 한곳에 모은 것이 다시 흩어진다
@@ -345,10 +428,14 @@ def make_server(db_path, port=8000):
             self.end_headers()
             self.wfile.write(body)
 
-        def _send(self, status, payload):
+        def _send(self, status, payload, headers=None):
             # ensure_ascii=False: 한국어가 \uXXXX 로 나가면 눈으로 검증할 수 없다
             body = json.dumps({"version": VERSION, **payload}, ensure_ascii=False).encode()
             self.send_response(status)
+            # 상태별 헤더는 **여기로 받는다** — 호출부가 send_response 를 따로 부르면
+            # 이 한 벌(Content-Type·nosniff·Length)이 갈라지고 언젠가 하나가 빠진다.
+            for name, value in (headers or {}).items():
+                self.send_header(name, value)
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("Content-Length", str(len(body)))
