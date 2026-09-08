@@ -1,15 +1,15 @@
 ---
-signal: DONE
-phase: e2e
-step: 3/3
+signal: GREEN
+phase: 계획
+step: 0/0
 attempt: 0
-iteration: 476
-updated: 2026-09-08
+iteration: 477
+updated: 2026-09-09
 ctx: 34
 night_iterations: 7
 night_red: 0
 night_retries: 0
-plan: recrawl
+plan: null
 ---
 
 ## 현재 상태
