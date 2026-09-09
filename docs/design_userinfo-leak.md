@@ -61,7 +61,10 @@ DB 는 백업·복사로 화면 밖으로 나간다. **B** — 「요청 URL ≠
   판정은 `_split` 이 준 netloc 위에서만 한다 — **경로·질의의 `@` 는 통과**한다
   (`http://a.test/x@y?m=n@o`).
 - `urls.has_credentials(url)` (새 공개 술어) → `bool`. 시드 루프가 **사유를 가르는 데만**
-  쓴다. 못 읽는 URL 에는 `False` — 거기서 던지면 크롤이 끝난다(`normalize` 와 같은 관용구).
+  쓴다. 못 읽는 URL 에도 **안 던진다** — 거기서 던지면 크롤이 끝난다(`normalize` 와 같은
+  관용구). **정정 (반복 490 리뷰)**: 초안은 그 경우 「`False`」라고 적었는데 실물은
+  `_split` 의 폴백이 준 netloc 후보 위에서 답한다 — `http://u:pw@[oops/p` 는 `True` 다.
+  거는 쪽이 안전한 방향이고 단위로 고정했다(`TestHasCredentials`).
 - `to_ascii`·`domain_key`·`_split`·`robots._base` **무변경.** `domain_key` 는 계속 userinfo 를 뗀다.
 - `crawl.crawl` 의 시드 루프는 자격증명 시드에 **자기 사유**를 stderr 로 내고 건너뛴다.
   크롤은 나가지 않는다.

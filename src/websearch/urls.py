@@ -32,7 +32,9 @@ def scheme_of(url):
 
 
 def has_credentials(url):
-    """netloc 에 `userinfo@` 가 실렸나. 못 읽는 URL 에는 `False`.
+    """netloc 에 `userinfo@` 가 실렸나. **못 읽는 URL 에도 안 던진다** — 시드 루프가
+    `normalize` 보다 먼저 부르므로 여기서 던지면 시드 하나가 크롤을 끝낸다.
+    그때는 `_split` 의 폴백이 준 netloc 후보 위에서 답한다(`u:pw@[oops` 는 `True`).
 
     `normalize` 의 거절 사유가 이것 하나뿐이라 함수로 뺄 이유는 원래 없었다.
     밖으로 낸 이유는 **시드 루프가 사유를 갈라야 하기 때문**이다 — `normalize`
