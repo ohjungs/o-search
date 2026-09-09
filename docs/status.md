@@ -1,10 +1,10 @@
 ---
-signal: YELLOW
+signal: GREEN
 phase: 계획
 step: 0/0
 attempt: 0
-iteration: 521
-updated: 2026-09-09
+iteration: 523
+updated: 2026-09-10
 ctx: 62
 night_iterations: 7
 night_red: 0
