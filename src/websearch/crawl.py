@@ -186,13 +186,7 @@ def crawl(seeds, max_pages, db_path=DEFAULT_DB, robots_cache=None,
     ascii_seeds = []
     for seed in seeds:  # 시드는 CLI 가 준 것 — 버릴 때는 왜 버렸는지 알린다
         normalized = urls.normalize(seed)
-        if urls.has_credentials(seed):
-            # **호스트만 적는다** — 사유를 알리자고 비밀번호를 로그에 남기면
-            # 이 계획이 막으려던 것을 stderr 로 다시 흘린다. 위·아래 가지가
-            # 시드를 통째로 찍는 것은 거기엔 숨길 것이 없어서다
-            print("%s: URL 에 자격증명이 실려 있다 — 건너뛴다 (호스트만 적는다)"
-                  % urls.domain_key(seed), file=sys.stderr)
-        elif normalized is None:
+        if normalized is None:
             print("%s: URL 로 읽을 수 없는 시드 — 건너뛴다" % seed, file=sys.stderr)
         elif urls.scheme_of(normalized) not in FETCHABLE_SCHEMES:
             # **새 계약이 아니라 이미 있는 계약의 구멍이다.** `links.py` 는 발견된
