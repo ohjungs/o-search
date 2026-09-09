@@ -259,6 +259,33 @@ def verdict_gap(index_text):
     return None
 
 
+def archive_gap(index_text, live_names):
+    """`완료` 인데 계획서가 아직 `docs/` 에 살아 있는 자리. 없으면 `None`.
+
+    **몸통을 함수로 뺀 이유는 `step_gap`·`strike_gap`·`verdict_gap` 과 같다** — 실물은
+    치우고 나면 맞아서, 검사가 문서에만 붙어 있으면 판정을 무력화하는 변이가 조용히 산다.
+    실물은 `ArchiveBacklogTest` 가, 갈래는 `ArchiveGapTest` 가 부른다.
+
+    **`docs.md` 4절이 오늘까지 재는 자가 0개였다.** 계획을 마치면 `plan_<slug>.md` 를
+    `plan_history_<NNN>.md` 로 옮기라고 적혀 있는데 강제하는 것이 없어 **두 번 미끄러졌다**
+    (2026-09-09 실측: 계획 80 의 `design_recrawl.md` · 계획 81 의 `plan_ethics-floor.md`).
+    값은 다음 반복이 문다 — 루프는 「활성 계획은 동시에 1개」를 `docs/plan_*.md` 로 세고
+    (`discover.md` 5절), 치우지 않은 완료본이 그 셈에 그대로 낀다.
+
+    **`완료` 행만 본다** — `보류(패치)` 는 승인에 막혀 멈춘 것이라 제자리가 맞다.
+    중복 방지가 `docs/plan_*.md` 중 보류인 것을 읽으므로 치우면 그 눈이 멀어진다.
+    """
+    for slug, status, _ in VERDICT_ROW.findall(index_text):
+        if status.strip() != "완료":
+            continue
+        name = "plan_%s.md" % slug
+        if name in live_names:
+            return ("완료한 계획서가 안 치워졌다 — index.md `plan_%s` 는 `완료` 인데"
+                    " docs/%s 가 살아 있다. `plan_history_<NNN>.md` 로 옮긴다"
+                    " (docs.md 4절)" % (slug, name))
+    return None
+
+
 # `docs/project.md` 가 인용한 코드 상수. **`= 숫자` 가 붙은 인용만 문다** —
 # `` `design_check.PAIRS` `` 처럼 값을 안 적은 인용까지 물면 문서가 상수를 못 부른다.
 # 백틱과 `=` 사이에 줄바꿈·들여쓰기·굵게(`**= 35,000자**`)가 낀 꼴이 실물이라 함께 받는다.
@@ -1133,6 +1160,67 @@ class VerdictGapTest(unittest.TestCase):
         gap = verdict_gap(self.index("| plan_short-one | 완료 | loop/x | 1/1 |"))
         self.assertIsNotNone(gap)
         self.assertIn("열", gap)
+
+
+def live_plan_names():
+    """아카이브가 아닌 `plan_*.md` 의 이름. `archive_gap` 이 무는 모집단이다."""
+    return {p.name for p in DOCS.glob("plan_*.md") if not ARCHIVE.match(p.name)}
+
+
+class ArchiveBacklogTest(unittest.TestCase):
+    """완료한 계획서가 `docs/` 에 그대로 남아 있나 — `docs.md` 4절의 자.
+
+    **판정은 `archive_gap` 이 한다** — 갈래를 실물 없이 밟는 것은 `ArchiveGapTest` 다.
+    """
+
+    def test_done_plans_are_archived(self):
+        gap = archive_gap((DOCS / "index.md").read_text(encoding="utf-8"),
+                          live_plan_names())
+        self.assertIsNone(gap, gap)
+
+    def test_the_scan_still_reaches_docs(self):
+        # 살아 있는 계획서는 **0개가 정상**이라(전부 치운 밤) 그쪽에 하한을 박으면
+        # 거짓 RED 다. 경로가 섰다는 증거는 **아카이브 쪽**에서 받는다 — 늘기만 한다.
+        archived = [p.name for p in DOCS.glob("plan_history_[0-9]*.md")]
+        self.assertGreaterEqual(
+            len(archived), 60,
+            "계획 아카이브가 %d개로 줄었다 — 경로가 틀렸다: %s" % (len(archived), DOCS))
+
+
+class ArchiveGapTest(unittest.TestCase):
+    """`archive_gap` 의 갈래. 실물은 `ArchiveBacklogTest` 가 부른다.
+
+    실물은 치우고 나면 초록이라 갈래가 한 번씩만 지나간다. 특히 **오탐 축**(보류 행)은
+    자를 「완료」에 안 매고 세웠을 때만 물리므로 여기서 못을 박는다 — 보류본을 치우면
+    중복 방지(`discover.md` 5절)가 승인 대기 중인 계획을 못 보고 밤새 다시 만든다.
+    """
+
+    DONE = "| plan_%s | 완료 | loop/x | 1/1 | 통과 | 설명 |"
+    HELD = "| plan_%s | 보류(패치) | loop/x | 2/2 | (미개설) | 설명 |"
+
+    def index(self, *rows):
+        head = "# 색인\n\n| 계획 | 상태 | 브랜치 | 스텝 | e2e | 비고 |\n"
+        return head + "\n".join(rows) + "\n"
+
+    def test_archived_plan_is_quiet(self):
+        self.assertIsNone(archive_gap(self.index(self.DONE % "gone-one"), set()))
+
+    def test_live_done_plan_is_a_gap(self):
+        gap = archive_gap(self.index(self.DONE % "stayed-one"),
+                          {"plan_stayed-one.md"})
+        self.assertIsNotNone(gap)
+        self.assertIn("stayed-one", gap)
+
+    def test_held_plan_stays_put(self):
+        # 오탐 축 — `보류` 는 승인에 막힌 것이라 제자리가 맞다.
+        self.assertIsNone(archive_gap(self.index(self.HELD % "waiting-one"),
+                                      {"plan_waiting-one.md"}))
+
+    def test_prefix_sharing_slug_is_not_bitten(self):
+        # 이름 대조는 **완전 일치**다. `startswith` 로 넓히는 변이는 `plan_seed` 행이
+        # 아직 살아 있는 `plan_seed-tier1.md` 를 물어, 안 끝난 계획서를 치우라고 시킨다.
+        self.assertIsNone(archive_gap(self.index(self.DONE % "seed"),
+                                      {"plan_seed-tier1.md"}))
 
 
 class ConstGapTest(unittest.TestCase):
