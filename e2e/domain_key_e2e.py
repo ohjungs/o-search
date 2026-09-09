@@ -15,21 +15,40 @@
 하나만 도착하고, 재려던 상황 자체가 안 만들어졌다(실측: `세 표기가 다 도착하지
 않았다: ['a.test']` 로 크게 실패 — 조용한 통과가 아니었다).
 
-새 자는 **userinfo** 다. `normalize` 는 userinfo 를 보존하고(떼면 요청 내용이
-바뀐다) `domain_key` 는 뗀다 — `http://u@a.test/p` 와 `http://a.test/p` 는
-**다른 문서지만 같은 서버**다. 017 이전의 날 `netloc` 에서는 `u@a.test` 와
-`a.test` 로 칸이 갈리므로 이 파일은 여전히 017 의 회귀 탐지기다.
+**축을 또 한 번 바꿨다 — 계획 83 이 마지막 표기를 지웠다.** 018 뒤에 남은 축은
+**userinfo** 였다(`normalize` 는 보존하고 `domain_key` 는 떼니 `http://u@a.test/p`
+와 `http://a.test/p` 는 다른 문서지만 같은 서버). 83 이 자격증명 URL 을 **입구에서
+거절**하면서 그 표기도 프런티어에 못 온다 — 018 때와 같은 모양으로 재려던 상황이
+안 만들어진다. **017 의 e2e 급 회귀 탐지기는 여기서 끝난다.** 남는 것은 단위
+`tests/test_urls.py` 의 `TestDomainKey`(대소문자·기본 포트·앞자리 0)이고,
+그 클래스가 `domain_key` 를 직접 부르는 유일한 자다. 감출 자리가 없어 여기 적는다.
 
-  1 `Crawl-delay: 2` 서버에 **userinfo 가 다른 링크**가 걸린다
-    → 서버 수신 간격 ≥ 2초 · 그 서버의 `robots.txt` 는 **1회**
+그래서 **재는 것을 바꿨다** — 같은 서버·같은 Host 헤더 로그를 그대로 쓰고,
+「세 표기가 한 도메인으로 묶인다」 대신 아래를 잰다.
+
+  1 `Crawl-delay: 2` 서버에 **자격증명 링크**(`http://u:pw@a.test/p1`)가 걸린다
+    → 그 URL 은 **수신 0건**(`/p1` 이 한 번도 안 온다 · Host 에 `@` 도 · 인증 헤더도)
+    · 남은 표기는 여전히 한 칸이라 서버 수신 간격 ≥ 2초 · `robots.txt` 는 **1회**
     (`robots._base` 도 같은 자를 쓴다 — 표기마다 받으면 여기서 죽는다)
   2 대조군: **기본이 아닌 포트**(`http://a.test:443/`, 스킴은 http)는 여전히 다른
     도메인 — 남의 2초에 안 묶이고 자기 하한 1초로 돈다
   3 잴 대상이 사라지면(요청 표본 부족) **종료 코드 2**
 
+**1 이 실물에서만 되는 이유**: 단위는 `links.extract` 가 `None` 을 버리는 것까지만
+본다. 여기서 재는 것은 **남의 서버가 그 요청을 받았는가**이고, 그것은 소켓 반대편
+에서만 보인다.
+
+**증거는 Host 헤더가 아니라 경로다** — 변이로 확인했다(`normalize` 의 거절을 지우고
+실행). `urllib` 은 Host 헤더에 userinfo 를 **안 싣는다**(`a.test` 로만 찍힌다)
+그래서 Host 만 보던 첫 단언은 **변이에서 그대로 초록이었다** — 도착이 3회에서
+4회로 늘어난 것만 달랐다. 그래서 재는 것을 **「자격증명 href 로만 존재하는 경로
+(`/p1`)가 도착했는가」**로 바꿨다. 그 경로는 다른 어디에도 안 걸려 있으므로
+**도착 = 우리가 그 URL 로 요청을 보냈다**는 뜻이다. `Authorization` 헤더도 함께 본다.
+
 바깥 네트워크는 안 탄다 — 이름 해석 대신 `PORTS` 가 로컬 임시 포트로 보낸다.
-표기 세 개는 **같은 서버**로, 대조군만 **다른 서버**로 간다. 시간이 걸리는 것이
-정상이다(간격을 실제로 잰다). 약 7초.
+자격증명 표기도 **같은 서버**로 라우팅해 두고(도착하면 안 되는 것이 도착하는지
+보려면 받을 자가 있어야 한다), 대조군만 **다른 서버**로 간다. 시간이 걸리는 것이
+정상이다(간격을 실제로 잰다). 약 5초.
 
 실행: PYTHONPATH=src python3 e2e/domain_key_e2e.py
      PYTHONPATH=src python3 e2e/domain_key_e2e.py --control  # 측정 불능 = 종료 2
@@ -53,14 +72,18 @@ FLOOR = 1.0      # frontier.DOMAIN_INTERVAL — 대조군이 쓰는 하한
 JITTER = 0.05    # 왕복 지터가 서버 수신 시각에 실린다 — crawl_e2e.py 와 같은 값
 
 HOST = "a.test"
-# 같은 서버를 가리키는 세 표기. **userinfo** 축이다 — 018 이 접지 않고 `domain_key`
-# 는 접는, 살아 있는 유일한 축이다(위 독스트링). Host 헤더에 그대로 실려 구분된다
-SAME = [HOST, "u@" + HOST, "bot@" + HOST]
+# **도착하면 안 되는 표기.** 계획 83 이 `normalize` 에서 거절하므로 프런티어에
+# 못 온다. Host 헤더에 그대로 실리니 도착하면 곧바로 보인다
+CREDENTIALED = "u:pw@" + HOST
+# **자격증명 href 로만 존재하는 경로.** 다른 어디에도 안 걸려 있으니 도착했다는 것은
+# 우리가 그 URL 로 요청을 보냈다는 뜻이다 — Host 헤더보다 이쪽이 증거다(위 독스트링)
+CRED_PATH = "/p1"
 # 대조군 — **기본이 아닌 포트**다. http 스킴에서 443 은 기본이 아니다.
 OTHER = HOST + ":443"
 
 PORTS = {}   # netloc -> 로컬 포트
 LOG = {}     # 서버 역할 -> [(시각, Host 헤더, 경로)]
+AUTH = []    # 인증 헤더를 달고 온 요청 — 하나라도 있으면 자격증명이 새어 나간 것이다
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -72,6 +95,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         role = self.server.role
         LOG.setdefault(role, []).append(
             (time.monotonic(), self.headers.get("Host", ""), self.path))
+        if self.headers.get("Authorization"):
+            AUTH.append((role, self.path))
         if self.path == "/robots.txt":
             # 대조군에는 선언이 없다 — 하한 1초로 돈다. 두 값이 달라야 "남의 간격에
             # 묶였는지" 를 잴 수 있다
@@ -145,16 +170,16 @@ def pages(role):
 
 
 def run():
-    # 세 표기가 전부 같은 서버로 간다. 링크는 **표기를 바꿔가며** 건다 —
-    # 상대 경로 `/p3` 는 시드 표기(a.test)로 풀린다
-    same = serve("same", ["http://u@%s/p1" % HOST, "http://bot@%s/p2" % HOST, "/p3"])
+    # 자격증명 표기도 같은 서버로 라우팅해 둔다 — **도착하면 안 되는 것이 도착하는지**
+    # 보려면 받을 자가 있어야 한다. `/p2`·`/p3` 는 시드 표기(a.test)로 풀린다
+    same = serve("same", ["http://%s/p1" % CREDENTIALED, "/p2", "/p3"])
     other = serve("other", ["/q1", "/q2"])
-    PORTS.update(dict.fromkeys(SAME, same.server_address[1]))
+    PORTS.update(dict.fromkeys([HOST, CREDENTIALED], same.server_address[1]))
     PORTS[OTHER] = other.server_address[1]
     urllib.request.install_opener(urllib.request.build_opener(_LocalHTTP))
     try:
         with tempfile.TemporaryDirectory() as tmp:
-            # 프런티어가 빌 때까지 돈다 (같은 서버 4쪽 + 대조군 3쪽)
+            # 프런티어가 빌 때까지 돈다 (같은 서버 3쪽 + 대조군 3쪽 · `/p1` 은 안 온다)
             crawl.crawl(["http://%s/" % HOST, "http://%s/" % OTHER], 99,
                         db_path=os.path.join(tmp, "crawl.db"))
     finally:
@@ -164,21 +189,28 @@ def run():
 
 
 def check():
-    # 1·2 — 세 표기가 한 칸을 나눠 쓴다. 서버가 본 도착 간격으로 잰다
-    arrivals = measured(pages("same"), "같은 서버 페이지 도착", least=4)
+    # 1 — 자격증명 표기는 **수신 0건**, 남은 표기는 여전히 한 칸이다.
+    # `LOG` 전부를 본다(robots.txt 도 포함) — 거절이 풀리면 페이지보다 robots 가 먼저 온다
+    leaked = [(host, path) for _, host, path in LOG.get("same", [])
+              if path == CRED_PATH or "@" in host]
+    assert not leaked, (
+        "자격증명 URL 이 남의 서버에 도착했다: %s — 우리 요청이 남의 비밀번호를 실어 날랐다"
+        % leaked)
+    assert not AUTH, "인증 헤더가 나갔다: %s" % AUTH
+    arrivals = measured(pages("same"), "같은 서버 페이지 도착", least=3)
     hosts = {host for _, host, _ in arrivals}
-    assert hosts == set(SAME), (
-        "세 표기가 다 도착하지 않았다: %s — 안 따라간 표기가 있으면 간격 단언이 "
-        "공짜로 참이 된다" % sorted(hosts))
+    assert hosts == {HOST}, (
+        "같은 서버가 표기별로 갈렸다: %s — 한 칸이어야 간격 단언이 의미를 갖는다"
+        % sorted(hosts))
     bad = ["%.3f" % g for g in gaps([t for t, _, _ in arrivals])
            if g < DECLARED - JITTER]
-    assert not bad, ("표기가 다르다고 %g초 선언이 새어 나갔다 — 서버 수신 간격 %s"
+    assert not bad, ("%g초 선언이 새어 나갔다 — 서버 수신 간격 %s"
                      % (DECLARED, bad))
     robots = [row for row in LOG.get("same", []) if row[2] == "/robots.txt"]
     assert len(robots) == 1, ("같은 서버의 robots.txt 를 %d회 받았다(표기 %s) — 1회여야 한다"
                               % (len(robots), [h for _, h, _ in robots]))
 
-    # 3 — 대조군. 기본이 아닌 포트는 여전히 다른 도메인이라 남의 2초에 안 묶인다
+    # 2 — 대조군. 기본이 아닌 포트는 여전히 다른 도메인이라 남의 2초에 안 묶인다
     ctrl = gaps([t for t, _, _ in
                  measured(pages("other"), "대조군 페이지 도착", least=3)])
     assert all(g >= FLOOR - JITTER for g in ctrl), (
@@ -197,9 +229,9 @@ def main(argv):
     started = time.monotonic()
     run()
     arrivals, ctrl = check()
-    print("OK %.1fs — 같은 서버 %d회 도착(표기 %s) 간격 %s · robots 1회 · "
-          "대조군(%s) 간격 %s"
-          % (time.monotonic() - started, len(arrivals), sorted(set(SAME)),
+    print("OK %.1fs — 같은 서버 %d회 도착(표기 %s · 자격증명 %s 는 0건) 간격 %s · "
+          "robots 1회 · 대조군(%s) 간격 %s"
+          % (time.monotonic() - started, len(arrivals), HOST, CREDENTIALED,
              ["%.2f" % g for g in gaps([t for t, _, _ in arrivals])],
              OTHER, ["%.2f" % g for g in ctrl]))
     return 0
