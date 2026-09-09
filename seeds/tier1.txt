@@ -1,0 +1,62 @@
+# 1단계 시드 — robots 실측을 통과한 도메인만 있다 (2026-09-09 확인)
+#
+# 쓰는 법:
+#   PYTHONPATH=src python3 -m websearch.crawl $(grep -v '^#' seeds/tier1.txt) --max 100000
+#
+# **왜 파일인가**: 시드를 매번 손으로 치면 «어느 도메인을 왜 골랐나」와 «robots 를
+# 확인했나」가 아무 데도 안 남는다. 크롤 윤리는 이 프로젝트 갈림길의 1순위인데
+# (`docs/specs/concept.md`), 그 판단이 셸 히스토리에만 있으면 검증할 수 없다.
+#
+# **왜 코드가 아닌가**: CLI 가 시드를 인자로 받으므로 `grep` 한 번이면 된다.
+# 플래그를 새로 만들 이유가 없다.
+#
+# ---------------------------------------------------------------------------
+# 고른 기준 셋 — 셋 다 만족해야 넣는다
+#
+#   1. robots.txt 가 이 경로를 **허용**한다 (실측 · 아래 표)
+#   2. 본문이 **열린 라이선스**다 — 색인은 원문 HTML 을 저장한다
+#   3. 문서가 **깊다** — 링크를 따라가면 수천 장이 나오는 사이트여야 규모에 기여한다
+#
+# ---------------------------------------------------------------------------
+# robots 실측 (2026-09-09 · 도메인당 요청 1건 · 1초 간격)
+#
+#   도메인                      allowed   Crawl-delay   라이선스
+#   docs.python.org             True      없음          PSF
+#   developer.mozilla.org       True      없음          CC BY-SA 2.5
+#   en.wikipedia.org            True      없음          CC BY-SA
+#   ko.wikipedia.org            True      없음          CC BY-SA
+#   simple.wikipedia.org        True      없음          CC BY-SA
+#   en.wikibooks.org            True      없음          CC BY-SA
+#   en.wikiversity.org          True      없음          CC BY-SA
+#   en.wikiquote.org            True      없음          CC BY-SA
+#   peps.python.org             True      없음          PSF
+#   docs.djangoproject.com      True      없음          BSD
+#   doc.rust-lang.org           True      없음          MIT / Apache-2.0
+#   www.gnu.org                 True      **4.0초**     GFDL
+#
+# **`www.gnu.org` 의 4초는 지킨다** — `_fetch_one` 이
+# `max(DOMAIN_INTERVAL, floor, requested)` 로 잡으므로 깎이지 않는다. 그 도메인만
+# 초당 0.25문서로 기여하고, 그것이 맞다.
+#
+# ---------------------------------------------------------------------------
+# 처리량 — 도메인 수가 곧 지속 상한이다 (2026-09-09 실측: 1·2·4·8 도메인 →
+# 1.03·2.08·4.40·9.86 문서/초). 12도메인 중 11 이 1초, 1 이 4초라
+# 지속 상한은 11 + 0.25 = **11.25 문서/초**이고, 컨셉 성능 2(5문서/초)를 넘는다.
+# **간격을 깎아서 얻는 것이 아니라 도메인을 늘려서 얻는다** — 컨셉이 못박은 방향이다.
+#
+# ---------------------------------------------------------------------------
+# 더할 때: robots 를 실측하고 위 표에 줄을 더한 뒤 여기 URL 을 넣는다.
+# **실측 없이 넣지 않는다.** 확인은 도메인당 요청 한 건이라 싸다.
+
+https://docs.python.org/3/
+https://developer.mozilla.org/en-US/docs/Web/HTML
+https://en.wikipedia.org/wiki/Search_engine
+https://ko.wikipedia.org/wiki/%EA%B2%80%EC%83%89_%EC%97%94%EC%A7%84
+https://simple.wikipedia.org/wiki/Search_engine
+https://en.wikibooks.org/wiki/Main_Page
+https://en.wikiversity.org/wiki/Main_Page
+https://en.wikiquote.org/wiki/Main_Page
+https://peps.python.org/pep-0008/
+https://docs.djangoproject.com/en/stable/
+https://doc.rust-lang.org/book/
+https://www.gnu.org/software/bash/manual/bash.html

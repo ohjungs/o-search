@@ -1,15 +1,15 @@
 ---
 signal: DONE
 phase: 계획
-step: 0/0
+step: 1/1
 attempt: 0
-iteration: 493
+iteration: 486
 updated: 2026-09-09
 ctx: 42
 night_iterations: 9
 night_red: 0
 night_retries: 0
-plan: null
+plan: seed-tier1
 ---
 
 ## 다음 반복이 읽을 것 — 밤은 **탐색 막힘**으로 끝났다. 아침 할 일은 둘
