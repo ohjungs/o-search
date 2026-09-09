@@ -873,16 +873,24 @@ class LivePlanSyncTest(unittest.TestCase):
 class LiveGapTest(unittest.TestCase):
     """`live_gap` 의 갈래를 합성 문자열로 전부 밟는다.
 
-    **접두 공유와 부분 문자열이 이 자의 두 눈먼 자리 후보다** — 상태 칸을 `in` 으로
-    보면 `보류(미완)` 이 「진행」을 안 품어 우연히 살지만 `진행(재개)` 같은 표기가
-    생기는 날 갈린다. 칸을 **잘라서 같은지** 보고, 여기서 그것을 재는 케이스가
-    `test_a_held_row_is_not_live` 다.
+    **넓어지는 변이 둘을 픽스처가 붙든다** — 2026-09-09 테스트 phase 가 실제로 심어
+    보고 **둘 다 745건에서 살아남는 것을 보고** 넣은 자리다.
+    ① `^` 앵커 삭제: 어느 행도 줄 중간에 `| plan_x | 진행 |` 를 품지 않아 조용했다.
+    비고 칸이 다른 행을 **인용하는** 습관은 이 저장소에 있다(`QUOTED` 행이 그 꼴이다).
+    ② 상태 칸 비교를 `in` 으로: `보류(미완)` 은 「진행」을 **안 품어** 우연히 살았다 —
+    품는 표기(`진행(재개)`)를 픽스처에 넣어야 비로소 갈린다.
+    **이 docstring 의 앞 판은 ② 를 「여기서 잰다」고 적어 놓고 재지 않았다.** 주장은
+    그 주장이 참인 범위까지만 적는다(digest ## 반복 실패).
     """
 
+    # 비고 칸이 **다른 행을 인용하는** 꼴. `^` 앵커가 죽으면 이것을 행으로 읽는다.
+    QUOTED = ("| plan_quoting-row | 완료 | loop/z | 1/1 | 통과 |"
+              " 옛 행은 `| plan_ghost | 진행 | loop/g | 0/1 |` 였다 |")
     INDEX = "\n".join([
         "| plan_live-plan-gap-2 | 완료 | loop/x | 3/7 | 통과 | 부기 |",
         "| plan_live-plan-gap | 진행 | loop/x | 1/2 | — | 부기 |",
         "| plan_left-behind | 완료 | loop/y | 2/2 | 통과 | 부기 |",
+        QUOTED,
     ])
 
     @staticmethod
@@ -925,11 +933,30 @@ class LiveGapTest(unittest.TestCase):
         self.assertIn("live-plan-gap", gap, "남은 행을 안 적었다")
 
     def test_a_held_row_is_not_live(self):
-        # `보류(미완)` 은 「진행」을 품지 않지만, 칸을 부분 문자열로 보면 언젠가 갈린다.
+        # `보류(미완)` 은 「진행」을 **안 품어** 부분 문자열 비교로도 통과한다. 가르는
+        # 것은 아래 `진행(재개)` 쪽이고, 이 케이스는 보류 표기 자체를 붙든다.
         index = self.INDEX.replace("| plan_left-behind | 완료 |",
                                    "| plan_left-behind | 보류(미완) |")
         self.assertIsNone(live_gap(self.status("live-plan-gap"), index),
                           "보류 행을 진행으로 읽었다 — 버려둔 계획이 매 반복 빨개진다")
+
+    def test_a_state_that_merely_contains_the_mark_is_not_live(self):
+        # 상태 칸을 `in` 으로 보는 변이가 745건에서 살아남은 자리다(2026-09-09 실측).
+        index = self.INDEX.replace("| plan_left-behind | 완료 |",
+                                   "| plan_left-behind | 진행(재개) |")
+        self.assertIsNone(live_gap(self.status("live-plan-gap"), index),
+                          "「진행」을 품기만 한 칸을 진행으로 읽었다 — 칸을 잘라서"
+                          " 같은지 보는 것이 계약이다")
+
+    def test_a_row_quoted_inside_a_cell_is_not_a_row(self):
+        # `^` 앵커를 지우는 변이가 745건에서 살아남은 자리다(2026-09-09 실측).
+        self.assertIsNone(live_gap(self.status("live-plan-gap"), self.INDEX),
+                          "비고 칸이 인용한 행을 진짜 행으로 읽었다 — `^` 가 죽었다")
+        gap = live_gap(self.status("live-plan-gap"),
+                       self.INDEX.replace(self.QUOTED, self.QUOTED.replace(
+                           "옛 행은 `", "\n").replace("` 였다 |", " 부기 |")))
+        self.assertIsNotNone(gap, "줄 머리로 올라온 같은 행은 진짜 행이다")
+        self.assertIn("ghost", gap, "줄 머리의 행을 안 읽었다")
 
     def test_missing_status_line_is_reported(self):
         # 머리 형식이 바뀌면 `None` 위에서 조용히 통과하는 것이 유일한 눈먼 자리다.
