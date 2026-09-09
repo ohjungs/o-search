@@ -131,7 +131,9 @@ E4·E5 의 `step_gap` 실패는 **하네스 인공물**이다 — `status.plan` 
 
 - **변이는 저장소 밖에서 걸었다** — 문서 편집은 `mktemp -d` 복사본, 코드 변이는 매 판 뒤
   파일 비교로 원복 확인. `PYTHONDONTWRITEBYTECODE=1` + `PYTHONPYCACHEPREFIX=$(mktemp -d)`.
-- 과거 트리 측정은 `git worktree` 로 `/tmp` 아래에 세웠고 측정 뒤 제거했다 —
+- 과거 트리 측정은 `git worktree` 로 `/tmp` 아래에 세웠다. **셋을 제거한 것은 이 절을
+  쓴 뒤라 앞 커밋의 「측정 뒤 제거했다」는 그 시점에 거짓이었다** — 지금은 참이고
+  (`git worktree list` 가 본체 한 줄), 문장을 사실에 맞춰 고친다. —
   워킹트리·`origin/main`(`be0ddd5`) 무접촉 · `--force`·`--amend`·`rebase` 0회.
 - `data/crawl.db` 무변경 · 재색인 0 · 스키마 0 · 새 의존성 0(stdlib) · `docs/specs/` 읽기만.
 - 야간 금지 목록 무접촉: 스키마·배포·의존성·삭제·비밀정보·과금 전부 0. `main` 직접 커밋 0.
