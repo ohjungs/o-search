@@ -1,15 +1,15 @@
 ---
 signal: GREEN
 phase: 계획
-step: 0/0
+step: 1/1
 attempt: 0
-iteration: 523
+iteration: 526
 updated: 2026-09-10
 ctx: 62
 night_iterations: 7
 night_red: 0
 night_retries: 0
-plan: null
+plan: rejection-visible
 ---
 
 ## 계획 90 `live-plan-gap` — 버려진 계획을 아무도 안 물었다
