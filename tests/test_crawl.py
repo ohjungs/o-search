@@ -2404,8 +2404,13 @@ class TooManyRequestsTest(unittest.TestCase):
         sent, _, f = self._crawl(pages, {u: 429 for u in pages}, max_pages=40)
         self.assertLess(len(sent), 40,
                         "429 만 내는 도메인을 끝까지 두드렸다 — 손을 안 뗐다")
-        self.assertEqual(f.interval(urls.domain_key(first)), DOMAIN_INTERVAL,
-                         "버려진 도메인은 하한으로 읽힌다(frontier.interval 계약)")
+        # **계약을 재지 구현을 재지 않는다.** 옛 판은 `interval()` 이 하한으로 읽히는
+        # 것을 봤는데, 그것은 「`set_delay` 가 `_delays` 에서 지운다」는 **그때의 내부
+        # 사정**이었다(계획 89 가 벌점을 `_penalty` 로 분리하자 그 관찰이 깨졌다).
+        # 재야 할 것은 **더 안 간다**는 것이고, 그것은 `add` 가 거부하는지로 본다.
+        domain = urls.domain_key(first)
+        f.add(["http://%s/새-URL" % domain])
+        self.assertIsNone(f.next(), "버린 도메인의 URL 을 다시 받았다")
 
     def test_a_200_domain_is_not_slowed_by_another_domains_429(self):
         """**값을 안 내는 곳에서 값을 치르지 않는다.** 429 는 그 도메인만의 신호다."""

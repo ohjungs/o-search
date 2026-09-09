@@ -23,6 +23,11 @@ class Frontier:
         self._last_fetch = {}  # domain -> 시각
         self._delays = {}      # domain -> 초. robots 가 요구한 간격(하한 적용 후)
         self._dropped = set()  # 간격을 지킬 수 없어 버린 도메인
+        # **벌점은 `_delays` 와 따로 산다.** `_delays` 는 robots 가 요구한 값이라 단조
+        # 증가여야 하고(내려가면 robots 위반이다), 벌점은 우리가 429 를 보고 스스로 매긴
+        # 값이라 **내려와야 한다** — 안 내려오면 나쁜 1분이 실행 전체를 벌한다.
+        # 한 칸에 섞으면 둘 중 하나가 반드시 틀린다.
+        self._penalty = {}  # domain -> 초. 429 백오프 몫
 
     def set_delay(self, domain, seconds):
         """robots 가 요청한 간격을 반영한다. 계속 크롤할 도메인이면 True.
@@ -37,7 +42,12 @@ class Frontier:
             self._delays.pop(domain, None)  # 안 쓰일 값을 남겨두면 읽는 사람이 헷갈린다
             self._queues.pop(domain, None)
             return False
-        self._delays[domain] = max(self.interval(domain), seconds or 0)
+        # **`interval()` 이 아니라 `_delays` 를 읽는다.** `interval()` 은 벌점을 섞어
+        # 주므로 그것을 여기 쓰면 429 벌점이 robots 간격으로 **새어 굳는다** — 단조
+        # 증가라 `relieve` 가 못 내리고, 서버가 멀쩡해져도 영영 안 돌아온다.
+        # 실물 탐침이 잡았다: 429 셋 뒤 200 이 아홉 번 와도 간격이 8.0초에 머물렀다.
+        # 단위 테스트는 둘을 따로만 봐서 이 상호작용을 못 봤다.
+        self._delays[domain] = max(self._delays.get(domain, DOMAIN_INTERVAL), seconds or 0)
         return True
 
     def interval(self, domain):
@@ -54,7 +64,40 @@ class Frontier:
         이쪽은 **서버 단위**(`urls.domain_key`)로 모은 값이다. 같은 서버에 스킴이
         둘이거나 링크가 호스트를 대문자로 썼으면 여기가 더 크다.
         """
-        return self._delays.get(domain, DOMAIN_INTERVAL)
+        return max(self._delays.get(domain, DOMAIN_INTERVAL),
+                   self._penalty.get(domain, 0.0))
+
+    def penalise(self, domain):
+        """429 를 받았다. 벌점을 두 배로 늘린다. 계속 크롤할 도메인이면 True.
+
+        **`set_delay` 를 안 쓰는 이유**는 그쪽이 robots 의 값이라 단조 증가이기
+        때문이다 — 벌점을 거기 섞으면 서버가 멀쩡해져도 영영 안 돌아온다(계획 84 가
+        실제로 그랬다). 위키미디어 6도메인처럼 순간적으로 429 가 몰리는 자리에서는
+        그 한 순간이 남은 크롤 전체를 벌한다.
+
+        **손을 떼는 길은 그대로 남는다** — `MAX_DELAY` 를 넘으면 `set_delay` 와 같이
+        도메인을 버린다. 회복이 있다고 영원히 두드리면 안 된다.
+        """
+        self._penalty[domain] = max(2.0, self._penalty.get(domain, 0.0) * 2)
+        if self._penalty[domain] > MAX_DELAY:
+            self._dropped.add(domain)
+            self._penalty.pop(domain, None)
+            self._queues.pop(domain, None)
+            return False
+        return True
+
+    def relieve(self, domain):
+        """성공했다. 벌점을 절반으로 줄인다. 2초 밑으로 내려가면 지운다.
+
+        **하한을 못 뚫는다** — `interval()` 이 `max` 로 읽으므로 벌점이 0 이 되어도
+        `DOMAIN_INTERVAL` 과 robots 값이 그대로 남는다. 회복이 예의를 깎을 수 없는
+        구조라, 이 함수가 얼마나 자주 불리든 윤리 하한은 안전하다.
+        """
+        if domain not in self._penalty:
+            return
+        self._penalty[domain] /= 2
+        if self._penalty[domain] < 2.0:
+            del self._penalty[domain]
 
     def add(self, urls):
         for url in urls:
