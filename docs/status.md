@@ -3,13 +3,13 @@ signal: GREEN
 phase: 개발
 step: 1/1
 attempt: 0
-iteration: 507
+iteration: 510
 updated: 2026-09-09
 ctx: 60
 night_iterations: 3
 night_red: 0
 night_retries: 0
-plan: verify-backoff-live
+plan: frontier-prime
 ---
 
 ## 계획 85 `iter-third-witness` — 탐색이 세 밤 만에 근거를 찾았다

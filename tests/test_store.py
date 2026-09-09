@@ -233,3 +233,44 @@ class RejectedIsNotAFetchTest(unittest.TestCase):
     def test_a_200_row_is_unaffected(self):
         self.store.upsert("http://a.com/ok", "<p>x</p>", 200)
         self.assertTrue(self.store.is_fresh("http://a.com/ok"))
+
+
+class UnfinishedUrlsTest(unittest.TestCase):
+    """**받다 만 URL 을 되찾는다.** 계획 87 이 「86 은 충분하지 않다」를 실물로 잡은 자리다.
+
+    429 행을 「안 신선」으로 읽게 만들어도(계획 86) 그 URL 이 **큐에 들어올 길이 없으면**
+    아무 일도 안 일어난다 — 프런티어가 메모리라 매 실행 시드에서 다시 자라는데, 부모가
+    신선하면 팝 지점에서 스킵돼 링크 추출조차 없어 자식이 큐에 못 들어온다.
+    실물 3,807개가 그 상태였다.
+
+    **새 표를 안 만든다.** 그 URL 들은 이미 `pages` 에 있고, 「다시 받아야 하나」의
+    판정자도 이미 있다(`is_fresh`). 없던 것은 **그 판정을 거꾸로 물어보는 길**뿐이다.
+    """
+
+    def setUp(self):
+        self.store = Store(":memory:")
+
+    def test_a_rejected_url_is_unfinished(self):
+        self.store._db.execute(
+            "INSERT INTO pages(url, html, status) VALUES (?, NULL, 429)", ("http://a.com/x",))
+        self.store._db.commit()
+        self.assertIn("http://a.com/x", self.store.unfinished())
+
+    def test_a_fresh_page_is_not_unfinished(self):
+        self.store.upsert("http://a.com/ok", "<p>x</p>", 200)
+        self.assertNotIn("http://a.com/ok", self.store.unfinished())
+
+    def test_a_tombstone_is_not_unfinished_while_it_is_still_fresh(self):
+        """404 묘비는 `RETRY_DAYS` 동안 조용하다 — 되찾기가 그것을 뒤집지 않는다."""
+        self.store._db.execute(
+            "INSERT INTO pages(url, html, status) VALUES (?, NULL, 404)", ("http://a.com/g",))
+        self.store._db.commit()
+        self.assertNotIn("http://a.com/g", self.store.unfinished())
+
+    def test_the_limit_is_honoured(self):
+        """**상한이 있다.** 미완이 10만이면 프런티어를 그것으로 채우는 것이 크롤이 아니다."""
+        for i in range(5):
+            self.store._db.execute(
+                "INSERT INTO pages(url, html, status) VALUES (?, NULL, 429)", ("http://a.com/%d" % i,))
+        self.store._db.commit()
+        self.assertEqual(len(self.store.unfinished(limit=2)), 2)

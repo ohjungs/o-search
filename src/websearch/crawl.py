@@ -219,6 +219,15 @@ def crawl(seeds, max_pages, db_path=DEFAULT_DB, robots_cache=None,
     if frontier is None:
         frontier = Frontier(now=now, scope=scope)
     frontier.add(ascii_seeds)
+    # **받다 만 URL 을 되찾는다.** 시드만으로 자라는 프런티어는 부모가 신선한 자식에게
+    # 영영 못 닿는다 — 계획 87 이 실물에서 잡았다(429 행 3,807개가 그 상태였고, 계획 86 이
+    # 「안 신선」으로 읽게 만든 것만으로는 아무 일도 안 일어났다).
+    #
+    # **시드보다 뒤에 넣는다.** 사람이 고른 출발점이 먼저고 되찾기는 뒤다 —
+    # `add` 가 `_seen` 으로 중복을 막으므로 시드와 겹치면 시드 쪽이 남는다.
+    # **범위(`--same-site`)도 그대로 걸린다** — `add` 가 `_scope` 를 보므로 되찾기가
+    # 범위를 넓히지 않는다. 그러지 않으면 「같은 사이트만」이 조용히 깨진다.
+    frontier.add(store.unfinished())
     saved = 0
     started = now()
     inflight = {}  # Future -> (url, domain). **떠 있는 도메인은 다시 팝하지 않는다**(계약 3)
