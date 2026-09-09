@@ -1,11 +1,11 @@
 ---
 signal: GREEN
 phase: 개발
-step: 0/3
+step: 1/3
 attempt: 0
-iteration: 499
+iteration: 500
 updated: 2026-09-09
-ctx: 55
+ctx: 60
 night_iterations: 1
 night_red: 0
 night_retries: 0
@@ -33,7 +33,22 @@ history_current.md `### 반복` 최대   494
 오늘 실물의 **마지막 항목은 490 이고 최댓값은 494** 다 — 적힌 대로 옮겼으면 틀린 자를
 세울 뻔했다. 붙들 것은 **최댓값**이다.
 
-## 이번 반복(계획 phase)이 한 것
+## 이번 반복 — 개발 1/3 · 자에 이빨이 있다는 것을 아침 실물로 쟀다
+
+`iter_gap` 이 셋째 증인을 받는다. **이빨의 증거는 합성 픽스처가 아니라 오늘 아침
+실물이다** — `git show 9947049:docs/{status,metrics,history_current}.md` 를 새 자에
+먹였다:
+
+```
+아침 실물(9947049): 반복 번호가 어긋났다 — history_current.md 최대 494 ≠ status.md `iteration` 490
+지금 실물        : None
+```
+
+그 트리에서 전수는 **719 OK rc 0** 이었다. 자가 없어서 조용했던 것이지 맞아서
+조용했던 것이 아니다. 전수 **722 OK rc 0**(+3: 나란히 틀림 · 머리 없음 · 범위 머리).
+README 의 단위 건수 719 → 722 도 같은 커밋에서 고쳤다(`ReadmeCommandsTest` 가 강제).
+
+## 앞 반복(계획 phase)이 한 것
 
 - 계획서 작성. 스텝 3개(자 세우기 → 기록 정정 → 변이·등재). 설계 없음(트리거 대조는 6절).
 - **반복 번호를 490 → 499 로 손으로 맞췄다.** 494 + `backoff-429` 의 네 반복(495~498)
@@ -42,10 +57,10 @@ history_current.md `### 반복` 최대   494
 - **회전 1건** — `history_current.md` 299줄(상한 300)이 이번 append 를 못 받아 반복
   476~486 을 `history_078.md` 로 밀었다. 밀고 나서 180줄 · 항목 10. `digest` 명부에 한 줄.
 
-## 다음 스텝 — 개발 1/3
+## 다음 스텝 — 개발 2/3
 
-`tests/test_docs.py` 의 `iter_gap` 에 `history_text` 인자를 더하고 `IterGapTest` 에
-갈래(머리 없음 · 최댓값 불일치)를 붙인다. 호출자는 같은 파일 안 2곳뿐이다.
+기록 정정. `history_current.md` 의 `backoff-429` 항목 머리 `487~490` → `495~498`.
+`### 반복` 머리가 494 → 495~498 → 499 → 500 으로 이어지는 것을 확인한다.
 
 ## 아침 할 일 — 어제와 같은 하나
 
