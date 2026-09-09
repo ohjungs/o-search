@@ -32,6 +32,7 @@ history_current.md 가 상한을 넘어 밀려날 때, 밀려나는 내용을 1~
 <!-- - 2026-08-09 | plan_db 스텝2 | 마이그레이션 필요 → 무인 모드가 보류 -->
 
 - 2026-09-09 | plan_userinfo-leak | **계획 83 — 보안 건이라 밤이 적용하지 않는다**(`SKILL.md` 「보안 관련 — 줄 수 무관 항상 보류」). `docs/patches/userinfo-leak-refuse-credentials.patch` (382줄 · 구현 + 단위 + e2e · `git apply --check` 통과). **바뀌는 계약**: `urls.normalize` 가 netloc 에 `@` 를 든 URL 에 `None` 을 준다 — 018 의 「userinfo 보존」을 뒤집는다. 되돌리기는 조건 한 줄 삭제. 작업 트리는 되돌려 뒀다(전수 709 OK).
+- 2026-09-09 | plan_iter-third-witness | **스텝 3/3 미실행 — 계획 90 이 발견하고 `index.md` 를 `진행`→`보류(미완)` 으로 정정했다.** 남은 일은 변이 3종(셋째 증인 통째 삭제 · `max`→마지막 항목 · 범위 `?:` 제거)을 심어 `iter_gap` 이 각각 무는지 재고, 이 파일 `## 반복 실패` 39행에 「셋째 증인은 **최댓값**이지 마지막 항목이 아니다」를 등재하는 것이다. 자(`iter_gap` 의 셋째 증인)와 기록 정정은 이미 `aca4be4`·`937dd21` 로 들어가 **살아 있다** — 안 한 것은 그것을 재는 일과 등재뿐이다. 계획서 `docs/plan_iter-third-witness.md` 는 살아 있다
 
 ## 반복 실패
 
