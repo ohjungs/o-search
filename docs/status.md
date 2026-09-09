@@ -1,20 +1,20 @@
 ---
-signal: GREEN
-phase: 리뷰
-step: 2/2
+signal: DONE
+phase: e2e
+step: 0/0
 attempt: 0
-iteration: 519
+iteration: 520
 updated: 2026-09-09
-ctx: 71
-night_iterations: 5
+ctx: 62
+night_iterations: 6
 night_red: 0
 night_retries: 0
-plan: live-plan-gap
+plan: null
 ---
 
 ## 계획 90 `live-plan-gap` — 버려진 계획을 아무도 안 물었다
 
-`docs/plan_live-plan-gap.md`. 브랜치 `loop/live-plan-gap`.
+`docs/plan_history_069.md`(아카이브). 브랜치 `loop/live-plan-gap`.
 
 **이 문서 자신이 근거였다.** 오늘 밤이 읽은 `status.md` 는 frontmatter 가
 `plan: backoff-recovery · step 2/2` 인데 본문은 **계획 85 `iter-third-witness`** 를
@@ -119,12 +119,29 @@ PLAN_SLUG.search(status_text)` 가 `step_gap` 과 겹쳐 두 자리라 docstring
 **거짓 RED 도 과거 전체로 쟀다** — 슬러그 관례가 선 뒤(`3f7d1f8`, 계획 60) 137커밋 중
 빨강 5건이고 5건 전부 그 결함이라 오탐 0이다.
 
-## 다음 반복 — e2e phase
+## 반복 520 — e2e 2/2 · 새 e2e 0개 · 사전결함 2건을 갈라냈다
 
-`rules/e2e.md`. 이 계획의 산출물은 문서 가드라 제품 경로가 없다 — 앞선 문서 가드
-계획들이 한 것과 같이 **실물 문서를 상대로 도는 것 자체가 e2e** 인지, 아니면 별도
-시나리오가 필요한지부터 룰에 대고 정한다. 이빨의 증거는 이미 정정 전 실물 다섯
-트리로 서 있다(아래 절).
+`docs/e2e/live-plan-gap/result.md`. **면제를 「해당 없음」으로 넘기지 않고 쟀다** — `git diff --stat be0ddd5 HEAD -- src/ e2e/` 가 빈손이라 제품 경로가 어제와 같다.
+대신 실물 트리 복사본에 **사람이 낼 편집 일곱**을 걸어 `live_gap` 이 물 것을 물고
+(E2·E3·E6) 안 물 것에 조용한지(E1·E4·E5)를 양방향으로 확인했다. **E3 이 오늘 밤 실제로
+있었던 사고이고 그것이 이 계획의 존재 이유다.**
+
+**실패 2종은 이 계획의 회귀가 아니다 — 가정하지 않고 쟀다.** 처음엔 「내가 돌린 동시
+부하 탓」으로 짚었는데 부하를 없애고 단독으로 재니 그대로 실패해 **가설을 폐기했다.**
+코드가 같은 과거 트리 셋을 워크트리로 세워 재니 같은 띠였다 — `perf_crawl` [차단]
+8.88~9.11(기준선 9.0) · `deadline_e2e` 는 `be0ddd5` 에서도 0.880s 로 갈린다.
+기준선을 내리는 것은 「통과시키려고 시나리오를 낮추는 것」이라 `rules/e2e.md` 7절이
+금지한다 — **digest `[8]`·`[6]` 으로 등재하고 아침 판단으로 넘겼다.**
+
+판정 칸에 맨 「통과」를 안 적은 이유도 이것이다(`통과(사전결함 2건)`). 계획 87·88·89 는
+세 줄 다 「통과」인데 그중 `be0ddd5` 가 오늘 여기서 빨간 판을 냈고, **그 세 줄이 무엇을
+근거로 적혔는지는 오늘 재지 않았다. 재지 않은 것을 적지 않는다.**
+
+## 다음 반복 — 계획 탐색 (DONE)
+
+계획 90 은 닫혔다. 계획서는 `plan_history_069.md`, `plan: null`.
+다음 탐색이 먼저 볼 곳은 **오늘 밤이 실측으로 채운 digest 후보 `[8]`** 이다 —
+e2e 축 하나가 기준선 아래로 내려앉은 채 최근 네 계획을 지나왔다.
 
 ## 아침 할 일 — 어제와 같은 하나
 
@@ -135,5 +152,5 @@ PLAN_SLUG.search(status_text)` 가 `step_gap` 과 겹쳐 두 자리라 docstring
 
 ## 한도
 
-`digest.md` **220줄**(상한 200). 무인은 이 파일을 회전하지 않는다(계획 76 이 그은 선).
-`history_current.md` 252줄(상한 300).
+`digest.md` **223줄**(상한 200). 무인은 이 파일을 회전하지 않는다(계획 76 이 그은 선).
+`history_current.md` 264줄(상한 300).
