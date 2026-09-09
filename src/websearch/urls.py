@@ -143,8 +143,13 @@ def normalize(url):
     서버가 주는 문서가 같다. `links` 만 자기 앞에서 떼고 있었는데, 시드와 리다이렉트
     최종 URL 은 그쪽을 안 지난다 — 열쇠를 정하는 자리는 여기 하나다.
     앞의 셋은 `domain_key` 가 이미 하므로 그것을 부른다
-    (다만 `domain_key` 가 떼는 `userinfo@` 는 도로 붙인다 — URL 에서 떼면
-    요청 내용이 바뀐다). **끝 슬래시 일반화(`/p/` ↔ `/p`)는 안 한다** — 동치가
+    **`userinfo@` 를 든 URL 은 접는 대신 거절한다** (계획 83). 018 은 되붙였고
+    그 근거(「떼면 요청 내용이 바뀐다」)는 요청에 대해서는 지금도 옳다 — 뒤집은
+    이유는 그 문자열이 `pages.url` PRIMARY KEY 가 되고 `serve` 가 검색 결과의
+    글자와 `<a href>` 양쪽으로 내보내기 때문이다. 남의 자격증명으로 남의 서버에
+    인증 요청을 보내는 것은 `concept.md` 갈림길 1순위(크롤 윤리)라 저장·렌더보다
+    앞선다. 판정은 **netloc 위에서만** 한다 — 경로·질의의 `@` 는 자격증명이 아니다.
+    **끝 슬래시 일반화(`/p/` ↔ `/p`)는 안 한다** — 동치가
     아니라 휴리스틱이고, 서버가 다른 문서를 낼 수 있다. 경로·질의의 대소문자도
     그대로 둔다.
 
@@ -161,11 +166,12 @@ def normalize(url):
     if mark < 0:  # 스킴 없는 상대 URL. 호출부가 절대 URL 만 넘기므로 도달하지 않는다
         return url
     scheme, netloc = _split(url)
+    if "@" in netloc:  # 자격증명 — 계약 절 참조. `domain_key` 는 계속 떼기만 한다
+        return None
     tail = url[mark + 3 + len(netloc):]
-    userinfo, at, _ = netloc.rpartition("@")
     if not tail.startswith("/"):  # 빈 경로는 `/` 와 동치 (6.2.3). `?`·`#` 앞에도 붙는다
         tail = "/" + tail
     path, sep, query = tail.partition("?")  # 질의의 `..` 는 세그먼트가 아니다
     tail = _fold_dots(path) + sep + query
-    return "%s://%s%s%s" % (scheme, userinfo + at, domain_key(url),
-                            _TRIPLET.sub(lambda m: m.group().upper(), tail))
+    return "%s://%s%s" % (scheme, domain_key(url),
+                          _TRIPLET.sub(lambda m: m.group().upper(), tail))

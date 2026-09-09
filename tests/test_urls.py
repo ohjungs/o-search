@@ -284,10 +284,27 @@ class TestNormalize(unittest.TestCase):
                          "http://a.test/100%off")
         self.assertEqual(urls.normalize("http://a.test/a%"), "http://a.test/a%")
 
-    def test_userinfo_survives(self):
-        # `domain_key` 는 userinfo 를 뗀다 — 그것을 그대로 쓰면 요청 내용이 바뀐다
-        self.assertEqual(urls.normalize("http://u:pw@A.test:80/p"),
-                         "http://u:pw@a.test/p")
+    def test_a_url_carrying_credentials_is_refused(self):
+        """**계약이 뒤집힌 자리다** (계획 83). 018 은 userinfo 를 보존했다 —
+        「떼면 요청 내용이 바뀐다」는 그 근거는 요청에 대해서는 지금도 옳다.
+        뒤집은 이유는 그 URL 이 `pages.url` PRIMARY KEY 가 되고 검색 화면에
+        글자와 `<a href>` 양쪽으로 나가기 때문이다. 남의 자격증명으로 남의
+        서버에 인증 요청을 보내는 것은 `concept.md` 갈림길 1순위(크롤 윤리)라
+        저장·렌더보다 앞선다 — **보존이 아니라 거절**이 답이다.
+        """
+        for url in ["http://u:pw@A.test:80/p",   # 018 이 보존하던 그 URL
+                    "http://user@a.test/p",      # 비밀번호가 없어도 자격증명이다
+                    "http://google.com@evil.test/x"]:  # 사람 눈에 google.com 인 피싱 모양
+            with self.subTest(url=url):
+                self.assertIsNone(urls.normalize(url))
+
+    def test_an_at_sign_outside_the_netloc_is_not_credentials(self):
+        # 대조군 — 판정은 `_split` 이 준 netloc 위에서만 한다. 경로·질의의 `@` 를
+        # 자격증명으로 읽으면 멀쩡한 문서를 통째로 못 줍는다
+        for url in ["http://a.test/x@y?m=n@o", "http://a.test/?to=a@b.com",
+                    "http://a.test/@handle"]:
+            with self.subTest(url=url):
+                self.assertEqual(urls.normalize(url), url)
 
     def test_path_case_and_query_are_untouched(self):
         # 대조군 — 경로·질의는 대소문자를 가린다. 여기까지 접으면 다른 문서를 합친다
@@ -318,7 +335,6 @@ class TestNormalize(unittest.TestCase):
 
     def test_it_is_idempotent(self):
         for u in ["http://A.test:80", "http://a.test/%ea", "http://한글도메인.test/가",
-                  "http://u:pw@A.test:80/p/",
                   # 접기는 **두 번 돌면 더 접힐 수 있는** 유일한 규칙이라 여기 넣는다
                   "http://a.test/a/../p", "http://a.test/a/..", "http://a.test:080/p"]:
             with self.subTest(url=u):

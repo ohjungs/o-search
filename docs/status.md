@@ -1,36 +1,32 @@
 ---
 signal: GREEN
-phase: 설계
-step: 0/2
+phase: 개발
+step: 1/2
 attempt: 0
-iteration: 486
+iteration: 487
 updated: 2026-09-09
-ctx: 62
-night_iterations: 2
+ctx: 68
+night_iterations: 3
 night_red: 0
 night_retries: 0
 plan: userinfo-leak
 ---
 
-## 다음 반복이 읽을 것 — 설계를 마쳤다. 다음은 **개발 스텝 1**이다
+## 다음 반복이 읽을 것 — 개발 1/2 완료. 다음은 **개발 2/2 (시드 스킵 사유)**다
 
-**야간 처분은 그대로 패치만 남기기다** (`SKILL.md` 「보안 관련 — 줄 수 무관 항상 보류」).
-끝까지 구현·테스트하고 초록을 확인한 뒤 `docs/patches/` 로 뽑고 작업 트리를 되돌린다.
+**야간 처분은 그대로 패치만 남기기다.** 아직 커밋은 브랜치에 쌓이는 중이고,
+마지막에 `docs/patches/` 로 뽑은 뒤 되돌린다.
 
-- **고른 안은 후보가 적어 둔 둘이 아니다.** A(렌더에서 가린다)·B(저장 열쇠에서 뗀다)는
-  **둘 다 자격증명이 남의 서버로 나가는 것을 그대로 둔다.** 컨셉 갈림길 1순위가
-  크롤 윤리라 **C — 입구에서 거절**을 골랐다. `docs/design_userinfo-leak.md`
-- **3-2 탐침이 실제로 뭘 잡았다.** 「거절해도 잃는 것이 없다」는 제품 쪽에서는 참이고
-  (실물 400행 중 거절될 것 **0건**) **테스트 쪽에서는 거짓**이었다 — URL 리터럴 352개
-  중 netloc `@` 가 10개고 그중 **셋**이 걸린다: `tests/test_urls.py:289`
-  (`test_userinfo_survives` — 계약 자체) · `:321`(멱등성 목록) ·
-  `e2e/domain_key_e2e.py:150`(시드가 거는 링크).
-- **대가를 하나 치른다** — `domain_key_e2e.py` 는 userinfo 가 「`normalize` 가 접지
-  않고 `domain_key` 는 접는」 **살아 있는 유일한 축**이라고 스스로 적어 뒀다. C 를
-  넣으면 그 축이 사라지고 그 파일의 **종료 2 가드가 크게 실패**한다(조용한 통과가 아니다).
-  처방은 같은 하네스 위에서 **재는 것을 갈아 끼우기** — 「세 표기가 한 도메인」 →
-  「자격증명 표기는 수신 0건 · 남은 표기는 여전히 한 도메인」. 017 의 **e2e 급** 회귀
-  탐지기는 여기서 끝나고 단위 `tests/test_urls.py:162` 만 남는다. 파일에 적는다.
-- **계약은 설계 「계약」 절이 정본이다** — `normalize` 는 netloc 의 `@` 만 보고,
-  **경로·질의의 `@` 는 통과**시킨다. `to_ascii`·`domain_key`·`_split`·`robots._base`
-  는 무변경 · `serve`·`store`·`indexer` 0줄.
+- **한 것**: `urls.normalize` 가 netloc 에 `@` 를 든 URL 에 `None` 을 준다.
+  되붙이던 `userinfo + at` 을 지웠다. 전수 **710 OK**.
+- **뒤집은 계약을 테스트가 안다**: `test_userinfo_survives` → 
+  `test_a_url_carrying_credentials_is_refused`(세 모양: `u:pw@` · `user@` ·
+  `google.com@evil.test`) + 대조군 `test_an_at_sign_outside_the_netloc_is_not_credentials`
+  (경로·질의의 `@` 는 통과). 멱등성 목록에서도 userinfo 항목을 뺐다.
+- **곁가지 둘을 함께 닫았다** — 스텝이 아니라 **가드가 울려서** 한 것이다:
+  ① `HistoryCapTest` 가 321 > 300 으로 울어 반복 461~474 를 `history_077.md` 로
+  회전하고 `digest` 명부·회전 줄을 더했다(계획 76 가드의 **두 번째 발화**)
+  ② `test_verification_counts_match_reality` 가 README 단위 수 709 → **710** 을 요구했다.
+- **다음 반복이 알아야 할 것**: `e2e/domain_key_e2e.py` 는 **아직 안 고쳤다.**
+  설계가 예고한 대로 지금 돌리면 종료 2(측정 불능)로 크게 실패한다 — 그 파일의
+  시나리오 1 을 새 계약으로 갈아 끼우는 것은 **e2e phase 몫**이다.
