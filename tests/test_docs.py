@@ -46,6 +46,12 @@ ARCHIVE = re.compile(r"^(?:history|plan_history|design_history)_[0-9]+\.md$")
 # 아래 `IterationPatternTest` 가 이 둘을 합성 표로 고정한다.
 ITER_ROW = re.compile(r"^\| 반복 \| ([0-9]+) \|", re.M)
 ITER_LINE = re.compile(r"^iteration: ([0-9]+)$", re.M)
+# 셋째 증인. `status`·`metrics` 는 병합이 **함께** 실어 올 수 있고(2026-09-09 실물:
+# 둘 다 490, 기록은 494) 그때 둘만의 대조는 조용하다. `history_current.md` 는 append
+# 전용이라 양쪽 기록이 다 남는 유일한 자리다. `### 반복 487~490` 같은 범위 머리에서는
+# **끝 번호**를 문다. `HISTORY_ENTRY_HEAD` 와 같은 머리를 보지만 저쪽은 항목을 세고
+# 이쪽은 번호를 읽는다 — 붙이면 한쪽 변이가 다른 축을 조용히 끈다.
+HIST_ITER = re.compile(r"^### 반복 (?:[0-9]+~)?([0-9]+)", re.M)
 # 기록 문서의 머리. 첫 줄 하나에만 대므로 `re.M` 은 없다 — `^` 는 문자열 머리다.
 # `\S` 가 `#제목`·`# `(제목 없는 H1)를 가른다. 아래 `DocHeadPatternTest` 가 이것을
 # 합성 리터럴로 고정한다(실물 문서는 늘 맞는 모양이라 자기를 못 잰다).
@@ -131,8 +137,14 @@ def step_row(slug):
     return re.compile(STEP_ROW % re.escape(slug), re.M)
 
 
-def iter_gap(status_text, metrics_text):
+def iter_gap(status_text, metrics_text, history_text):
     """반복 축이 어긋난 자리를 한 줄로 돌려준다. 어긋남이 없으면 `None`.
+
+    **증인이 셋인 이유**: `status`·`metrics` 둘만 대조하면 **나란히 틀린 것**을 못
+    잡는다 — 2026-09-09 실물에서 `loop/backoff-429` 가 494 이전 지점에서 갈라져 두
+    숫자를 함께 싣고 494 마감 뒤에 병합됐고, 둘 다 490 인 채로 전수 719건이 초록이었다.
+    셋째는 **최댓값**이지 마지막 항목이 아니다 — 그날 마지막 항목은 490 이고 최댓값이
+    494 였다. 병합 순서가 파일 순서를 뒤집는 한 붙들 수 있는 것은 최댓값뿐이다.
 
     **몸통을 함수로 뺀 이유는 `step_gap` 과 같다** — `IterationSyncTest` 는 실물 두
     문서 위에서만 도는데 그 문서는 늘 맞춰져 있어서, 판정을 무력화하는 변이가 조용히
@@ -149,6 +161,13 @@ def iter_gap(status_text, metrics_text):
     if a.group(1) != b.group(1):
         return ("반복 번호가 어긋났다 — metrics.md `반복` %s ≠ status.md `iteration` %s"
                 % (a.group(1), b.group(1)))
+    heads = HIST_ITER.findall(history_text)
+    if not heads:
+        return "history_current.md 에서 `### 반복 <수>` 머리를 못 찾았다"
+    top = max(int(n) for n in heads)
+    if top != int(b.group(1)):
+        return ("반복 번호가 어긋났다 — history_current.md 최대 %d ≠ status.md"
+                " `iteration` %s" % (top, b.group(1)))
     return None
 
 
@@ -654,7 +673,8 @@ class IterationSyncTest(unittest.TestCase):
 
     def test_metrics_and_status_agree(self):
         gap = iter_gap((DOCS / "status.md").read_text(encoding="utf-8"),
-                       (DOCS / "metrics.md").read_text(encoding="utf-8"))
+                       (DOCS / "metrics.md").read_text(encoding="utf-8"),
+                       (DOCS / "history_current.md").read_text(encoding="utf-8"))
         self.assertIsNone(gap, gap)
 
 
@@ -864,6 +884,17 @@ class IterationPatternTest(unittest.TestCase):
         self.assertIsNotNone(m, "`iteration: <수>` 줄을 못 찾았다")
         self.assertEqual("232", m.group(1))
 
+    def test_history_head_reads_the_end_of_a_range(self):
+        # 범위 머리(`487~490`)에서 앞 번호를 집으면 자가 **낮은 쪽**을 최댓값으로 믿는다.
+        # `?:` 를 지우는 변이는 `group(1)` 이 `487` 이 되어 여기서 죽는다.
+        self.assertEqual(["490"], HIST_ITER.findall("### 반복 487~490 — 계획 84"))
+        self.assertEqual(["494"], HIST_ITER.findall("### 반복 494 — 짧은 경로"))
+        self.assertEqual(
+            [], HIST_ITER.findall("`### 반복 439` 처럼 줄 중간에 인용한다"),
+            "인용을 항목 머리로 읽었다 — `^` 가 죽었다")
+        self.assertEqual([], HIST_ITER.findall("#### 반복 12 — 더 깊은 제목"),
+                         "`####` 를 물었다 — 머리 깊이가 안 고정됐다")
+
 
 class IterGapTest(unittest.TestCase):
     """`iter_gap` 의 갈래를 합성 문자열로 전부 밟는다.
@@ -880,31 +911,56 @@ class IterGapTest(unittest.TestCase):
         "| 반복 | 356 |",
     ])
 
+    # 마지막 항목이 최댓값이 **아닌** 모양을 픽스처 자신이 든다 — 2026-09-09 실물이
+    # 그랬고(494 뒤에 병합된 항목이 490 을 달았다), 「마지막 항목」으로 짠 자는
+    # 여기서만 죽는다.
+    HISTORY = "\n".join([
+        "### 반복 355 — 앞",
+        "### 반복 356 — 뒤에 병합됐지만 최댓값이다",
+        "### 반복 354~355 — 옛 지점에서 갈라진 것이 뒤에 왔다",
+    ])
+
     @staticmethod
     def status(iteration):
         return "plan: x\niteration: %s\nctx: 55\n" % iteration
 
     def test_agreeing_docs_have_no_gap(self):
         self.assertIsNone(
-            iter_gap(self.status("356"), self.METRICS),
+            iter_gap(self.status("356"), self.METRICS, self.HISTORY),
             "맞는 문서를 어긋났다고 신고했다 — 매 반복이 빨개진다")
 
     def test_iteration_mismatch_is_reported(self):
-        gap = iter_gap(self.status("357"), self.METRICS)
+        gap = iter_gap(self.status("357"), self.METRICS, self.HISTORY)
         self.assertIsNotNone(gap, "356 ≠ 357 을 통과시켰다 — 4회 재발한 그 결함이다")
         self.assertIn("356", gap, "어느 수가 어긋났는지 안 적었다")
         self.assertIn("357", gap, "어느 수가 어긋났는지 안 적었다")
 
     def test_missing_metrics_row_is_reported(self):
         # 표 모양이 바뀌면 `a` 가 `None` 이다 — 조용히 통과하면 안 된다.
-        gap = iter_gap(self.status("356"), "| 반복 수 | 356 |")
+        gap = iter_gap(self.status("356"), "| 반복 수 | 356 |", self.HISTORY)
         self.assertIsNotNone(gap, "metrics 에 행이 없는데 통과시켰다")
         self.assertIn("metrics.md", gap, "어느 문서가 비었는지 안 적었다")
 
     def test_missing_status_line_is_reported(self):
-        gap = iter_gap("night_iterations: 173\n", self.METRICS)
+        gap = iter_gap("night_iterations: 173\n", self.METRICS, self.HISTORY)
         self.assertIsNotNone(gap, "status 에 줄이 없는데 통과시켰다")
         self.assertIn("status.md", gap, "어느 문서가 비었는지 안 적었다")
+
+    def test_history_disagreeing_with_the_other_two_is_reported(self):
+        """둘이 **나란히** 틀린 그 모양이다 — status·metrics 는 서로 맞는다."""
+        metrics = self.METRICS.replace("| 반복 | 356 |", "| 반복 | 352 |")
+        gap = iter_gap(self.status("352"), metrics, self.HISTORY)
+        self.assertIsNotNone(
+            gap, "status·metrics 가 나란히 352 인데 기록은 356 이다 — 그 병합 모양이다")
+        self.assertIn("history_current.md", gap, "어느 문서가 갈렸는지 안 적었다")
+        self.assertIn("356", gap, "기록의 최댓값을 안 적었다")
+
+    def test_missing_history_head_is_reported(self):
+        # 머리 문구가 드리프트하면 `heads` 가 비고, 그때 `max()` 는 예외다.
+        # 조용한 통과도 트레이스백도 아닌 한 줄 신고여야 한다.
+        gap = iter_gap(self.status("356"), self.METRICS, "## 반복 356 — 머리가 아니다\n")
+        self.assertIsNotNone(gap, "기록에 머리가 없는데 통과시켰다")
+        self.assertIn("history_current.md", gap, "어느 문서가 비었는지 안 적었다")
 
 
 class ArchivePatternTest(unittest.TestCase):
