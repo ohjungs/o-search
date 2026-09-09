@@ -126,6 +126,32 @@ class Store:
         ).fetchone()
         return row is not None
 
+    def unfinished(self, limit=1000):
+        """다시 받아야 하는데 **큐에 들어올 길이 없는** URL 들. 오래된 순.
+
+        **왜 필요한가**: 프런티어가 메모리라 매 실행 시드에서 다시 자란다. 부모가
+        신선하면 팝 지점에서 스킵돼 링크 추출조차 안 일어나고, 그러면 자식은 영영
+        큐에 못 들어온다 — 계획 87 이 실물에서 잡은 자리다(429 행 3,807개가 그 상태).
+        계획 86 이 「안 신선」으로 읽게 만든 것만으로는 **아무 일도 안 일어났다.**
+
+        **새 표를 안 만드는 이유**: 그 URL 들은 이미 `pages` 에 있고 「다시 받아야
+        하나」의 판정자도 이미 있다(`is_fresh`). 없던 것은 그 판정을 **거꾸로 물어보는
+        길**뿐이라, 술어를 한 벌 더 쓰지 않고 같은 조건을 부정해서 쓴다 — 두 벌이면
+        언젠가 갈린다.
+
+        **상한이 있다.** 미완이 10만이면 프런티어를 그것으로 채우는 것은 크롤이 아니라
+        재시도 배치다. 기본 1,000 은 시드가 자라는 속도를 안 덮을 만큼 작다.
+
+        **오래된 순인 이유**: 가장 오래 못 받은 것이 가장 오래 기다린 것이다.
+        """
+        rows = self._db.execute(
+            "SELECT url FROM pages WHERE status = 429 OR fetched_at < datetime("
+            "    'now', CASE WHEN status BETWEEN 200 AND 299 THEN ? ELSE ? END) "
+            "ORDER BY fetched_at LIMIT ?",
+            ("-%d days" % FRESH_DAYS, "-%d days" % RETRY_DAYS, limit),
+        ).fetchall()
+        return [r[0] for r in rows]
+
     def get_html(self, url):
         row = self._db.execute("SELECT html FROM pages WHERE url=?", (url,)).fetchone()
         return page_html(row[0]) if row else None

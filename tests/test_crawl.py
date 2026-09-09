@@ -2414,3 +2414,51 @@ class TooManyRequestsTest(unittest.TestCase):
         _, rows, f = self._crawl(pages, {"http://a.com/": 429})
         self.assertEqual(f.interval("b.com"), DOMAIN_INTERVAL,
                          "남의 도메인 429 로 b.com 이 느려졌다")
+
+
+class FrontierPrimingTest(unittest.TestCase):
+    """크롤이 **받다 만 URL 을 되찾는다.** 계획 87 이 실물로 잡은 자리다.
+
+    시드만으로 자라는 프런티어는 부모가 신선한 자식에게 영영 못 닿는다.
+    `Store.unfinished()` 가 그것을 주고, 이 테스트는 크롤이 **실제로 집어가는지**를 잰다 —
+    술어만 있고 배선이 없으면 단위 4건이 초록인 채 아무 일도 안 일어난다.
+    """
+
+    def _crawl(self, seeds, pending, same_site=False, max_pages=10):
+        sent = []
+
+        def fake_fetch(url, before_send=None, retries=None):
+            if before_send:
+                before_send()
+            sent.append(url)
+            return fetcher.FetchResult(200, "<p>x</p>", url)
+
+        with mock.patch.object(fetcher, "fetch", fake_fetch), \
+                tempfile.TemporaryDirectory() as d, \
+                mock.patch("sys.stderr", io.StringIO()):
+            db = os.path.join(d, "c.db")
+            s = crawl.Store(db)
+            for url in pending:  # 「받다 말았다」 = 429 로 거절당한 행
+                s._db.execute(
+                    "INSERT INTO pages(url, html, status) VALUES (?, NULL, 429)", (url,))
+            s._db.commit()
+            crawl.crawl(seeds, max_pages, db_path=db, robots_cache=FakeRobots(),
+                        now=lambda: 0.0, workers=1, sleep=lambda x: None,
+                        same_site=same_site)
+        return sent
+
+    def test_unfinished_urls_are_picked_up_even_without_a_link_path(self):
+        """되찾기가 없으면 `http://b.com/left` 는 아무도 안 준다 — 시드도 링크도 아니다."""
+        sent = self._crawl(["http://a.com/"], ["http://b.com/left"])
+        self.assertIn("http://b.com/left", sent,
+                      "받다 만 URL 을 안 집었다 — 되찾기가 배선되지 않았다")
+
+    def test_priming_does_not_widen_the_same_site_scope(self):
+        """**되찾기가 범위를 넓히면 「같은 사이트만」이 조용히 깨진다.**
+
+        `--same-site` 는 사용자가 「여기서 나가지 마라」고 한 것이다. 되찾기가 그 밖의
+        URL 을 큐에 넣으면 사용자가 막은 곳으로 요청이 나간다 — 크롤 윤리 축이다.
+        """
+        sent = self._crawl(["http://a.com/"], ["http://b.com/left"], same_site=True)
+        self.assertNotIn("http://b.com/left", sent,
+                         "되찾기가 --same-site 범위를 넘었다")
