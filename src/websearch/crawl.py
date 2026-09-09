@@ -138,7 +138,7 @@ def _fetch_one(url, robots, now, floor, sleep=time.sleep, stop=None):
 
 def crawl(seeds, max_pages, db_path=DEFAULT_DB, robots_cache=None,
           now=time.monotonic, workers=WORKERS, deadline=None, sleep=time.sleep,
-          stop=None, same_site=False):
+          stop=None, same_site=False, frontier=None):
     """수집에 성공(2xx + HTML)한 페이지 수를 돌려준다. robots_cache·now·sleep 은 테스트 주입 지점.
 
     `workers=1` 이면 요청이 하나씩 떠서 순차 루프와 같은 순서로 돈다 — 되돌리기 수단이다.
@@ -213,7 +213,11 @@ def crawl(seeds, max_pages, db_path=DEFAULT_DB, robots_cache=None,
     # **범위는 살아남은 시드에서 나온다** — 버려진 시드(스킴 없음 등)의 도메인을
     # 넣으면 크롤이 못 가는 곳을 범위라고 부르게 된다. 그래서 생성이 여기까지 내려왔다.
     scope = {urls.domain_key(u) for u in ascii_seeds} if same_site else None
-    frontier = Frontier(now=now, scope=scope)
+    # `frontier` 는 **주입 지점**이다 — `now`·`sleep`·`robots_cache`·`stop` 과 같은 줄.
+    # 429 백오프가 「간격을 얼마나 넓혔나」를 밖에서 볼 유일한 손잡이라 열었다.
+    # 안 주면 오늘과 같다. 준 것에는 `scope` 를 다시 안 건다 — 부르는 쪽이 정한 것이다.
+    if frontier is None:
+        frontier = Frontier(now=now, scope=scope)
     frontier.add(ascii_seeds)
     saved = 0
     started = now()
@@ -340,6 +344,33 @@ def _store_result(future, url, domain, store, frontier, now, robots):
     # 박으면 다음 실행이 그 URL 을 `RETRY_DAYS` 만큼 건너뛴다 (graceful-interrupt
     # 계약 5). 재크롤 전에는 이것이 「영영」이었다 — 짧아졌을 뿐 거짓은 그대로다
     if result is None:
+        return 0
+    # **429 는 페이지가 아니라 거절이다** — 서버가 「지금은 안 된다」고 말한 것이다.
+    #
+    # 2026-09-09 1만 문서 크롤 실측: 위키미디어 6도메인이 응답의 50~68%(**3,686건**)를
+    # 429 로 거절하는데도 같은 간격으로 계속 보냈다. 여섯이 **같은 IP**(103.102.166.224)라
+    # 호스트마다 1초를 지킨 것이 **한 서버에 초당 6건**이 됐다 — 컨셉의 「도메인당 1초는
+    # 전제 조건」을 글자로는 지키고 뜻으로는 어겼다.
+    #
+    # **IP 로 도메인을 묶지 않는 이유**: CDN 뒤에서는 무관한 사이트 수천 개가 한 IP 를
+    # 쓴다. 429 백오프는 **왜 429 인지 몰라도 옳다** — 원인이 공유 인프라든 그 시각의
+    # 부하든 처방이 같고, 서버가 유일하게 신뢰할 수 있는 정보원이다.
+    #
+    # **새 기계를 안 만든다**: `set_delay` 는 이미 단조 증가이고 `MAX_DELAY`(30초)를
+    # 넘으면 도메인을 통째로 버린다 — 「물러나다가 도저히 안 되면 손을 뗀다」가 정확히
+    # 필요한 동작이다. 무한히 되돌리면 429 만 내는 서버를 영원히 두드린다.
+    #
+    # **저장하지 않는다**: 박으면 계획 80 의 재크롤 정책상 `RETRY_DAYS`(15일) 뒤에나
+    # 다시 본다. 바로 위 중단 갈래가 *"안 받은 것을 받았다고 적는 거짓"* 이라 적어 둔
+    # 것과 같은 자리이고, 여기만 빠져 있었다.
+    #
+    # **같은 실행 안에서 되돌리지 않는다.** `frontier.add` 는 `_seen` 으로 중복을
+    # 막으므로 되돌리기가 **조용히 무효**이기도 하지만(실측), 우회해서 되돌리는 편이
+    # 낫지도 않다 — 서버가 방금 「너무 잦다」고 한 URL 을 같은 실행에서 다시 치는 것은
+    # 물러나는 것이 아니다. 저장을 안 했으므로 `is_fresh` 가 거짓이라 **다음 실행이
+    # 자연히 다시 받는다.** 안 하는 것이 곧 처방인 자리다.
+    if result.status == 429:
+        _apply_delay(frontier, domain, max(2.0, frontier.interval(domain) * 2))
         return 0
     # 리다이렉트면 최종 URL 이 정본. 못 바꾸면 요청한 url(프런티어를 거쳤으니 ASCII)로 저장한다
     page_url = urls.normalize(result.url or url) or url
