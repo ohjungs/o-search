@@ -229,6 +229,9 @@ def crawl(seeds, max_pages, db_path=DEFAULT_DB, robots_cache=None,
     # 범위를 넓히지 않는다. 그러지 않으면 「같은 사이트만」이 조용히 깨진다.
     frontier.add(store.unfinished())
     saved = 0
+    # **리스트 한 칸짜리 카운터** — `_store_result` 가 메인 스레드에서만 불리므로 락이
+    # 필요 없다(설계 계약 4). 정수를 쓰면 함수 안에서 못 올린다.
+    rejected = [0]
     started = now()
     inflight = {}  # Future -> (url, domain). **떠 있는 도메인은 다시 팝하지 않는다**(계약 3)
     # 중단 신호가 있으면 **잠도 그쪽으로 잔다** — 이 자리(아래 `wait_fn(...)`)는 깨워 줄
@@ -255,7 +258,7 @@ def crawl(seeds, max_pages, db_path=DEFAULT_DB, robots_cache=None,
                 for future in list(inflight):
                     url, domain = inflight.pop(future)
                     saved += _store_result(future, url, domain, store, frontier,
-                                           now, robots)
+                                           now, robots, rejected)
                 # 조용히 적게 수집한 것과 "예산대로/중단으로 끝났다" 는 구별돼야 한다
                 print("중단 — %d페이지에서 멈춘다" % saved if interrupted else
                       "예산 %g초 소진 — %d페이지에서 멈춘다" % (deadline, saved),
@@ -300,7 +303,10 @@ def crawl(seeds, max_pages, db_path=DEFAULT_DB, robots_cache=None,
             for future in done:
                 url, domain = inflight.pop(future)
                 saved += _store_result(future, url, domain, store, frontier, now,
-                                       robots)
+                                       robots, rejected)
+    # **반환 형태를 안 바꾼다** — 호출부가 여섯이고 전부 정수를 기대한다. CLI 하나만
+    # 읽는 값 때문에 공개 계약을 넓히지 않는다. 함수 속성이 그 자리다.
+    crawl.rejected = rejected[0]
     return saved
 
 
@@ -316,7 +322,7 @@ def _apply_delay(frontier, domain, requested):
               % (domain, requested, MAX_DELAY), file=sys.stderr)
 
 
-def _store_result(future, url, domain, store, frontier, now, robots):
+def _store_result(future, url, domain, store, frontier, now, robots, rejected=None):
     """워커 결과 하나를 반영한다. 수집에 성공했으면 1, 아니면 0.
 
     **간격 시계를 거는 유일한 자리다** (docs/design_cooldown-burn.md 계약 2·3).
@@ -382,6 +388,12 @@ def _store_result(future, url, domain, store, frontier, now, robots):
         # **`set_delay` 가 아니라 `penalise` 다** — 저쪽은 robots 의 값이라 단조 증가라서,
         # 벌점을 거기 섞으면 서버가 멀쩡해져도 영영 안 돌아온다. 위키미디어 6도메인처럼
         # 순간적으로 429 가 몰리는 자리에서는 그 한 순간이 남은 크롤 전체를 벌한다.
+        # **안 박는 것과 안 세는 것은 다르다.** 저장은 「이 URL 은 이렇다」는 주장이라
+        # 거짓이 되지만, 세는 것은 「이번 실행에서 이런 일이 있었다」는 사실이다.
+        # 계획 84 가 저장을 없애면서 **이 축의 관측을 통째로 없앴다** — 2026-09-10 회수
+        # 크롤 뒤 「백오프가 얼마나 일했나」를 재려니 DB 에 증거가 0건이었다.
+        if rejected is not None:
+            rejected[0] += 1
         if not frontier.penalise(domain):
             print("%s: 계속 429 를 낸다 — 이 도메인은 더 가지 않는다" % domain,
                   file=sys.stderr)
@@ -487,6 +499,15 @@ def main(argv):
     # 그것은 크롤 윤리 상수다. 천장을 같이 말해 주면 그 손이 안 간다.
     elapsed = time.monotonic() - started
     summary = "수집 %d 페이지" % n
+    # **0 은 안 찍는다.** 매 실행 「거절 0건」이 붙으면 요약이 길어지고, 길어진 요약은
+    # 안 읽힌다 — 그러면 정작 0 이 아닌 날을 놓친다.
+    #
+    # **`isinstance` 로 거른다** — `crawl` 을 목으로 바꾼 테스트에서는 `crawl.rejected` 가
+    # 진짜 `Mock` 이라 참이면서 `%d` 에서 죽는다(실측 `TypeError`). 함수 속성을 읽는
+    # 대가이고, 그 대가를 여기 한 줄로 치른다.
+    rejected = getattr(crawl, "rejected", 0)
+    if isinstance(rejected, int) and rejected:
+        summary += " · 거절 %d건(429)" % rejected
     try:
         domains = Store(DEFAULT_DB).domains()
     except Exception:  # noqa: BLE001 — 요약 한 줄 때문에 크롤 결과를 잃지 않는다

@@ -2467,3 +2467,77 @@ class FrontierPrimingTest(unittest.TestCase):
         sent = self._crawl(["http://a.com/"], ["http://b.com/left"], same_site=True)
         self.assertNotIn("http://b.com/left", sent,
                          "되찾기가 --same-site 범위를 넘었다")
+
+
+class RejectionIsVisibleTest(unittest.TestCase):
+    """**429 를 안 박으면 429 를 볼 방법도 없어진다.**
+
+    계획 84 는 「429 는 페이지가 아니라 거절」이라 `pages` 에 안 박게 했다 — 그 판단은
+    옳다. 그런데 그 순간 **이 축의 관측이 통째로 사라졌다**: 2026-09-10 회수 크롤 뒤
+    「백오프가 얼마나 일했나」를 재려니 DB 에 증거가 0건이고, 남은 것은 크롤 로그의
+    폐기 3줄뿐이었다. 어제 1만 크롤은 3,686건이라는 숫자가 있어서 문제를 **잴 수** 있었다.
+
+    **안 박는 것과 안 세는 것은 다르다.** 저장은 「이 URL 은 이렇다」는 주장이라 거짓이
+    되지만, 세는 것은 「이번 실행에서 이런 일이 있었다」는 사실이다.
+
+    이 저장소가 여러 번 배운 것과 같은 자리다 — *"숫자 옆에 그 숫자를 낸 입력의 모양을
+    적는다"*(계획 82). 여기서는 **숫자 자체가 없어졌다.**
+    """
+
+    def test_the_summary_reports_how_many_requests_were_rejected(self):
+        pages = {"http://a.com/": "<p>x</p>", "http://b.com/": "<p>y</p>"}
+        out = io.StringIO()
+
+        def fake_fetch(url, before_send=None, retries=None):
+            if before_send:
+                before_send()
+            st = 429 if url.startswith("http://b.") else 200
+            return fetcher.FetchResult(st, pages.get(url) if st == 200 else None, url)
+
+        with mock.patch.object(fetcher, "fetch", fake_fetch), \
+                mock.patch.object(crawl, "RobotsCache", FakeRobots), \
+                mock.patch("sys.stdout", out), mock.patch("sys.stderr", io.StringIO()):
+            crawl.main(["prog", "http://a.com/", "http://b.com/", "--max", "2"])
+        self.assertIn("거절 1건", out.getvalue(),
+                      "429 를 몇 번 받았는지 아무 데도 안 나온다 — 관측이 없다")
+
+    def test_no_rejections_says_nothing(self):
+        """**0 은 안 찍는다.** 매 실행 「거절 0건」이 붙으면 요약이 길어지고, 길어진
+        요약은 안 읽힌다 — 그러면 정작 0 이 아닌 날을 놓친다."""
+        out = io.StringIO()
+
+        def fake_fetch(url, before_send=None, retries=None):
+            if before_send:
+                before_send()
+            return fetcher.FetchResult(200, "<p>x</p>", url)
+
+        with mock.patch.object(fetcher, "fetch", fake_fetch), \
+                mock.patch.object(crawl, "RobotsCache", FakeRobots), \
+                mock.patch("sys.stdout", out), mock.patch("sys.stderr", io.StringIO()):
+            crawl.main(["prog", "http://a.com/", "--max", "1"])
+        self.assertNotIn("거절", out.getvalue())
+
+
+def setUpModule():
+    """**`crawl.main` 은 DB 경로를 안 받는다 — 기본값이 곧 실물 코퍼스다.**
+
+    2026-09-10 실측: 이 파일의 `main` 호출 테스트들이 `data/crawl.db`(0.94GB · 14,160행)를
+    실제로 열고 썼다. 전수가 **20초에서 267초**로 늘어난 것이 그 자국이고, 계획 88 의
+    되찾기가 들어간 뒤로는 매 호출이 실물에서 **미완 URL 1,000개**를 읽어 왔다.
+
+    **테스트가 실물 데이터를 만지는 것은 느린 것보다 나쁘다** — 이 파일은 크롤러를
+    재는데, 그 크롤러가 사용자의 코퍼스에 행을 넣는다. `-b` 로 가려져 아무도 못 봤다.
+
+    모듈 전체에 임시 경로를 씌운다. 개별 테스트에 맡기면 새 테스트가 생기는 날 빠진다 —
+    거르는 자리를 하나로 두는 것이 `Frontier._scope` 와 같은 이유다.
+    """
+    global _DB_PATCH, _DB_DIR
+    _DB_DIR = tempfile.TemporaryDirectory()
+    _DB_PATCH = mock.patch.object(crawl, "DEFAULT_DB",
+                                  os.path.join(_DB_DIR.name, "테스트.db"))
+    _DB_PATCH.start()
+
+
+def tearDownModule():
+    _DB_PATCH.stop()
+    _DB_DIR.cleanup()
