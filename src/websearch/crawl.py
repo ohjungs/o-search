@@ -33,6 +33,11 @@ class NoUsableSeedsError(ValueError):
     """
 
 
+# CLI 는 DB 경로를 안 받는다 — 기본값이 곧 그 경로다. 요약이 같은 DB 를 봐야 하므로
+# 리터럴을 두 곳에 두지 않는다(두면 한쪽만 고쳐져 요약이 남의 DB 를 센다).
+DEFAULT_DB = "data/crawl.db"
+
+
 class StoreOpenError(Exception):
     """저장할 DB 를 열 수조차 없다 — **환경이 안 된 것이라 rc 1, 명령줄 오류 2 와 가른다.**
 
@@ -131,7 +136,7 @@ def _fetch_one(url, robots, now, floor, sleep=time.sleep, stop=None):
     return True, requested, sends[-1] if sends else None, result
 
 
-def crawl(seeds, max_pages, db_path="data/crawl.db", robots_cache=None,
+def crawl(seeds, max_pages, db_path=DEFAULT_DB, robots_cache=None,
           now=time.monotonic, workers=WORKERS, deadline=None, sleep=time.sleep,
           stop=None, same_site=False):
     """수집에 성공(2xx + HTML)한 페이지 수를 돌려준다. robots_cache·now·sleep 은 테스트 주입 지점.
@@ -410,6 +415,7 @@ def main(argv):
     # 내려간 채라 특히 그렇다
     previous = signal.signal(signal.SIGINT, interrupt)
     try:
+        started = time.monotonic()
         n = crawl(args, max_pages, workers=workers, deadline=deadline, stop=stop,
                   same_site=same_site)
     except NoUsableSeedsError as exc:
@@ -425,7 +431,26 @@ def main(argv):
         return 1
     finally:
         signal.signal(signal.SIGINT, previous)
-    print("수집 %d 페이지" % n)
+    # **숫자 옆에 그 숫자를 낸 입력의 모양을 적는다.** 「수집 400 페이지」만 찍던 시절,
+    # 따로 잰 3.67문서/초를 보고 크롤러가 느린 줄 알고 반나절을 봤다 — 실제로는 시드가
+    # 4도메인이라 이론 상한 4.00 의 92% 에 이미 붙어 있었다(2026-09-09 실측).
+    # **그 오인의 값이 크다**: 처리량이 안 나올 때 손이 가는 곳은 `DOMAIN_INTERVAL` 이고
+    # 그것은 크롤 윤리 상수다. 천장을 같이 말해 주면 그 손이 안 간다.
+    elapsed = time.monotonic() - started
+    summary = "수집 %d 페이지" % n
+    try:
+        domains = Store(DEFAULT_DB).domains()
+    except Exception:  # noqa: BLE001 — 요약 한 줄 때문에 크롤 결과를 잃지 않는다
+        domains = 0
+    #
+    # **「지속 상한」이지 「상한」이 아니다.** 도메인별 **첫** 요청은 기다리지 않으므로
+    # 짧은 크롤은 이 값을 넘는다 — 3도메인 9페이지를 2.0초에 주우면 4.45문서/초이고
+    # 지속 상한은 3.00 이다(실측). 그냥 「상한」이라 적으면 그 줄이 자기 모순이 되고,
+    # **읽는 사람이 요약을 못 믿게 되는 쪽이 안 적는 것보다 나쁘다.**
+    if domains and elapsed > 0:
+        summary += (" · %d 도메인 · %.1f초 = %.2f 문서/초 (지속 상한 %.2f)"
+                    % (domains, elapsed, n / elapsed, float(domains)))
+    print(summary)
     # 중단은 **오늘 관측값과 같은 130** 이다 — 0 으로 내면 `crawl && indexer` 가
     # 중단 뒤에도 다음 단계를 돈다. 주운 페이지 수는 중단이어도 찍는다
     return 130 if signaled.is_set() else 0

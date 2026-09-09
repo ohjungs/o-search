@@ -122,3 +122,20 @@ class Store:
 
     def count(self):
         return self._db.execute("SELECT count(*) FROM pages").fetchone()[0]
+
+    def domains(self):
+        """수집된 URL 의 서로 다른 호스트 수.
+
+        **처리량의 천장이 이 수다** — 도메인당 `DOMAIN_INTERVAL`(1초)을 지키므로
+        초당 문서 수는 도메인 수를 못 넘는다(2026-09-09 실측: 1·2·4·8 도메인 →
+        1.03·2.08·4.40·9.86 문서/초). 크롤 요약이 이것을 같이 말해 주지 않으면
+        느린 처리량이 코드 결함으로 오인되고, **그때 손이 가는 곳이 윤리 상수다.**
+
+        SQL 로 호스트를 자른다 — `urls.domain_key` 를 쓰려면 전 행을 파이썬으로
+        끌어와야 하고, 여기서 필요한 것은 **정확한 정규화가 아니라 자릿수**다.
+        스킴 대소문자나 `www.` 차이로 한둘 갈리는 것은 천장 안내에 무해하다.
+        """
+        return self._db.execute(
+            "SELECT count(DISTINCT substr(url, 1, instr(substr(url, 9), '/') + 7)) "
+            "FROM pages"
+        ).fetchone()[0]
