@@ -361,3 +361,73 @@ class EthicsFloorTest(unittest.TestCase):
             "robots 가 요구한 짧은 간격을 그대로 받았다 — 하한이 없다")
         f.set_delay("b.test", 5.0)   # 더 긴 요구는 그대로 따른다
         self.assertEqual(f.interval("b.test"), 5.0)
+
+
+class BackoffRecoveryTest(unittest.TestCase):
+    """**백오프는 성공하면 되돌아온다.** 안 그러면 나쁜 1분이 실행 전체를 벌한다.
+
+    계획 84 가 429 백오프를 `set_delay` 로 걸었는데 그것은 **단조 증가**다 — robots 가
+    선언한 `Crawl-delay` 를 지키려고 일부러 그렇게 만든 자리다. 그래서 429 를 다섯 번
+    받으면 2→4→8→16→32 로 상한을 넘어 **도메인이 통째로 버려지고, 그 뒤 서버가 멀쩡해져도
+    영영 안 돌아온다.**
+
+    실물에서 이것이 문제가 된다: 위키미디어 6도메인이 같은 서버라 순간적으로 429 가
+    몰리는데, 그 순간 때문에 남은 크롤 내내 그 도메인들을 못 간다.
+
+    **벌점을 robots 간격과 분리한다** — robots 가 요구한 값은 내려가면 안 되고
+    (그것이 `set_delay` 단조성의 이유다), 우리가 스스로 매긴 벌점은 내려가야 한다.
+    """
+
+    def test_a_penalty_widens_the_interval(self):
+        f = Frontier()
+        f.penalise("a.test")
+        self.assertGreater(f.interval("a.test"), DOMAIN_INTERVAL)
+
+    def test_success_relieves_the_penalty(self):
+        f = Frontier()
+        f.penalise("a.test")
+        f.penalise("a.test")
+        widened = f.interval("a.test")
+        f.relieve("a.test")
+        self.assertLess(f.interval("a.test"), widened, "성공했는데 벌점이 그대로다")
+
+    def test_relief_never_goes_below_a_robots_delay(self):
+        """**robots 가 요구한 간격은 벌점 회복이 못 깎는다.** 이것이 분리한 이유다."""
+        f = Frontier()
+        f.set_delay("a.test", 5.0)
+        f.penalise("a.test")
+        for _ in range(10):
+            f.relieve("a.test")
+        self.assertGreaterEqual(f.interval("a.test"), 5.0,
+                                "벌점 회복이 robots 간격을 깎았다 — robots 위반이다")
+
+    def test_relief_never_goes_below_the_ethics_floor(self):
+        f = Frontier()
+        for _ in range(10):
+            f.relieve("a.test")
+        self.assertGreaterEqual(f.interval("a.test"), 1.0)
+
+    def test_enough_penalties_still_drop_the_domain(self):
+        """**손을 떼는 길은 남는다.** 회복이 있다고 영원히 두드리면 안 된다."""
+        f = Frontier()
+        f.add(["http://a.test/x"])
+        for _ in range(10):
+            alive = f.penalise("a.test")
+        self.assertFalse(alive, "계속 거절당하는 도메인을 안 버렸다")
+
+    def test_a_penalty_does_not_leak_into_the_robots_delay(self):
+        """**벌점이 robots 칸으로 새면 회복이 영영 불가능하다.**
+
+        `set_delay` 는 단조 증가다. 그것이 `interval()`(벌점 포함)을 읽으면 429 벌점이
+        robots 칸에 **굳어** `relieve` 가 못 내린다 — 실물 탐침이 잡았다: 429 셋 뒤
+        200 이 아홉 번 와도 간격이 8.0초에 머물렀다. **단위 테스트가 둘을 따로만 봐서
+        이 상호작용을 못 봤다**(계획 89 e2e 3절).
+        """
+        f = Frontier()
+        f.penalise("a.test")
+        f.penalise("a.test")          # 벌점 4.0
+        f.set_delay("a.test", None)   # robots 는 아무 말도 안 했다
+        f.relieve("a.test")
+        f.relieve("a.test")           # 벌점이 사라져야 한다
+        self.assertEqual(f.interval("a.test"), DOMAIN_INTERVAL,
+                         "벌점이 robots 칸에 굳어 회복이 안 된다")

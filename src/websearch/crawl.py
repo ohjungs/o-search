@@ -379,8 +379,17 @@ def _store_result(future, url, domain, store, frontier, now, robots):
     # 물러나는 것이 아니다. 저장을 안 했으므로 `is_fresh` 가 거짓이라 **다음 실행이
     # 자연히 다시 받는다.** 안 하는 것이 곧 처방인 자리다.
     if result.status == 429:
-        _apply_delay(frontier, domain, max(2.0, frontier.interval(domain) * 2))
+        # **`set_delay` 가 아니라 `penalise` 다** — 저쪽은 robots 의 값이라 단조 증가라서,
+        # 벌점을 거기 섞으면 서버가 멀쩡해져도 영영 안 돌아온다. 위키미디어 6도메인처럼
+        # 순간적으로 429 가 몰리는 자리에서는 그 한 순간이 남은 크롤 전체를 벌한다.
+        if not frontier.penalise(domain):
+            print("%s: 계속 429 를 낸다 — 이 도메인은 더 가지 않는다" % domain,
+                  file=sys.stderr)
         return 0
+    # **성공했으면 벌점을 던다.** 회복이 없으면 백오프는 한 방향 톱니라 나쁜 1분이
+    # 실행 전체를 벌한다. 하한은 `interval()` 이 `max` 로 지키므로 이 회복이 예의를
+    # 깎을 수는 없다 — 그 구조가 회복을 안전하게 만든다.
+    frontier.relieve(domain)
     # 리다이렉트면 최종 URL 이 정본. 못 바꾸면 요청한 url(프런티어를 거쳤으니 ASCII)로 저장한다
     page_url = urls.normalize(result.url or url) or url
     # **여기도 「신선한가」다.** 「저장된 적 있나」로 물으면 낡은 도착지의 새 본문을
