@@ -1,32 +1,31 @@
 ---
 signal: GREEN
 phase: 개발
-step: 1/2
+step: 2/2
 attempt: 0
-iteration: 487
+iteration: 488
 updated: 2026-09-09
-ctx: 68
-night_iterations: 3
+ctx: 73
+night_iterations: 4
 night_red: 0
 night_retries: 0
 plan: userinfo-leak
 ---
 
-## 다음 반복이 읽을 것 — 개발 1/2 완료. 다음은 **개발 2/2 (시드 스킵 사유)**다
+## 다음 반복이 읽을 것 — 개발 2/2 완료. 다음은 **테스트 phase (변이 검사)**다
 
-**야간 처분은 그대로 패치만 남기기다.** 아직 커밋은 브랜치에 쌓이는 중이고,
-마지막에 `docs/patches/` 로 뽑은 뒤 되돌린다.
+**야간 처분은 그대로 패치만 남기기다.** 브랜치에 쌓인 뒤 마지막에 `docs/patches/`
+로 뽑고 작업 트리를 되돌린다. **적용된 채로 남기지 않는다.**
 
-- **한 것**: `urls.normalize` 가 netloc 에 `@` 를 든 URL 에 `None` 을 준다.
-  되붙이던 `userinfo + at` 을 지웠다. 전수 **710 OK**.
-- **뒤집은 계약을 테스트가 안다**: `test_userinfo_survives` → 
-  `test_a_url_carrying_credentials_is_refused`(세 모양: `u:pw@` · `user@` ·
-  `google.com@evil.test`) + 대조군 `test_an_at_sign_outside_the_netloc_is_not_credentials`
-  (경로·질의의 `@` 는 통과). 멱등성 목록에서도 userinfo 항목을 뺐다.
-- **곁가지 둘을 함께 닫았다** — 스텝이 아니라 **가드가 울려서** 한 것이다:
-  ① `HistoryCapTest` 가 321 > 300 으로 울어 반복 461~474 를 `history_077.md` 로
-  회전하고 `digest` 명부·회전 줄을 더했다(계획 76 가드의 **두 번째 발화**)
-  ② `test_verification_counts_match_reality` 가 README 단위 수 709 → **710** 을 요구했다.
-- **다음 반복이 알아야 할 것**: `e2e/domain_key_e2e.py` 는 **아직 안 고쳤다.**
-  설계가 예고한 대로 지금 돌리면 종료 2(측정 불능)로 크게 실패한다 — 그 파일의
-  시나리오 1 을 새 계약으로 갈아 끼우는 것은 **e2e phase 몫**이다.
+- **한 것**: `urls.has_credentials(url)` 를 내고 `normalize` 가 그것을 부른다
+  (판정을 두 곳에 두지 않는다). `crawl` 시드 루프가 자격증명 가지를
+  `normalize is None` **앞에** 달았다 — 뒤에 달면 영영 안 닿는다.
+- **사유를 알리려다 같은 것을 흘릴 뻔했다.** 위·아래 가지는 시드를 통째로 찍는데
+  이 가지가 그러면 **비밀번호가 stderr 로 나간다.** `urls.domain_key(seed)` 로
+  호스트만 적는다 — userinfo 를 떼는 함수가 이미 있었다.
+- **단언 넷**: 사유에 「자격증명」이 있고 「읽을 수 없는」이 **없다**(거짓 사유 금지) ·
+  `fetch_times` 가 비었다(요청이 안 나갔다) · 경로의 `@`(`http://a.com/@handle`)는
+  **시드로 통과**한다.
+- 전수 **712 OK** · README 단위 수 710 → 712.
+- **남은 것 둘**: ① 테스트 phase — 변이로 이 자들이 진짜 무는지 확인
+  ② e2e phase — `e2e/domain_key_e2e.py` 시나리오 1 갈아 끼우기(아직 안 고쳤다).

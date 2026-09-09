@@ -131,6 +131,31 @@ class TestCrawl(unittest.TestCase):
             n, _, _ = self._run([ok], max_pages=3)
             self.assertEqual(n, 0, ok)
 
+    def test_a_seed_carrying_credentials_is_refused_with_its_own_reason(self):
+        """자격증명 시드는 **거절되고, 왜 거절됐는지 자기 사유로 알린다** (계획 83).
+
+        스텝 1 이 `normalize` 를 거절로 뒤집으면 이 시드는 「URL 로 읽을 수 없는
+        시드」라는 **거짓 사유**로 버려진다 — 잘 만들어진 URL 이고 못 읽은 것이
+        아니다. 사유가 틀리면 운영자는 오타를 찾으러 간다.
+
+        요청이 안 나가는 것까지 함께 잰다. 거절의 값은 메시지가 아니라 **남의
+        서버로 남의 자격증명이 안 가는 것**이다.
+        """
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            with self.assertRaises(crawl.NoUsableSeedsError):
+                self._run(["http://u:pw@a.com/"], max_pages=3)
+        self.assertIn("자격증명", err.getvalue())
+        self.assertNotIn("읽을 수 없는", err.getvalue())
+        self.assertEqual(self.fetch_times, [],
+                         "거절된 시드로 요청이 나갔다 — 남의 자격증명이 남의 서버로 갔다")
+
+    def test_credentials_in_the_path_are_not_a_seed_rejection(self):
+        # 대조군 — `normalize` 와 같은 자다. 경로의 `@` 로 시드를 버리면 멀쩡한
+        # 주소를 못 준다
+        n, fetched, _ = self._run(["http://a.com/@handle"], max_pages=3)
+        self.assertIn("http://a.com/@handle", fetched)
+
     def test_no_seed_at_all_is_the_same_hole(self):
         """시드가 0건인 것도 "크롤이 돌 수 없다" 는 같은 이유다.
 

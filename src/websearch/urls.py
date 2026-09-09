@@ -31,6 +31,17 @@ def scheme_of(url):
     return _split(url)[0]
 
 
+def has_credentials(url):
+    """netloc 에 `userinfo@` 가 실렸나. 못 읽는 URL 에는 `False`.
+
+    `normalize` 의 거절 사유가 이것 하나뿐이라 함수로 뺄 이유는 원래 없었다.
+    밖으로 낸 이유는 **시드 루프가 사유를 갈라야 하기 때문**이다 — `normalize`
+    가 `None` 을 주는 이유는 둘(못 읽는 URL · 자격증명)인데 둘을 같은 문구로
+    알리면 운영자는 잘 만들어진 URL 에서 오타를 찾으러 간다.
+    """
+    return "@" in _split(url)[1]
+
+
 def domain_key(url):
     """**예의 계약이 세는 단위.** 같은 서버는 한 칸이다.
 
@@ -166,7 +177,7 @@ def normalize(url):
     if mark < 0:  # 스킴 없는 상대 URL. 호출부가 절대 URL 만 넘기므로 도달하지 않는다
         return url
     scheme, netloc = _split(url)
-    if "@" in netloc:  # 자격증명 — 계약 절 참조. `domain_key` 는 계속 떼기만 한다
+    if has_credentials(url):  # 판정은 한 자리에만 둔다 — `domain_key` 는 계속 떼기만 한다
         return None
     tail = url[mark + 3 + len(netloc):]
     if not tail.startswith("/"):  # 빈 경로는 `/` 와 동치 (6.2.3). `?`·`#` 앞에도 붙는다
