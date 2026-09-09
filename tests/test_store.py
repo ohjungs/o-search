@@ -189,3 +189,47 @@ class TestFreshness(unittest.TestCase):
         # 저장됐다면 그것은 「본문을 못 받았다」다
         self._aged("http://a.com/moved", 20, status=301)
         self.assertFalse(self.store.is_fresh("http://a.com/moved"))
+
+
+class RejectedIsNotAFetchTest(unittest.TestCase):
+    """**429 행은 「받은 적 없다」로 읽힌다.**
+
+    계획 84 가 429 를 **더 이상 저장하지 않게** 했지만, 그 전에 박힌 행이 실물 DB 에
+    **3,686개** 있다(2026-09-09 1만 크롤 · 위키미디어 6도메인). 그 행들은 지금
+    `status != 2xx` 라 `RETRY_DAYS`(15일) 동안 신선한 것으로 읽혀 **재시도에서 빠진다** —
+    받은 적 없는 문서를 15일간 「받았다」로 취급하는 것이다.
+
+    **지우지 않고 읽는 쪽을 고친다.** 데이터 삭제는 야간 금지이고 계획 80 이 정한
+    「`pages` 는 묘비로 남긴다」와 충돌한다. 그리고 429 는 묘비가 아니다 — 묘비는
+    404·410 처럼 「그 자리에 문서가 없다」는 사실이고, 429 는 「지금은 안 된다」는
+    **그 시각의 사정**이다. 사실이 아니라 사정을 15일간 붙들 이유가 없다.
+    """
+
+    def setUp(self):
+        self.store = Store(":memory:")
+
+    def _rejected(self, url):
+        self.store._db.execute(
+            "INSERT INTO pages(url, html, status) VALUES (?, NULL, 429)", (url,))
+        self.store._db.commit()
+
+    def test_a_429_row_is_never_fresh(self):
+        self._rejected("http://a.com/x")
+        self.assertFalse(self.store.is_fresh("http://a.com/x"),
+                         "방금 거절당한 URL 이 신선하다고 읽힌다 — 15일간 재시도에서 빠진다")
+
+    def test_a_404_row_is_still_a_tombstone(self):
+        """**묘비는 그대로다.** 404 는 「그 자리에 문서가 없다」는 사실이라 15일을 지킨다.
+
+        이 단언이 없으면 「실패는 전부 다시 받는다」로 넓어져 없는 URL 을 15일마다가
+        아니라 매 실행 두드리게 된다 — 고치려던 것과 반대 방향의 윤리 문제다.
+        """
+        self.store._db.execute(
+            "INSERT INTO pages(url, html, status) VALUES (?, NULL, 404)", ("http://a.com/g",))
+        self.store._db.commit()
+        self.assertTrue(self.store.is_fresh("http://a.com/g"),
+                        "404 묘비까지 매번 다시 받는다")
+
+    def test_a_200_row_is_unaffected(self):
+        self.store.upsert("http://a.com/ok", "<p>x</p>", 200)
+        self.assertTrue(self.store.is_fresh("http://a.com/ok"))

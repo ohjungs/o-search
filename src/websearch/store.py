@@ -109,8 +109,18 @@ class Store:
         그래서 그 자리도 이 술어를 묻는다(반복 474 리뷰). 「방금 저장한 것」은 여전히
         신선해서 막히므로 한 실행 안의 중복 방지는 그대로다.
         """
+        # **429 는 「받은 적 없다」로 읽는다.** 계획 84 가 429 를 더 이상 저장하지
+        # 않게 했지만 그 전에 박힌 행이 실물에 **3,686개** 있다(2026-09-09 1만 크롤).
+        # 그 행들이 `RETRY_DAYS` 동안 신선하게 읽히면 **받은 적 없는 문서를 15일간
+        # 「받았다」로 취급**하는 것이다.
+        #
+        # **묘비와 다르다**: 404·410 은 「그 자리에 문서가 없다」는 **사실**이라 15일을
+        # 지킬 값이 있고, 429 는 「지금은 안 된다」는 **그 시각의 사정**이다. 사정을
+        # 사실처럼 붙들 이유가 없다. 그래서 실패 전체를 여는 것이 아니라 429 만 연다 —
+        # 전체를 열면 없는 URL 을 매 실행 두드려 고치려던 것과 **반대 방향의** 윤리
+        # 문제가 된다(`RejectedIsNotAFetchTest` 의 404 단언이 그 문을 닫는다).
         row = self._db.execute(
-            "SELECT 1 FROM pages WHERE url=? AND fetched_at >= datetime("
+            "SELECT 1 FROM pages WHERE url=? AND status != 429 AND fetched_at >= datetime("
             "    'now', CASE WHEN status BETWEEN 200 AND 299 THEN ? ELSE ? END)",
             (url, "-%d days" % FRESH_DAYS, "-%d days" % RETRY_DAYS),
         ).fetchone()
