@@ -1,98 +1,76 @@
 ---
 signal: GREEN
-phase: 개발
-step: 2/3
+phase: 리뷰
+step: 3/3
 attempt: 0
-iteration: 527
+iteration: 528
 updated: 2026-09-10
 ctx: 65
-night_iterations: 1
+night_iterations: 2
 night_red: 0
 night_retries: 0
 plan: iter-third-witness
 ---
 
-## 계획 85 `iter-third-witness` — 버려진 스텝 3/3 을 재개한다
+## 계획 85 `iter-third-witness` — 개발 3/3 로 세 스텝이 다 찼다
 
-계획서 `docs/plan_iter-third-witness.md`(살아 있다). 브랜치 `loop/iter-third-witness`
-는 다섯 계획 뒤처져 있어 **`main` 에서 다시 땄다**(옛 위치는 `main` 의 조상이라 잃은
-것이 없다 — `git merge-base --is-ancestor` 로 확인했다).
+계획서 `docs/plan_iter-third-witness.md`. 브랜치 `loop/iter-third-witness`(`main` 에서
+다시 딴 것). 반복 527 이 재개했고 이 반복이 마지막 스텝을 채웠다.
 
-**남은 것은 스텝 3 하나다.** 스텝 1(`iter_gap` 셋째 증인 + `IterGapTest`)과 스텝
-2(기록 정정)는 `aca4be4`·`937dd21` 로 들어가 **지금 살아 있다** — 실측으로 확인했다:
-`iter_gap(status, metrics, history)` 가 셋째 인자를 받고 `HIST_ITER` 의 **최댓값**을
-문다(`tests/test_docs.py:147`), `IterGapTest` 갈래 6개가 그것을 밟는다.
+## 이번 반복 — 개발 3/3 · 변이 4판으로 셋째 증인의 이빨을 쟀다
 
-안 한 것은 **그 자에 이빨이 있는지 재는 일과 등재**뿐이다.
-
-## 이번 반복 — 계획 탐색 · 1~4순위가 비었고 5순위에 미완이 있었다
-
-`discover.md` 1절 순서대로 실측했다:
+계획서 스텝 3 은 「변이 3종 + digest 39행 등재」다. **3종이 아니라 4판을 돌렸다** —
+계획서가 적은 ③「범위 `?:` 제거」가 두 가지로 읽히는데, 문구 그대로(`?:` 만 떼어
+캡처 그룹으로)와 그 취지(범위 처리를 통째로 제거)가 **완전히 다른 자리를 친다.**
+어느 쪽인지 고르는 대신 둘 다 쟀다.
 
 ```
-1 실패 테스트   PYTHONPATH=src python3 -m unittest discover -b tests → 749 OK rc 0
-2 린트·타입     없음 (project.md — stdlib 만 쓰는 소규모)
-3 src/ TODO     grep -rn 'TODO|FIXME|HACK' src/ → 0건
-4 candidates.md 파일 없음
-5 digest 보류   2건 → 하나는 보안 패치(밤 금지) · 하나가 이 계획이다
+① 셋째 증인 블록 삭제            2건 죽음
+② max(...) → heads[-1]           2건 죽음
+③a `?:` 만 제거 (계획서 문구)     4건 죽음 (errors 3 + fail 1)
+③b 범위 처리 통째 제거 (취지)     1건 죽음   ← 얇다
 ```
 
-**보류 2건이 같은 무게가 아니다.** `plan_userinfo-leak` 은 사람의 승인을 기다리는
-보안 건이라 밤이 못 댄다(`SKILL.md` 「보안 — 항상 보류」). `plan_iter-third-witness`
-는 **승인 대기가 아니라 그냥 안 끝난 것**이다 — 계획 90 이 발견해 `index.md` 를
-`진행`→`보류(미완)` 으로 정정했을 뿐, 사람이 정할 것은 처음부터 없었다. 남은 일은
-변이 3종과 digest 한 줄이라 `src/` 를 안 건드리고 야간 금지 목록에도 안 걸린다.
+**③b 의 1건이 `IterationPatternTest` 였다 — 판정 층은 조용했다.** 원인은 픽스처다:
+`IterGapTest.HISTORY` 의 최댓값이 여느 머리(`### 반복 356`)에서 나와, 범위를 잘못
+읽어도 `max` 가 안 움직였다. **실물이 조용한 이유는 더 얇았다** — 오늘
+`history_current.md` 의 최신 머리가 **마침** 범위가 아니었을 뿐이고, 바로 앞
+둘(`522~523`·`524~526`)은 범위다. 최신 항목이 범위인 날이었으면 `IterationSyncTest`
+가 물었을 것이다. **이빨이 그날 기록의 표기에 달려 있으면 그것은 자가 아니라 우연이다.**
 
-**앞 반복(521)이 YELLOW 였던 이유는 오늘 그대로다** — `perf_crawl` 기준선 건은 여전히
-사람이 정할 것이고, 나는 그 자리로 돌아가지 않고 **비어 있던 5순위를 다시 읽어** 갔다.
+닫은 방법은 **새 테스트가 아니라 픽스처 한 줄**이다 — 최댓값이 범위 끝에서 나오게
+`### 반복 356` 을 `### 반복 350~356` 으로 바꿔 **③b 를 1 → 3건**으로 만들었다.
+계획 90 이 픽스처 두 줄로 배운 것과 같은 자리다. 단위 건수 무변(**749 OK rc 0**) —
+`README.md` 갱신이 필요 없었다.
 
-## 실측으로 하나 더 발견 — `status.md` 본문이 다섯 반복 뒤처져 있었다
+**변이 규율은 지켰다**: `.git` 없는 `/tmp` 사본에서만 심었고(digest 의 「제자리 변이를
+자동 스냅샷이 커밋한다」 5회 처방), 매 판 `PYTHONPYCACHEPREFIX=$(mktemp -d)` 를 새로
+주고, **심긴 것을 먼저 단언**했으며(digest `[8]` — BSD sed 가 조용히 무시한 적이 있다),
+매 판 뒤 원복을 파일 비교로 확인했다. 러너는 **여덟 판 전부 맨몸**으로 돌렸다.
 
-이 파일을 열었을 때 frontmatter 는 `iteration: 526 · plan: rejection-visible` 인데
-**본문은 계획 90 `live-plan-gap` 과 반복 515~521 을 설명**하고 있었다. 실측:
+## digest 39행 등재 — 적어 둔 처방 자신이 틀렸다는 것이 이 항목의 값이다
 
-```
-b671982 (계획 90 rejection-visible)  docs/status.md | 6 +++---   ← frontmatter 3줄만
-c70bf5b (짧은 경로 mock-blindspot)   같은 모양
-본문 마지막 실질 변경  ed56005 (계획 탐색 521)
-전수 749 OK rc 0                                                 ← 아무도 안 문다
-```
+39행은 처방을 「`history_current.md` 의 **마지막** `반복 NNN`」이라 적어 뒀는데, 그날
+실물의 **마지막 항목은 490 이고 최댓값이 494** 였다 — 그대로 코드로 옮겼으면 틀린 자를
+세울 뻔했다. 일반화를 그 자리에 적었다: **등재된 처방은 근거지 설계가 아니다 — 코드로
+옮기기 전에 실물에 한 번 대본다.**
 
-**계획 90 이 지은 `live_gap` 은 이것을 구조적으로 못 잡는다** — 그 자는 표의 칸을
-읽고 **산문을 안 읽기로 한 결정**이 docstring 에 적혀 있다(거짓 RED 의 원천이라서다).
-옳은 결정이지만, 그래서 「frontmatter 는 갔는데 본문이 안 갔다」는 축은 여덟 벌 중
-아무도 안 문다. **자를 세우자는 말이 아니다** — 오늘은 이 파일을 통째로 다시 써서
-닫았고, 재는 자를 세울지는 `digest.md` 후보로 등재해 사람에게 넘긴다(산문 매칭이라
-`verdict_gap`·`live_gap` 이 두 번 피한 방향이다).
+## 다음 반복 — 리뷰
 
-## 다음 스텝 — 개발 3/3
-
-변이 3종을 심어 `iter_gap` 이 각각 무는지 재고, digest `## 반복 실패` 39행에
-「셋째 증인은 **최댓값**이지 마지막 항목이 아니다」를 등재한다.
-
-```
-① 셋째 증인 통째 삭제 (history 대조 제거)
-② max(...) → 마지막 항목 (heads[-1])
-③ HIST_ITER 의 범위 `?:` 제거
-```
-
-변이는 `PYTHONDONTWRITEBYTECODE=1 PYTHONPYCACHEPREFIX=$(mktemp -d)` 를 매 판 새로
-주고(`project.md`), 심은 뒤 **실제로 심겼는지 먼저 단언**하며(digest `[8]` — BSD sed
-가 조용히 무시한 적이 있다), 매 판 뒤 원복을 파일 비교로 확인한다.
+`src/` 0줄 · 픽스처 한 줄 + docstring + digest 한 문단이 이번 계획의 전부다.
+`digest ## 반복 실패` 의 [리뷰 예산] 항목이 **「성한 트리 + 깨끗한 워킹트리 + 코드 0줄
+변경이면 리뷰는 정적 판독으로 닫는다」** 고 못박아 뒀다 — 여기 해당한다.
 
 ## 한도
 
-**statusLine 이 꺼져 있다** — `.context-state.json` 의 `updated_unix` 가 시작 시점에
-이미 618초 지났다(상한 600). 컨텍스트 게이지를 못 믿으니 **반복 상한에만 의존한다**
-(`SKILL.md` 3절). 마지막으로 읽힌 값은 ctx 65 · 5h 9 · 7d 61 이다.
+**statusLine 은 이 밤 내내 꺼져 있다** — 시작 시점에 이미 618초 묵었다(상한 600).
+컨텍스트 게이지를 못 믿으니 **반복 상한에만 의존한다**. 마지막으로 읽힌 값 ctx 65 ·
+5h 9 · 7d 61.
 
-`digest.md` **206줄**(상한 200). 무인은 이 파일을 회전하지 않는다(계획 76 이 그은 선,
-`digest-cap-verdict` 가 「못을 세우지 않는다」로 닫았다). `history_current.md` 193줄.
+`digest.md` **207줄**(상한 200 — 이 반복이 등재로 +1). 무인은 회전하지 않는다(계획 76
+의 선, `digest-cap-verdict` 가 「못을 세우지 않는다」로 닫았다). `history_current.md` 217줄.
 
-## 아침 할 일 — 어제 셋 그대로 + 하나
+## 아침 할 일 — 반복 527 이 남긴 넷 그대로
 
-**1~3 은 반복 521 이 남긴 것과 같다**(`perf_crawl` 기준선 · `deadline_e2e` 1초 하한 ·
-`userinfo-leak` 패치 적용 판단). 밤이 그 자리로 돌아가지 않았을 뿐 아무것도 안 정해졌다.
-
-**4. `status.md` 본문 드리프트를 잴 것인가** — 위 절의 실측이 근거다. 자를 세우면
-산문을 읽어야 하고, 그 방향은 이 저장소가 두 번 일부러 피했다. digest 후보에 올렸다.
+`perf_crawl` 기준선 · `deadline_e2e` 1초 하한 · `userinfo-leak` 패치 적용 판단 ·
+`status.md` 본문 드리프트를 잴 것인가(digest 후보 등재). 이 반복은 아무것도 안 정했다.
