@@ -5,6 +5,7 @@ import io
 import itertools
 import os
 import signal
+import sqlite3
 import tempfile
 import threading
 import time
@@ -2324,3 +2325,92 @@ class CrawlSummaryShapeTest(unittest.TestCase):
         # 그 숫자를 못박으면 기계 속도에 기댄 단언이 된다(계획 78 이 시계 해상도에서
         # 배운 것과 같은 자리). 재는 것은 «천장을 옆에 적었나» 지 «얼마나 빨랐나» 가 아니다.
         self.assertRegex(text, r"= [\d.]+ 문서/초")
+
+
+class TooManyRequestsTest(unittest.TestCase):
+    """서버가 **429 로 「너무 잦다」고 말하면 물러난다.**
+
+    2026-09-09 1만 문서 크롤 실측 — 위키미디어 6도메인이 응답의 **50~68%(3,686건)** 를
+    429 로 거절했는데 크롤러는 같은 간격으로 계속 보냈다. 여섯이 **같은 IP**
+    (`103.102.166.224`)라 호스트마다 1초를 지킨 것이 **한 서버에 초당 6건**이 됐다.
+    컨셉의 「도메인당 1초는 전제 조건」을 글자로는 지키고 뜻으로는 어긴 것이다.
+
+    **IP 로 묶는 안은 버렸다** — CDN 뒤에서는 무관한 사이트 수천 개가 한 IP 를 쓰므로
+    더 나쁘다. 429 백오프는 **왜 429 인지 몰라도 옳다**: 원인이 공유 인프라든 그 시각의
+    부하든 처방이 같고, 서버가 유일하게 신뢰할 수 있는 정보원이다.
+    """
+
+    def _crawl(self, pages, statuses, max_pages=4, delays=None):
+        """`statuses[url]` 이 있으면 그 상태로 응답한다. 없으면 200 + HTML."""
+        sent = []
+
+        clock = {"t": 0.0}
+
+        def fake_fetch(url, before_send=None, retries=None):
+            if before_send:
+                before_send()
+            clock["t"] += 60.0  # 어떤 백오프 값이든 다음 팝을 막지 않을 만큼 크게
+            sent.append(url)
+            st = statuses.get(url, 200)
+            return fetcher.FetchResult(st, pages.get(url) if st == 200 else None, url)
+
+        # **시계는 발신마다만 흐른다.** 멈춘 시계로는 도메인 쿨다운이 영영 안 풀려
+        # 요청이 한 번 나가고 크롤이 끝난다 — 백오프가 쌓이는 것을 못 잰다. 그렇다고
+        # `now()` 를 부를 때마다 흐르게 하면 프런티어 내부 조회까지 시간을 밀어
+        # 재는 대상이 시계 자체가 된다. **읽기는 공짜, 발신만 60초**로 둔다.
+        f = Frontier(now=lambda: clock["t"])
+        with mock.patch.object(fetcher, "fetch", fake_fetch), \
+                tempfile.TemporaryDirectory() as d, \
+                mock.patch("sys.stderr", io.StringIO()):
+            db = os.path.join(d, "c.db")
+            # **시드로 전부 준다** — 429 응답에는 HTML 이 없어 링크가 안 나오므로,
+            # 하나만 주면 요청이 한 번 나가고 프런티어가 빈다. 백오프가 쌓이는 것을
+            # 재려면 큐에 여러 개가 있어야 한다.
+            crawl.crawl(list(pages), max_pages, db_path=db,
+                        robots_cache=FakeRobots(delays or {}), now=lambda: clock["t"],
+                        workers=1, sleep=lambda s: None, frontier=f)
+            rows = dict(sqlite3.connect(db).execute("SELECT url, status FROM pages"))
+        return sent, rows, f
+
+    def test_a_429_is_not_recorded_as_a_fetched_page(self):
+        """**못 받은 것을 받았다고 적지 않는다.**
+
+        `pages` 에 `status=429` 가 박히면 계획 80 의 재크롤 정책상 실패는
+        `RETRY_DAYS`(15일) 뒤에나 다시 본다 — 서버가 「지금은 안 된다」고 한 것을
+        「이 URL 은 429 다」로 굳히는 것이다. 바로 옆 `_Interrupted` 자리에 코드가
+        이미 *"안 받은 것을 받았다고 적는 거짓"* 이라고 적어 뒀는데 여기만 빠져 있었다.
+        """
+        _, rows, _ = self._crawl({"http://a.com/": "<p>x</p>"},
+                                 {"http://a.com/": 429})
+        self.assertNotIn("http://a.com/", rows,
+                         "429 를 받은 URL 이 pages 에 박혔다 — 15일간 재시도에서 빠진다")
+
+    def test_a_429_widens_the_interval_for_that_domain(self):
+        """물러난다. 기존 `set_delay` 가 단조 증가라 그것을 그대로 쓴다."""
+        _, _, f = self._crawl({"http://a.com/": "<p>x</p>"},
+                              {"http://a.com/": 429})
+        self.assertGreater(f.interval("a.com"), DOMAIN_INTERVAL,
+                           "429 를 받고도 간격이 그대로다 — 안 물러났다")
+
+    def test_repeated_429s_eventually_drop_the_domain(self):
+        """물러나다가 도저히 안 되면 손을 뗀다.
+
+        `set_delay` 는 `MAX_DELAY`(30초)를 넘으면 도메인을 통째로 버린다 — 429 백오프가
+        필요로 하는 것이 정확히 그 동작이라 **새 기계를 안 만든다.** 2·4·8·16·32 로
+        다섯 번이면 상한을 넘는다.
+        """
+        pages = {"http://a.com/p%d" % i: "<p>x</p>" for i in range(40)}
+        first = list(pages)[0]
+        sent, _, f = self._crawl(pages, {u: 429 for u in pages}, max_pages=40)
+        self.assertLess(len(sent), 40,
+                        "429 만 내는 도메인을 끝까지 두드렸다 — 손을 안 뗐다")
+        self.assertEqual(f.interval(urls.domain_key(first)), DOMAIN_INTERVAL,
+                         "버려진 도메인은 하한으로 읽힌다(frontier.interval 계약)")
+
+    def test_a_200_domain_is_not_slowed_by_another_domains_429(self):
+        """**값을 안 내는 곳에서 값을 치르지 않는다.** 429 는 그 도메인만의 신호다."""
+        pages = {"http://a.com/": '<a href="http://b.com/">x</a>',
+                 "http://b.com/": "<p>y</p>"}
+        _, rows, f = self._crawl(pages, {"http://a.com/": 429})
+        self.assertEqual(f.interval("b.com"), DOMAIN_INTERVAL,
+                         "남의 도메인 429 로 b.com 이 느려졌다")

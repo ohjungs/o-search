@@ -1,15 +1,15 @@
 ---
 signal: DONE
 phase: 계획
-step: 0/0
+step: 2/2
 attempt: 0
-iteration: 494
+iteration: 490
 updated: 2026-09-09
 ctx: 46
 night_iterations: 1
 night_red: 0
 night_retries: 0
-plan: null
+plan: backoff-429
 ---
 
 ## 아침 할 일 — 어제와 같은 둘. 탐색은 **두 밤 연속 막혀 있다**
