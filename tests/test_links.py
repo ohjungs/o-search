@@ -42,6 +42,21 @@ class TestExtract(unittest.TestCase):
         # IDNA 가 거부하는 호스트(빈 라벨) — 링크 아님으로 버린다
         self.assertEqual(links.extract("http://a.com/", '<a href="http://.가/x">x</a>'), [])
 
+    def test_a_credentialed_href_is_dropped_but_the_page_is_not(self):
+        # **크롤이 실제로 이 URL 을 만나는 자리다** (계획 83). 시드는 운영자가 주지만
+        # 이 href 는 남이 심는다 — 여기서 안 버리면 남의 자격증명이 우리 요청으로
+        # 나가고 `pages.url` 이 된다. `normalize` 가 `None` 을 주고 위 `continue`
+        # 가 받는다. **한 링크만 버리고 페이지의 나머지는 그대로다.**
+        html = ('<a href="http://u:pw@evil.test/p">1</a>'
+                '<a href="http://google.com@evil.test/x">2</a>'
+                '<a href="/ok">3</a>')
+        self.assertEqual(links.extract("http://a.com/", html), ["http://a.com/ok"])
+
+    def test_an_at_sign_in_the_path_is_still_a_link(self):
+        # 자격증명이 아니라 핸들이다. netloc 밖의 `@` 까지 버리면 멀쩡한 문서를 잃는다
+        self.assertEqual(links.extract("http://a.com/", '<a href="/@handle">h</a>'),
+                         ["http://a.com/@handle"])
+
 class TestABrokenHrefIsSkipped(unittest.TestCase):
     def test_an_unjoinable_href_does_not_raise(self):
         # `urljoin` 도 닫히지 않은 IPv6 리터럴에 ValueError 를 던진다.

@@ -199,6 +199,31 @@ class TestDomainKey(unittest.TestCase):
         self.assertEqual(urls.domain_key("http://" + key + "/2"), key)
 
 
+class TestHasCredentials(unittest.TestCase):
+    """`normalize` 의 거절 사유를 시드 루프가 갈라 쓰는 술어다 (계획 83).
+
+    간접으로만 덮으면 **거절이 옳은데 사유가 틀린** 상태를 못 본다.
+    """
+
+    def test_userinfo_in_the_netloc_is_credentials(self):
+        for url in ["http://u:pw@a.test/p", "http://user@a.test/p",
+                    "https://google.com@evil.test/x"]:
+            with self.subTest(url=url):
+                self.assertTrue(urls.has_credentials(url))
+
+    def test_an_at_sign_outside_the_netloc_is_not(self):
+        for url in ["http://a.test/@handle", "http://a.test/?to=a@b.com",
+                    "http://a.test/"]:
+            with self.subTest(url=url):
+                self.assertFalse(urls.has_credentials(url))
+
+    def test_an_unreadable_url_answers_false_instead_of_raising(self):
+        # 시드 루프가 `normalize` 보다 **먼저** 이것을 부른다 — 여기서 던지면
+        # 못 읽는 시드 하나가 크롤 전체를 끝낸다. `_split` 의 폴백을 그대로 탄다
+        self.assertFalse(urls.has_credentials("http://[oops/p"))
+        # 폴백 경로에서도 자격증명은 자격증명이다
+        self.assertTrue(urls.has_credentials("http://u:pw@[oops/p"))
+
 class TestNormalize(unittest.TestCase):
     """`normalize` 는 **같은 문서를 가리키는 표기를 한 문자열로** 모은다.
 
