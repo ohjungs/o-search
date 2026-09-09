@@ -1,15 +1,15 @@
 ---
 signal: YELLOW
 phase: 탐색
-step: 0/0
+step: 1/1
 attempt: 0
-iteration: 483
+iteration: 484
 updated: 2026-09-09
 ctx: 58
 night_iterations: 2
 night_red: 0
 night_retries: 0
-plan: null
+plan: throughput-shape
 ---
 
 ## 다음 반복이 읽을 것 — 탐색이 근거 0 으로 멈췄다

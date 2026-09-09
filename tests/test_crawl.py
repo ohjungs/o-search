@@ -2281,3 +2281,46 @@ class TestRedirectDestinationFreshness(unittest.TestCase):
         _sent, html = self._run(5, "<p>새 본문</p>")
         self.assertEqual(html, "<p>옛 본문</p>",
                          "신선한 도착지를 덮으면 한 실행 안의 중복 방지가 무너진다")
+
+
+class CrawlSummaryShapeTest(unittest.TestCase):
+    """크롤 요약이 **숫자 옆에 그 숫자를 낸 입력의 모양**을 적는가.
+
+    2026-09-09 실측: 실물 크롤이 `수집 400 페이지` 만 찍었고, 따로 잰 3.67문서/초를
+    보고 **크롤러 코드가 느린 줄 알았다.** 다시 재니 도메인 수에 정비례였고
+    (1·2·4·8 → 1.03·2.08·4.40·9.86) 시드가 4도메인이라 **이론 상한 4.00 의 92%** 에
+    이미 붙어 있었다 — 고칠 코드가 없는데 반나절을 봤다.
+
+    **그 오인의 값이 크다**: 처리량이 안 나올 때 손이 가는 곳은 `DOMAIN_INTERVAL` 이고,
+    그것은 크롤 윤리 상수다(계획 81 이 못을 박은 바로 그 자리). **요약이 천장을 같이
+    말해 주면 그 손이 안 간다.**
+
+    `perf_crawl.py` 는 이미 도메인 수를 옆에 찍는다 — 빠져 있던 것은 사용자가 실제로
+    보는 CLI 쪽이다.
+    """
+
+    def test_summary_reports_domains_and_the_ceiling_next_to_the_rate(self):
+        out = io.StringIO()
+        with mock.patch.dict(PAGES, {"http://a.com/": "<a href='http://b.com/'>x</a>",
+                                     "http://b.com/": "y"}), \
+                mock.patch("websearch.crawl.crawl", return_value=2), \
+                mock.patch("websearch.crawl.Store") as store, \
+                mock.patch("sys.stdout", out):
+            store.return_value.domains.return_value = 2
+            crawl.main(["prog", "http://a.com/", "--max", "2"])
+        text = out.getvalue()
+        self.assertIn("수집 2 페이지", text)
+        self.assertIn("2 도메인", text)
+        # 천장은 «도메인 수 × (1초 간격)» 이라 도메인 수와 같은 숫자다. 그 관계를
+        # 요약이 말하지 않으면 읽는 사람이 다시 추측한다.
+        #
+        # **「지속」이라는 낱말을 통째로 단언한다.** 실물로 돌려 보니 3도메인 9페이지가
+        # 2.0초에 4.45문서/초로 나와 「상한 3.00」을 **넘었다** — 도메인별 첫 요청은
+        # 기다리지 않기 때문이다. 그냥 「상한」이면 그 줄이 자기 모순이라 읽는 사람이
+        # 요약을 못 믿게 되고, 그건 안 적는 것보다 나쁘다. 단위 테스트는 모의 크롤이라
+        # 이걸 못 잡았다 — **실물 한 번이 잡았다.**
+        self.assertIn("지속 상한 2.00", text)
+        # **실측 처리량 자체는 값으로 단언하지 않는다** — 모의 크롤이라 0초에 가깝고,
+        # 그 숫자를 못박으면 기계 속도에 기댄 단언이 된다(계획 78 이 시계 해상도에서
+        # 배운 것과 같은 자리). 재는 것은 «천장을 옆에 적었나» 지 «얼마나 빨랐나» 가 아니다.
+        self.assertRegex(text, r"= [\d.]+ 문서/초")
