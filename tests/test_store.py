@@ -136,7 +136,7 @@ class TestConcurrentAccess(unittest.TestCase):
 class TestFreshness(unittest.TestCase):
     """「저장돼 있나」가 아니라 「아직 신선한가」 — 사양 기능 5 의 30일이 여기 산다.
 
-    **시각 비교를 SQLite 에 맡긴 것이 계약이다** (`docs/design_recrawl.md` 계약 1).
+    **시각 비교를 SQLite 에 맡긴 것이 계약이다** (`docs/design_history_066.md` 계약 1).
     `upsert` 가 `datetime('now')`(UTC)로 박으므로 읽는 쪽이 파이썬 시계를 쓰면
     타임존·해상도가 어긋나 비교가 조용히 틀린다 — 계획 78 이 그 자리에서 실제로
     한 번 빨개졌다.
