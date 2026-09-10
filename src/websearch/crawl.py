@@ -413,7 +413,14 @@ def _store_result(future, url, domain, store, frontier, now, robots, rejected=No
         return 0
     store.upsert(page_url, result.html, result.status)
     if result.html is not None and 200 <= result.status < 300:
-        frontier.add(links.extract(page_url, result.html))
+        found = links.extract(page_url, result.html)
+        # **발견을 디스크에도 남긴다.** 프런티어는 메모리라 종료와 함께 사라지고,
+        # 그러면 `--max` 로 끊긴 크롤이 다음 실행에 그 지점을 못 이어받는다 —
+        # 컨셉 1단계(10만 문서)는 한 번에 도는 크기가 아니다.
+        # **`frontier.add` 뒤에 부르는 이유**는 범위(`--same-site`)를 넘은 URL 까지
+        # 기억하지 않기 위해서다 — 그러면 다음 실행의 되찾기가 사용자가 막은 곳을
+        # 큐에 넣는다(계획 88 이 계약으로 못박은 자리). `add` 가 거른 것은 여기 안 온다.
+        store.remember(frontier.add(found))
         return 1
     return 0
 

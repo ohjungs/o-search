@@ -12,6 +12,21 @@ CREATE TABLE IF NOT EXISTS pages (
 )
 """
 
+# **발견 큐.** `pages` 와 다른 표인 이유는 그 표가 「받아 본 것」이기 때문이다 —
+# 발견은 수집이 아니다. 안 받은 URL 을 `pages` 에 넣으면 계획 84·86 이 429 에서 닫은
+# 거짓(「안 받은 것을 받았다고 적는다」)을 다시 여는 것이다.
+#
+# **이 표가 있어야 규모가 열린다**: 프런티어가 메모리라 매 실행이 시드에서 다시 자라고,
+# `--max` 로 끊긴 크롤이 다음 실행에 그 지점을 못 이어받았다. 컨셉 1단계(10만 문서)는
+# 한 번에 도는 크기가 아니다. 계획 88 이 `pages` 에 **이미 있는** 미완 URL 만 되찾았고,
+# 큐에만 있다가 종료된 URL 은 여전히 잃었다 — 그 절반을 여기서 닫는다.
+QUEUE_SCHEMA = """
+CREATE TABLE IF NOT EXISTS discovered (
+    url  TEXT PRIMARY KEY,
+    seen TEXT NOT NULL DEFAULT (datetime('now'))
+)
+"""
+
 # 재방문 주기. 사양 기능 5 (`docs/specs/concept.md:31` "30일 이내에 재방문")가 이 숫자다.
 # **실패를 절반으로 가른 이유**는 4xx·5xx·`status 0` 이 「없는 문서」가 아니라 「그때
 # 못 받은 문서」이기 때문이다 — 성공과 같은 30일로 두면 일시 장애가 그만큼 오래
@@ -78,6 +93,7 @@ class Store:
         self._db = sqlite3.connect(path, timeout=30)
         self._db.execute("PRAGMA journal_mode=WAL")
         self._db.execute(SCHEMA)
+        self._db.execute(QUEUE_SCHEMA)
 
     def upsert(self, url, html, status):
         self._db.execute(
@@ -126,6 +142,17 @@ class Store:
         ).fetchone()
         return row is not None
 
+    def remember(self, urls):
+        """발견한 URL 을 큐에 남긴다. 이미 있으면 아무 일도 안 한다.
+
+        **받았다는 뜻이 아니다** — 「이런 URL 이 있더라」까지다. 받고 나면
+        `pages` 에 행이 생겨 `unfinished()` 가 알아서 뺀다. 여기서 지우지 않는 이유는
+        지우는 자리가 둘이면 한쪽만 고쳐지기 때문이다(판정은 `unfinished` 한 곳).
+        """
+        self._db.executemany(
+            "INSERT OR IGNORE INTO discovered(url) VALUES (?)", [(u,) for u in urls])
+        self._db.commit()
+
     def unfinished(self, limit=1000):
         """다시 받아야 하는데 **큐에 들어올 길이 없는** URL 들. 오래된 순.
 
@@ -144,11 +171,22 @@ class Store:
 
         **오래된 순인 이유**: 가장 오래 못 받은 것이 가장 오래 기다린 것이다.
         """
+        # 두 갈래를 합친다 — **받았는데 낡은 것**(`pages`)과 **발견만 하고 못 받은 것**
+        # (`discovered`). 둘 다 「다시(또는 처음) 받아야 하는데 큐에 들어올 길이 없다」는
+        # 같은 상태이고, 부르는 쪽이 둘을 구분할 이유가 없다.
+        #
+        # `discovered` 쪽은 **신선한 `pages` 행이 있으면 뺀다** — 받고 난 URL 은 더 이상
+        # 미완이 아니다. 판정을 `is_fresh` 와 같은 식으로 쓴다(술어 두 벌이면 갈린다).
         rows = self._db.execute(
             "SELECT url FROM pages WHERE status = 429 OR fetched_at < datetime("
             "    'now', CASE WHEN status BETWEEN 200 AND 299 THEN ? ELSE ? END) "
-            "ORDER BY fetched_at LIMIT ?",
-            ("-%d days" % FRESH_DAYS, "-%d days" % RETRY_DAYS, limit),
+            "UNION "
+            "SELECT d.url FROM discovered d LEFT JOIN pages p ON p.url = d.url "
+            "WHERE p.url IS NULL OR p.status = 429 OR p.fetched_at < datetime("
+            "    'now', CASE WHEN p.status BETWEEN 200 AND 299 THEN ? ELSE ? END) "
+            "LIMIT ?",
+            ("-%d days" % FRESH_DAYS, "-%d days" % RETRY_DAYS,
+             "-%d days" % FRESH_DAYS, "-%d days" % RETRY_DAYS, limit),
         ).fetchall()
         return [r[0] for r in rows]
 
