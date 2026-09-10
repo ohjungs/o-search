@@ -274,3 +274,45 @@ class UnfinishedUrlsTest(unittest.TestCase):
                 "INSERT INTO pages(url, html, status) VALUES (?, NULL, 429)", ("http://a.com/%d" % i,))
         self.store._db.commit()
         self.assertEqual(len(self.store.unfinished(limit=2)), 2)
+
+
+class DiscoveredSurvivesRestartTest(unittest.TestCase):
+    """**발견만 하고 못 받은 URL 이 종료를 넘어 산다.**
+
+    계획 87 이 실물에서 잡고 88 이 절반을 닫았다 — 88 은 `pages` 에 **이미 있는** 미완
+    URL 을 되찾았지만, 큐에만 있다가 종료된 URL 은 `pages` 에 한 번도 안 들어가므로
+    여전히 잃는다(88 e2e 3절이 「진짜 영속화의 몫」으로 적어 뒀다).
+
+    실물에서 이것이 규모를 막는다: 프런티어가 메모리라 매 실행이 시드에서 다시 자라고,
+    `--max` 로 끊긴 크롤이 **다음 실행에 그 지점을 이어받지 못한다.** 컨셉 1단계
+    (10만 문서)는 한 번에 도는 크기가 아니다.
+
+    **`pages` 에 안 박는 이유**는 그 표가 「받아 본 것」이기 때문이다 — 발견은 수집이
+    아니다. 안 받은 URL 을 `pages` 에 넣으면 계획 84·86 이 429 에서 닫은 그 거짓
+    (「안 받은 것을 받았다고 적는다」)을 다시 여는 것이다.
+    """
+
+    def setUp(self):
+        self.store = Store(":memory:")
+
+    def test_a_discovered_url_is_unfinished(self):
+        self.store.remember(["http://a.com/x"])
+        self.assertIn("http://a.com/x", self.store.unfinished())
+
+    def test_fetching_it_takes_it_out_of_the_queue(self):
+        self.store.remember(["http://a.com/x"])
+        self.store.upsert("http://a.com/x", "<p>x</p>", 200)
+        self.assertNotIn("http://a.com/x", self.store.unfinished())
+
+    def test_remembering_twice_is_harmless(self):
+        self.store.remember(["http://a.com/x"])
+        self.store.remember(["http://a.com/x"])
+        self.assertEqual(self.store.unfinished().count("http://a.com/x"), 1)
+
+    def test_a_rejected_url_stays_in_the_queue(self):
+        """429 를 받은 URL 은 발견 큐에도 남는다 — 받은 적이 없기 때문이다."""
+        self.store.remember(["http://a.com/x"])
+        self.store._db.execute(
+            "INSERT INTO pages(url, html, status) VALUES (?, NULL, 429)", ("http://a.com/x",))
+        self.store._db.commit()
+        self.assertIn("http://a.com/x", self.store.unfinished())

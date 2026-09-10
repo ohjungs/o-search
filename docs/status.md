@@ -1,15 +1,15 @@
 ---
 signal: YELLOW
 phase: 계획
-step: 0/0
+step: 1/1
 attempt: 0
-iteration: 531
+iteration: 534
 updated: 2026-09-10
 ctx: 65
 night_iterations: 5
 night_red: 0
 night_retries: 0
-plan: null
+plan: frontier-persist
 ---
 
 ## 정지 — 탐색 막힘 · 8개 출처를 전부 재고 근거 0건

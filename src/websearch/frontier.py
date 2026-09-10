@@ -100,6 +100,14 @@ class Frontier:
             del self._penalty[domain]
 
     def add(self, urls):
+        """받아들인 URL 목록을 돌려준다.
+
+        **돌려주는 이유**는 「무엇이 큐에 들어갔나」를 부르는 쪽이 알아야 하기
+        때문이다(발견 큐를 디스크에 남기는 계획 91). 부르는 쪽이 범위·중복을 **다시**
+        판정하면 거르는 자리가 둘이 되고, 그러면 새 호출부가 생기는 날 조용히 샌다 —
+        이 클래스가 `_scope` 를 `add` 한 곳에만 둔 것과 같은 이유다.
+        """
+        taken = []
         for url in urls:
             if url in self._seen:
                 continue
@@ -111,6 +119,8 @@ class Frontier:
 
             self._seen.add(url)
             self._queues.setdefault(domain, collections.deque()).append(url)
+            taken.append(url)
+        return taken
 
     def next(self, exclude=()):
         """지금 요청해도 되는 URL 하나. 전 도메인이 쿨다운이면 None.
