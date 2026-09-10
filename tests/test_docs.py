@@ -100,10 +100,12 @@ VERDICT_ROW = re.compile(
     r"^\| plan_([A-Za-z0-9_-]+) \| ([^|]*) \| [^|]* \| [^|]* \| ([^|]*) \|", re.M)
 # 위 정규식이 다섯째 칸까지 못 읽은 행을 세려고 머리만 따로 문다. 열이 줄면
 # `VERDICT_ROW` 는 그 행을 **조용히 건너뛴다** — 침묵 대신 신고하게 만드는 자리다.
-# **잡는 것은 열이 줄어든 쪽뿐이다** — e2e **앞에** 열을 끼우면 개수가 맞아 통과하고
-# 엉뚱한 칸을 판정으로 읽는다(2026-09-07 리뷰 실측). 그때도 조용하지는 않고 틀린
-# RED 로 운다. 헤더의 다섯째 이름을 재는 처방은 `digest.md` 후보에 등재했다.
 VERDICT_ROW_HEAD = re.compile(r"^\| plan_", re.M)
+# 표 머리 한 줄. `VERDICT_ROW` 는 **다섯째 칸이 e2e 라는 자리 약속** 위에 서 있고,
+# 위 행 수 대조가 잡는 것은 열이 **줄어든** 쪽뿐이었다 — e2e **앞에** 열을 끼우면
+# 개수가 맞아 통과하고 엉뚱한 칸을 판정으로 읽어 **틀린 RED** 를 냈다(2026-09-07
+# 계획 71 리뷰 실측). 자리 대신 **이름**을 확인해 그 축을 닫는다.
+VERDICT_HEAD = re.compile(r"^\| *계획 *\|.*$", re.M)
 # e2e 칸이 판정이 아니라 **날짜뿐**인 꼴. 어휘(`통과`)를 요구하지 않는 것이 설계다 —
 # 2026-09-07 실측에서 `통과` 를 요구하면 `없음(…)`·`**새 e2e 0개**(…)` 여섯 행이
 # 거짓 RED 였다(계획서 2절). 자는 날짜 하나만 거절한다.
@@ -298,6 +300,12 @@ def verdict_gap(index_text):
 
     **`완료` 행만 본다** — 진행 중인 계획의 e2e 칸은 아직 `—` 인 것이 맞다.
     """
+    head = VERDICT_HEAD.search(index_text)
+    names = [c.strip() for c in head.group(0).strip("| \n").split("|")] if head else []
+    if len(names) < 5 or names[4] != "e2e":
+        return ("index.md 표 머리의 다섯째 칸이 `e2e` 가 아니다 — 읽힌 머리는 %r 다."
+                " 이 자는 다섯째를 판정으로 읽으므로 자리가 밀리면 엉뚱한 칸을 문다"
+                % (names,))
     rows = VERDICT_ROW.findall(index_text)
     heads = VERDICT_ROW_HEAD.findall(index_text)
     if len(rows) != len(heads):
@@ -1381,6 +1389,24 @@ class VerdictGapTest(unittest.TestCase):
     def test_running_row_is_not_bitten(self):
         # 오탐 축 — 진행 중인 계획의 e2e 칸은 아직 비어 있는 것이 맞다.
         self.assertIsNone(verdict_gap(self.index(self.RUNNING)))
+
+    def test_a_column_inserted_before_e2e_is_reported(self):
+        # 열이 **줄면** 행 머리 수가 갈려 잡히지만, e2e **앞에** 끼우면 개수가 맞아
+        # 통과하고 엉뚱한 칸을 판정으로 읽는다(2026-09-07 계획 71 리뷰 실측 —
+        # 날짜 칸을 물어 **틀린 RED** 가 났다). 단언을 `표 머리` 에 거는 것은
+        # 아래 행이 옛 갈래(날짜 칸)로도 울기 때문이다 — 다른 이유로 초록이면
+        # 이 자는 아무것도 안 잰다(`digest.md` 「부정 단언 하나가 다른 이유로」).
+        text = ("# 색인\n\n| 계획 | 상태 | 브랜치 | 스텝 | 날짜 | e2e | 비고 |\n"
+                "| plan_done-one | 완료 | loop/x | 1/1 | 2026-09-07 | 통과 | 설명 |\n")
+        gap = verdict_gap(text)
+        self.assertIsNotNone(gap)
+        self.assertIn("표 머리", gap)
+
+    def test_a_missing_head_is_reported(self):
+        # 머리가 아예 없으면 자리 약속을 확인할 수 없다 — 침묵이 아니라 신고다.
+        gap = verdict_gap(self.DONE % ("headless-one", "통과") + "\n")
+        self.assertIsNotNone(gap)
+        self.assertIn("표 머리", gap)
 
     def test_broken_column_shape_is_reported(self):
         # 열이 하나 사라지면 `VERDICT_ROW` 는 그 행을 조용히 건너뛴다 — 침묵이 아니라
