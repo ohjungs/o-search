@@ -234,7 +234,10 @@ def crawl(seeds, max_pages, db_path=None, robots_cache=None,
     # `add` 가 `_seen` 으로 중복을 막으므로 시드와 겹치면 시드 쪽이 남는다.
     # **범위(`--same-site`)도 그대로 걸린다** — `add` 가 `_scope` 를 보므로 되찾기가
     # 범위를 넓히지 않는다. 그러지 않으면 「같은 사이트만」이 조용히 깨진다.
-    frontier.add(store.unfinished())
+    # **범위를 판정식으로 넘긴다** — `unfinished` 가 자르기 **전에** 걸러야 일감이 나온다.
+    # `scope` 는 위에서 한 번 계산한 그것이고, 여기서 새로 만들지 않는다.
+    in_scope = None if scope is None else (lambda u: urls.domain_key(u) in scope)
+    frontier.add(store.unfinished(accept=in_scope))
     # **그래도 비었으면 받아 둔 HTML 에서 링크를 되살린다 — 요청은 한 건도 안 나간다.**
     #
     # 2026-09-11 실측으로 막힌 자리다: 코퍼스 14,105장인데 크롤이 **0장**을 받고 끝났다.
