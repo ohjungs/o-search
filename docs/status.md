@@ -4,15 +4,15 @@ phase: 계획
 step: 0/0
 attempt: 0
 plan: null
-iteration: 552
+iteration: 553
 updated: 2026-09-12
 mode: night
-night_iterations: 4
+night_iterations: 1
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
 ctx: 미상 (.context-state.json 오래됨 — statusLine 꺼짐, 반복 상한에만 의존)
-note: 계획 96 완료·병합. 탐색이 빈손이라 YELLOW 정지 — 야간이 열 수 있는 근거가 0건
+note: 새 야간 세션도 탐색 빈손 — 단위 763 + e2e 13종 전수 초록이라 1순위도 0건. 두 밤 연속 YELLOW
 ---
 
 # 현재 상태
@@ -47,6 +47,17 @@ note: 계획 96 완료·병합. 탐색이 빈손이라 YELLOW 정지 — 야간�
 눈금」이라 적어 둔 천장이 수치로 맞았다 — **모양(상수 대 선형)은 맞았고 눈금만 낙관**이었다.
 
 전부 `docs/e2e/docs-delete-rowid/result.md` 5절.
+
+## 두 번째 야간 세션 (2026-09-12 · 반복 553)
+
+같은 밤에 한 번 더 불렸다. **탐색을 여덟 출처 전수로 다시 돌렸고 또 0건**이다 —
+반복 552 와 같은 결론이지만 **1순위를 더 넓게 쟀다**: 552 는 단위 763 만 봤고,
+이번엔 **e2e 13종을 전부 맨몸으로 돌려 rc 0** 을 확인했다(`perf_crawl.py` 는 뺐다 —
+여유 0.5% 라 동전 던지기인 것이 이미 등재돼 있고, 그 빨강은 근거가 아니라 잡음이다).
+
+**곁가지 실측 하나** — `deadline_e2e.py` 가 이번 판에서 **간격 1.01s 로 통과**했다.
+digest `[6]`(6판 중 3실패)의 네 번째 표본이고, 「하한 0.95s 가 실측 산포 안」이라는
+진단을 뒤집지 않는다(통과 판도 산포 안이다). **여는 조건은 그대로 사람 몫이다.**
 
 ## 다음 행동
 
