@@ -2601,3 +2601,29 @@ class RelinkFromStoredHtmlTest(unittest.TestCase):
         sent = self._crawl_with_stored(pages, ["http://a.com/"])
         # 범위 없이는 나가는 것이 맞다(열린 웹이 기본값) — 범위를 걸면 막혀야 한다
         self.assertIn("http://b.com/x", sent)
+
+
+class DefaultDbIsNotBoundAtImportTest(unittest.TestCase):
+    """**기본 DB 경로가 «정의 시점»에 묶이면 패치가 안 먹는다.**
+
+    계획 90 이 `setUpModule` 로 `crawl.DEFAULT_DB` 를 임시 경로로 씌워 「테스트가 실물
+    코퍼스를 건드리는 것」을 막았다고 믿었다. 그런데 `def crawl(..., db_path=DEFAULT_DB)`
+    는 **그 값을 정의 시점에 고정**하므로 모듈 속성을 바꿔도 소용이 없었다.
+
+    그때는 실물이 전부 신선해 아무것도 안 받아 안 드러났고, 계획 92 의 링크 되살리기가
+    그것을 깨웠다 — **테스트 한 번에 실물 DB 로 1,001행이 들어갔다**(실측).
+    바깥으로 실제 요청이 나간 것이라 느린 것보다 나쁘다.
+    """
+
+    def test_patching_the_module_attribute_actually_moves_the_db(self):
+        with tempfile.TemporaryDirectory() as d:
+            target = os.path.join(d, "패치된.db")
+            with mock.patch.object(crawl, "DEFAULT_DB", target), \
+                    mock.patch.object(fetcher, "fetch",
+                                      lambda url, before_send=None, retries=None:
+                                      fetcher.FetchResult(200, "<p>x</p>", url)), \
+                    mock.patch("sys.stderr", io.StringIO()):
+                crawl.crawl(["http://a.com/"], 1, robots_cache=FakeRobots(),
+                            now=lambda: 0.0, workers=1, sleep=lambda x: None)
+            self.assertTrue(os.path.exists(target),
+                            "DEFAULT_DB 패치가 안 먹었다 — 기본값이 정의 시점에 묶여 있다")
