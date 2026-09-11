@@ -136,7 +136,7 @@ def _fetch_one(url, robots, now, floor, sleep=time.sleep, stop=None):
     return True, requested, sends[-1] if sends else None, result
 
 
-def crawl(seeds, max_pages, db_path=DEFAULT_DB, robots_cache=None,
+def crawl(seeds, max_pages, db_path=None, robots_cache=None,
           now=time.monotonic, workers=WORKERS, deadline=None, sleep=time.sleep,
           stop=None, same_site=False, frontier=None):
     """수집에 성공(2xx + HTML)한 페이지 수를 돌려준다. robots_cache·now·sleep 은 테스트 주입 지점.
@@ -178,6 +178,13 @@ def crawl(seeds, max_pages, db_path=DEFAULT_DB, robots_cache=None,
     # **세 줄**(`:19`·`:22~23`·`:24`)에서 던진다. 그물을 줄이 아니라 **생성자 호출
     # 한 줄 전체**에 걸어 넷째 던지는 줄이 생겨도 자동으로 덮는다. 두 타입은 겹치지
     # 않고(`sqlite3.Error` 는 `OSError` 의 하위가 아니다) 둘이면 다섯을 다 덮는다
+    # **기본값을 인자에 묶지 않는다.** `db_path=DEFAULT_DB` 로 두면 그 값이 **정의
+    # 시점에 고정**되어, 테스트가 `crawl.DEFAULT_DB` 를 패치해도 이 함수는 계속 실물
+    # 코퍼스를 연다 — 계획 90 이 `setUpModule` 로 막았다고 믿은 구멍이 실은 여기서
+    # 열려 있었다. 그때는 실물이 전부 신선해 아무것도 안 받아 안 드러났고, 계획 92 의
+    # 링크 되살리기가 그것을 깨워 **테스트가 실물 DB 에 1,001행을 넣었다**(실측).
+    if db_path is None:
+        db_path = DEFAULT_DB
     try:
         store = Store(db_path)
     except (sqlite3.Error, OSError) as err:
