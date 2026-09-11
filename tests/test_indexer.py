@@ -197,6 +197,42 @@ class TestIndexPages(unittest.TestCase):
         self.assertEqual([(row[0], row[1]) for row in self._docs()],
                          [("http://a.test/", "새")], "제목도 함께 간다 · 행은 하나뿐이다")
 
+    def test_update_touches_only_the_row_the_join_handed_it(self):
+        """갱신이 지우는 것은 **조인이 손에 든 그 행**이다 — 안 본 행까지 지우지 않는다.
+
+        `docs` 는 FTS5 라 `url` 에 유일성 제약이 없다(열이 `UNINDEXED` 다). 같은 URL 의
+        행이 둘이면 워터마크 조인도 **두 쌍**을 돌려주므로 각 행이 한 번씩 갱신돼 둘 다
+        새 본문이어야 한다. 열쇠가 `url` 이면 **첫 쌍의 `DELETE` 가 둘을 한꺼번에 지우고**
+        그 뒤 남은 한 행을 두 번째 쌍이 또 지운다 — 결과가 1행으로 접힌다. 접히는 것이
+        보기에 낫더라도 그 경로는 **아직 보지도 않은 행을 지운 것**이라 우연이다.
+
+        오늘 실물 `data/crawl.db` 의 중복 URL 은 **0건**이다(2026-09-11 실측). 이 단언이
+        무는 것은 중복 그 자체가 아니라 **삭제의 열쇠가 무엇인가**이고, 그 열쇠를
+        `rowid` 로 잡는 것이 값의 이유다 — `url` 삭제는 색인 전수 스캔이라 문서당 값이
+        코퍼스 크기에 선형이다(실측 1천 0.09ms → 4만 3.35ms/건 · 계획 96).
+
+        **천장 — 이 단언이 무는 것은 갱신 갈래 하나다**(2026-09-11 변이 3판 실측). 404·410
+        갈래와 noindex 갈래의 열쇠를 `url` 로 되돌리는 변이(M1·M2)는 전수 763건에서
+        **살아남는다**: 그 둘은 지우고 끝이라 중복 행이 둘이든 하나든 결과가 0행으로 같다.
+        두 열쇠가 갈리는 것은 **값뿐**이고, 값을 재는 자는 계획 96 스텝 2 의
+        `docs/e2e/docs-delete-rowid/result.md` 다. 갱신 갈래 변이(M3)만 여기서 죽는다.
+        """
+        self._seed([("http://a.test/", "<title>옛</title><p>pyeongsan 옛 본문</p>")])
+        self.assertEqual(index_pages(self.db_path), 1)
+        db = sqlite3.connect(self.db_path)
+        self.addCleanup(db.close)
+        db.execute("INSERT INTO docs(title, body, url) VALUES ('옛','pyeongsan 옛 본문',"
+                   "'http://a.test/')")
+        db.commit()
+        Store(self.db_path).upsert(
+            "http://a.test/", "<title>새</title><p>gwangju 새 본문</p>", 200)
+        self.assertEqual(index_pages(self.db_path), 0)
+        self.assertEqual([(row[0], row[1]) for row in self._docs()],
+                         [("http://a.test/", "새"), ("http://a.test/", "새")],
+                         "조인이 두 쌍을 줬으면 두 행이 갱신된다 — 안 본 행을 지우면 접힌다")
+        self.assertEqual(search(self.db_path, "pyeongsan"), [],
+                         "옛 본문이 한 행이라도 남으면 갱신이 아니라 덧쓰기다")
+
     def test_recrawled_page_yields_its_new_paragraph_as_evidence(self):
         """갱신이 근거 문단(`passages`)까지 간다 — 옛 문단은 근거로 안 나온다.
 

@@ -3,11 +3,11 @@ signal: GREEN
 mode: night
 plan: docs-delete-rowid
 phase: 개발
-step: 0/2
+step: 1/2
 attempt: 0
-note: 삭제 열쇠 url→rowid
-iteration: 546
-night_iterations: 1
+note: 스텝 2 — 규모에서 값 측정
+iteration: 547
+night_iterations: 2
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
@@ -34,9 +34,11 @@ pgrep -f websearch.crawl   # 비었으면 끝난 것
 
 ## 다음 행동
 
-스텝 1 — 워터마크 루프의 삭제 열쇠를 `rowid` 로. **TDD**: 같은 `url` 행이 둘인 DB 에서
-갱신이 둘 다 새 본문이 되는 단언을 먼저 빨갛게 본다(`url` 열쇠는 첫 처리가 둘 다 지운다).
-전수 기준선 **762 OK**. 완료 기준 전문은 계획서 스텝 1.
+**스텝 1 완료** — 세 `DELETE` 가 전부 `WHERE rowid = ?` 다(`git grep "DELETE FROM docs WHERE url"`
+가 `src/` 에서 0건). 전수 **763 OK**(새 테스트 1건 · README 건수도 763 으로 맞췄다).
+스텝 2 — 1천·1만·4만 문서 임시 DB 에서 갱신 1건당 `DELETE` 값을 옛/새 열쇠로 **둘 다** 재서
+`docs/e2e/docs-delete-rowid/result.md` 에 남긴다(음성 대조가 없으면 「원래 빠른 기계」와 못 가른다).
+측정 스크립트는 `/tmp` 에서 돌리고 커밋하지 않는다. 완료 기준 전문은 계획서 스텝 2.
 
 ## 설계
 

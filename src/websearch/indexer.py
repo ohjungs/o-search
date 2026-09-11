@@ -236,8 +236,6 @@ def index_pages(db_path):
         # ponytail: 매 실행 색인 전수 조인. 아래 워터마크가 이미 «다시 받아 온 문서» 로
         #           집합을 좁혔고, 조인 자체를 증분으로 바꾸려면 `docs` 에 색인 상태
         #           열이 필요한데 그건 스키마 변경이다 — 계획 80 이 열지 않고 남겼다.
-        #           **URL 당 `DELETE` 도 같은 전수 스캔**이다(실측 4만 문서 3.35ms/건 ·
-        #           1천 0.09ms — 코퍼스 크기에 선형). 여는 조건은 둘 다 같다
         # **SQL 사전 필터(`LIKE '%robots%'`)를 여기서 걷어냈다.** 압축분은 BLOB 이라
         # `LIKE` 가 영영 매치되지 않고, 그러면 이 회수 경로가 **조용히 죽는다**(초록불인
         # 채로 noindex 선언을 무시한다 — 크롤 윤리 축이라 조용한 실패가 가장 나쁘다).
@@ -263,7 +261,12 @@ def index_pages(db_path):
         ).fetchone()
         # 워터마크가 없으면 **전수**다 — 옛 DB 의 첫 실행이 그렇고, 그래야 이 기능이
         # 생기기 전에 들어온 뒤늦은 선언도 한 번은 걷힌다.
-        sql = "SELECT d.url, p.html, p.status FROM docs d JOIN pages p ON p.url = d.url"
+        # **`d.rowid` 를 함께 든다** — 아래 세 `DELETE` 의 열쇠다. `url` 로 지우면
+        # `docs` 가 FTS5 이고 `url` 이 `UNINDEXED` 라 색인 전수 스캔이고(실측 1천
+        # 0.09ms → 4만 3.35ms/건 · 코퍼스 크기에 선형), 게다가 **같은 URL 의 다른
+        # 행까지** 지운다 — 조인이 아직 건네지 않은 행이다(계획 96).
+        sql = ("SELECT d.rowid, d.url, p.html, p.status "
+               "FROM docs d JOIN pages p ON p.url = d.url")
         args = ()
         if mark:
             # **`>` 가 아니라 `>=` 인 이유**는 `datetime('now')` 가 초 단위라서다. 색인
@@ -272,7 +275,7 @@ def index_pages(db_path):
             # 그 값은 그 초에 받아 온 문서 수만큼이다. 놓치는 쪽보다 더 보는 쪽을 고른다.
             sql += " WHERE p.fetched_at >= ?"
             args = (mark[0],)
-        for url, stored, status in db.execute(sql, args).fetchall():
+        for rid, url, stored, status in db.execute(sql, args).fetchall():
             html = store.page_html(stored)
             # `mark and` — 마크 없는 전수 실행은 삭제를 안 한다. **그래도 404 를 놓치지
             # 않는 이유**는 마크 없는 DB 가 곧 「재크롤이 없던 시절의 색인」이라서다:
@@ -282,14 +285,14 @@ def index_pages(db_path):
                 # 없어졌다. **`pages` 행은 안 지운다** — 지우면 「404 를 받았다」는 사실이
                 # 사라져 다음 크롤이 이 URL 을 새 것으로 다시 줍고, 삭제가 망각이 되어
                 # 루프가 돈다. 묘비로 남기고 검색에서만 뺀다.
-                db.execute("DELETE FROM docs WHERE url = ?", (url,))
+                db.execute("DELETE FROM docs WHERE rowid = ?", (rid,))
             elif html is None:
                 # 다시 받았는데 본문이 없다 — 5xx·`status 0`·비 HTML. **일시 장애를
                 # 영구 삭제로 만들지 않는다.** 이 갈래가 `is_noindex` 앞이어야 하는
                 # 이유는 그 함수 첫 줄이 `html_text.lower()` 라서다(`None` 이면 터진다).
                 continue
             elif extract.is_noindex(html):
-                db.execute("DELETE FROM docs WHERE url = ?", (url,))
+                db.execute("DELETE FROM docs WHERE rowid = ?", (rid,))
             elif mark:
                 # 갱신. 다시 받아 왔으니 본문이 갈렸을 수 있다 — `docs` 는 FTS5 라
                 # 지우고 넣는 것이 이 저장소의 관용구다(`_docs_sql` 재구축 경로와 같다).
@@ -297,7 +300,7 @@ def index_pages(db_path):
                 # 문서당 23.81ms 가 10만 문서에서 39.7분이 된다(실물 60문서 실측).
                 # 마크가 있으면 집합이 「다시 받아 온 문서」뿐이고, `upsert` 가 언제나
                 # `fetched_at` 을 박으므로 그 밖은 안 바뀐 것이 보장된다.
-                db.execute("DELETE FROM docs WHERE url = ?", (url,))
+                db.execute("DELETE FROM docs WHERE rowid = ?", (rid,))
                 _insert_doc(db, url, html)
         indexed = 0
         for url, stored in rows:
