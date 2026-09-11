@@ -1,9 +1,9 @@
 ---
-signal: DONE
-phase: e2e
-step: 2/2
+signal: GREEN
+phase: 계획
+step: 0/0
 attempt: 0
-plan: docs-delete-rowid
+plan: null
 iteration: 551
 updated: 2026-09-12
 mode: night
@@ -50,8 +50,9 @@ note: e2e 통과 — 실물 A/B 결과 바이트 동일 · 17초 대 187초. 합
 
 ## 다음 행동
 
-**계획 아카이브 → 새 계획 탐색** (`discover.md`). 병합은 **손으로 조립하지 않는다** —
-`scripts/merge-to-main.sh` (전수가 초록일 때만 민다).
+**아카이브 완료** — 계획서는 `plan_history_071.md` · `index.md` 에 한 줄. 다음은 **새 계획
+탐색**(`discover.md`)이다. 병합은 **손으로 조립하지 않는다** — `scripts/merge-to-main.sh`
+(전수가 초록일 때만 민다).
 
 ## 규모 축 (2026-09-12)
 
