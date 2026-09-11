@@ -164,7 +164,7 @@ class Store:
             "ORDER BY fetched_at LIMIT ?", (limit,)).fetchall()
         return [(u, page_html(h)) for u, h in rows]
 
-    def unfinished(self, limit=1000):
+    def unfinished(self, limit=1000, accept=None):
         """다시 받아야 하는데 **큐에 들어올 길이 없는** URL 들. 오래된 순.
 
         **왜 필요한가**: 프런티어가 메모리라 매 실행 시드에서 다시 자란다. 부모가
@@ -188,6 +188,14 @@ class Store:
         #
         # `discovered` 쪽은 **신선한 `pages` 행이 있으면 뺀다** — 받고 난 URL 은 더 이상
         # 미완이 아니다. 판정을 `is_fresh` 와 같은 식으로 쓴다(술어 두 벌이면 갈린다).
+        # **`accept` 는 상한보다 «먼저» 걸린다.** 안 그러면 범위 밖 URL 이 상한을 다 먹고
+        # 정작 일감이 한 건도 안 나온다 — 2026-09-11 실측: 큐 253,026개 중 범위 안 일감이
+        # **148,000개**인데 돌려준 1,000개가 전부 범위 밖이라 크롤이 **0장**으로 끝났다.
+        # **자르고 거르면 거른 것이 남지 않는다.**
+        #
+        # **SQL 로 안 거르는 이유**는 범위 판정이 `Frontier.add` 한 곳에 있어야 하기
+        # 때문이다(계획 88·91 이 계약으로 못박았다). 여기서 `LIKE` 로 다시 쓰면 판정이
+        # 두 벌이 되고 한쪽만 고쳐진다. 대신 **같은 판정식을 받아서** 쓴다.
         rows = self._db.execute(
             "SELECT url FROM pages WHERE status = 429 OR fetched_at < datetime("
             "    'now', CASE WHEN status BETWEEN 200 AND 299 THEN ? ELSE ? END) "
@@ -197,9 +205,20 @@ class Store:
             "    'now', CASE WHEN p.status BETWEEN 200 AND 299 THEN ? ELSE ? END) "
             "LIMIT ?",
             ("-%d days" % FRESH_DAYS, "-%d days" % RETRY_DAYS,
-             "-%d days" % FRESH_DAYS, "-%d days" % RETRY_DAYS, limit),
-        ).fetchall()
-        return [r[0] for r in rows]
+             "-%d days" % FRESH_DAYS, "-%d days" % RETRY_DAYS,
+             # **거른 뒤에 상한을 걸려면 넉넉히 읽어야 한다.** 범위가 좁으면 앞쪽이
+             # 전부 밖일 수 있다 — 실측 64% 가 범위 밖이었고, 앞 1,000개는 **100%** 가
+             # 밖이라 일감이 한 건도 안 나왔다. `accept` 가 없으면 옛 동작 그대로다.
+             limit if accept is None else limit * 100),
+        )
+        out = []
+        for (url,) in rows:
+            if accept is not None and not accept(url):
+                continue
+            out.append(url)
+            if len(out) >= limit:
+                break
+        return out
 
     def get_html(self, url):
         row = self._db.execute("SELECT html FROM pages WHERE url=?", (url,)).fetchone()
