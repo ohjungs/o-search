@@ -43,3 +43,4 @@
 {"night_id":"2026-09-10","date":"2026-09-10","iterations":5,"red":0,"retries":0,"plans_done":1,"candidates_added":1,"self_edits":0,"stop":"탐색 막힘","ctx":65,"ctx_window":1000000,"five_hour":9,"seven_day":61,"ctx_at":1788973512}
 {"night_id":"2026-09-10","date":"2026-09-10","iterations":1,"red":0,"retries":0,"plans_done":1,"candidates_added":0,"self_edits":0,"stop":"컨텍스트 상한","ctx":76,"ctx_window":1000000,"five_hour":30,"seven_day":55,"ctx_at":1789015067}
 {"night_id":"2026-09-11","date":"2026-09-11","iterations":3,"red":0,"retries":0,"plans_done":0,"candidates_added":0,"self_edits":0,"stop":"컨텍스트 상한","ctx":85,"ctx_window":1000000,"five_hour":30,"seven_day":55,"ctx_at":1789136462}
+{"night_id":"2026-09-12","date":"2026-09-12","iterations":4,"red":0,"retries":0,"plans_done":1,"candidates_added":0,"self_edits":0,"stop":"보류(YELLOW)","ctx":81,"ctx_window":1000000,"five_hour":30,"seven_day":55,"ctx_at":1789139783}
