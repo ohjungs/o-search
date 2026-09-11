@@ -1,18 +1,18 @@
 ---
-signal: GREEN
+signal: YELLOW
 phase: 계획
 step: 0/0
 attempt: 0
 plan: null
-iteration: 551
+iteration: 552
 updated: 2026-09-12
 mode: night
-night_iterations: 3
+night_iterations: 4
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
 ctx: 미상 (.context-state.json 오래됨 — statusLine 꺼짐, 반복 상한에만 의존)
-note: e2e 통과 — 실물 A/B 결과 바이트 동일 · 17초 대 187초. 합성 눈금이 11.5배 낙관이었다
+note: 계획 96 완료·병합. 탐색이 빈손이라 YELLOW 정지 — 야간이 열 수 있는 근거가 0건
 ---
 
 # 현재 상태
@@ -50,9 +50,20 @@ note: e2e 통과 — 실물 A/B 결과 바이트 동일 · 17초 대 187초. 합
 
 ## 다음 행동
 
-**아카이브 완료** — 계획서는 `plan_history_071.md` · `index.md` 에 한 줄. 다음은 **새 계획
-탐색**(`discover.md`)이다. 병합은 **손으로 조립하지 않는다** — `scripts/merge-to-main.sh`
-(전수가 초록일 때만 민다).
+계획 96 은 **아카이브·병합까지 끝났다**(`plan_history_071.md` · `index.md` 한 줄 ·
+`04161b3 병합: docs-delete-rowid 마감분`).
+
+**탐색 phase 가 빈손이라 YELLOW 로 멈췄다** — 8개 출처를 전부 봤고 야간이 열 수 있는
+근거가 0건이다(반복 552 기록). **사람이 하나를 열어 주면 이어진다**:
+
+1. **동시 색인이 만드는 중복 `docs` 행** (아래 첫 항목) — 승인하면 바로 계획이 된다.
+   근거·재현·처방이 전부 갖춰져 있고 막는 것은 레이스 컨디션 판정뿐이다.
+2. **`perf_crawl.py` 기준선 여유 0.5%** (`digest ## 다음 계획 후보` 8점) — ①재기준선
+   ②[열림] 대비 비율 ③참고용 강등 **셋 중 하나를 골라 주면** 열린다. 밤이 못 고르는
+   이유는 셋 다 「통과시키려고 시나리오를 낮추는 것」과 겉모양이 같아서다.
+3. **`plan_userinfo-leak` 패치 적용** — 보안이라 밤이 영구히 못 연다.
+
+병합은 **손으로 조립하지 않는다** — `scripts/merge-to-main.sh` (전수가 초록일 때만 민다).
 
 ## 규모 축 (2026-09-12)
 
