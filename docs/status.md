@@ -1,18 +1,18 @@
 ---
 signal: GREEN
-phase: 테스트
+phase: 리뷰
 step: 2/2
 attempt: 0
 plan: docs-delete-rowid
-iteration: 548
-updated: 2026-09-11
+iteration: 549
+updated: 2026-09-12
 mode: night
-night_iterations: 3
+night_iterations: 1
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
-ctx: 85
-note: 컨텍스트 85% 로 정상 종료 — 이어받으면 테스트 phase 부터
+ctx: 미상 (.context-state.json 43분 경과 — statusLine 꺼짐, 반복 상한에만 의존)
+note: 테스트 phase 통과 — 전수 763 OK · 변이 3판 재현 · 8점 이상 갭 0건
 ---
 
 # 현재 상태
@@ -29,19 +29,27 @@ note: 컨텍스트 85% 로 정상 종료 — 이어받으면 테스트 phase 부
 
 판정 ① 새 열쇠 4만/1천 **1.17배**(무관) · ② 옛 열쇠 **72.9배**(선형 재현). 둘 다 참.
 
-**크롤이 아직 백그라운드에서 돌 수 있다**(`--max 30000` · 끝나면 색인까지 자동으로
-이어지고 **그 색인이 이 코드를 쓴다**). 이어받기 전에 먼저 본다:
+**크롤은 끝났다**(2026-09-12 확인 · `pgrep -f websearch.crawl` 비었음). `pages` 가
+37,704 → **52,172** 로 올랐고 **그 색인이 이 코드를 썼다** — e2e 가 실물에서 잴 대상이다.
 
-```bash
-pgrep -f websearch.crawl   # 비었으면 끝난 것
-python3 -c "import sqlite3;c=sqlite3.connect('file:data/crawl.db?mode=ro',uri=True);\
-print(c.execute('select count(*) from pages').fetchone()[0])"
-```
+## 테스트 phase (2026-09-12 · 반복 549)
+
+전수 **763 OK**(21.3s). 변이 3판으로 단언이 무는 자리를 재현했다 — 세 `DELETE` 열쇠를
+각각 `url` 로 되돌리면 404(`indexer.py:288`) **생존** · noindex(295) **생존** · 갱신(303)
+**사망**. 스텝 1 의 docstring 이 적어 둔 천장 그대로다.
+
+**갭 탐색 6종에서 8점 이상 0건 — 새 테스트를 쓰지 않았다**(`test.md` 4절).
+
+- ⑥ 404·noindex 열쇠가 상태로 구별 안 됨 — **4점**. 한 url 의 `docs` 행들은 `pages` 행이
+  하나라 조인에 **전부 들어오거나 전부 빠진다**. 두 열쇠의 상태 차이가 원리적으로 없고
+  갈리는 것은 값뿐이다(값은 e2e `result.md` 가 잰다). 테스트로 못 박을 수 있는 갭이 아니다.
+- ⑦ 다문서 배치의 **rowid 재사용** — **3점**. FTS5 가 최고 rowid 를 재사용하는 것은 실측
+  확인했으나, `_insert_doc` 시점에 미처리 행이 전부 현존하므로 새 rowid = max+1 > 모든
+  미처리 rowid 라 충돌이 불가능하다. `docs.rowid` 를 참조하는 다른 테이블도 없다(전수 grep).
 
 ## 다음 행동
 
-**테스트 phase** — 스텝이 둘 다 닫혔으니 새로 쓰는 곳이 아니라 **빠뜨린 것을 찾는**
-곳이다(`test.md`). 이어서 리뷰(백지) → e2e. e2e 시나리오는 계획서에 적혀 있다:
+**리뷰 phase**(백지) → e2e. e2e 시나리오는 계획서에 적혀 있다:
 실물 `data/crawl.db` **사본**에서 색인을 한 번 돌려 `docs` 행 수와 `GET /search` 응답이
 변경 전과 같은지 본다 — **바꾼 것은 값이지 결과가 아니다**를 실물에서 확인한다.
 
