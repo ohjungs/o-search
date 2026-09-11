@@ -1,56 +1,59 @@
 ---
 signal: GREEN
-mode: night
-plan: docs-delete-rowid
-phase: 개발
-step: 1/2
+phase: 테스트
+step: 2/2
 attempt: 0
-note: 스텝 2 — 규모에서 값 측정
-iteration: 547
-night_iterations: 2
+plan: docs-delete-rowid
+iteration: 548
+updated: 2026-09-11
+mode: night
+night_iterations: 3
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
-updated: 2026-09-11
-ctx: 26
+ctx: 85
+note: 컨텍스트 85% 로 정상 종료 — 이어받으면 테스트 phase 부터
 ---
 
 # 현재 상태
 
-계획 **96 `docs-delete-rowid`** 착수 — 계획서 `docs/plan_docs-delete-rowid.md`.
-갱신 경로의 `DELETE FROM docs WHERE url = ?`(`src/websearch/indexer.py:285·292·300`)가
-FTS5 전수 스캔이라 코퍼스 크기에 선형이다. 워터마크 조인이 이미 그 행을 들고 있으므로
-`d.rowid` 를 얹어 열쇠만 바꾼다. **근거는 digest 후보 `[7]` 이 스스로 적어 둔 여는 조건
-「코퍼스가 만 단위로 올라가는 날」이 오늘 열린 것**이다 — `docs` **10,461행** 실측.
+계획 **96 `docs-delete-rowid`** 개발 **2/2 완료** — 갱신 경로의 세 `DELETE FROM docs` 가
+`WHERE url = ?`(FTS5 전수 스캔)에서 `WHERE rowid = ?` 로 바뀌었고, 그 값을 1천·1만·4만
+문서에서 **두 열쇠 모두** 쟀다(`docs/e2e/docs-delete-rowid/result.md`).
 
-**크롤이 백그라운드에서 돌고 있다**(`--max 30000` · `--deadline 10800` · 끝나면 색인까지
-자동으로 이어진다). **그 자동 색인이 내 코드를 쓴다** — 스텝 1 은 전수가 초록일 때만 남긴다.
+| N | 옛 `url` | 새 `rowid` | 배수 |
+|---|---|---|---|
+| 1,000 | 0.164ms/건 | **0.012** | 14배 |
+| 10,000 | 2.693 | **0.012** | 220배 |
+| 40,000 | 11.950 | **0.014** | 881배 |
+
+판정 ① 새 열쇠 4만/1천 **1.17배**(무관) · ② 옛 열쇠 **72.9배**(선형 재현). 둘 다 참.
+
+**크롤이 아직 백그라운드에서 돌 수 있다**(`--max 30000` · 끝나면 색인까지 자동으로
+이어지고 **그 색인이 이 코드를 쓴다**). 이어받기 전에 먼저 본다:
 
 ```bash
+pgrep -f websearch.crawl   # 비었으면 끝난 것
 python3 -c "import sqlite3;c=sqlite3.connect('file:data/crawl.db?mode=ro',uri=True);\
 print(c.execute('select count(*) from pages').fetchone()[0])"
-pgrep -f websearch.crawl   # 비었으면 끝난 것
 ```
 
 ## 다음 행동
 
-**스텝 1 완료** — 세 `DELETE` 가 전부 `WHERE rowid = ?` 다(`git grep "DELETE FROM docs WHERE url"`
-가 `src/` 에서 0건). 전수 **763 OK**(새 테스트 1건 · README 건수도 763 으로 맞췄다).
-스텝 2 — 1천·1만·4만 문서 임시 DB 에서 갱신 1건당 `DELETE` 값을 옛/새 열쇠로 **둘 다** 재서
-`docs/e2e/docs-delete-rowid/result.md` 에 남긴다(음성 대조가 없으면 「원래 빠른 기계」와 못 가른다).
-측정 스크립트는 `/tmp` 에서 돌리고 커밋하지 않는다. 완료 기준 전문은 계획서 스텝 2.
+**테스트 phase** — 스텝이 둘 다 닫혔으니 새로 쓰는 곳이 아니라 **빠뜨린 것을 찾는**
+곳이다(`test.md`). 이어서 리뷰(백지) → e2e. e2e 시나리오는 계획서에 적혀 있다:
+실물 `data/crawl.db` **사본**에서 색인을 한 번 돌려 `docs` 행 수와 `GET /search` 응답이
+변경 전과 같은지 본다 — **바꾼 것은 값이지 결과가 아니다**를 실물에서 확인한다.
 
 ## 설계
 
-**생략** — 기존 함수의 질의 한 줄에 `d.rowid` 를 얹고 `WHERE` 열쇠를 바꾼다. 새 파일·공개
-인터페이스·스키마 변경 없음, 처방과 값이 후보 `[7]` 과 `indexer.py:239` 주석에 이미 실측으로
-박혀 있어 대안이 갈리지 않는다 (`design.md` 1절 트리거 해당 없음).
+**생략** — 기존 함수의 질의 한 줄에 `d.rowid` 를 얹고 `WHERE` 열쇠를 바꿨다. 새 파일·공개
+인터페이스·스키마 변경 없음 (`design.md` 1절 트리거 해당 없음).
 
 ## 규모 축 (2026-09-11)
 
-색인 **10,461** · pages **37,704** · 1.37GB · 전수 **762 OK**. 저장·색인 고정비·처리량·재개·
-질의 다섯 축은 계획 77·78·82·83·85·88·91·92·95 가 전부 열었다 — **남은 것은 크롤 시간뿐이다.**
-**병합은 손으로 조립하지 않는다** — `scripts/merge-to-main.sh` (전수가 초록일 때만 민다).
+색인 **10,461** · pages **37,704** · 1.37GB · 전수 **763 OK**. **병합은 손으로 조립하지
+않는다** — `scripts/merge-to-main.sh` (전수가 초록일 때만 민다).
 
 ## 사람 결정 대기
 
@@ -65,4 +68,6 @@ pgrep -f websearch.crawl   # 비었으면 끝난 것
 
 ## 정지 사유
 
-없음. (`docs/digest.md` 208줄 — 상한 200 초과. 다음 짧은 경로 후보다)
+**컨텍스트 85% 이상** (`.context-state.json` 실측 85 · 경계값은 정지 쪽). 실패가 아니다 —
+스텝 경계에서 끊었고 기록·보고서를 남겼다. 이어서 하려면 같은 명령을 다시 부른다.
+(`docs/digest.md` 208줄 — 상한 200 초과. 다음 짧은 경로 후보다)
