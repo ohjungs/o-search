@@ -1,15 +1,15 @@
 ---
 signal: GREEN
 phase: 계획
-step: 0/0
+step: 1/1
 attempt: 0
-iteration: 535
+iteration: 538
 updated: 2026-09-11
 ctx: 80
 night_iterations: 1
 night_red: 0
 night_retries: 0
-plan: null
+plan: relink-backfill
 ---
 
 ## 이어받는 세션이 먼저 볼 것 (2026-09-11 갱신)

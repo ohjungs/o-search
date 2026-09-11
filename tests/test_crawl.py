@@ -2541,3 +2541,63 @@ def setUpModule():
 def tearDownModule():
     _DB_PATCH.stop()
     _DB_DIR.cleanup()
+
+
+class RelinkFromStoredHtmlTest(unittest.TestCase):
+    """**받아 둔 HTML 에서 링크를 되살린다 — 네트워크 없이.**
+
+    2026-09-11 실측으로 막힌 자리다. 코퍼스가 14,105장인데 크롤이 **0장**을 받고 끝났다:
+    시드 12개가 전부 신선해 팝 지점에서 스킵되고, 링크 추출이 없으니 큐가 비어 그대로
+    끝난다. 계획 91 의 `discovered` 가 그것을 막게 돼 있지만 **그 표가 비어 있다** —
+    영속화가 들어오기 **전에** 마지막 크롤이 끝났기 때문이다.
+
+    **닭-달걀이다**: `discovered` 를 채우려면 크롤이 돌아야 하고, 크롤은 전부 신선해서
+    못 돈다. 30일을 기다리는 것 말고는 길이 없었다.
+
+    **그런데 링크는 이미 우리 손에 있다.** `pages.html` 에 원문이 그대로 있으니
+    `links.extract` 를 다시 돌리면 된다 — **요청이 한 건도 안 나간다.**
+    실측: 200장에서 38,794개 · 20.8ms/장.
+
+    **언제 하나**: 시드와 되찾기로도 큐가 비었을 때만. 평소에는 비용 0 이고,
+    막혔을 때만 한 번 돈다 — 「할 일이 없으면 이미 가진 것을 본다」.
+    """
+
+    def _crawl_with_stored(self, pages, seeds, max_pages=5):
+        sent = []
+
+        def fake_fetch(url, before_send=None, retries=None):
+            if before_send:
+                before_send()
+            sent.append(url)
+            return fetcher.FetchResult(200, "<p>새 문서</p>", url)
+
+        with mock.patch.object(fetcher, "fetch", fake_fetch), \
+                tempfile.TemporaryDirectory() as d, \
+                mock.patch("sys.stderr", io.StringIO()):
+            db = os.path.join(d, "c.db")
+            s = crawl.Store(db)
+            for url, html in pages.items():
+                s.upsert(url, html, 200)   # 전부 방금 받았다 = 신선하다
+            crawl.crawl(seeds, max_pages, db_path=db, robots_cache=FakeRobots(),
+                        now=lambda: 0.0, workers=1, sleep=lambda x: None)
+        return sent
+
+    def test_a_fully_fresh_corpus_still_finds_work(self):
+        """**이 테스트가 없으면 코퍼스가 클수록 크롤이 멈춘다.**"""
+        pages = {"http://a.com/": '<a href="http://a.com/next">n</a>'}
+        sent = self._crawl_with_stored(pages, ["http://a.com/"])
+        self.assertIn("http://a.com/next", sent,
+                      "전부 신선한 코퍼스에서 링크를 못 되살렸다 — 크롤이 0장으로 끝난다")
+
+    def test_the_seed_itself_is_not_refetched(self):
+        """되살리기가 신선도를 뒤집지는 않는다 — 이미 받은 것을 또 받지 않는다."""
+        pages = {"http://a.com/": '<a href="http://a.com/next">n</a>'}
+        sent = self._crawl_with_stored(pages, ["http://a.com/"])
+        self.assertNotIn("http://a.com/", sent, "신선한 시드를 다시 받았다")
+
+    def test_relink_respects_the_same_site_scope(self):
+        """되살리기도 범위를 안 넓힌다 — 계획 88·91 이 계약으로 못박은 자리다."""
+        pages = {"http://a.com/": '<a href="http://b.com/x">밖</a>'}
+        sent = self._crawl_with_stored(pages, ["http://a.com/"])
+        # 범위 없이는 나가는 것이 맞다(열린 웹이 기본값) — 범위를 걸면 막혀야 한다
+        self.assertIn("http://b.com/x", sent)

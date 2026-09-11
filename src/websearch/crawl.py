@@ -228,6 +228,23 @@ def crawl(seeds, max_pages, db_path=DEFAULT_DB, robots_cache=None,
     # **범위(`--same-site`)도 그대로 걸린다** — `add` 가 `_scope` 를 보므로 되찾기가
     # 범위를 넓히지 않는다. 그러지 않으면 「같은 사이트만」이 조용히 깨진다.
     frontier.add(store.unfinished())
+    # **그래도 비었으면 받아 둔 HTML 에서 링크를 되살린다 — 요청은 한 건도 안 나간다.**
+    #
+    # 2026-09-11 실측으로 막힌 자리다: 코퍼스 14,105장인데 크롤이 **0장**을 받고 끝났다.
+    # 시드가 전부 신선해 팝에서 스킵되고, 링크 추출이 없으니 큐가 비어 그대로 끝난다.
+    # 계획 91 의 `discovered` 가 막게 돼 있지만 **그 표가 비어 있었다** — 영속화가
+    # 들어오기 **전에** 마지막 크롤이 끝났기 때문이다. 닭-달걀이라 30일을 기다리는 것
+    # 말고는 길이 없었다.
+    #
+    # **링크는 이미 우리 손에 있다.** `pages.html` 에 원문이 그대로 있다(실측 20.8ms/장).
+    # **큐가 빈 뒤에만 돈다** — 평소 비용은 0 이고 막혔을 때만 한 번이다.
+    # 「할 일이 없으면 이미 가진 것을 본다.」
+    # **막힌 조건을 정확히 쓴다**: 되찾을 것이 없고 시드가 전부 신선하면, 큐에 URL 이
+    # 있어도 팝에서 모두 스킵돼 **한 건도 안 나간다**. `frontier.empty()` 로 물으면
+    # 시드가 아직 큐에 있어 거짓이라 이 갈래가 영영 안 돈다(실측으로 그랬다).
+    if not store.unfinished() and all(store.is_fresh(u) for u in ascii_seeds):
+        for stored_url, stored_html in store.stored_pages():
+            store.remember(frontier.add(links.extract(stored_url, stored_html)))
     saved = 0
     # **리스트 한 칸짜리 카운터** — `_store_result` 가 메인 스레드에서만 불리므로 락이
     # 필요 없다(설계 계약 4). 정수를 쓰면 함수 안에서 못 올린다.
