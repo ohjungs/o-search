@@ -4,7 +4,7 @@
 - **브랜치**: `loop/e2e-fd-leak`
 - **출처**: `discover.md` 6순위 — digest `[4]` 「`-b` 는 통과한 테스트가 낸 경고도 삼킨다 —
   초록 실행에서 `DeprecationWarning`·`ResourceWarning` 이 영영 안 보인다」
-- **설계**: 있음 (`docs/design_e2e-fd-leak.md`) — 3개 이상 파일에 걸침 · 대안 둘이 갈림
+- **설계**: 있음 (`docs/design_history_076.md`) — 3개 이상 파일에 걸침 · 대안 둘이 갈림
 
 ## 문제
 
