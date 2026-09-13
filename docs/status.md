@@ -4,28 +4,50 @@ phase: 계획
 step: 0/0
 attempt: 0
 plan: null
-iteration: 585
+iteration: 586
 updated: 2026-09-13
 mode: night
-night_iterations: 16
+night_iterations: 1
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
-ctx: 측정 불가 — 게이트 ⑦ **열세 번째 재현**(state 의 `session_id` 가 내 슬러그에 없다).
-  statusLine 꺼진 것과 동일 취급 — 반복 상한에만 의존한다. 5h 30 · 7d 55 만 유효하다(둘 다 85 미만)
-note: **밤 종료 — 정지 사유 「야간 계획 상한(3)」.** 계획 98·99·100 을 이 밤에 열고 닫아
-  `main` 이 `95b7c20` 이다(전수 **784 OK** 위에서 밀었다). **게이트 ⑨ 가 세 번째 피해를
-  냈다** — autoloop 이 14:54 에 `loop/seed-tier2` 로 **브랜치를 갈아 놓아** 반복 584·585
-  커밋이 남의 브랜치에 얹혔다. 되돌리지 않고 내 브랜치를 앞으로 옮겨 병합했다.
+ctx: 측정 불가 — 게이트 ⑦ **열네 번째 재현**. state 의 `session_id` 가 내 슬러그에 없고
+  파일이 46분 낡았으며 `five_hour_resets_at`(17:00:00)이 **이미 지났다** — 그 103% 는
+  만료된 창의 값이라 판정에 못 쓴다. statusLine 꺼진 것과 동일 취급 · 반복 상한에만 의존
+note: **새 밤이 시작됐다** (앞 밤은 「야간 계획 상한 3」으로 닫혔고 카운터를 0 으로 리셋).
+  탐색 여덟 출처 중 일곱이 0건이고, 여덟째에서 **한 번도 안 잰 축**을 재서 근거를 얻었다 —
+  `-b` 가 삼키던 경고를 벗겨 보니 `ResourceWarning` **12건**이 한 파일에 있다.
 ---
+
+## 짧은 경로
+
+- 근거: `-b` 없이 전수를 돌리니 `ResourceWarning` **12건** — 전부
+  `tests/test_merge_script.py:34,39` 의 `open(...).write(...)` 다(`DeprecationWarning` 은 0건).
+  digest `[4]` 가 「초록 실행에서 경고가 영영 안 보인다」고 등재해 둔 자리를 **오늘 처음 쟀다**.
+- 할 일: 그 두 줄을 `pathlib.Path.write_text` 로 바꾼다. `tests/test_merge_script.py` 만 건드린다.
+- 완료 기준: `PYTHONWARNINGS=always python3 -W always -m unittest discover tests` 가
+  `ResourceWarning` **0건** · 전수 784 OK 그대로.
+- 이미 한 것: **끝났다** — 빨강(12) → 고침 → 초록(0) · 전수 784 OK · `index.md` 등재 완료. 다음 반복은 탐색부터다.
+
 
 # 현재 상태
 
-**계획 100 `robots-nonascii` 는 `main` 에 들어갔다**(`95b7c20` · 전수 784 OK).
-계획서는 `docs/plan_history_075.md` · e2e 결과는 `docs/e2e/robots-nonascii/result.md`.
+**새 밤이다** — 앞 밤(계획 98·99·100)은 「야간 계획 상한 3」으로 닫혔고 카운터를 0 으로
+리셋했다. `main` 은 `dc8e96a` · 앞 밤의 산출물은 전부 들어가 있다.
 
-**이 밤은 여기서 끝난다 — 정지 사유 「야간 계획 상한(3)」.** 계획 **98·99·100** 을 열고
-닫았다(열세 밤 연속 빈손을 끊은 계획 97 은 앞 세션). 다음 명령은 **계획 phase 부터** 시작한다.
+**반복 586 짧은 경로 `test-file-leak` DONE** — 위 「짧은 경로」 절이 근거와 완료 기준이다.
+계획서와 e2e 문서는 짧은 경로라 안 만들었고, 등재는 `index.md` 마지막 행에 있다.
+
+## 이 밤이 새로 잰 것 — 경고 축
+
+**전수를 `-b` 없이 돌린 것이 이 저장소에서 처음이다.** `-b` 는 통과한 테스트의 stderr 를
+삼키고 경고는 stderr 로 간다 — digest `[4]` 가 「영영 안 보인다」고 등재만 해 둔 자리다.
+
+- `DeprecationWarning` **0건**. 파이썬 3.9.6 에서 이 저장소가 부르는 API 중 사라질 예정인
+  것이 없다는 뜻이고, **이것은 재기 전에는 몰랐다**(등재 항목은 「안 보인다」까지만 적었다).
+- `ResourceWarning` **12건 → 0건**. 전부 `test_merge_script.py` 한 파일이었다.
+- **이 축을 다시 재는 자는 없다.** 전수 안에서 전수를 다시 돌리는 모양이라 테스트로
+  못 세운다(ponytail 1번). 아침 판단거리로 남긴다 — 「맨몸 명령에 `-W` 판을 하나 더할까」.
 
 ## 게이트 ⑨ — 세 번째 피해다. 이번엔 autocommit 이 아니라 **autoloop** 이다
 
