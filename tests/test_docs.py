@@ -1758,7 +1758,9 @@ class E2eLabelGapTest(unittest.TestCase):
         # **574 의 수정이 기댄 성질이다** — 포인터를 `test_docs.py` 로 바꿔 닫았다.
         # 이 자가 점 든 토큰을 이름으로 세기 시작하면 그 수정이 도로 유령이 된다.
         # 위 `_item` 이 본문에 `test_docs.py`·`docs/baselines.md`·명령 토큰을 이미 들고 있다.
-        self.assertIsNone(e2e_label_gap(self._item(None)))
+        # **라벨을 1 로 조여 센다**(반복 578 리뷰 [R99-1]) — 위 「정상」 픽스처와 같은
+        # 호출을 두 번 하면 축이 하나 늘어난 척만 하고 실제로 재는 것은 같아진다.
+        self.assertIsNone(e2e_label_gap(self._item(["crawl_e2e"], label=1)))
 
     def test_a_stale_label_is_reported_with_both_numbers(self):
         # 한쪽 수만 찍으면 어느 쪽을 고칠지 모른 채 문서를 틀리게 맞추게 된다.
