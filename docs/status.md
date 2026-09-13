@@ -1,50 +1,53 @@
 ---
-signal: DONE
-phase: e2e
-step: 0/0
+signal: GREEN
+phase: 개발
+step: 0/1
 attempt: 0
-plan: null
-iteration: 580
+plan: robots-nonascii
+iteration: 581
 updated: 2026-09-13
 mode: night
-night_iterations: 11
+night_iterations: 12
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
 ctx: 측정 불가 — 게이트 ⑦ **열두 번째 재현**(state 의 `session_id` 가 내 슬러그에 없다).
   statusLine 꺼진 것과 동일 취급 — 반복 상한에만 의존한다. 5h 30 · 7d 55 만 유효하다(둘 다 85 미만)
-note: **계획 99 완료(DONE) — e2e 2종 통과, 전수 779 OK.** 병합 첫 판이 **RED 로 막혔다** —
-  `plan: null` 인데 `step` 이 1/1 이라 `StepSyncTest` 가 물었다. 초기값 `0/0` 으로 맞춰 다시 민다
-  — **자기 상태 문서를 무는 자가 병합 관문에서 실제로 일했다**(반복 580).
+note: **계획 100 `robots-nonascii` 를 세웠다 — 이 밤의 셋째이자 마지막 계획.**
+  근거는 digest 6순위 `[7]` 이고 **오늘 다시 쟀다**: 비ASCII 호스트가 `RobotsCache.allowed`/
+  `delay` 에서 `UnicodeEncodeError` 로 샌다. 설계는 건너뛴다(트리거 0 — 공유 함수 `except`
+  한 줄). 다음 반복은 **개발 스텝 1/1**.
 ---
 
 # 현재 상태
 
-**계획 99 `e2e-roster-count` 완료 — `main` 병합 대기.**
-계획서는 `docs/plan_history_074.md` · e2e 결과는 `docs/e2e/e2e-roster-count/result.md`.
+**계획 100 `robots-nonascii` 개발 대기 — 이 밤의 셋째 계획(상한).**
+계획서 `docs/plan_robots-nonascii.md` · 브랜치 `loop/robots-nonascii`(기점 `064fe56`).
 
-**선 것**: `e2e_label_gap` — 명부 항목에서 맨 식별자 백틱 토큰을 뽑아 ① 디스크에 없는
-이름(**유령**) ② 라벨 대 이름 수를 본다. 갈래 8건 + 실물 1건 · 전수 **779 OK** ·
-**변이 9판 전부 잡힘**.
+**근거(오늘 실측)**: `RobotsCache().allowed("http://한글.invalid/페이지")` 가
+`UnicodeEncodeError` 로 죽는다. `delay()` 도 같다. 퓨니코드 호스트는 정상(`False`/`None`).
+그 예외는 `ValueError` 의 자손이라 `_fetch_robots` 의 `except (URLError, OSError)` 가
+못 잡고, `allowed` 안의 `except ValueError` 는 `can_fetch` 만 감싸 **한 칸 옆**이다.
 
-- **e2e 시나리오 1** — 명부에 `roster_ghost_e2e` 를 심자 전수가 **그 이름을 찍으며**
-  빨개졌다. 러너가 같은 명부로 조립한 명령은 `rc=2`(「그런 파일이 없다」)까지만 말한다 —
-  **앞 관문이 원인을 말하고 뒷 관문은 증상만 말한다.** 원복 후 전수 OK.
-- **e2e 시나리오 2(음성 대조)** — 유령을 심은 채 판정만 끄니 **실물 1건이 rc=0** 으로
-  돌아갔고 전수는 **갈래만** 죽었다. 갈래와 실물을 둘 다 두는 이유가 한 줄로 보인다.
-- **[R99-1](리뷰 자동 수정)** 갈래 하나가 「정상」 픽스처와 같은 호출이었다 — 라벨을 조여
-  다시 세우고 변이 M9 로 확인했다.
-- **남은 구멍 하나** — 빈 명부(0종)는 0 == 0 이라 이 자가 조용하고 **형제가 문다**(M8).
+- **오늘 크롤 경로에서는 도달 불가다** — 씨앗(`crawl.py:195`)도 링크(`links.py:34`)도
+  `urls.normalize` 를 거쳐 퓨니코드로 바뀐다. 「지금 죽는 버그」가 아니라 **관문이 입력
+  하나에 죽는다**는 문제로 적었다. 처방 방향은 기존 `except ValueError` 와 같은 값(차단)이다.
+- **설계 생략 사유**: 공유 함수 `_fetch_robots` 의 `except` 한 줄 — `design.md` 1절
+  트리거(새 모듈·공개 인터페이스·데이터 구조·3파일·되돌리기 어려움·대안 갈림) 0개.
+
+**계획 99 는 `main` 에 들어갔다**(`064fe56`) — e2e 2종 통과 · 변이 9판 전부 잡힘 ·
+전수 779 OK. 병합 첫 판은 `StepSyncTest`·`IterationSyncTest` 가 **RED 로 막았고**
+(`plan` 이 빈칸인데 `step` 1/1 · metrics 579 ≠ status 580) 고쳐서 밀었다.
 
 **게이트 ⑪ 은 반복 575 에 닫혔다** — 자동 스냅샷과 리뷰 커밋의 **트리가 같아서** 강제 푸시도
 되감기도 필요 없었다. 계획 98 은 전수 770 OK 위에서 `main` 에 들어갔다(`b8f0bb1`).
 
-## 빈손 대조 핀 — 기준 트리 `b8f0bb1`
+## 빈손 대조 핀 — 기준 트리 `064fe56`
 
-계획 98 이 `main` 에 들어갔으므로 규칙대로 **기준을 새 `main` 으로 옮긴다**.
+계획 99 가 `main` 에 들어갔으므로 규칙대로 **기준을 새 `main` 으로 옮긴다**.
 
 ```bash
-git diff --stat b8f0bb1..HEAD -- src tests e2e scripts docs/digest.md docs/candidates.md docs/specs
+git diff --stat 064fe56..HEAD -- src tests e2e scripts docs/digest.md docs/candidates.md docs/specs
 gh issue list --state open --limit 20     # 트리 밖 — 항상 돌린다
 ```
 
