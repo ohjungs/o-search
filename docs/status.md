@@ -1,30 +1,41 @@
 ---
 signal: GREEN
-phase: 리뷰
+phase: e2e
 step: 1/1
 attempt: 0
 plan: robots-nonascii
-iteration: 583
+iteration: 584
 updated: 2026-09-13
 mode: night
-night_iterations: 14
+night_iterations: 15
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
 ctx: 측정 불가 — 게이트 ⑦ **열두 번째 재현**(state 의 `session_id` 가 내 슬러그에 없다).
   statusLine 꺼진 것과 동일 취급 — 반복 상한에만 의존한다. 5h 30 · 7d 55 만 유효하다(둘 다 85 미만)
-note: **테스트 스텝 완료 — 변이 5판 중 넷이 잡히고 하나(`except Exception`)가 살아 갭을
-  메웠다. 전수 784 OK.** 경계 둘(비ASCII **경로**는 안 막는다 · 프로그래밍 오류는 안 삼킨다)을
-  새로 세웠다. 건수 782 → **784**. 다음 반복은 **리뷰 phase**.
+note: **리뷰 스텝 완료 — 리뷰 1건(자동 수정) · 패스 B 빈손.** [R100-1] 비ASCII 갈래가
+  파이썬이 바뀌는 날 **조용히 DNS 로 나가는** 것을 `socket.getaddrinfo` 그물로 막았다.
+  전수가 RED 를 냈고 원인은 diff 가 아니라 **기록 항목 21 > 20** — 회전으로 닫고 **784 OK**.
+  다음 반복은 **e2e phase**(시나리오 2종은 계획서에 있다).
 ---
 
 # 현재 상태
 
-**계획 100 `robots-nonascii` 테스트 완료 — 다음은 리뷰 phase.**
+**계획 100 `robots-nonascii` 리뷰 완료 — 다음은 e2e phase.**
 계획서 `docs/plan_robots-nonascii.md` · 브랜치 `loop/robots-nonascii`(기점 `064fe56`).
 
 **고친 것**: `_fetch_robots` 의 `except` 에 **`UnicodeError` 한 낱말**. 비ASCII 호스트는
 599(차단)로 접히고 `allowed`→`False` · `delay`→`None`. 갈래 5건 · 전수 **784 OK**.
+
+**리뷰 1건 — [R100-1](자동 수정)**: 비ASCII 갈래 둘은 `_fetch_robots` 를 가짜로 안 바꾸고
+진짜 `urlopen` 을 탄다(인코딩에서 먼저 죽는 것이 재는 값이다). 파이썬이 호스트를 퓨니코드로
+먼저 바꾸게 되면 **같은 테스트가 조용히 DNS 로 나간다** — `project.md` 한도 「외부 네트워크
+금지」 위반이 **초록인 채로** 성립한다. `socket.getaddrinfo` 그물을 씌웠고 ASCII 호스트로
+**그물이 실제로 무는 것**까지 대봤다. **패스 B 는 빈손**이고 그게 값이다 — 계약 4 를 실물로
+다시 재니 `known_delay` 는 네트워크를 안 타고 `delay` 는 같은 `except` 로 모인다.
+
+**기록 회전**: 전수 RED 의 원인이 diff 가 아니라 `HistoryCapTest`(항목 **21 > 20**)였다 —
+**줄이 아니라 항목 상한에 걸린 첫 회전**이다. 564~573 을 `history_085.md` 로 밀어냈다(295 → 129줄).
 
 **변이 5판 — 넷 잡힘, 하나가 살아서 갭이 됐다**:
 
@@ -59,7 +70,7 @@ gh issue list --state open --limit 20     # 트리 밖 — 항상 돌린다
 ```
 
 **핀은 «코드»의 함수지 «환경»의 함수가 아니다** — 파이썬·OS 가 움직이면 같은 트리가 다른
-결과를 낸다. 그래서 전수는 밤마다 돌린다(**779 OK** · 18.7s · Python 3.9.6).
+결과를 낸다. 그래서 전수는 밤마다 돌린다(**784 OK** · 18.8s · Python 3.9.6).
 
 ## 사람 결정 대기 — 하나를 열어야 이어진다
 
@@ -114,7 +125,7 @@ gh issue list --state open --limit 20     # 트리 밖 — 항상 돌린다
 
 ## 규모 축 (2026-09-13)
 
-`pages` **52,172** · `docs` **40,347** · 2.48GB · 전수 **779 OK**(18.7s).
+`pages` **52,172** · `docs` **40,347** · 2.48GB · 전수 **784 OK**(18.8s).
 **e2e 는 13종이 아니라 22종이다** — 시나리오 **18** + 측정 **4**. 계획 98 이 명부와
 「빠진 이름」을 무는 자를 세웠고, 계획 99 가 그 줄의 **수와 실재**를 못박는다.
 필수 읽기 **375줄**/600 (`project.md` 60 + `status.md` 116 + `history_current.md` 199) — 여유 225줄.

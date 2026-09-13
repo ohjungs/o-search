@@ -294,11 +294,24 @@ class TestNonAsciiHost(unittest.TestCase):
     윤리를 어긴다.
     """
 
+    def _no_network(self):
+        """소켓을 열려 들면 그 자리에서 죽는 그물(반복 584 리뷰 [R100-1]).
+
+        아래 둘은 `_fetch_robots` 를 **가짜로 안 바꾸고** 진짜 `urlopen` 을 탄다 — 요청 줄을
+        latin-1 로 인코딩하다 **소켓을 열기도 전에** 죽는다는 것이 바로 재는 값이라서다.
+        그런데 파이썬이 언젠가 호스트를 퓨니코드로 먼저 바꾸게 되면 **같은 테스트가 조용히
+        DNS 를 치러 나간다**(`project.md` 한도: 외부 네트워크 금지). 그때 초록이 아니라
+        빨강이 되도록 그물을 깐다.
+        """
+        return mock.patch("socket.getaddrinfo", side_effect=AssertionError("네트워크를 탔다"))
+
     def test_a_non_ascii_host_is_blocked_not_raised(self):
-        self.assertFalse(robots.RobotsCache().allowed("http://한글.invalid/페이지"))
+        with self._no_network():
+            self.assertFalse(robots.RobotsCache().allowed("http://한글.invalid/페이지"))
 
     def test_a_non_ascii_host_has_no_declared_delay(self):
-        self.assertIsNone(robots.RobotsCache().delay("http://한글.invalid/페이지"))
+        with self._no_network():
+            self.assertIsNone(robots.RobotsCache().delay("http://한글.invalid/페이지"))
 
     def test_a_punycode_host_is_unchanged(self):
         # 대조군 — 오늘 크롤 경로가 `urls.normalize` 로 만들어 넘기는 모양이다.
