@@ -10,7 +10,7 @@
 화면이 짧다 — 어길 이유가 없고, 실패한 것의 stdout/stderr 는 보고서에 그대로 나온다.
 
 - **테스트(전체)**: `PYTHONPATH=src python3 -m unittest discover -b tests`
-  (2026-09-03 실행 확인 · 오늘 782건 약 19초라 빠름/전체 구분 없음 · 린트·타입체크는 없다)
+  (2026-09-03 실행 확인 · 오늘 784건 약 19초라 빠름/전체 구분 없음 · 린트·타입체크는 없다)
 - **변이 검사**: `PYTHONDONTWRITEBYTECODE=1` **과** `PYTHONPYCACHEPREFIX=$(mktemp -d)` 를
   **함께** 준다. 앞엣것만으론 부족하다 — 이 기계의 시스템 파이썬은 캐시를 **저장소 밖**
   (`~/Library/Caches/com.apple.python`)에 쌓고 그 플래그는 쓰기만 막지 **읽기는 안 막는다**

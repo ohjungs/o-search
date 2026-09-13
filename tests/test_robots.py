@@ -305,3 +305,17 @@ class TestNonAsciiHost(unittest.TestCase):
         # 이쪽이 함께 죽으면 고친 것이 아니라 관문을 통째로 닫은 것이다.
         c = _cache_with(lambda base: (200, "User-agent: *\nAllow: /"))
         self.assertTrue(c.allowed("http://xn--bj0bj06e.invalid/p"))
+
+    def test_an_ascii_host_with_a_non_ascii_path_is_untouched(self):
+        # 경계 — robots.txt 왕복은 **base(스킴+호스트)만** 쓰므로 경로의 한글은 이 예외와
+        # 무관하다. 여기가 함께 막히면 고친 것이 아니라 한국어 사이트를 못 돌게 한 것이다.
+        c = _cache_with(lambda base: (200, "User-agent: *\nAllow: /"))
+        self.assertTrue(c.allowed("http://a.com/페이지"))
+
+    def test_a_programming_error_is_not_swallowed(self):
+        # 변이 M3(`except Exception` 으로 확대)가 **살아남아서** 세운다(반복 583).
+        # 넓힌 `except` 는 이 테스트들을 전부 통과시키면서 `TypeError`·`AttributeError`
+        # 까지 599(차단)로 접는다 — 관문은 조용히 초록인데 크롤은 한 건도 못 한다.
+        with mock.patch("urllib.request.urlopen", side_effect=TypeError("배선이 틀렸다")):
+            with self.assertRaises(TypeError):
+                robots.RobotsCache().allowed("http://a.com/page")

@@ -1,39 +1,46 @@
 ---
 signal: GREEN
-phase: 테스트
+phase: 리뷰
 step: 1/1
 attempt: 0
 plan: robots-nonascii
-iteration: 582
+iteration: 583
 updated: 2026-09-13
 mode: night
-night_iterations: 13
+night_iterations: 14
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
 ctx: 측정 불가 — 게이트 ⑦ **열두 번째 재현**(state 의 `session_id` 가 내 슬러그에 없다).
   statusLine 꺼진 것과 동일 취급 — 반복 상한에만 의존한다. 5h 30 · 7d 55 만 유효하다(둘 다 85 미만)
-note: **개발 스텝 1/1 완료 — `except` 에 `UnicodeError` 한 낱말, 갈래 3건. 전수 782 OK.**
-  RED 를 눈으로 봤다(비ASCII 둘이 `UnicodeEncodeError` 로 죽고 퓨니코드 대조군은 통과).
-  건수 가드가 또 물어 779 → **782**. 다음 반복은 **테스트 phase**(변이 실측).
+note: **테스트 스텝 완료 — 변이 5판 중 넷이 잡히고 하나(`except Exception`)가 살아 갭을
+  메웠다. 전수 784 OK.** 경계 둘(비ASCII **경로**는 안 막는다 · 프로그래밍 오류는 안 삼킨다)을
+  새로 세웠다. 건수 782 → **784**. 다음 반복은 **리뷰 phase**.
 ---
 
 # 현재 상태
 
-**계획 100 `robots-nonascii` 개발 1/1 완료 — 다음은 테스트 phase.**
+**계획 100 `robots-nonascii` 테스트 완료 — 다음은 리뷰 phase.**
 계획서 `docs/plan_robots-nonascii.md` · 브랜치 `loop/robots-nonascii`(기점 `064fe56`).
 
-**고친 것**: `_fetch_robots` 의 `except (URLError, OSError)` 에 **`UnicodeError` 한 낱말**.
-비ASCII 호스트는 이제 599(차단)로 접히고 `allowed`→`False` · `delay`→`None` 이다.
-갈래 `TestNonAsciiHost` 3건(비ASCII 둘 + 퓨니코드 대조군) · 전수 **782 OK**.
+**고친 것**: `_fetch_robots` 의 `except` 에 **`UnicodeError` 한 낱말**. 비ASCII 호스트는
+599(차단)로 접히고 `allowed`→`False` · `delay`→`None`. 갈래 5건 · 전수 **784 OK**.
 
-- **RED 를 눈으로 봤다** — 고치기 전 두 건이 `putheader` 의 latin-1 인코딩에서 죽었다.
-  **소켓을 열기 전**이라 네트워크를 안 탄다(`project.md` 한도에 안 걸린다).
-- **퓨니코드 대조군을 같이 둔 이유** — 그쪽이 함께 죽으면 고친 게 아니라 관문을 통째로
-  닫은 것이다. 오늘 크롤 경로가 `urls.normalize` 로 만들어 넘기는 모양이 그쪽이다.
-- **관문이 제 손으로 주소를 안 고친다** — 퓨니코드 변환은 `urls` 의 일이다. 관문에서
-  고쳐 통과시키면 **조용히 더 후해진다**(크롤 윤리 1순위 · 계획서 「하지 않을 것」).
-- 건수 가드가 세 반복째 물었다(779 → **782**). `README.md:104` · `project.md:13`.
+**변이 5판 — 넷 잡힘, 하나가 살아서 갭이 됐다**:
+
+| 변이 | 결과 |
+|---|---|
+| M1 `UnicodeError` 제거 | 잡힘(둘) |
+| M2 차단이 아니라 허용(599→404) | 잡힘 — **값이 「차단」인지까지** 물린다 |
+| M3 `except Exception` 으로 확대 | **살아남음** → 갭 테스트를 세우고 재측정해 잡힘 |
+| M4 비ASCII base 에서 빈 본문 | 살아남음 — **도달 불가 변이**(그 줄 앞에서 예외가 난다). 등가 변이로 기록 |
+| M5 비ASCII 를 통째로 차단(과차단) | 잡힘 — 경계 테스트가 문다 |
+
+- **M3 이 준 갭이 이 저장소의 오래된 축이다** — 넓힌 `except` 는 모든 테스트를 통과시키면서
+  `TypeError`·`AttributeError` 까지 차단으로 접는다. 관문은 조용히 초록인데 크롤은 0건이 된다.
+- **경계 하나 더**: ASCII 호스트 + 한글 **경로**는 그대로 통과한다(robots 왕복은 base 만 쓴다).
+  여기가 함께 막히면 고친 게 아니라 한국어 사이트를 못 돌게 한 것이다 — M5 가 그것을 문다.
+- 건수 가드가 네 반복째 물었다(782 → **784**).
 
 **계획 99 는 `main` 에 들어갔다**(`064fe56`) — e2e 2종 통과 · 변이 9판 전부 잡힘 ·
 전수 779 OK. 병합 첫 판은 `StepSyncTest`·`IterationSyncTest` 가 **RED 로 막았고**
