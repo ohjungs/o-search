@@ -144,6 +144,7 @@ def main():
         assert "sokcho" in query(env, db, "sokcho"), "새 링크가 색인이 안 됐다"
 
     server.shutdown()
+    server.server_close()
 
     # 시나리오 4 — 재크롤도 예외가 아니다. **서버 수신 시각**으로 잰다
     page_times = [t for t, p in second if p != "/robots.txt"]

@@ -91,6 +91,7 @@ def main():
         run("-c", "import sys; from websearch.crawl import crawl; "
                   "crawl([sys.argv[1]], 6, db_path=sys.argv[2])", base + "/", db)
         server.shutdown()
+        server.server_close()
 
         pages = sqlite3.connect(db).execute("SELECT count(*) FROM pages").fetchone()[0]
         assert pages == 6, "6페이지를 수집해야 한다 — 수집 %d" % pages

@@ -161,6 +161,7 @@ def run():
         urllib.request.install_opener(urllib.request.build_opener())
         for server in (same, other):
             server.shutdown()
+            server.server_close()
 
 
 def check():

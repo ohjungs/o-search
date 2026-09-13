@@ -94,6 +94,7 @@ def main():
         run("-c", "import sys; from websearch.crawl import crawl; "
                   "crawl([sys.argv[1]], %d, db_path=sys.argv[2])" % (DOCS + 1), site + "/", db)
         origin.shutdown()
+        origin.server_close()
 
         indexed = run("-m", "websearch.indexer", db)
         assert "%d 문서 색인" % (DOCS + 1) in indexed, "색인 stdout: %r" % indexed

@@ -61,6 +61,7 @@ def main():
              base + "/", db],
             env=env, capture_output=True, text=True, timeout=120)
         server.shutdown()
+        server.server_close()
 
         assert proc.returncode == 0, "exit %d\n%s" % (proc.returncode, proc.stderr)
         assert "수집 15 페이지" in proc.stdout, "stdout: %r" % proc.stdout

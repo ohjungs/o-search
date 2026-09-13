@@ -18,8 +18,9 @@
 (전수 안에서 전수를 다시 도는 모양), 러너 명령에 `-W` 를 다는 쪽은 승인 대기다.
 그래서 여기서는 **낱말을 센다.**
 
-ponytail: 파일 단위 개수 비교라 «호출 하나하나» 를 짝지어 주지 않는다 — `server_close()`
-를 부르면서 다른 소켓을 새로 흘리면 이 자는 못 잡는다. 잡는 것은 「복사해서 새 e2e 를
+ponytail: 파일 단위라 «호출 하나하나» 를 짝지어 주지 않는다 — 서버 쪽은 있고/없고만
+보고(루프로 만드는 `deadline_e2e` 때문에 개수를 못 쓴다), 파이프 쪽만 개수를 센다.
+`server_close()` 를 부르면서 다른 소켓을 새로 흘리면 이 자는 못 잡는다. 잡는 것은 「복사해서 새 e2e 를
 만들 때 닫는 줄을 빠뜨리는 것」이라는 실제 재발 경로 하나다. `docs/project.md` 의 러너
 명령에 `-W` 가 붙는 날(게이트 ⑫) 그 실측이 이 대리 측정을 대신한다.
 """
@@ -49,13 +50,15 @@ def e2e_sources():
 
 class ServerCloseTest(unittest.TestCase):
     def test_every_server_is_closed(self):
-        """서버를 만든 만큼 `server_close()` 도 불러야 한다."""
+        """서버를 만드는 파일은 `server_close()` 도 불러야 한다.
+
+        **개수로 안 센다** — `deadline_e2e` 는 서버를 루프에서 만들고 루프에서 닫는다
+        (만든 자리 2 · 닫는 자리 1). 개수를 요구하면 옳게 고친 파일이 빨개진다.
+        """
         offenders = []
         for name, src in e2e_sources():
-            made = len(SERVER_NEW.findall(src))
-            closed = len(SERVER_CLOSE.findall(src))
-            if made > closed:
-                offenders.append("%s (만든 것 %d · 닫은 것 %d)" % (name, made, closed))
+            if SERVER_NEW.search(src) and not SERVER_CLOSE.search(src):
+                offenders.append(name)
         self.assertEqual(
             [], offenders,
             "듣는 소켓이 열린 채로 끝난다 — `shutdown()` 뒤에 `server_close()` 를 부른다"

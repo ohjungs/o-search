@@ -285,6 +285,7 @@ def main():
     finally:
         for server in servers:
             server.shutdown()
+            server.server_close()
 
     print("e2e 통과 — 서버 3개 · Crawl-delay %d초" % CRAWL_DELAY)
     print("  [0] 대조군(신호 없음): %d페이지 rc 0, %.1fs — 아래 넷의 잣대" % s0)

@@ -151,6 +151,7 @@ def run():
         urllib.request.install_opener(urllib.request.build_opener())
         for server in (slow_http, slow_https, ctrl):
             server.shutdown()
+            server.server_close()
 
 
 def check():
