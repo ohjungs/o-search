@@ -278,3 +278,30 @@ class TestRobotsBodyIsBounded(unittest.TestCase):
         # 상한을 안 넘으면 아무것도 안 자른다. 끝 개행이 없는 파일이 흔하다
         body = _fetch_body(b"User-agent: *\nCrawl-delay: 5")
         self.assertEqual(body, "User-agent: *\nCrawl-delay: 5")
+
+
+class TestNonAsciiHost(unittest.TestCase):
+    """비ASCII 호스트가 관문을 **예외로** 뚫지 않는지 본다.
+
+    `urlopen` 이 요청 줄을 latin-1 로 인코딩하다 `UnicodeEncodeError` 를 던진다 —
+    **소켓을 열기 전이라 네트워크를 타지 않는다**(그래서 `project.md` 의 「외부 네트워크
+    금지」에 안 걸린다 · 2026-09-13 반복 581/582 실측, `.invalid` TLD 는 애초에 안 풀린다).
+    그 예외는 `ValueError` 의 자손이라 `_fetch_robots` 의 `except (URLError, OSError)` 가
+    못 잡고, `allowed` 안의 `except ValueError` 는 `can_fetch` 만 감싸 **한 칸 옆**이다.
+
+    값은 **차단**이다 — 바로 그 `except ValueError` 가 적어 둔 판단("못 읽는 URL 은 안
+    간다")과 같은 값으로 닫는다. 관문이 예외로 죽으면 크롤 전체가 죽고, 후해지면 크롤
+    윤리를 어긴다.
+    """
+
+    def test_a_non_ascii_host_is_blocked_not_raised(self):
+        self.assertFalse(robots.RobotsCache().allowed("http://한글.invalid/페이지"))
+
+    def test_a_non_ascii_host_has_no_declared_delay(self):
+        self.assertIsNone(robots.RobotsCache().delay("http://한글.invalid/페이지"))
+
+    def test_a_punycode_host_is_unchanged(self):
+        # 대조군 — 오늘 크롤 경로가 `urls.normalize` 로 만들어 넘기는 모양이다.
+        # 이쪽이 함께 죽으면 고친 것이 아니라 관문을 통째로 닫은 것이다.
+        c = _cache_with(lambda base: (200, "User-agent: *\nAllow: /"))
+        self.assertTrue(c.allowed("http://xn--bj0bj06e.invalid/p"))

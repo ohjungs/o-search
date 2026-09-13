@@ -1,39 +1,39 @@
 ---
 signal: GREEN
-phase: 개발
-step: 0/1
+phase: 테스트
+step: 1/1
 attempt: 0
 plan: robots-nonascii
-iteration: 581
+iteration: 582
 updated: 2026-09-13
 mode: night
-night_iterations: 12
+night_iterations: 13
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
 ctx: 측정 불가 — 게이트 ⑦ **열두 번째 재현**(state 의 `session_id` 가 내 슬러그에 없다).
   statusLine 꺼진 것과 동일 취급 — 반복 상한에만 의존한다. 5h 30 · 7d 55 만 유효하다(둘 다 85 미만)
-note: **계획 100 `robots-nonascii` 를 세웠다 — 이 밤의 셋째이자 마지막 계획.**
-  근거는 digest 6순위 `[7]` 이고 **오늘 다시 쟀다**: 비ASCII 호스트가 `RobotsCache.allowed`/
-  `delay` 에서 `UnicodeEncodeError` 로 샌다. 설계는 건너뛴다(트리거 0 — 공유 함수 `except`
-  한 줄). 다음 반복은 **개발 스텝 1/1**.
+note: **개발 스텝 1/1 완료 — `except` 에 `UnicodeError` 한 낱말, 갈래 3건. 전수 782 OK.**
+  RED 를 눈으로 봤다(비ASCII 둘이 `UnicodeEncodeError` 로 죽고 퓨니코드 대조군은 통과).
+  건수 가드가 또 물어 779 → **782**. 다음 반복은 **테스트 phase**(변이 실측).
 ---
 
 # 현재 상태
 
-**계획 100 `robots-nonascii` 개발 대기 — 이 밤의 셋째 계획(상한).**
+**계획 100 `robots-nonascii` 개발 1/1 완료 — 다음은 테스트 phase.**
 계획서 `docs/plan_robots-nonascii.md` · 브랜치 `loop/robots-nonascii`(기점 `064fe56`).
 
-**근거(오늘 실측)**: `RobotsCache().allowed("http://한글.invalid/페이지")` 가
-`UnicodeEncodeError` 로 죽는다. `delay()` 도 같다. 퓨니코드 호스트는 정상(`False`/`None`).
-그 예외는 `ValueError` 의 자손이라 `_fetch_robots` 의 `except (URLError, OSError)` 가
-못 잡고, `allowed` 안의 `except ValueError` 는 `can_fetch` 만 감싸 **한 칸 옆**이다.
+**고친 것**: `_fetch_robots` 의 `except (URLError, OSError)` 에 **`UnicodeError` 한 낱말**.
+비ASCII 호스트는 이제 599(차단)로 접히고 `allowed`→`False` · `delay`→`None` 이다.
+갈래 `TestNonAsciiHost` 3건(비ASCII 둘 + 퓨니코드 대조군) · 전수 **782 OK**.
 
-- **오늘 크롤 경로에서는 도달 불가다** — 씨앗(`crawl.py:195`)도 링크(`links.py:34`)도
-  `urls.normalize` 를 거쳐 퓨니코드로 바뀐다. 「지금 죽는 버그」가 아니라 **관문이 입력
-  하나에 죽는다**는 문제로 적었다. 처방 방향은 기존 `except ValueError` 와 같은 값(차단)이다.
-- **설계 생략 사유**: 공유 함수 `_fetch_robots` 의 `except` 한 줄 — `design.md` 1절
-  트리거(새 모듈·공개 인터페이스·데이터 구조·3파일·되돌리기 어려움·대안 갈림) 0개.
+- **RED 를 눈으로 봤다** — 고치기 전 두 건이 `putheader` 의 latin-1 인코딩에서 죽었다.
+  **소켓을 열기 전**이라 네트워크를 안 탄다(`project.md` 한도에 안 걸린다).
+- **퓨니코드 대조군을 같이 둔 이유** — 그쪽이 함께 죽으면 고친 게 아니라 관문을 통째로
+  닫은 것이다. 오늘 크롤 경로가 `urls.normalize` 로 만들어 넘기는 모양이 그쪽이다.
+- **관문이 제 손으로 주소를 안 고친다** — 퓨니코드 변환은 `urls` 의 일이다. 관문에서
+  고쳐 통과시키면 **조용히 더 후해진다**(크롤 윤리 1순위 · 계획서 「하지 않을 것」).
+- 건수 가드가 세 반복째 물었다(779 → **782**). `README.md:104` · `project.md:13`.
 
 **계획 99 는 `main` 에 들어갔다**(`064fe56`) — e2e 2종 통과 · 변이 9판 전부 잡힘 ·
 전수 779 OK. 병합 첫 판은 `StepSyncTest`·`IterationSyncTest` 가 **RED 로 막았고**
