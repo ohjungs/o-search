@@ -4,6 +4,9 @@
 검증: ① 한글 링크를 따라가 저장되고 크롤이 죽지 않는다 (종료 0)
 ② 한글 표기·퍼센트 표기 두 링크가 pages 1행으로 합쳐진다 (서버 요청도 1건)
 ③ 살릴 수 없는 시드(서로게이트)만 건너뛰고 나머지는 전부 수집된다
+④ **호스트**가 한글인 시드도 크롤을 안 죽인다 — 정규화가 퓨니코드로 바꿔 관문에는
+   ASCII 만 닿고(오늘 경로), 정규화를 우회해 관문에 직접 넣으면 예외가 아니라 **차단**이다
+   (계획 100 `robots-nonascii` 의 e2e 시나리오)
 
 실행: PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python3 e2e/non_ascii_e2e.py
 """
@@ -14,6 +17,12 @@ import subprocess
 import sys
 import tempfile
 import threading
+from unittest import mock
+
+sys.path.insert(0, os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
+
+from websearch import robots  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REQUEST_LOG = []  # 경로 (서버가 받은 raw 표기 — 퍼센트 인코딩된 채로 온다)
@@ -48,10 +57,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 # 서로게이트는 argv 로 넘길 수 없다(로케일 인코딩이 거부한다) — 자식 안에서 만든다
 CHILD = """
+import socket
 import sys
+
+# 외부 조회 그물 — 아래 한글 호스트 시드는 «죽은 호스트» 역할이고, 그 판정이 이 기계의
+# DNS 로 나가면 안 된다(`project.md` 한도). 숫자 주소(로컬 서버)만 통과시킨다.
+_real = socket.getaddrinfo
+def _offline(host, *a, **k):
+    if host in ("127.0.0.1", "localhost"):
+        return _real(host, *a, **k)
+    raise socket.gaierror("e2e 그물: 외부 조회 금지 — %r" % (host,))
+socket.getaddrinfo = _offline
+
 from websearch.crawl import crawl
 base = sys.argv[1]
-seeds = [base + "/", base + "/" + chr(0xD800) + ".html"]
+seeds = [base + "/", base + "/" + chr(0xD800) + ".html",
+         "http://\ud55c\uae00.invalid/\ud398\uc774\uc9c0"]
 print('수집 %d 페이지' % crawl(seeds, 10, db_path=sys.argv[2]))
 """
 
@@ -91,7 +112,19 @@ def main():
     assert set(REQUEST_LOG) == {"/robots.txt", "/", KO_PATH, "/ok.html"}, \
         "예상 밖 요청: %s" % sorted(set(REQUEST_LOG))
 
-    print("e2e 통과 — 수집 3행(한글 경로 %s), 한글 페이지 요청 1건, 서로게이트 시드 1개 건너뜀"
+    # 시나리오 4 — 한글 **호스트** 시드는 행을 하나도 안 남기고 크롤도 안 죽였다.
+    # 위 종료 0 · 수집 3행 · 요청 집합이 그대로인 것이 그 증거다(죽은 호스트라 0행이 정답).
+
+    # 시나리오 4-b — 정규화를 우회해 관문에 직접 넣는다. 여기가 계획 100 이 고친 자리다.
+    # 그물을 `AssertionError` 로 놓는 것이 요점이다: `gaierror` 로 놓으면 관문이 그것을
+    # 599 로 접어 «네트워크를 탔는데도 False» 가 통과해 버린다.
+    with mock.patch("socket.getaddrinfo", side_effect=AssertionError("네트워크를 탔다")):
+        gate = robots.RobotsCache()
+        assert gate.allowed("http://한글.invalid/페이지") is False, "관문이 비ASCII 호스트를 허용했다"
+        assert gate.delay("http://한글.invalid/페이지") is None, "선언 안 된 간격이 값으로 나왔다"
+
+    print("e2e 통과 — 수집 3행(한글 경로 %s), 한글 페이지 요청 1건, 서로게이트 시드 1개 건너뜀,"
+          " 한글 호스트 시드 0행·크롤 생존 · 관문 직접 호출은 차단(네트워크 0회)"
           % korean[0].rsplit("/", 1)[1])
 
 

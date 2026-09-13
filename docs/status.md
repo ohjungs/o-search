@@ -1,28 +1,27 @@
 ---
-signal: GREEN
-phase: e2e
-step: 1/1
+signal: DONE
+phase: 계획
+step: 0/0
 attempt: 0
-plan: robots-nonascii
-iteration: 584
+plan: null
+iteration: 585
 updated: 2026-09-13
 mode: night
-night_iterations: 15
+night_iterations: 16
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
 ctx: 측정 불가 — 게이트 ⑦ **열두 번째 재현**(state 의 `session_id` 가 내 슬러그에 없다).
   statusLine 꺼진 것과 동일 취급 — 반복 상한에만 의존한다. 5h 30 · 7d 55 만 유효하다(둘 다 85 미만)
-note: **리뷰 스텝 완료 — 리뷰 1건(자동 수정) · 패스 B 빈손.** [R100-1] 비ASCII 갈래가
-  파이썬이 바뀌는 날 **조용히 DNS 로 나가는** 것을 `socket.getaddrinfo` 그물로 막았다.
-  전수가 RED 를 냈고 원인은 diff 가 아니라 **기록 항목 21 > 20** — 회전으로 닫고 **784 OK**.
-  다음 반복은 **e2e phase**(시나리오 2종은 계획서에 있다).
+note: **계획 100 e2e 2종 통과 — DONE.** 새 e2e 파일을 안 만들고 `non_ascii_e2e` 의 넷째
+  축으로 넣었다(명부·README 를 안 흔든다). 음성 대조에서 **단위 2건(원인)과 e2e rc=1(증상)이
+  갈려 죽는다.** 전수 **784 OK**. 다음은 **병합**(`merge-to-main.sh`) 후 계획 phase.
 ---
 
 # 현재 상태
 
-**계획 100 `robots-nonascii` 리뷰 완료 — 다음은 e2e phase.**
-계획서 `docs/plan_robots-nonascii.md` · 브랜치 `loop/robots-nonascii`(기점 `064fe56`).
+**계획 100 `robots-nonascii` DONE — 남은 것은 병합뿐이다.**
+계획서는 `docs/plan_history_075.md` 로 옮겼다 · 브랜치 `loop/robots-nonascii`(기점 `064fe56`).
 
 **고친 것**: `_fetch_robots` 의 `except` 에 **`UnicodeError` 한 낱말**. 비ASCII 호스트는
 599(차단)로 접히고 `allowed`→`False` · `delay`→`None`. 갈래 5건 · 전수 **784 OK**.
@@ -36,6 +35,12 @@ note: **리뷰 스텝 완료 — 리뷰 1건(자동 수정) · 패스 B 빈손.*
 
 **기록 회전**: 전수 RED 의 원인이 diff 가 아니라 `HistoryCapTest`(항목 **21 > 20**)였다 —
 **줄이 아니라 항목 상한에 걸린 첫 회전**이다. 564~573 을 `history_085.md` 로 밀어냈다(295 → 129줄).
+
+**e2e 2종 통과**(`docs/e2e/robots-nonascii/result.md`). ① 오늘 크롤 경로는 정규화가
+퓨니코드로 바꿔 관문에 ASCII 만 닿는다(계약 2 「도달 불가」의 실물) · 정규화를 우회한 직접
+호출은 **예외가 아니라 차단**이다. ② 음성 대조 — `UnicodeError` 를 빼면 e2e 는 `rc=1`
+(`putheader` 의 latin-1, **소켓 열기 전**), 전수는 **2건만** 죽는다. 그 둘이 이 저장소에서
+비ASCII 호스트를 관문에 직접 넣는 **유일한 갈래**라는 뜻이다.
 
 **변이 5판 — 넷 잡힘, 하나가 살아서 갭이 됐다**:
 
