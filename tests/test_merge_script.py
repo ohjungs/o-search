@@ -8,6 +8,7 @@
 네트워크를 안 쓴다.
 """
 import os
+import pathlib
 import subprocess
 import tempfile
 import unittest
@@ -31,12 +32,12 @@ class MergeScriptTest(unittest.TestCase):
         subprocess.run(["git", "init", "-q", "-b", "main", self.work], check=True)
         for k, v in (("user.email", "t@t"), ("user.name", "t")):
             git(self.work, "config", k, v)
-        open(os.path.join(self.work, "a.txt"), "w").write("1\n")
+        pathlib.Path(self.work, "a.txt").write_text("1\n")
         git(self.work, "add", "-A"); git(self.work, "commit", "-qm", "init")
         git(self.work, "remote", "add", "origin", self.remote)
         git(self.work, "push", "-q", "-u", "origin", "main")
         git(self.work, "checkout", "-qb", "loop/시험")
-        open(os.path.join(self.work, "a.txt"), "w").write("2\n")
+        pathlib.Path(self.work, "a.txt").write_text("2\n")
         git(self.work, "add", "-A"); git(self.work, "commit", "-qm", "변경")
 
     def _run(self, test_cmd):
