@@ -417,6 +417,45 @@ def const_gap(text, doc="project.md"):
     return None
 
 
+E2E_DIR = DOCS.parent / "e2e"
+# 문서 안에서 **낱말 하나로** 선 이름만 등재로 친다. 부분 문자열로 세면 안 된다 —
+# 이 저장소에 실제 함정이 있다: `interrupt_e2e` 는 `indexer_interrupt_e2e` 의 부분
+# 문자열이라, 뒤엣것만 적힌 문서가 앞엣것까지 등재한 것으로 읽힌다.
+E2E_WORD = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+# 「아무것도 안 잰다」를 닫는 하한. `e2e/` 가 비거나 경로가 어긋나면 `glob` 이 0개를
+# 내고 `test_project_names_every_e2e` 는 조용한 초록이 된다.
+# **다만 `CONST_CITATION_FLOOR` 과 값이 다르다 — 여기서는 못이 «유일한» 방벽이 아니다.**
+# 아래 갈래 픽스처가 디스크에서 조립되므로 모집단이 비면 갈래가 **먼저** 죽는다
+# (반복 572 변이 실측: `glob("*.pyx")`·`E2E_DIR` 이사 둘 다 갈래가 물었고, 못만 1→0 으로
+# 내리는 변이는 **살았다**). 못이 하는 일은 원인을 이름으로 찍는 것이다.
+# **오늘 값(22)에 안 붙인다** — e2e 를 정당하게 지우는 날 거짓 RED 이기 때문이다.
+E2E_ROSTER_FLOOR = 1
+
+
+def e2e_roster_gap(text, doc="project.md"):
+    """문서가 이름으로 안 부르는 `e2e/*.py` 를 한 줄로 돌려준다. 없으면 `None`.
+
+    **모집단은 디스크지 문서가 아니다.** 문서에서 출발해 「적힌 이름이 실재하나」를
+    재는 자는 `test_readme.py` 가 이미 갖고 있고, 그 방향은 **빠뜨린 것을 구조적으로
+    못 본다** — 실제로 못 봤다. 반복 570 실측에서 `e2e/*.py` 22개 중 **5개**가 어느
+    문서에도 없었고 전수 763건이 그 상태로 전부 초록이었다.
+
+    재는 것은 **이름이 있나**뿐이다. 그 e2e 가 실제로 도는지·누가 언제 돌리는지는
+    안 잰다 — 그쪽은 러너의 몫이고 이 자는 명부가 낡는 것만 문다.
+
+    **자리도 안 잰다** — 이름이 문서 어디에 낱말로 서 있기만 하면 등재로 친다.
+    「안 돌리는 것들」 목록에 적어도 조용해진다. 자리를 재려면 명부 줄을 파싱해야
+    하는데 그러면 줄 모양을 바꿀 때마다 거짓 RED 를 낸다 — 오늘 그 거래는 손해다.
+    """
+    named = set(E2E_WORD.findall(text))
+    missing = sorted(p.stem for p in E2E_DIR.glob("*.py") if p.stem not in named)
+    if missing:
+        return ("%s 가 `e2e/` 의 %d개를 이름으로 안 부른다 — %s. 명부에 없는 e2e 는"
+                " 아무도 안 돌린다(루프는 이 파일을 읽어 무엇을 칠지 정한다)"
+                % (doc, len(missing), " · ".join("`%s`" % m for m in missing)))
+    return None
+
+
 # `rules/docs.md` 3절의 `history_current.md` 상한. **여기 두 줄이 그 룰의 유일한
 # 기계 표현이다** — 룰 파일은 저장소 밖(`~/.claude/skills/loop-harness/`)에 살아 검사가
 # 읽을 수 없다. 룰이 바뀌면 이 둘을 손으로 맞춘다.
@@ -1562,6 +1601,78 @@ class ProjectConstTest(unittest.TestCase):
             "project.md 가 값까지 적어 부르는 상수가 %d개다 — 「품질 기준」 절이"
             " `mod.CONST` **= 숫자** 꼴을 잃었고, 그러면 이 검사는 아무것도 안 잰다"
             % len(found))
+
+
+class E2eRosterGapTest(unittest.TestCase):
+    """`e2e_roster_gap` 의 갈래. 실물은 `E2eRosterTest` 가 부른다.
+
+    **몸통을 함수로 뺀 이유는 `const_gap`·`step_gap`·`cap_gap` 과 같다** — 실물
+    `project.md` 는 한 번 맞추고 나면 늘 맞아서, 판정을 무력화하는 변이가 조용히 산다.
+
+    모집단이 디스크라 픽스처가 이름을 **지어낼 수 없다** — 살아 있는 e2e 이름을 쓴다.
+    """
+
+    def _all_but(self, *drop):
+        return " ".join(p.stem for p in E2E_DIR.glob("*.py") if p.stem not in drop)
+
+    def test_a_full_roster_is_quiet(self):
+        self.assertIsNone(e2e_roster_gap(self._all_but()))
+
+    def test_a_missing_name_is_reported(self):
+        gap = e2e_roster_gap(self._all_but("recrawl_e2e"))
+        self.assertIsNotNone(gap)
+        self.assertIn("recrawl_e2e", gap)
+
+    def test_every_missing_name_is_listed_not_just_the_first(self):
+        # 한 이름만 찍으면 다음 반복이 나머지를 모른 채 초록으로 읽는다.
+        gap = e2e_roster_gap(self._all_but("recrawl_e2e", "url_normalize_e2e"))
+        self.assertIn("recrawl_e2e", gap)
+        self.assertIn("url_normalize_e2e", gap)
+        # 이름 순서는 `glob` 이 아니라 `sorted` 가 정한다 — 디렉터리 순회 순서에 맡기면
+        # 같은 결함이 실행마다 다른 줄을 내고 두 RED 를 눈으로 못 맞춘다.
+        self.assertLess(gap.index("recrawl_e2e"), gap.index("url_normalize_e2e"))
+
+    def test_the_message_names_the_document_it_was_given(self):
+        # **`doc` 은 이 저장소가 이미 한 번 밟은 자리다** — `const_gap` 이 파일명을
+        # 안 받던 시절 `baselines.md` 의 오류를 「project.md 가」로 귀속했다([R568-2]).
+        # 부르는 문서가 하나뿐인 오늘은 기본값이 우연히 맞아 아무도 이 축을 안 밟는다.
+        gap = e2e_roster_gap(self._all_but("recrawl_e2e"), doc="README.md")
+        self.assertIn("README.md", gap)
+        self.assertNotIn("project.md", gap)
+
+    def test_a_substring_is_not_a_listing(self):
+        # **이 저장소의 실제 함정이다** — `interrupt_e2e` 는 `indexer_interrupt_e2e`
+        # 의 부분 문자열이라, 부분 문자열로 세는 자는 뒤엣것만 적힌 명부를 통과시킨다.
+        gap = e2e_roster_gap(self._all_but("interrupt_e2e"))
+        self.assertIsNotNone(gap, "부분 문자열을 등재로 세고 있다")
+        self.assertIn("interrupt_e2e", gap)
+
+
+class E2eRosterTest(unittest.TestCase):
+    """살아 있는 `project.md` 가 `e2e/*.py` 를 전부 이름으로 부르는지 본다.
+
+    **이 검사가 있는 이유는 실물이 이미 그 상태였기 때문이다** — 2026-09-13 반복 570
+    실측에서 22개 중 다섯(`crawl_politeness_e2e`·`pagination_ui_e2e`·`recrawl_e2e`·
+    `retry_interval_e2e`·`url_normalize_e2e`)이 어느 문서에도 이름이 없었고, **다섯 다
+    rc=0 으로 멀쩡히 도는 e2e** 였다. `project.md` 는 「13종」이라 적고 13만 나열했고
+    `README.md` 는 `ls e2e/*.py` 로 **세기만 하고 이름을 안 줬다.**
+
+    **세는 것과 부르는 것은 다르다.** 루프는 매 반복 `project.md` 를 읽어 무엇을 칠지
+    정하므로, 숫자만 맞는 명부는 다섯을 영원히 안 돌린다 — 전수 763건이 그 상태로
+    전부 초록이었다(`DocCitationTest`·`ProjectConstTest` 와 같은 부류의 눈먼 자리다).
+    """
+
+    def test_project_names_every_e2e(self):
+        gap = e2e_roster_gap((DOCS / "project.md").read_text(encoding="utf-8"))
+        self.assertIsNone(gap, gap)
+
+    def test_there_is_something_to_count(self):
+        # 위 단언은 `e2e/*.py` 가 0개면 «볼 것이 없어» 초록이다. 경로가 어긋나거나
+        # 디렉터리가 비면 이 검사는 아무것도 안 재면서 통과한다.
+        found = list(E2E_DIR.glob("*.py"))
+        self.assertGreaterEqual(
+            len(found), E2E_ROSTER_FLOOR,
+            "`e2e/*.py` 가 %d개다 — 모집단이 비어 이 검사는 아무것도 안 잰다" % len(found))
 
 
 class CapGapTest(unittest.TestCase):

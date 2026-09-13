@@ -10,15 +10,15 @@
 화면이 짧다 — 어길 이유가 없고, 실패한 것의 stdout/stderr 는 보고서에 그대로 나온다.
 
 - **테스트(전체)**: `PYTHONPATH=src python3 -m unittest discover -b tests`
-  (2026-09-03 실행 확인 · 오늘 763건 약 19초라 빠름/전체 구분 없음 · 린트·타입체크는 없다)
+  (2026-09-03 실행 확인 · 오늘 770건 약 19초라 빠름/전체 구분 없음 · 린트·타입체크는 없다)
 - **변이 검사**: `PYTHONDONTWRITEBYTECODE=1` **과** `PYTHONPYCACHEPREFIX=$(mktemp -d)` 를
   **함께** 준다. 앞엣것만으론 부족하다 — 이 기계의 시스템 파이썬은 캐시를 **저장소 밖**
   (`~/Library/Caches/com.apple.python`)에 쌓고 그 플래그는 쓰기만 막지 **읽기는 안 막는다**
   (계획 57 리뷰가 실제로 속았다 · 경위는 `baselines.md`)
-- **e2e 13종**: `PYTHONPATH=src python3 e2e/<이름>.py` — `crawl_e2e` `indexer_e2e` `noindex_e2e`
-  `search_api_e2e` `crawl_delay_e2e` `non_ascii_e2e` `hidden_passage_e2e` `design_check`
-  `tokenizer_e2e` `domain_key_e2e` `deadline_e2e` `interrupt_e2e` `indexer_interrupt_e2e`.
-  **종료 2 는 실패가 아니라 측정 불능이다.** 시나리오·소요·변이 확인은 **`docs/baselines.md`**
+- **e2e 18종**: `PYTHONPATH=src python3 e2e/<이름>.py` — `crawl_e2e` `indexer_e2e` `noindex_e2e` `search_api_e2e`
+  `crawl_delay_e2e` `non_ascii_e2e` `hidden_passage_e2e` `design_check` `tokenizer_e2e` `domain_key_e2e` `deadline_e2e`
+  `interrupt_e2e` `indexer_interrupt_e2e` `crawl_politeness_e2e` `pagination_ui_e2e` `recrawl_e2e` `retry_interval_e2e` `url_normalize_e2e`.
+  **종료 2 는 실패가 아니라 측정 불능이다.** 명부가 낡으면 `test_docs.py` 가 문다 · 나머지는 **`docs/baselines.md`**
 - **측정**: `e2e/perf_crawl.py`(처리량) · `e2e/perf_search.py [문서수] [반복]`(검색 지연) ·
   `e2e/quality_eval.py` · `e2e/passage_eval.py`. 합격선은 아래, 기준선은 `baselines.md`
 
