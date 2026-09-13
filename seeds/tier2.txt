@@ -1,0 +1,72 @@
+# 2단계 시드 — robots 실측을 통과한 도메인만 있다 (2026-09-13 확인)
+#
+# 쓰는 법(tier1 과 함께 준다):
+#   PYTHONPATH=src python3 -m websearch.crawl \
+#     $(grep -hv '^#' seeds/tier1.txt seeds/tier2.txt) --max 200000 --same-site
+#
+# ---------------------------------------------------------------------------
+# **왜 tier2 가 필요한가 — 편중이 윤리 문제가 됐다**
+#
+# 2026-09-13 실측: 코퍼스 136,819장 중 **위키미디어 계열이 41%**(56,058장)다.
+# 그리고 그쪽은 이미 우리를 거절하고 있다 — 8만 장 크롤 한 번에 **429 가 3,554건**,
+# 백오프가 **4개 도메인에서 손을 뗐다**(`ko.wikipedia` · `simple.wikipedia` ·
+# `en.wikibooks` · `en.wikiversity`).
+#
+# **컨셉 2단계(100만 문서)를 지금 12도메인으로 가면 88만 장을 같은 곳에 더 요청하는
+# 것이다.** 컨셉 성능 2 가 *"도메인 다양성으로 해결하는 문제이지 간격을 줄여 해결하는
+# 문제가 아니다"* 라고 못박은 그 방향의 반대다. 간격을 안 깎아도, **같은 곳을 더 오래
+# 두드리는 것 자체가 예의의 문제**다.
+#
+# 그래서 tier2 는 **비-위키미디어만** 고른다. 열둘을 더하면 위키미디어 비중이 구조적으로
+# 내려가고, 지속 상한도 12 → 24 도메인으로 두 배가 된다.
+#
+# ---------------------------------------------------------------------------
+# 고른 기준 셋 — tier1 과 같다. 셋 다 만족해야 넣는다
+#
+#   1. robots.txt 가 이 경로를 **허용**한다 (실측 · 아래 표)
+#   2. 본문이 **열린 라이선스**다 — 색인은 원문 HTML 을 저장한다
+#   3. 문서가 **깊다** — 링크를 따라가면 수천 장이 나와야 규모에 기여한다
+#
+# ---------------------------------------------------------------------------
+# robots 실측 (2026-09-13 · 도메인당 요청 1건 · 1초 간격 · 12/12 허용)
+#
+#   도메인                     allowed  Crawl-delay  라이선스
+#   docs.kernel.org            True     없음         GPL-2.0 문서
+#   tldp.org                   True     없음         TLDP 자유 문서
+#   www.postgresql.org         True     없음         PostgreSQL 라이선스
+#   www.rfc-editor.org         True     없음         IETF Trust · 자유 배포
+#   datatracker.ietf.org       True     없음         IETF
+#   man7.org                   True     없음         man-pages · GPL/자유
+#   scikit-learn.org           True     없음         BSD-3
+#   numpy.org                  True     없음         BSD-3
+#   pandas.pydata.org          True     없음         BSD-3
+#   docs.gitlab.com            True     없음         CC BY-SA 4.0
+#   developer.android.com      True     없음         CC BY 2.5
+#   www.gutenberg.org          True     없음         퍼블릭 도메인
+#
+# **`Crawl-delay` 를 선언한 곳이 없다** — 그래도 `DOMAIN_INTERVAL` 1초는 그대로다.
+# 사양이 말하는 1초는 사이트가 풀어 줄 수 있는 것이 아니라 **우리 쪽 전제 조건**이다.
+#
+# ---------------------------------------------------------------------------
+# 처리량 — 24도메인이면 지속 상한이 두 배다
+#
+# 실측(2026-09-09): 1·2·4·8 도메인 → 1.03·2.08·4.40·9.86 문서/초로 **정비례**한다.
+# tier1+tier2 = 24도메인이면 지속 상한 24문서/초이고, 위키미디어가 폐기돼도
+# 남는 도메인이 20개다 — 지금은 4개가 빠지면 8개만 남는다.
+#
+# ---------------------------------------------------------------------------
+# 더할 때: robots 를 실측하고 위 표에 줄을 더한 뒤 여기 URL 을 넣는다.
+# **실측 없이 넣지 않는다.** 확인은 도메인당 요청 한 건이라 싸다.
+
+https://docs.kernel.org/
+https://tldp.org/guides.html
+https://www.postgresql.org/docs/current/
+https://www.rfc-editor.org/rfc/rfc2616.html
+https://datatracker.ietf.org/doc/html/rfc793
+https://man7.org/linux/man-pages/index.html
+https://scikit-learn.org/stable/user_guide.html
+https://numpy.org/doc/stable/
+https://pandas.pydata.org/docs/
+https://docs.gitlab.com/ee/
+https://developer.android.com/guide
+https://www.gutenberg.org/ebooks/1342
