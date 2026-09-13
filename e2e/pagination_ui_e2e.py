@@ -169,6 +169,8 @@ def main(argv):
         finally:
             server.terminate()
             server.wait(timeout=20)
+            # `wait()` 는 `communicate()` 와 달리 파이프를 안 닫는다
+            server.stdout.close()
 
     if "--control" in argv:
         print("대조군이 그냥 통과했다 — 측정 불능 가드가 죽어 있다", file=sys.stderr)

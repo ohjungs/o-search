@@ -114,6 +114,8 @@ def main():
         finally:
             serve.terminate()
             serve.wait(timeout=20)
+            # `wait()` 는 `communicate()` 와 달리 파이프를 안 닫는다
+            serve.stdout.close()
 
         assert "Traceback" not in screen, "화면에 트레이스백이 있다"
         assert 'href="%s/open"' % base in screen, "일반 문서가 화면에 없다"

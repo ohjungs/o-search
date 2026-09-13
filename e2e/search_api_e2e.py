@@ -183,6 +183,8 @@ def main():
         finally:
             server.terminate()
             server.wait(timeout=20)
+            # `wait()` 는 `communicate()` 와 달리 파이프를 안 닫는다
+            server.stdout.close()
 
         # 빈 DB 경로로 뜬 서버 — `DB_PATH` 를 안 채운 배포가 이 모양이다. SQLite 는
         # `file:?mode=rw` 를 «없는 파일» 이 아니라 **이름 없는 임시 DB** 로 읽어 조용히
@@ -198,6 +200,8 @@ def main():
         finally:
             blank.terminate()
             blank.wait(timeout=20)
+            # `wait()` 는 `communicate()` 와 달리 파이프를 안 닫는다
+            blank.stdout.close()
 
     perf = run(os.path.join(ROOT, "e2e", "perf_search.py"), "500", "30")
     assert "p95" in perf, "측정이 숫자를 안 냈다: %r" % perf
