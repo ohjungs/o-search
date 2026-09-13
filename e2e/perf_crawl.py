@@ -153,7 +153,7 @@ def assert_gaps_kept(label):
     `(재는 도메인 수, 실측 최소 간격)` 을 돌려준다. **하한이 아니라 실측치를 돌려주는
     이유**: "전부 0.95s 이상" 만 찍으면 1.004s 와 3.0s 가 같은 줄로 보인다. 여유가
     얼마나 남았는지는 회귀가 나기 **전에** 알아야 값이 있다 (기준선에는 값만이 아니라
-    어떤 세계에서 잰 숫자인지를 적는다 — docs/project.md).
+    어떤 세계에서 잰 숫자인지를 적는다 — docs/baselines.md).
     """
     gaps = page_gaps()
     measured = [d for d, g in gaps.items() if g]
