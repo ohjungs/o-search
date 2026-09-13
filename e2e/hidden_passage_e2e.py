@@ -115,6 +115,7 @@ def main():
         run("-c", "import sys; from websearch.crawl import crawl; "
                   "crawl([sys.argv[1]], %d, db_path=sys.argv[2])" % total, site + "/", db)
         origin.shutdown()
+        origin.server_close()
         indexed = run("-m", "websearch.indexer", db)
         assert "%d 문서 색인" % total in indexed, "색인 stdout: %r" % indexed
 
@@ -163,6 +164,8 @@ def main():
         finally:
             server.terminate()
             server.wait(timeout=20)
+            # `wait()` 는 `communicate()` 와 달리 파이프를 안 닫는다
+            server.stdout.close()
 
     print("e2e 통과 — %d문서 crawl→색인→CLI 서버(README 형태 상대 경로)로 띄워 HTTP 로 잰다: "
           "다섯 모양의 숨은 텍스트가 근거 문단으로 **0/%d** 나가고(착수 5/5), 같은 문서의 "

@@ -88,6 +88,7 @@ def main():
         proc = subprocess.run([sys.executable, "-c", CHILD, base, db],
                               env=env, capture_output=True, text=True, timeout=120)
         server.shutdown()
+        server.server_close()
 
         # 시나리오 1·3 — 크롤이 죽지 않는다. 살릴 수 없는 시드 하나만 빠진다
         assert proc.returncode == 0, "exit %d\n%s" % (proc.returncode, proc.stderr)

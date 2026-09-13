@@ -144,6 +144,7 @@ def run_crawl(workers, max_pages=MAX_PAGES):
     elapsed = time.monotonic() - started
     for server in servers:
         server.shutdown()
+        server.server_close()
     return saved / elapsed, saved, elapsed, paths
 
 

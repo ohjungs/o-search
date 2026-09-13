@@ -317,6 +317,7 @@ def main():
     finally:
         for server in servers:
             server.shutdown()
+            server.server_close()
 
     s2_saved, s2_elapsed, served, discarded = s2
     print("e2e 통과 — 도메인 %d개 · 예산 %.0f초" % (len(ports), BUDGET))

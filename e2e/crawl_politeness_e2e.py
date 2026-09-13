@@ -163,6 +163,7 @@ def scenario_a():
     finally:
         fetcher.fetch = real
         server.shutdown()
+        server.server_close()
 
     def pages(host):
         return [t for t, h, path in PagesHandler.log
@@ -193,6 +194,7 @@ def scenario_b():
             crawl.crawl([seed], 1, db_path=os.path.join(tmp, "crawl.db"))
     finally:
         server.shutdown()
+        server.server_close()
 
     attempts = measured(DropHandler.log, "연결 시도", least=1 + fetcher.RETRIES)
     assert len(attempts) == 1 + fetcher.RETRIES, \

@@ -102,6 +102,7 @@ def main():
                   "crawl([sys.argv[1]], %d, db_path=sys.argv[2])" % (len(DOCS) + 1),
             site + "/", db)
         origin.shutdown()
+        origin.server_close()
         indexed = run("-m", "websearch.indexer", db).stdout
         assert "%d 문서 색인" % (len(DOCS) + 1) in indexed, "색인 stdout: %r" % indexed
 
@@ -163,6 +164,8 @@ def main():
         finally:
             server.terminate()
             server.wait(timeout=20)
+            # `wait()` 는 `communicate()` 와 달리 파이프를 안 닫는다
+            server.stdout.close()
 
     print("e2e 통과 — %d문서를 crawl→색인→CLI 서버로 띄우고 화면(HTML)으로 확인했다: "
           "복합어 뒷부분·띄어쓰기 양방향·어순·영어 굴절이 잡히고, 스니펫에 bigram 이 "

@@ -91,6 +91,7 @@ def main():
         run("-c", "import sys; from websearch.crawl import crawl; "
                   "crawl([sys.argv[1]], 6, db_path=sys.argv[2])", base + "/", db)
         server.shutdown()
+        server.server_close()
 
         pages = sqlite3.connect(db).execute("SELECT count(*) FROM pages").fetchone()[0]
         assert pages == 6, "6페이지를 수집해야 한다 — 수집 %d" % pages
@@ -113,6 +114,8 @@ def main():
         finally:
             serve.terminate()
             serve.wait(timeout=20)
+            # `wait()` 는 `communicate()` 와 달리 파이프를 안 닫는다
+            serve.stdout.close()
 
         assert "Traceback" not in screen, "화면에 트레이스백이 있다"
         assert 'href="%s/open"' % base in screen, "일반 문서가 화면에 없다"

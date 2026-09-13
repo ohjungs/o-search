@@ -65,6 +65,7 @@ def main():
         run("-c", "import sys; from websearch.crawl import crawl; "
                   "crawl([sys.argv[1]], 3, db_path=sys.argv[2])", base + "/", db)
         server.shutdown()
+        server.server_close()
 
         first = run("-m", "websearch.indexer", db)
         assert "3 문서 색인" in first, "1회차 stdout: %r" % first

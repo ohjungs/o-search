@@ -75,6 +75,7 @@ def main():
         saved = crawl(seeds, len(DELAY_BY_HOST) * PAGES_PER_HOST,
                       db_path=os.path.join(tmp, "crawl.db"))
     server.shutdown()
+    server.server_close()
     elapsed = time.monotonic() - started
 
     want = len(DELAY_BY_HOST) * PAGES_PER_HOST
