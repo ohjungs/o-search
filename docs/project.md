@@ -18,7 +18,7 @@
 - **e2e 18종**: `PYTHONPATH=src python3 e2e/<이름>.py` — `crawl_e2e` `indexer_e2e` `noindex_e2e` `search_api_e2e`
   `crawl_delay_e2e` `non_ascii_e2e` `hidden_passage_e2e` `design_check` `tokenizer_e2e` `domain_key_e2e` `deadline_e2e`
   `interrupt_e2e` `indexer_interrupt_e2e` `crawl_politeness_e2e` `pagination_ui_e2e` `recrawl_e2e` `retry_interval_e2e` `url_normalize_e2e`.
-  **종료 2 는 실패가 아니라 측정 불능이다.** 명부가 낡으면 `E2eRosterTest` 가 문다 · 나머지는 **`docs/baselines.md`**
+  **종료 2 는 실패가 아니라 측정 불능이다.** 명부가 낡으면 `test_docs.py` 가 문다 · 나머지는 **`docs/baselines.md`**
 - **측정**: `e2e/perf_crawl.py`(처리량) · `e2e/perf_search.py [문서수] [반복]`(검색 지연) ·
   `e2e/quality_eval.py` · `e2e/passage_eval.py`. 합격선은 아래, 기준선은 `baselines.md`
 
