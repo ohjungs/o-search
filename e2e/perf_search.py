@@ -121,7 +121,7 @@ def main(argv):
     p95 = pct(every, 0.95)
     assert p95 < BUDGET_MS, ("p95 %.1fms 가 예산 %dms 를 넘었다 — 이 규모에서 이 숫자는 "
                              "규모 탓이 아니라 질의 경로가 망가진 것이다" % (p95, BUDGET_MS))
-    print("기준선 — p95 %.2fms (예산 %dms 의 %.1f%%). docs/project.md 품질 기준과 비교할 것"
+    print("기준선 — p95 %.2fms (예산 %dms 의 %.1f%%). 예산은 docs/project.md, 기준선은 docs/baselines.md"
           % (p95, BUDGET_MS, p95 / BUDGET_MS * 100))
     return 0
 
