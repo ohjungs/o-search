@@ -1779,6 +1779,15 @@ class E2eLabelGapTest(unittest.TestCase):
         self.assertIsNotNone(gap, "명부 항목이 없는데 조용하다")
         self.assertIn("e2e N종", gap)
 
+    def test_an_emptied_roster_is_quiet_here_and_loud_next_door(self):
+        # 이 자의 **유일한 구멍**이다(반복 577 변이 탐색) — 이름 0개에 라벨 0 이면
+        # 0 == 0 이라 조용하다. 막는 것은 이쪽에 못을 하나 더 박는 것이 아니라
+        # **모집단이 디스크인 형제**다. 둘이 서로를 대체하지 않는다는 주장이
+        # 주석에만 있으면 한쪽을 지우는 날 아무도 안 센다 — 그래서 여기서 잰다.
+        emptied = self._item([], label=0)
+        self.assertIsNone(e2e_label_gap(emptied))
+        self.assertIsNotNone(e2e_roster_gap(emptied), "명부를 비웠는데 둘 다 조용하다")
+
     def test_the_message_names_the_document_it_was_given(self):
         # `doc` 이 **죽은 칸**이 되는 것은 이 저장소가 두 번 밟은 자리다
         # ([R568-2] · 계획 98 테스트 phase 의 변이 M9 가 살아남았던 그 축).
