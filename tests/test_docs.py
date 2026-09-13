@@ -456,6 +456,59 @@ def e2e_roster_gap(text, doc="project.md"):
     return None
 
 
+# 명부 **항목**의 앵커. `- **e2e N종**:` 으로 시작해 다음 `- **` 항목 직전까지가 한 항목이다
+# (실측 2026-09-13 반복 575: 4줄 · 다음 항목은 `측정`). `e2e_roster_gap` 이 문서 **전체**를
+# 훑는 것과 달라서, 이쪽은 **자리를 잰다** — 유령이 태어난 자리가 바로 이 항목이다.
+E2E_LABEL_ITEM = re.compile(r"^- \*\*e2e ([0-9]+)종\*\*:(.*?)(?=^- \*\*|\Z)", re.M | re.S)
+# 항목 안의 백틱 토큰. 그중 **맨 식별자만** 이름으로 친다 — 실측에서 토큰 21개 중 18개가
+# 맨 식별자이고 전부 `e2e/<이름>.py` 였다. 나머지 셋(`` `PYTHONPATH=… e2e/<이름>.py` ``·
+# `` `test_docs.py` ``·`` `docs/baselines.md` ``)은 공백·점·슬래시가 있어 안 걸린다.
+# **2026-09-13 반복 574 의 수정이 기댄 성질이 정확히 이것이다** — 유령 `E2eRosterTest` 를
+# 파일명 `test_docs.py` 로 바꿔 닫았는데, 점이 든 토큰은 맨 식별자가 아니라서 통했다.
+# 자가 다른 자를 쓰면 그 수정이 왜 통했는지를 아무도 안 재게 된다.
+E2E_BACKTICK = re.compile(r"`([^`]+)`")
+
+
+def e2e_label_gap(text, doc="project.md"):
+    """명부 줄이 「기계가 읽는 줄」이기를 그친 자리를 한 줄로 돌려준다. 없으면 `None`.
+
+    **방향이 `e2e_roster_gap` 과 반대다.** 그쪽은 **디스크에서 출발해** 문서가 안 부르는
+    이름(빠진 것)을 보고, 이쪽은 **문서에서 출발해** 디스크에 없는 이름(유령)과 라벨
+    드리프트를 본다. 하나로 합치면 한쪽 방향의 이빨이 조용히 빠진다 — 둘은 서로를
+    대체하지 않는다(`db-state-invariant` 가 불변식과 값에서 배운 것과 같은 자리).
+
+    **유령은 가설이 아니다.** 2026-09-13 계획 98 e2e 첫 판이 이 항목에서 이름을 **19개**
+    뽑았고 열아홉째 `E2eRosterTest` 가 `rc=2`(그런 파일이 없다)로 죽었다 — 571 이 사람에게
+    유익하라고 넣은 포인터였는데 **그 줄은 기계가 읽는 줄**이다. 574 는 문서를 고쳐 닫았고
+    되돌아오는 것을 막는 자가 0개였다.
+
+    **`glob` 개수와는 대조하지 않는다.** `digest.md` 가 적어 둔 처방은 「뽑은 이름 수 ==
+    라벨 == `glob` 개수」였는데 실측은 **18 == 18 ≠ 22** 다 — `glob` 은 측정 넷
+    (`perf_crawl`·`perf_search`·`quality_eval`·`passage_eval`)을 포함하고 그 넷은 같은
+    문서의 `측정` 항목이 부르며 `e2e_roster_gap` 이 이미 문다. **등재된 처방은 근거지
+    설계가 아니다** — 코드로 옮기기 전에 실물에 대봤고, 그래서 등식이 둘이다.
+
+    **하한 못을 따로 안 박는다.** 추출이 통째로 죽어 이름이 0개가 되면 라벨(18)과
+    안 맞아 **그 자리에서 빨개진다** — 「아무것도 안 잰다」가 조용한 초록이 되는 경로가
+    없다. 못이 필요했던 `e2e_roster_gap` 쪽과 다른 것은 **모집단이 문서 안에 있어서**다.
+    """
+    m = E2E_LABEL_ITEM.search(text)
+    if m is None:
+        return ("%s 에서 `- **e2e N종**:` 항목을 못 찾았다 — 명부가 사라졌거나 줄 모양이"
+                " 바뀌었다(루프도 e2e 러너도 이 항목을 읽어 무엇을 칠지 정한다)" % doc)
+    names = [tok for tok in E2E_BACKTICK.findall(m.group(0)) if E2E_WORD.fullmatch(tok)]
+    ghosts = [n for n in names if not (E2E_DIR / (n + ".py")).exists()]
+    if ghosts:
+        return ("%s 의 명부가 없는 파일을 %d개 부른다 — %s. 이 줄은 사람만 읽는 줄이"
+                " 아니라 **기계가 읽는 줄**이라 유령 하나가 러너를 rc=2 로 죽인다"
+                % (doc, len(ghosts), " · ".join("`%s`" % g for g in sorted(ghosts))))
+    label = int(m.group(1))
+    if label != len(names):
+        return ("%s 의 라벨과 명부 길이가 어긋났다 — 「e2e %d종」인데 이름은 %d개다"
+                % (doc, label, len(names)))
+    return None
+
+
 # `rules/docs.md` 3절의 `history_current.md` 상한. **여기 두 줄이 그 룰의 유일한
 # 기계 표현이다** — 룰 파일은 저장소 밖(`~/.claude/skills/loop-harness/`)에 살아 검사가
 # 읽을 수 없다. 룰이 바뀌면 이 둘을 손으로 맞춘다.
@@ -1673,6 +1726,79 @@ class E2eRosterTest(unittest.TestCase):
         self.assertGreaterEqual(
             len(found), E2E_ROSTER_FLOOR,
             "`e2e/*.py` 가 %d개다 — 모집단이 비어 이 검사는 아무것도 안 잰다" % len(found))
+
+
+class E2eLabelGapTest(unittest.TestCase):
+    """`e2e_label_gap` 의 갈래. 실물은 `E2eLabelTest` 가 부른다.
+
+    **픽스처가 이름을 지어낼 수 없다** — 유령 판정이 디스크를 보므로, 「정상」 픽스처는
+    살아 있는 e2e 이름으로 조립한다(`E2eRosterGapTest` 와 같은 이유).
+    """
+
+    def _item(self, names, label=None):
+        live = [p.stem for p in sorted(E2E_DIR.glob("*.py"))][:3]
+        names = live if names is None else names
+        if label is None:
+            label = len(names)
+        return ("- **e2e %d종**: `PYTHONPATH=src python3 e2e/<이름>.py` — %s.\n"
+                "  명부가 낡으면 `test_docs.py` 가 문다 · 나머지는 `docs/baselines.md`\n"
+                "- **측정**: `e2e/perf_crawl.py`\n"
+                % (label, " ".join("`%s`" % n for n in names)))
+
+    def test_a_true_roster_is_quiet(self):
+        self.assertIsNone(e2e_label_gap(self._item(None)))
+
+    def test_a_name_without_a_file_is_reported(self):
+        # 2026-09-13 반복 574 가 실제로 밟은 모양 — 사람용 포인터가 이름 자리에 섰다.
+        gap = e2e_label_gap(self._item(["crawl_e2e", "E2eRosterTest"], label=2))
+        self.assertIsNotNone(gap, "유령을 등재로 세고 있다")
+        self.assertIn("E2eRosterTest", gap)
+
+    def test_a_dotted_token_is_not_a_name(self):
+        # **574 의 수정이 기댄 성질이다** — 포인터를 `test_docs.py` 로 바꿔 닫았다.
+        # 이 자가 점 든 토큰을 이름으로 세기 시작하면 그 수정이 도로 유령이 된다.
+        # 위 `_item` 이 본문에 `test_docs.py`·`docs/baselines.md`·명령 토큰을 이미 들고 있다.
+        self.assertIsNone(e2e_label_gap(self._item(None)))
+
+    def test_a_stale_label_is_reported_with_both_numbers(self):
+        # 한쪽 수만 찍으면 어느 쪽을 고칠지 모른 채 문서를 틀리게 맞추게 된다.
+        gap = e2e_label_gap(self._item(["crawl_e2e", "recrawl_e2e"], label=7))
+        self.assertIsNotNone(gap, "라벨과 이름 수가 갈렸는데 조용하다")
+        self.assertIn("7", gap)
+        self.assertIn("2", gap)
+
+    def test_a_ghost_is_reported_before_a_stale_label(self):
+        # 유령이 들어오면 라벨도 함께 어긋나는데, 먼저 말해야 하는 원인은 유령이다
+        # (라벨을 고치면 유령이 합법이 된다 — 자를 통과시키려고 자를 깎는 길).
+        gap = e2e_label_gap(self._item(["crawl_e2e", "E2eRosterTest"], label=1))
+        self.assertIn("E2eRosterTest", gap)
+
+    def test_a_missing_item_is_reported(self):
+        # 앵커가 드리프트하면 이름이 0개가 되고, 그 상태의 조용한 초록이 가장 나쁘다.
+        gap = e2e_label_gap("# 프로젝트 정보\n\n- **측정**: `e2e/perf_crawl.py`\n")
+        self.assertIsNotNone(gap, "명부 항목이 없는데 조용하다")
+        self.assertIn("e2e N종", gap)
+
+    def test_the_message_names_the_document_it_was_given(self):
+        # `doc` 이 **죽은 칸**이 되는 것은 이 저장소가 두 번 밟은 자리다
+        # ([R568-2] · 계획 98 테스트 phase 의 변이 M9 가 살아남았던 그 축).
+        gap = e2e_label_gap(self._item(["E2eRosterTest"], label=1), doc="README.md")
+        self.assertIn("README.md", gap)
+        self.assertNotIn("project.md", gap)
+
+
+class E2eLabelTest(unittest.TestCase):
+    """살아 있는 `project.md` 의 명부 줄이 **그대로 실행 가능한지** 본다.
+
+    `E2eRosterTest` 와 방향이 반대다 — 그쪽은 「빠진 이름」, 이쪽은 「없는 이름」과
+    「낡은 라벨」이다. 2026-09-13 계획 98 e2e 가 이 항목을 기계로 읽어 조립해 돌렸고
+    첫 판이 유령 하나 때문에 `rc=2` 로 죽었다. 그때 고친 것은 문서였고, **같은 편집이
+    내일 다시 통과하는 것**을 막는 자가 이것이다.
+    """
+
+    def test_project_roster_names_are_all_runnable(self):
+        gap = e2e_label_gap((DOCS / "project.md").read_text(encoding="utf-8"))
+        self.assertIsNone(gap, gap)
 
 
 class CapGapTest(unittest.TestCase):
