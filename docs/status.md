@@ -1,13 +1,13 @@
 ---
 signal: GREEN
-phase: 개발
-step: 1/2
+phase: 리뷰
+step: 2/2
 attempt: 0
 plan: project-md-diet
-iteration: 565
+iteration: 566
 updated: 2026-09-13
 mode: night
-night_iterations: 2
+night_iterations: 3
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
@@ -22,9 +22,10 @@ note: **열세 밤 만에 계획이 섰다.** 핀이 다섯 밤 연속 맞았다
 
 # 현재 상태
 
-활성 계획 **`plan_project-md-diet.md`** — `project.md` 249 → 60줄. **스텝 1 완료**
-(`## 품질 기준` 135 → 22줄 · `docs/baselines.md` 신설 146줄 · `comm -23` 으로 줄 손실 **0** 확인).
-`project.md` **249 → 136**. 다음은 스텝 2 — `## 명령` 94 → 30줄. **열두 세션 연속 빈손을 끊은 것은 새 근거가 아니라
+활성 계획 **`plan_project-md-diet.md`** — **스텝 2/2 완료 · `project.md` 249 → 60줄**
+(`## 품질 기준` 135→22 · `## 명령` 94→19 · `docs/baselines.md` 신설 246줄).
+사라진 줄은 `comm -23` 으로 **의도한 둘**뿐임을 확인했다(거짓이 된 초기화 주석 —
+「코드가 0줄이라 명령이 없다」). 다음은 **리뷰 phase**. **열두 세션 연속 빈손을 끊은 것은 새 근거가 아니라
 «안 잰 것을 잰 것»이다** — 562·563 이 「거의 안 바뀌는 사실」이라며 넘긴 파일을 절별로 쟀다.
 
 ## 빈손 대조 핀 — 여덟 출처를 다시 안 재도 되는 조건
@@ -103,8 +104,9 @@ gh issue list --state open --limit 20     # 트리 밖 — 항상 돌린다
 ## 규모 축 (2026-09-13)
 
 `pages` **52,172** · `docs` **40,347** · 2.48GB · 전수 **763 OK**(18.6s).
-필수 읽기 **487줄**/600 (`project.md` **136** + `status.md` 112 + `history_current.md` 239) —
-회전분은 `history_083.md`(반복 532~551). **600/600 에서 113줄이 났다**(스텝 1).
+필수 읽기 **~411줄**/600 (`project.md` **60** + `status.md` 112 + `history_current.md` 239) —
+회전분은 `history_083.md`(반복 532~551). **600/600 → 411/600 · 여유 189줄.**
+`project.md` 가 제 예산 60 을 **처음으로 지켰다**(4.2배 초과였다).
 
 **압축을 두 번 시도해 두 번 다 제자리였다**(`status.md` 26줄을 벌자 기록 27줄이 먹었다 —
 경위 `history_current.md` 563). **셋째 시도를 다른 파일에서 한다** — 되밀리는 이유가
