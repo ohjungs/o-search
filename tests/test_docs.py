@@ -1621,6 +1621,17 @@ class E2eRosterGapTest(unittest.TestCase):
         gap = e2e_roster_gap(self._all_but("recrawl_e2e", "url_normalize_e2e"))
         self.assertIn("recrawl_e2e", gap)
         self.assertIn("url_normalize_e2e", gap)
+        # 이름 순서는 `glob` 이 아니라 `sorted` 가 정한다 — 디렉터리 순회 순서에 맡기면
+        # 같은 결함이 실행마다 다른 줄을 내고 두 RED 를 눈으로 못 맞춘다.
+        self.assertLess(gap.index("recrawl_e2e"), gap.index("url_normalize_e2e"))
+
+    def test_the_message_names_the_document_it_was_given(self):
+        # **`doc` 은 이 저장소가 이미 한 번 밟은 자리다** — `const_gap` 이 파일명을
+        # 안 받던 시절 `baselines.md` 의 오류를 「project.md 가」로 귀속했다([R568-2]).
+        # 부르는 문서가 하나뿐인 오늘은 기본값이 우연히 맞아 아무도 이 축을 안 밟는다.
+        gap = e2e_roster_gap(self._all_but("recrawl_e2e"), doc="README.md")
+        self.assertIn("README.md", gap)
+        self.assertNotIn("project.md", gap)
 
     def test_a_substring_is_not_a_listing(self):
         # **이 저장소의 실제 함정이다** — `interrupt_e2e` 는 `indexer_interrupt_e2e`
