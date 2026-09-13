@@ -393,8 +393,11 @@ def _const_value(module, name):
     return None, "`%s.py` 를 src/websearch 에서도 e2e 에서도 못 찾았다" % module
 
 
-def const_gap(project_text):
-    """`project.md` 가 인용한 상수가 코드와 어긋난 자리를 한 줄로 돌려준다. 없으면 `None`.
+def const_gap(text, doc="project.md"):
+    """문서가 인용한 상수가 코드와 어긋난 자리를 한 줄로 돌려준다. 없으면 `None`.
+
+    `doc` 은 **메시지에 쓸 파일 이름**뿐이다 — 무는 파일이 둘이 된 뒤로(계획 97 이
+    캡 설계 논증을 `baselines.md` 로 옮겼다) 「project.md 가」로 단정하면 틀린 자리를 가리킨다.
 
     **몸통을 함수로 뺀 이유는 `step_gap`·`iter_gap`·`verdict_gap` 과 같다** — 실물은
     `ProjectConstTest` 가, 갈래는 `ConstGapTest` 가 부른다.
@@ -402,15 +405,15 @@ def const_gap(project_text):
     재는 것은 **상수 값 하나**다. 문단이 그 값에서 유도한 숫자(최악 ms·계수·p95)는
     코드에 없어서 못 잰다 — 상수가 닻이고, 닻이 움직이면 사람이 그 문단을 다시 읽는다.
     """
-    for module, name, cited in CONST_CITATION.findall(project_text):
+    for module, name, cited in CONST_CITATION.findall(text):
         value, why = _const_value(module, name)
         if why is not None:
-            return "project.md 가 `%s.%s` 를 인용하는데 %s" % (module, name, why)
+            return "%s 가 `%s.%s` 를 인용하는데 %s" % (doc, module, name, why)
         want = int(cited.replace(",", "").replace("_", ""))
         if want != value:
-            return ("project.md 가 `%s.%s` 를 %s 라고 적었는데 코드는 %d 다 —"
+            return ("%s 가 `%s.%s` 를 %s 라고 적었는데 코드는 %d 다 —"
                     " 그 값에서 유도한 숫자도 함께 낡았는지 문단을 다시 읽는다"
-                    % (module, name, cited, value))
+                    % (doc, module, name, cited, value))
     return None
 
 
@@ -1524,7 +1527,7 @@ class ConstGapTest(unittest.TestCase):
 
 
 class ProjectConstTest(unittest.TestCase):
-    """살아 있는 `project.md` 가 인용한 상수가 오늘의 코드와 같은지 본다.
+    """살아 있는 문서가 인용한 상수가 오늘의 코드와 같은지 본다 — `project.md` 와 `baselines.md`.
 
     **이 검사가 있는 이유는 그 자리가 세 번 낡았기 때문이다** — 계획 57·58 은
     `project.md` 의 캡 문단을 손으로 맞췄고(`e6f375c` 「기록 자리 둘을 오늘 값으로
@@ -1535,11 +1538,20 @@ class ProjectConstTest(unittest.TestCase):
     **`project.md` 는 루프가 매 반복 읽는 네 파일 중 하나**이고 「품질 기준」 절이
     판단의 눈금이다. 거짓 눈금은 코드 버그처럼 터지지 않고 **판단에 조용히 든다** —
     소스만 보는 테스트로는 영원히 안 잡힌다(`DocCitationTest` 와 같은 부류다).
+
+    **계획 97 이 그 눈금의 절반을 `baselines.md` 로 옮겼다** — 예산 밖이라 매 반복
+    읽히지는 않지만, 낡으면 「실제로 그 도구를 쓰는 반복」이 거짓 눈금을 든다.
     """
 
     def test_project_cites_live_constants(self):
-        gap = const_gap((DOCS / "project.md").read_text(encoding="utf-8"))
-        self.assertIsNone(gap, gap)
+        # `baselines.md` 도 문다 — **이 검사가 사는 이유인 「세 번 낡은 그 자리」(캡 설계
+        # 논증)가 계획 97 에서 그 파일로 이사했다.** 오늘은 같은 상수가 두 파일에 다 남아
+        # 우연히 덮이지만, `project.md` 를 더 줄여 포인터 한 줄로 바꾸면 조용해진다.
+        # FLOOR 못은 아래대로 `project.md` 에만 둔다 — 예산 밖 파일은 인용 0건이 정상이다.
+        for name in ("project.md", "baselines.md"):
+            with self.subTest(doc=name):
+                gap = const_gap((DOCS / name).read_text(encoding="utf-8"), name)
+                self.assertIsNone(gap, gap)
 
     def test_project_still_cites_at_least_one_constant(self):
         # 위 단언은 인용이 0건이면 «볼 것이 없어» 초록이다. 못을 박아 둔다 —
