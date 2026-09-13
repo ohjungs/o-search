@@ -155,5 +155,12 @@ class RobotsCache:
                 return resp.status, raw.decode("utf-8", errors="replace")
         except urllib.error.HTTPError as e:
             return e.code, ""
-        except (urllib.error.URLError, OSError):
+        except (urllib.error.URLError, OSError, UnicodeError):
+            # `UnicodeError` 는 **비ASCII 호스트**다 — `urlopen` 이 요청 줄을 latin-1 로
+            # 인코딩하다 소켓을 열기도 전에 던진다. `ValueError` 의 자손이라 위의 둘로는
+            # 안 잡히고, 안 잡으면 관문이 아니라 **크롤 전체가** 죽는다.
+            # 값은 599(차단)다 — `allowed` 의 `except ValueError` 가 적어 둔 판단
+            # (「못 읽는 URL 은 안 간다」)과 같은 값으로 닫는다. 여기서 퓨니코드로
+            # 고쳐 넘기지 않는 것은 그게 `urls.normalize` 의 일이고, 관문이 제 손으로
+            # 주소를 바꾸면 **조용히 더 후해지기** 때문이다(크롤 윤리 1순위).
             return 599, ""

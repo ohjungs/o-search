@@ -1,55 +1,81 @@
 ---
 signal: DONE
-phase: e2e
+phase: 계획
 step: 0/0
 attempt: 0
 plan: null
-iteration: 580
+iteration: 585
 updated: 2026-09-13
 mode: night
-night_iterations: 11
+night_iterations: 16
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
 ctx: 측정 불가 — 게이트 ⑦ **열두 번째 재현**(state 의 `session_id` 가 내 슬러그에 없다).
   statusLine 꺼진 것과 동일 취급 — 반복 상한에만 의존한다. 5h 30 · 7d 55 만 유효하다(둘 다 85 미만)
-note: **계획 99 완료(DONE) — e2e 2종 통과, 전수 779 OK.** 병합 첫 판이 **RED 로 막혔다** —
-  `plan: null` 인데 `step` 이 1/1 이라 `StepSyncTest` 가 물었다. 초기값 `0/0` 으로 맞춰 다시 민다
-  — **자기 상태 문서를 무는 자가 병합 관문에서 실제로 일했다**(반복 580).
+note: **계획 100 e2e 2종 통과 — DONE.** 새 e2e 파일을 안 만들고 `non_ascii_e2e` 의 넷째
+  축으로 넣었다(명부·README 를 안 흔든다). 음성 대조에서 **단위 2건(원인)과 e2e rc=1(증상)이
+  갈려 죽는다.** 전수 **784 OK**. 다음은 **병합**(`merge-to-main.sh`) 후 계획 phase.
 ---
 
 # 현재 상태
 
-**계획 99 `e2e-roster-count` 완료 — `main` 병합 대기.**
-계획서는 `docs/plan_history_074.md` · e2e 결과는 `docs/e2e/e2e-roster-count/result.md`.
+**계획 100 `robots-nonascii` DONE — 남은 것은 병합뿐이다.**
+계획서는 `docs/plan_history_075.md` 로 옮겼다 · 브랜치 `loop/robots-nonascii`(기점 `064fe56`).
 
-**선 것**: `e2e_label_gap` — 명부 항목에서 맨 식별자 백틱 토큰을 뽑아 ① 디스크에 없는
-이름(**유령**) ② 라벨 대 이름 수를 본다. 갈래 8건 + 실물 1건 · 전수 **779 OK** ·
-**변이 9판 전부 잡힘**.
+**고친 것**: `_fetch_robots` 의 `except` 에 **`UnicodeError` 한 낱말**. 비ASCII 호스트는
+599(차단)로 접히고 `allowed`→`False` · `delay`→`None`. 갈래 5건 · 전수 **784 OK**.
 
-- **e2e 시나리오 1** — 명부에 `roster_ghost_e2e` 를 심자 전수가 **그 이름을 찍으며**
-  빨개졌다. 러너가 같은 명부로 조립한 명령은 `rc=2`(「그런 파일이 없다」)까지만 말한다 —
-  **앞 관문이 원인을 말하고 뒷 관문은 증상만 말한다.** 원복 후 전수 OK.
-- **e2e 시나리오 2(음성 대조)** — 유령을 심은 채 판정만 끄니 **실물 1건이 rc=0** 으로
-  돌아갔고 전수는 **갈래만** 죽었다. 갈래와 실물을 둘 다 두는 이유가 한 줄로 보인다.
-- **[R99-1](리뷰 자동 수정)** 갈래 하나가 「정상」 픽스처와 같은 호출이었다 — 라벨을 조여
-  다시 세우고 변이 M9 로 확인했다.
-- **남은 구멍 하나** — 빈 명부(0종)는 0 == 0 이라 이 자가 조용하고 **형제가 문다**(M8).
+**리뷰 1건 — [R100-1](자동 수정)**: 비ASCII 갈래 둘은 `_fetch_robots` 를 가짜로 안 바꾸고
+진짜 `urlopen` 을 탄다(인코딩에서 먼저 죽는 것이 재는 값이다). 파이썬이 호스트를 퓨니코드로
+먼저 바꾸게 되면 **같은 테스트가 조용히 DNS 로 나간다** — `project.md` 한도 「외부 네트워크
+금지」 위반이 **초록인 채로** 성립한다. `socket.getaddrinfo` 그물을 씌웠고 ASCII 호스트로
+**그물이 실제로 무는 것**까지 대봤다. **패스 B 는 빈손**이고 그게 값이다 — 계약 4 를 실물로
+다시 재니 `known_delay` 는 네트워크를 안 타고 `delay` 는 같은 `except` 로 모인다.
+
+**기록 회전**: 전수 RED 의 원인이 diff 가 아니라 `HistoryCapTest`(항목 **21 > 20**)였다 —
+**줄이 아니라 항목 상한에 걸린 첫 회전**이다. 564~573 을 `history_085.md` 로 밀어냈다(295 → 129줄).
+
+**e2e 2종 통과**(`docs/e2e/robots-nonascii/result.md`). ① 오늘 크롤 경로는 정규화가
+퓨니코드로 바꿔 관문에 ASCII 만 닿는다(계약 2 「도달 불가」의 실물) · 정규화를 우회한 직접
+호출은 **예외가 아니라 차단**이다. ② 음성 대조 — `UnicodeError` 를 빼면 e2e 는 `rc=1`
+(`putheader` 의 latin-1, **소켓 열기 전**), 전수는 **2건만** 죽는다. 그 둘이 이 저장소에서
+비ASCII 호스트를 관문에 직접 넣는 **유일한 갈래**라는 뜻이다.
+
+**변이 5판 — 넷 잡힘, 하나가 살아서 갭이 됐다**:
+
+| 변이 | 결과 |
+|---|---|
+| M1 `UnicodeError` 제거 | 잡힘(둘) |
+| M2 차단이 아니라 허용(599→404) | 잡힘 — **값이 「차단」인지까지** 물린다 |
+| M3 `except Exception` 으로 확대 | **살아남음** → 갭 테스트를 세우고 재측정해 잡힘 |
+| M4 비ASCII base 에서 빈 본문 | 살아남음 — **도달 불가 변이**(그 줄 앞에서 예외가 난다). 등가 변이로 기록 |
+| M5 비ASCII 를 통째로 차단(과차단) | 잡힘 — 경계 테스트가 문다 |
+
+- **M3 이 준 갭이 이 저장소의 오래된 축이다** — 넓힌 `except` 는 모든 테스트를 통과시키면서
+  `TypeError`·`AttributeError` 까지 차단으로 접는다. 관문은 조용히 초록인데 크롤은 0건이 된다.
+- **경계 하나 더**: ASCII 호스트 + 한글 **경로**는 그대로 통과한다(robots 왕복은 base 만 쓴다).
+  여기가 함께 막히면 고친 게 아니라 한국어 사이트를 못 돌게 한 것이다 — M5 가 그것을 문다.
+- 건수 가드가 네 반복째 물었다(782 → **784**).
+
+**계획 99 는 `main` 에 들어갔다**(`064fe56`) — e2e 2종 통과 · 변이 9판 전부 잡힘 ·
+전수 779 OK. 병합 첫 판은 `StepSyncTest`·`IterationSyncTest` 가 **RED 로 막았고**
+(`plan` 이 빈칸인데 `step` 1/1 · metrics 579 ≠ status 580) 고쳐서 밀었다.
 
 **게이트 ⑪ 은 반복 575 에 닫혔다** — 자동 스냅샷과 리뷰 커밋의 **트리가 같아서** 강제 푸시도
 되감기도 필요 없었다. 계획 98 은 전수 770 OK 위에서 `main` 에 들어갔다(`b8f0bb1`).
 
-## 빈손 대조 핀 — 기준 트리 `b8f0bb1`
+## 빈손 대조 핀 — 기준 트리 `064fe56`
 
-계획 98 이 `main` 에 들어갔으므로 규칙대로 **기준을 새 `main` 으로 옮긴다**.
+계획 99 가 `main` 에 들어갔으므로 규칙대로 **기준을 새 `main` 으로 옮긴다**.
 
 ```bash
-git diff --stat b8f0bb1..HEAD -- src tests e2e scripts docs/digest.md docs/candidates.md docs/specs
+git diff --stat 064fe56..HEAD -- src tests e2e scripts docs/digest.md docs/candidates.md docs/specs
 gh issue list --state open --limit 20     # 트리 밖 — 항상 돌린다
 ```
 
 **핀은 «코드»의 함수지 «환경»의 함수가 아니다** — 파이썬·OS 가 움직이면 같은 트리가 다른
-결과를 낸다. 그래서 전수는 밤마다 돌린다(**779 OK** · 18.7s · Python 3.9.6).
+결과를 낸다. 그래서 전수는 밤마다 돌린다(**784 OK** · 18.8s · Python 3.9.6).
 
 ## 사람 결정 대기 — 하나를 열어야 이어진다
 
@@ -104,7 +130,7 @@ gh issue list --state open --limit 20     # 트리 밖 — 항상 돌린다
 
 ## 규모 축 (2026-09-13)
 
-`pages` **52,172** · `docs` **40,347** · 2.48GB · 전수 **779 OK**(18.7s).
+`pages` **52,172** · `docs` **40,347** · 2.48GB · 전수 **784 OK**(18.8s).
 **e2e 는 13종이 아니라 22종이다** — 시나리오 **18** + 측정 **4**. 계획 98 이 명부와
 「빠진 이름」을 무는 자를 세웠고, 계획 99 가 그 줄의 **수와 실재**를 못박는다.
 필수 읽기 **375줄**/600 (`project.md` 60 + `status.md` 116 + `history_current.md` 199) — 여유 225줄.
