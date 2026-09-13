@@ -11,17 +11,36 @@ night_iterations: 16
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
-ctx: 측정 불가 — 게이트 ⑦ **열두 번째 재현**(state 의 `session_id` 가 내 슬러그에 없다).
+ctx: 측정 불가 — 게이트 ⑦ **열세 번째 재현**(state 의 `session_id` 가 내 슬러그에 없다).
   statusLine 꺼진 것과 동일 취급 — 반복 상한에만 의존한다. 5h 30 · 7d 55 만 유효하다(둘 다 85 미만)
-note: **계획 100 e2e 2종 통과 — DONE.** 새 e2e 파일을 안 만들고 `non_ascii_e2e` 의 넷째
-  축으로 넣었다(명부·README 를 안 흔든다). 음성 대조에서 **단위 2건(원인)과 e2e rc=1(증상)이
-  갈려 죽는다.** 전수 **784 OK**. 다음은 **병합**(`merge-to-main.sh`) 후 계획 phase.
+note: **밤 종료 — 정지 사유 「야간 계획 상한(3)」.** 계획 98·99·100 을 이 밤에 열고 닫아
+  `main` 이 `95b7c20` 이다(전수 **784 OK** 위에서 밀었다). **게이트 ⑨ 가 세 번째 피해를
+  냈다** — autoloop 이 14:54 에 `loop/seed-tier2` 로 **브랜치를 갈아 놓아** 반복 584·585
+  커밋이 남의 브랜치에 얹혔다. 되돌리지 않고 내 브랜치를 앞으로 옮겨 병합했다.
 ---
 
 # 현재 상태
 
-**계획 100 `robots-nonascii` DONE — 남은 것은 병합뿐이다.**
-계획서는 `docs/plan_history_075.md` 로 옮겼다 · 브랜치 `loop/robots-nonascii`(기점 `064fe56`).
+**계획 100 `robots-nonascii` 는 `main` 에 들어갔다**(`95b7c20` · 전수 784 OK).
+계획서는 `docs/plan_history_075.md` · e2e 결과는 `docs/e2e/robots-nonascii/result.md`.
+
+**이 밤은 여기서 끝난다 — 정지 사유 「야간 계획 상한(3)」.** 계획 **98·99·100** 을 열고
+닫았다(열세 밤 연속 빈손을 끊은 계획 97 은 앞 세션). 다음 명령은 **계획 phase 부터** 시작한다.
+
+## 게이트 ⑨ — 세 번째 피해다. 이번엔 autocommit 이 아니라 **autoloop** 이다
+
+563 이 잰 것(autocommit 이 미커밋 트리를 `main` 에 병합)과 **다른 에이전트**다.
+
+- **실측**: `reflog` 에 내가 안 한 전환이 있다 — `checkout: moving from loop/robots-nonascii
+  to loop/seed-tier2`(14:54). 같은 시각 `seeds/tier2.txt` 가 생겼다(미추적 · 남의 산출물).
+- **피해**: 반복 **584·585 커밋이 `loop/seed-tier2` 에 얹혔고**, `merge-to-main.sh` 는
+  `loop/robots-nonascii`(옛 끝 `b3beab9`)를 병합해 **전수 RED 로 푸시를 막았다**(회전 전
+  기록이라 항목 21 > 20). **관문이 제 일을 했다** — 빨간 `main` 이 안 나갔다.
+- **복구**: 남의 브랜치는 **안 건드렸다**(로컬 전용·미푸시·그쪽 커밋 0건). 내 브랜치를
+  `1175a3a` 로 옮기고 로컬 `main` 의 미푸시 병합을 `origin/main` 으로 되감아 다시 밀었다.
+- **아침에 볼 것**: `loop/seed-tier2` 에 **내 커밋 둘이 섞여 있다.** 처방 셋(㉮ 수동 실행 중
+  `launchctl bootout` ㉯ autoloop·autocommit 에 「`loop/*` 이거나 트리가 더러우면 건너뛴다」
+  가드 ㉰ 주기 회피)은 **사용자 기계의 예약 작업**이라 밤이 못 고른다.
 
 **고친 것**: `_fetch_robots` 의 `except` 에 **`UnicodeError` 한 낱말**. 비ASCII 호스트는
 599(차단)로 접히고 `allowed`→`False` · `delay`→`None`. 갈래 5건 · 전수 **784 OK**.
