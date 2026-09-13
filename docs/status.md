@@ -1,21 +1,21 @@
 ---
 signal: DONE
 phase: e2e
-step: 1/1
+step: 0/0
 attempt: 0
 plan: null
-iteration: 579
+iteration: 580
 updated: 2026-09-13
 mode: night
-night_iterations: 10
+night_iterations: 11
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
 ctx: 측정 불가 — 게이트 ⑦ **열두 번째 재현**(state 의 `session_id` 가 내 슬러그에 없다).
   statusLine 꺼진 것과 동일 취급 — 반복 상한에만 의존한다. 5h 30 · 7d 55 만 유효하다(둘 다 85 미만)
-note: **계획 99 완료(DONE) — e2e 2종 통과, 전수 779 OK.** 유령을 실제로 심어 전수가
-  **이름을 찍으며** 빨개지는 것을 봤고(러너는 rc=2 만 말한다), 판정만 끄니 실물이 초록으로
-  돌아가 붉은색의 출처가 확정됐다. 계획서는 `plan_history_074.md` 로 옮겼다.
+note: **계획 99 완료(DONE) — e2e 2종 통과, 전수 779 OK.** 병합 첫 판이 **RED 로 막혔다** —
+  `plan: null` 인데 `step` 이 1/1 이라 `StepSyncTest` 가 물었다. 초기값 `0/0` 으로 맞춰 다시 민다
+  — **자기 상태 문서를 무는 자가 병합 관문에서 실제로 일했다**(반복 580).
 ---
 
 # 현재 상태
