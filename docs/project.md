@@ -20,6 +20,7 @@
   `interrupt_e2e` `indexer_interrupt_e2e` `crawl_politeness_e2e` `pagination_ui_e2e` `recrawl_e2e` `retry_interval_e2e` `url_normalize_e2e`.
   **종료 2 는 실패가 아니라 측정 불능이다.** 명부가 낡으면 `test_docs.py` 가 문다 · 나머지는 **`docs/baselines.md`**
 - **측정**: `e2e/perf_crawl.py`(처리량) · `e2e/perf_search.py [문서수] [반복]`(검색 지연) ·
+  `e2e/perf_memory.py [작은규모] [큰규모] [반복]`(서버 상주 RSS — 컨셉 경량 2) ·
   `e2e/quality_eval.py` · `e2e/passage_eval.py`. 합격선은 아래, 기준선은 `baselines.md`
 
 ## 브랜치·소유자
