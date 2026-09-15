@@ -52,6 +52,11 @@ RATE_LIMIT_HEADROOM = 60
 # 두 규모가 이 배수만큼 벌어져야 기울기를 낸다. 붙은 규모에서는 잡음이 신호를 덮는다
 # (리뷰 [R102-3]). 4배는 기본값 500/4000(8배)이 여유로 통과하는 선에서 골랐다.
 SCALE_RATIO = 4
+# 「뜬 직후」끼리의 차는 0 이어야 하는 값이라 잡음 바닥으로 쓴다 — 단, **이 위는 잡음이
+# 아니다.** 실측 잡음은 32~176 KB 인데, 색인을 **기동 때** 올리는 회귀를 심으면 그 차가
+# 2,688 KB 로 뛴다(e2e [E102-1] 실측). 그때 바닥이 신호와 같이 커져 「신호 <= 바닥」이
+# 성립해 **회귀가 평평으로 보고된다** — 바닥에 천장을 두지 않으면 거짓 음성이 열린다.
+NOISE_CEILING_KB = 512
 
 
 class CannotMeasure(Exception):
@@ -170,8 +175,14 @@ def main(argv):
     noise = abs(idle1 - idle0)                  # KB
     print("  신호 %+.1f KB (질의 뒤끼리) — 잡음 바닥 %.1f KB (뜬 직후끼리, 0 이어야 한다)"
           % (signal, noise))
+    if noise > NOISE_CEILING_KB:
+        # **이만큼 벌어진 것은 잡음이 아니다.** 질의를 한 번도 안 한 프로세스 둘이
+        # 색인 크기를 따라 갈렸다는 뜻이니 **기동 때 색인을 올리고 있다**. 이때는
+        # 바닥이 아니라 그쪽이 신호다 — 둘 중 큰 쪽으로 기울기를 낸다.
+        print("  **뜬 직후끼리가 이미 갈렸다 — 기동 때 색인을 올린다**(잡음 천장 %d KB 초과)"
+              % NOISE_CEILING_KB)
 
-    if abs(signal) <= noise:
+    if abs(signal) <= noise <= NOISE_CEILING_KB:
         # **점추정을 내지 않는다.** 신호가 잡음에 덮였으면 기울기는 수가 아니다 —
         # 같은 트리에서 규모만 바꿔 돌리면 0.0137·0.0503 KB/문서(외삽 31·67MB)처럼
         # 배로 흔들린다(리뷰 [R102-3] 실측). **그리고 덮였다는 것 자체가 답이다**:
@@ -182,9 +193,11 @@ def main(argv):
               " — 예산 %d MB 의 %.1f%% 이하"
               % (TARGET_DOCS // 10000, bound, BUDGET_MB, bound / BUDGET_MB * 100))
     else:
-        slope = signal / (d1 - d0)              # KB/문서
+        # 기동 적재 회귀는 「질의 뒤」 차가 「뜬 직후」 차를 거의 안 넘는다(실측 2,848 vs
+        # 2,688 KB — 여유 160KB). 큰 쪽으로 재지 않으면 같은 회귀를 작게 보고한다.
+        slope = max(abs(signal), noise) / (d1 - d0)   # KB/문서
         projected = (busy1 + slope * (TARGET_DOCS - d1)) / 1024   # MB
-        print("  기울기 %.4f KB/문서 — **신호가 잡음을 넘었다**(색인을 따라 큰다)" % slope)
+        print("  기울기 %.4f KB/문서 — **색인을 따라 큰다**(뜬 직후·질의 뒤 중 큰 쪽)" % slope)
         print("  %d만 문서 외삽 %.1f MB — 예산 %d MB 의 %.1f%%"
               % (TARGET_DOCS // 10000, projected, BUDGET_MB, projected / BUDGET_MB * 100))
 
