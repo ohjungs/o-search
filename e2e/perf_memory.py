@@ -38,7 +38,8 @@ import tempfile
 import urllib.error
 import urllib.request
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(ROOT, "src"))
 from perf_search import build_index, query_paths  # noqa: E402  색인 만드는 코드를 두 벌로 안 만든다
 
 # 컨셉 경량 2. 100만 문서 기준이라 이 규모에서는 한참 밑이어야 한다.
@@ -48,6 +49,9 @@ TARGET_DOCS = 1000000
 # 자식은 **진짜 진입점**이라 리미터가 켜져 있다(`serve.RATE_LIMIT` 60/분/IP · `serve.main`
 # 에는 끄는 갈래가 없다). 넘기면 재는 것이 메모리가 아니라 429 다 — 끄는 대신 적게 쏜다.
 RATE_LIMIT_HEADROOM = 60
+# 두 규모가 이 배수만큼 벌어져야 기울기를 낸다. 붙은 규모에서는 잡음이 신호를 덮는다
+# (리뷰 [R102-3]). 4배는 기본값 500/4000(8배)이 여유로 통과하는 선에서 골랐다.
+SCALE_RATIO = 4
 
 
 class CannotMeasure(Exception):
@@ -83,7 +87,10 @@ def measure_scale(docs, repeat):
         if indexed <= 0:
             raise CannotMeasure("색인이 %d건이다 — 잰 것은 빈 DB 다" % indexed)
 
-        env = dict(os.environ, PYTHONPATH="src")
+        # **절대 경로다.** `PYTHONPATH="src"` 는 저장소 루트에서 부를 때만 맞고, 밖에서
+        # 부르면 자식이 `websearch` 를 못 찾아 종료 2 로 접힌다(리뷰 [R102-1] 실측).
+        # 형제들(`crawl_e2e.py:55`·`hidden_passage_e2e.py:103`)이 쓰는 관용구다.
+        env = dict(os.environ, PYTHONPATH=os.path.join(ROOT, "src"))
         child = subprocess.Popen(
             [sys.executable, "-m", "websearch.serve", db, "--port", "0"],
             stdout=subprocess.PIPE, text=True, env=env)
@@ -130,6 +137,16 @@ def main(argv):
         print("작은 규모(%d)가 큰 규모(%d)보다 작아야 기울기를 낸다" % (small, big),
               file=sys.stderr)
         return 2
+    # **두 규모가 붙어 있으면 외삽하지 않는다.** 200/400 으로 돌려 보니 기울기가
+    # 0.3200 KB/문서 · 100만 외삽 330MB 가 나왔다 — 같은 트리에서 500/4000 은
+    # 0.0503 KB/문서 · 66.8MB 다(리뷰 [R102-3] 실측). 차이는 코드가 아니라 **잡음**이고,
+    # 그때 「뜬 직후」끼리도 -48.0 KB 로 벌어졌다(같은 색인을 안 만진 프로세스끼리라
+    # 0 이어야 하는 값이다). Δ가 작으면 외삽이 그 잡음을 2,500배로 늘린다.
+    if big < small * SCALE_RATIO:
+        print("큰 규모(%d)가 작은 규모(%d)의 %d배 미만이다 — 이 간격에서 나오는 기울기는"
+              " 색인이 아니라 잡음이고, 100만 외삽이 그것을 2,500배로 늘린다"
+              % (big, small, SCALE_RATIO), file=sys.stderr)
+        return 2
 
     try:
         rows = [(n,) + measure_scale(n, repeat) for n in (small, big)]
@@ -145,13 +162,31 @@ def main(argv):
               % ("%d문서" % indexed, idle / 1024, busy / 1024, (busy - idle) / 1024))
 
     (d0, _, idle0, busy0), (d1, _, idle1, busy1) = rows
-    # 기울기는 **질의 뒤** 값으로 낸다 — 컨셉이 말하는 「색인 로드 후」가 그쪽이다.
-    # 서버는 요청마다 DB 를 열므로 뜬 직후에는 색인을 아직 안 만졌다.
-    slope = (busy1 - busy0) / (d1 - d0)  # KB/문서
-    projected = (busy1 + slope * (TARGET_DOCS - d1)) / 1024  # MB
-    print("  기울기 %.4f KB/문서 (뜬 직후끼리는 %+.1f KB)" % (slope, idle1 - idle0))
-    print("  %d만 문서 외삽 %.1f MB — 예산 %d MB 의 %.1f%%"
-          % (TARGET_DOCS // 10000, projected, BUDGET_MB, projected / BUDGET_MB * 100))
+    # 신호는 **질의 뒤** 값끼리의 차다 — 컨셉이 말하는 「색인 로드 후」가 그쪽이다.
+    # 서버는 요청마다 DB 를 여니 뜬 직후에는 색인을 아직 안 만졌다.
+    signal = busy1 - busy0                      # KB — 색인이 늘어 붙은 몫
+    # **잡음 바닥**: 「뜬 직후」끼리는 색인을 안 만진 같은 인터프리터 둘이라 **0 이어야
+    # 하는 값**이다. 0 이 아닌 만큼이 이 측정의 잡음이다.
+    noise = abs(idle1 - idle0)                  # KB
+    print("  신호 %+.1f KB (질의 뒤끼리) — 잡음 바닥 %.1f KB (뜬 직후끼리, 0 이어야 한다)"
+          % (signal, noise))
+
+    if abs(signal) <= noise:
+        # **점추정을 내지 않는다.** 신호가 잡음에 덮였으면 기울기는 수가 아니다 —
+        # 같은 트리에서 규모만 바꿔 돌리면 0.0137·0.0503 KB/문서(외삽 31·67MB)처럼
+        # 배로 흔들린다(리뷰 [R102-3] 실측). **그리고 덮였다는 것 자체가 답이다**:
+        # 색인을 몇 배로 키워도 RSS 가 잡음 안에 머물렀다는 뜻이다. 상한만 준다.
+        bound = (busy1 + (noise / (d1 - d0)) * (TARGET_DOCS - d1)) / 1024
+        print("  기울기를 수로 주지 않는다 — 신호가 잡음 바닥 아래다. **색인을 따라 크지 않는다**")
+        print("  %d만 문서: 점추정 없음. 잡음을 기울기 상한으로 놓아도 %.1f MB 이하"
+              " — 예산 %d MB 의 %.1f%% 이하"
+              % (TARGET_DOCS // 10000, bound, BUDGET_MB, bound / BUDGET_MB * 100))
+    else:
+        slope = signal / (d1 - d0)              # KB/문서
+        projected = (busy1 + slope * (TARGET_DOCS - d1)) / 1024   # MB
+        print("  기울기 %.4f KB/문서 — **신호가 잡음을 넘었다**(색인을 따라 큰다)" % slope)
+        print("  %d만 문서 외삽 %.1f MB — 예산 %d MB 의 %.1f%%"
+              % (TARGET_DOCS // 10000, projected, BUDGET_MB, projected / BUDGET_MB * 100))
 
     # **합격 판정을 내지 않는다.** 이 규모에서 나온 수는 기준선이지 합격선이 아니고,
     # 외삽은 선형 가정 위에 선다. 예산은 docs/project.md, 기준선은 docs/baselines.md.
