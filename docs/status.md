@@ -1,13 +1,13 @@
 ---
 signal: GREEN
-phase: dev
-step: 2/3
+phase: review
+step: 3/3
 attempt: 0
 plan: serve-rss
-iteration: 596
-updated: 2026-09-15
+iteration: 597
+updated: 2026-09-16
 mode: night
-night_iterations: 3
+night_iterations: 4
 night_red: 0
 night_retries: 0
 night_self_amendments: 0

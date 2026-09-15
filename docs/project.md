@@ -40,6 +40,7 @@
 | 근거 문단 | `e2e/passage_eval.py` | 정확도 **90%** (기능 8) · p95 **500ms** (성능 5) |
 | 검색 지연 | `e2e/perf_search.py` | `GET /search` p95 **300ms** (성능 1) |
 | 디자인 4축 | `e2e/design_check.py` | JS gzip **50KB** · 대비 **4.5:1** · 360px 무스크롤 · LCP 대리 |
+| 서버 상주 메모리 | `e2e/perf_memory.py` | 100만 문서 외삽 **2GB** (경량 2) — **이 자는 예산과 비교해 실패하지 않는다**. 오늘 규모의 수는 기준선이고 무는 것은 «기울기» 다(`baselines.md`) |
 | 크롤 간격 | `e2e/crawl_delay_e2e.py` | robots `Crawl-delay` 와 **1초 하한** (크롤 윤리 1순위) |
 
 **0/1/2 관용구는 셋만 쓴다**(`quality_eval`·`passage_eval`·`design_check`) — 0 통과 · 1 기준 위반 ·
