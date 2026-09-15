@@ -1,13 +1,13 @@
 ---
-signal: GREEN
+signal: DONE
 phase: 마감
 step: 3/3
 attempt: 0
 plan: serve-rss
-iteration: 599
+iteration: 600
 updated: 2026-09-16
 mode: night
-night_iterations: 6
+night_iterations: 7
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
@@ -110,6 +110,15 @@ note: **빈손 두 밤을 컨셉으로 끊었다.** 여덟 출처는 이번에�
   100만으로 올리는 것」이 먼저다. 이 계획에서는 안 한다(범위 밖 · 오늘 60GB 가 든다).
 
 전수 **788 OK**(20.5s) · `src/` **0줄**.
+
+## 반복 600 — 마감 · 계획 102 DONE
+
+- **아카이브**: 계획서 → `plan_history_077.md` · 설계 → `design_history_077.md`.
+  인용 셋을 새 이름으로 따라 옮겼다(`e2e/perf_memory.py` 둘 · `docs/baselines.md` 하나) —
+  이 저장소는 코드에서 아카이브 이름을 그대로 부르는 관례다(`quality_eval.py:5` 등).
+- **`index.md` 102 행**: 진행 → **완료 · 판정 통과**, 마감 요약 등재.
+- **남긴 것**: 축 하나가 처음 측정됐다(RSS 재는 코드 **0줄 → 자 하나**), 기준선과
+  **회귀를 심으면 갈래가 바뀐다는 실측**. 제품 `src/` **0줄** — 재기만 하는 계획이었다.
 
 ## 반복 599 — e2e phase · **재는 자에게 「돌려서 초록」은 아무 말도 아니다**
 

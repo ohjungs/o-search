@@ -13,7 +13,7 @@ RSS 측정)」다. 이 저장소에 그 판정을 돌리는 코드가 **한 줄�
 
 그래서 `python3 -m websearch.serve <db> --port 0` 을 **자식으로 띄우고 밖에서
 `ps -o rss=`** 로 읽는다. 사람에게 시키는 그 명령 그대로다(README). 유도는
-`docs/design_serve-rss.md`.
+`docs/design_history_077.md`.
 
 **나오는 숫자는 합격 판정이 아니라 기준선이다** — 컨셉의 판정 규모는 100만 문서인데
 여기서 만드는 색인은 그보다 훨씬 작다(100만이면 오늘 기계에서 60GB 다). 대신 **두 규모를
@@ -203,7 +203,7 @@ def main(argv):
 
     # **합격 판정을 내지 않는다.** 이 규모에서 나온 수는 기준선이지 합격선이 아니고,
     # 외삽은 선형 가정 위에 선다. 예산은 docs/project.md, 기준선은 docs/baselines.md.
-    print("기준선 — 자식을 밖에서 `ps -o rss=` 로 읽었다(peak 아님). 유도는 docs/design_serve-rss.md")
+    print("기준선 — 자식을 밖에서 `ps -o rss=` 로 읽었다(peak 아님). 유도는 docs/design_history_077.md")
     return 0
 
 
