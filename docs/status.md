@@ -1,19 +1,19 @@
 ---
 signal: GREEN
-phase: 설계
+phase: 개발
 step: 1/2
 attempt: 0
 plan: dep-zero
-iteration: 601
+iteration: 602
 updated: 2026-09-16
 mode: night
-night_iterations: 8
+night_iterations: 1
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
-ctx: 측정 불가 — 게이트 ⑦ **열여덟 번째 재현**. `.context-state.json` 의 `session_id`(`402da0af…`)로 `~/.claude/projects/-Users-t2025-m0191-work-websearch/<id>.jsonl` 을 찾으니 **없다 — 남의 세션 파일이다**(내 것은 `e7a2d9e3…`). 게다가 **29.2시간** 낡았다(`updated_unix` 1789398758 · 지금 1789503746 · 차 104,988초)고 `five_hour_resets_at` 도 지났다. 그 파일의 `context_used_percentage: 87` 은 **내 값이 아니다**. statusLine 꺼진 것과 동일 취급 · `SKILL.md` 3절대로 **반복 상한에만 의존**했다
+ctx: 측정 불가 — 게이트 ⑦ **열아홉 번째 재현**. `.context-state.json` 의 `session_id`(`4b0e3020…`)로 `~/.claude/projects/-Users-t2025-m0191-work-websearch/<id>.jsonl` 을 찾으니 **없다 — 남의 세션 파일이다**. **66.9분** 낡았고(`updated_unix` 1789544914 · 지금 1789548926) `five_hour_resets_at`(1789548481) 도 이미 지났다. 그 파일의 `9 / 30 / 55` 는 **내 값이 아니다**. statusLine 꺼진 것과 동일 취급 · `SKILL.md` 3절대로 **반복 상한에만 의존**한다
 rules: (저장소 밖 `~/.claude/skills/loop-harness` — 커밋 해시 없음)
-note: **세 밤째 빈손을 다시 컨셉으로 끊었다.** 계획 102 `serve-rss` 는 `main` 에 들어갔다(`24edddd` · 컨셉 경량 2 를 처음 쟀다). 새 계획 103 `dep-zero` — **경량 3·5 「의존성 0 유지」를 재는 자가 0건**이다. 오늘 위반은 **진짜 0** 이라 고칠 것이 없고 나오는 것은 **자 하나**다: `import requests` 한 줄이 들어오는 날 아무것도 빨개지지 않는 것이 문제다. **설계 트리거에 걸렸다** — Python **3.9.6** 에 `sys.stdlib_module_names` 가 없어(3.10 부터) 「무엇이 표준 라이브러리인가」의 갈래가 셋이고 훑을 모집단도 갈린다. 다음 반복이 설계다
+note: **설계를 마쳤다 — `docs/design_dep-zero.md`.** 갈래가 갈린 진짜 축은 계획서가 적은 「3.9 에서 stdlib 를 어떻게 아나」가 **아니었다**: 셋 다 같은 답을 내고, 고르는 축은 **유지비**뿐이다. 그래서 허용 목록(A)을 버렸다 — `tests/test_e2e_fd.py` 가 「개수를 요구하면 옳게 고친 파일이 빨개진다」로 겪은 실패 모양이 같다. **요점은 「`find_spec` 이 `None` 인 것도 위반」 한 줄**이다. 모르면 통과로 두면 `import requests` 가 **안 깔린 기계에서 초록**이 된다 — 계획서의 「영영 안 보인다」가 그대로 재현된다. 모집단은 `src`·`tests`·`e2e` 셋 다(54파일). 설계대로 실물에 대 보니 **387 임포트 · 위반 0** 이고 `requests`·`numpy`·`pytest` 셋은 거부됐다. 다음 반복이 개발(스텝 1)이다
 ---
 
 ## 반복 594 — 계획 phase · 컨셉을 자로 대서 빈손을 끊었다 · 계획 102 `serve-rss`
