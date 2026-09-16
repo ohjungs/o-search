@@ -1,19 +1,19 @@
 ---
 signal: GREEN
-phase: 개발
+phase: 테스트
 step: 2/2
 attempt: 0
 plan: dep-zero
-iteration: 603
+iteration: 604
 updated: 2026-09-16
 mode: night
-night_iterations: 2
+night_iterations: 3
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
 ctx: 측정 불가 — 게이트 ⑦ **열아홉 번째 재현**. `.context-state.json` 의 `session_id`(`4b0e3020…`)로 `~/.claude/projects/-Users-t2025-m0191-work-websearch/<id>.jsonl` 을 찾으니 **없다 — 남의 세션 파일이다**. **66.9분** 낡았고(`updated_unix` 1789544914 · 지금 1789548926) `five_hour_resets_at`(1789548481) 도 이미 지났다. 그 파일의 `9 / 30 / 55` 는 **내 값이 아니다**. statusLine 꺼진 것과 동일 취급 · `SKILL.md` 3절대로 **반복 상한에만 의존**한다
 rules: (저장소 밖 `~/.claude/skills/loop-harness` — 커밋 해시 없음)
-note: **`tests/test_deps.py` 가 섰다 — 컨셉 «의존성 0» 이 처음으로 재는 자를 가졌다.** 전수 **793 OK**(788 → +5) · 제품 `src/` **0줄**. **변이 넷 전부 잡혔다**: M1 `src/` 최상위 `import requests` · M2 `e2e/` **함수 안에 한 칸 들여쓴** 것(`ast.walk` 라 걸린다) · M3 모집단을 좁혀 하한을 깬 것(`test_scan_actually_scanned_something`) · **M4 「모르면 통과」로 되돌린 것**. **M4 가 이 파일의 핵심이다** — `find_spec` 이 `None` 인 것을 통과로 바꾸면 테스트 **둘**이 죽는다. 즉 설계의 그 한 줄이 죽은 코드가 아니다. **README 건수 가드가 또 물었다**(788 → 793 · 기록상 다섯 번째). 다음 반복이 스텝 2(등재)다
+note: **스텝 2 끝 — 계획 103 의 두 스텝이 다 닫혔다.** `docs/project.md` 품질 기준 표가 여섯 줄 → **일곱 줄**. 합격선은 「표준 라이브러리 밖 임포트 **0건**」이고 **예산이 아니라 불변식**이라 어기면 실패다(계획 102 의 RSS 줄과 반대). **표에서 유일하게 전수 안에서 도는 줄**이고 그것이 이 자의 요점이다 — 나머지 여섯은 사람이 기억해서 쳐야 하는데 이 축은 **안 쳐도 물린다**. 적기 전에 실제로 쳐 봤다(`-m unittest tests.test_deps` → 5 OK). 전수 **793 OK** · 제품 `src/` **0줄**. 다음 반복이 테스트 phase 다 · **기록 회전**: 584~594 → `history_087.md`(21항목 310줄 → 10항목 162줄 · **줄과 항목이 같은 날 함께 넘은 첫 회전**). `digest.md` 는 한 줄 늘어 **220줄** — **게이트 ⑥** 이 또 벌어졌고 회전 규칙이 요구하는 줄이라 안 적을 수가 없다
 ---
 
 ## 반복 594 — 계획 phase · 컨셉을 자로 대서 빈손을 끊었다 · 계획 102 `serve-rss`
