@@ -1,19 +1,19 @@
 ---
 signal: GREEN
-phase: 테스트
+phase: 리뷰
 step: 2/2
 attempt: 0
 plan: dep-zero
-iteration: 604
+iteration: 605
 updated: 2026-09-16
 mode: night
-night_iterations: 3
+night_iterations: 4
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
 ctx: 측정 불가 — 게이트 ⑦ **열아홉 번째 재현**. `.context-state.json` 의 `session_id`(`4b0e3020…`)로 `~/.claude/projects/-Users-t2025-m0191-work-websearch/<id>.jsonl` 을 찾으니 **없다 — 남의 세션 파일이다**. **66.9분** 낡았고(`updated_unix` 1789544914 · 지금 1789548926) `five_hour_resets_at`(1789548481) 도 이미 지났다. 그 파일의 `9 / 30 / 55` 는 **내 값이 아니다**. statusLine 꺼진 것과 동일 취급 · `SKILL.md` 3절대로 **반복 상한에만 의존**한다
 rules: (저장소 밖 `~/.claude/skills/loop-harness` — 커밋 해시 없음)
-note: **스텝 2 끝 — 계획 103 의 두 스텝이 다 닫혔다.** `docs/project.md` 품질 기준 표가 여섯 줄 → **일곱 줄**. 합격선은 「표준 라이브러리 밖 임포트 **0건**」이고 **예산이 아니라 불변식**이라 어기면 실패다(계획 102 의 RSS 줄과 반대). **표에서 유일하게 전수 안에서 도는 줄**이고 그것이 이 자의 요점이다 — 나머지 여섯은 사람이 기억해서 쳐야 하는데 이 축은 **안 쳐도 물린다**. 적기 전에 실제로 쳐 봤다(`-m unittest tests.test_deps` → 5 OK). 전수 **793 OK** · 제품 `src/` **0줄**. 다음 반복이 테스트 phase 다 · **기록 회전**: 584~594 → `history_087.md`(21항목 310줄 → 10항목 162줄 · **줄과 항목이 같은 날 함께 넘은 첫 회전**). `digest.md` 는 한 줄 늘어 **220줄** — **게이트 ⑥** 이 또 벌어졌고 회전 규칙이 요구하는 줄이라 안 적을 수가 없다
+note: **테스트 phase — 갭 훑기가 8점짜리 하나를 냈고 그것이 거짓 초록이었다.** `find_spec("concurrent.futures")` 는 **유효한 stdlib 스펙을 돌려준다** — 즉 점 있는 이름 쪼개기를 빼도 이 트리의 96자리는 통과하고, 대신 `find_spec` 이 **부모 패키지를 진짜로 임포트한다**(실측: `html.parser` 를 물으면 `html`·`html.entities` 가 `sys.modules` 에 들어온다). 파일 docstring 이 「남의 코드를 실행하지 않는다」고 주장하는데 **그것을 재는 자가 없었다.** 통과 여부가 아니라 **넘어가는 이름 자체**를 못박았다(픽스처 + 실물 96자리). **변이 M5**(쪼개기 제거)로 확인 — 테스트 **둘**이 죽는다. 8점 미만 둘(`except` 갈래 · 네임스페이스 패키지)은 `digest.md` 에 등재했다: **실패 방향이 안전한 쪽**(둘 다 위반으로 접혀 거짓 RED 지 거짓 초록이 아니다)이라 8점이 아니다. 전수 **794 OK**(README 가드 793 → 794). 다음 반복이 리뷰다
 ---
 
 ## 반복 594 — 계획 phase · 컨셉을 자로 대서 빈손을 끊었다 · 계획 102 `serve-rss`

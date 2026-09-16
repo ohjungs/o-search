@@ -161,6 +161,37 @@ class JudgeTest(unittest.TestCase):
         for name in ("json", "zlib", "sys", "urllib", "websearch"):
             self.assertTrue(is_allowed(name), name)
 
+    def test_dotted_name_is_cut_to_first_segment(self):
+        """점 있는 이름은 첫 마디만 판정에 넘어간다 — **안 자르면 조용히 초록이다.**
+
+        `find_spec("concurrent.futures")` 는 **유효한 stdlib 스펙을 돌려준다.** 즉 쪼개기를
+        빼도 이 트리의 점 있는 96자리는 통과할 수 있고, 대신 `find_spec` 이 부모 패키지를
+        **진짜로 임포트한다**(실측: `html.parser` 를 물으면 `html` 과 `html.entities` 가
+        `sys.modules` 에 들어온다). 남의 코드를 이 그물이 실행하게 되는 길이라, 통과
+        여부가 아니라 **넘어가는 이름 자체**를 못박는다.
+
+        `from . import flags` 는 자기 패키지라 아예 안 나온다(`src/websearch/serve.py:24`).
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture = pathlib.Path(tmp) / "dotted.py"
+            fixture.write_text(
+                "import concurrent.futures\n"
+                "from html.parser import HTMLParser\n"
+                "from . import flags\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                [(1, "concurrent"), (2, "html")], list(imported_names(fixture))
+            )
+        # 실물에서도 본다 — 점이 하나라도 새어 나가면 부모를 임포트한 것이다.
+        leaked = [
+            f"{p.name}:{lineno} {name}"
+            for p in python_sources()
+            for lineno, name in imported_names(p)
+            if "." in name
+        ]
+        self.assertEqual([], leaked)
+
     def test_catches_import_inside_function(self):
         """한 칸 들여쓴 임포트도 걸린다. 임시 파일이라 `scan` 을 통째로 밟는다."""
         with tempfile.TemporaryDirectory() as tmp:
