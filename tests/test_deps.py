@@ -22,9 +22,21 @@
    의존성으로 신고한다.**
 3. `sys.builtin_module_names` — `sys`·`time`·`itertools` 는 `origin` 이 경로가 아니라
    `'built-in'` 이다.
-4. `sysconfig` 의 stdlib 경로 밑 — 거꾸로 `zlib` 은 빌트인이 **아닌데**
-   `lib-dynload/*.so` 로 그 밑이다. **3 과 4 는 서로를 안 덮어 합집합이어야 한다.**
-5. 그 밖 전부 위반.
+4. `origin` 이 `'frozen'` — 3.11+ 는 `os`·`io`·`abc` 를 인터프리터에 얼려 넣는다.
+5. `sysconfig` 의 stdlib 경로 밑 — 단 **`site-packages`·`dist-packages` 는 빼고**.
+   거꾸로 `zlib` 은 빌트인이 **아닌데** `lib-dynload/*.so` 로 그 밑이다.
+   **3·4·5 는 서로를 안 덮어 합집합이어야 한다.**
+6. 그 밖 전부 위반.
+
+**4 와 5 의 단서 둘은 리뷰가 실증해서 붙었다**(2026-09-16 반복 606). 처음 판은
+「stdlib 경로로 시작하나」 한 줄이었고, 그 한 줄이 양쪽으로 다 틀렸다:
+
+- **깔린 서드파티가 전부 통과했다.** 이 기계의 `six` 는 `<stdlib>/site-packages/six.py`
+  다 — pyenv·conda·homebrew·uv 도 같은 모양이다. `setuptools`·`wheel`·`pkg_resources`
+  까지 초록이었고, `requests` 만 빨갰던 것은 **안 깔려서**일 뿐이었다.
+  **막으려던 바로 그것을 통과시키고 있었다.**
+- **3.12·3.13·3.14 에서 `import os` 41자리가 위반으로 나왔다.** frozen 은 `origin` 이
+  경로가 아니라 `'frozen'` 이라 cwd 기준으로 풀린다.
 
 **허용 목록을 안 쓴다.** 손으로 민 목록은 새 stdlib 모듈을 쓰는 날 **옳은 변경을
 빨갛게** 만들고, 파이썬 3.10(`sys.stdlib_module_names`)으로 올리는 날 두 벌이 된다 —
@@ -57,12 +69,30 @@ STDLIB_DIRS = tuple(
     os.path.realpath(p)
     for p in {sysconfig.get_paths()["stdlib"], sysconfig.get_paths()["platstdlib"]}
 )
+# 구분자까지 붙여야 `/…/python3.1` 이 `/…/python3.10-foo` 를 안 먹는다.
+STDLIB_PREFIXES = tuple(d + os.sep for d in STDLIB_DIRS)
+# **`sysconfig` 의 `purelib` 을 안 쓴다.** 이 기계에서 그 값은 `/Library/Python/3.9/
+# site-packages` 인데, 실제로 임포트되는 것은 `<stdlib>/site-packages/` 쪽이다 —
+# 즉 `purelib` 을 빼는 것만으로는 안 막힌다. 경로에 이 이름이 있으면 거부한다.
+VENDOR_DIRS = frozenset(("site-packages", "dist-packages"))
 
-# 오늘 실측은 54파일 · 임포트 387자리다. 하한을 두는 이유는 **0 을 세면서 통과하지 않기**
+# 오늘 실측은 55파일 · 임포트 395자리다(이 파일 자신을 포함해서). 하한을 두는 이유는 **0 을 세면서 통과하지 않기**
 # 위해서다 — 경로 오타나 `rglob` 실패로 아무것도 안 훑고 「위반 0」을 외치는 것이
 # 이 저장소의 재발 항목이다(계획 101 이 `\bHTTPServer\(` 로 겪었다).
 FILE_FLOOR = 50
 IMPORT_FLOOR = 300
+
+
+def population_dirs():
+    """모집단 디렉터리 중 **실재하는 것만**.
+
+    없는 것을 건너뛰는 이유는 관대해서가 아니다. `LOCAL` 이 모듈 최상위라 여기서
+    `iterdir()` 이 터지면 **테스트 실패가 아니라 수집 단계 에러**가 되고, 얕은
+    체크아웃 하나에 전수가 통째로 흔들린다(리뷰 실측: `e2e/` 를 지운 사본에서
+    `FileNotFoundError`). 진짜로 한 덩이가 사라진 판은 `FILE_FLOOR` 가 문다 —
+    그 역할은 이미 그쪽 것이라 여기서 또 물 필요가 없다.
+    """
+    return [d for d in (ROOT / pop for pop in POPULATION) if d.is_dir()]
 
 
 def first_party_names():
@@ -72,8 +102,8 @@ def first_party_names():
     이름이 허용 목록에 얹혀, 같은 이름의 패키지를 통과시키는 구멍이 된다.
     """
     names = set()
-    for pop in POPULATION:
-        for entry in (ROOT / pop).iterdir():
+    for d in population_dirs():
+        for entry in d.iterdir():
             names.add(entry.stem if entry.suffix == ".py" else entry.name)
     return names
 
@@ -81,8 +111,24 @@ def first_party_names():
 LOCAL = first_party_names()
 
 
+def is_stdlib_origin(origin):
+    """`find_spec` 이 준 `origin` **문자열 하나**로 판정한다.
+
+    판정을 문자열로 떼어 낸 이유는 하나다 — **이 함수가 틀리는 두 판이 이 기계에서
+    재현되지 않는다.** 진짜 stdlib 에 파일을 심을 수도, 다른 마이너 버전으로 갈아탈
+    수도 없지만 그 `origin` 문자열은 만들 수 있다. 그래서 `JudgeTest` 가 판정을
+    문자열로 친다 — **안 그러면 둘 다 아무 테스트에도 안 걸린다.**
+    """
+    if origin in ("frozen", "built-in"):
+        return True
+    real = os.path.realpath(origin)
+    if VENDOR_DIRS & set(pathlib.PurePath(real).parts):
+        return False
+    return real.startswith(STDLIB_PREFIXES)
+
+
 def is_allowed(name):
-    """최상위 이름 하나를 판정한다. **모르면 False** — 위 규칙 5번."""
+    """최상위 이름 하나를 판정한다. **모르면 False** — 위 규칙 6번."""
     if name in LOCAL or name in sys.builtin_module_names:
         return True
     try:
@@ -93,7 +139,7 @@ def is_allowed(name):
         return False
     if spec is None or not spec.origin:
         return False
-    return os.path.realpath(spec.origin).startswith(STDLIB_DIRS)
+    return is_stdlib_origin(spec.origin)
 
 
 def imported_names(path):
@@ -114,7 +160,7 @@ def imported_names(path):
 
 def python_sources():
     """훑을 `.py` 를 이름순으로. 이름순이라 실패 목록이 안 흔들린다."""
-    return sorted(p for pop in POPULATION for p in (ROOT / pop).rglob("*.py"))
+    return sorted(p for d in population_dirs() for p in d.rglob("*.py"))
 
 
 def scan(paths):
@@ -155,6 +201,37 @@ class JudgeTest(unittest.TestCase):
         """깔려 있든 아니든 거부한다 — 이 셋은 이 기계에 없어서 `find_spec` 이 `None` 이다."""
         for name in ("requests", "numpy", "pytest"):
             self.assertFalse(is_allowed(name), name)
+
+    def test_rejects_third_party_that_is_actually_installed(self):
+        """**깔려 있는데도 거부하나** — 위 `test_rejects_third_party` 가 못 밟는 절반이다.
+
+        그쪽은 이 기계에 없는 셋을 물어 「못 찾으면 위반」만 확인한다. 정작 이 자가
+        막으려는 것은 **깔린 패키지**인데, 대부분의 설치에서 `site-packages` 가 stdlib
+        디렉터리 **밑**이라 접두사만 보면 전부 통과한다. 실제로 그렇게 뚫려 있었다:
+        이 기계의 `six`·`setuptools`·`wheel` 이 초록이었다(2026-09-16 반복 606 리뷰).
+
+        진짜 stdlib 에 파일을 심을 수는 없으니 `origin` 문자열로 판정만 친다.
+        """
+        stdlib = STDLIB_DIRS[0]
+        self.assertFalse(
+            is_stdlib_origin(os.path.join(stdlib, "site-packages", "requests", "__init__.py"))
+        )
+        self.assertFalse(is_stdlib_origin(os.path.join(stdlib, "dist-packages", "six.py")))
+        self.assertTrue(is_stdlib_origin(os.path.join(stdlib, "json", "__init__.py")))
+
+    def test_accepts_frozen_origin(self):
+        """3.11+ 의 `os`·`io`·`abc` 는 `origin` 이 경로가 아니라 `'frozen'` 이다.
+
+        경로로 읽으면 cwd 기준으로 풀려 stdlib 접두사에 안 걸리고, 빌트인 목록에도
+        없다. 이 줄이 없으면 **3.12·3.13·3.14 에서 `import os` 41자리가 위반**이다
+        (리뷰 실측). 이 기계는 3.9 라 `is_allowed('os')` 로는 영영 안 걸린다.
+        """
+        self.assertTrue(is_stdlib_origin("frozen"))
+        self.assertTrue(is_stdlib_origin("built-in"))
+
+    def test_sibling_directory_is_not_stdlib(self):
+        """`/…/python3.9` 접두사가 `/…/python3.9-foo` 를 먹지 않는다 — 구분자까지 본다."""
+        self.assertFalse(is_stdlib_origin(STDLIB_DIRS[0] + "-foo" + os.sep + "requests.py"))
 
     def test_accepts_stdlib_and_first_party(self):
         """`zlib` 은 `.so`, `sys` 는 빌트인, `websearch` 는 저장소 것 — 세 갈래를 다 밟는다."""
