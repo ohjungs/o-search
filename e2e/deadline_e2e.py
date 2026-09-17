@@ -134,21 +134,30 @@ def page_gaps(port, log=None):
 
 
 def check_intervals(ports, where):
-    """예산이 걸린 크롤도 도메인당 1초 하한을 지키는가. **깎으면 여기서 죽는다.**"""
+    """예산이 걸린 크롤도 도메인당 1초 하한을 지키는가. **깎으면 여기서 죽는다.**
+
+    재는 것은 **도착** 시각이다. `REQUEST_LOG` 는 핸들러가 `PAGE_DELAY` 만큼 **자고 난
+    뒤**라 이 파일 자신의 `time.sleep` 초과분이 간격에 섞인다 — 계획 105 스텝 1 이
+    10판으로 갈랐다: 도착 26칸은 **전부 1.0 이상**(최소 1.007s)인데 응답 시작 쪽만
+    0.907s 까지 내려갔다. 응답 시작은 참고로만 인쇄한다.
+    """
     served = [g for port in ports for g in page_gaps(port)]
     arrived = [g for port in ports for g in page_gaps(port, ARRIVAL_LOG)]
-    # **탐침 인쇄** (계획 105 스텝 1) — 단언은 아직 응답 시작 쪽에만 건다. 두 최솟값을
-    # 나란히 내야 「크롤러가 깎았다」와 「이 자가 제 잠을 간격에서 뺐다」가 갈린다.
     if served and arrived:
-        print("      [탐침] %s — 도착 최소 %.3fs · 응답시작 최소 %.3fs"
+        print("      [간격] %s — 도착 최소 %.3fs (단언) · 응답시작 최소 %.3fs (참고)"
               % (where, min(arrived), min(served)))
-    measured = []
+    gaps = []
     for port in ports:
-        for gap in page_gaps(port):
-            measured.append(gap)
-            assert gap >= 0.95, (  # 0.05s 는 왕복 지터 여유 — crawl_delay_e2e.py 와 같은 값
-                "%s: 포트 %d 간격 %.3f초 — 예산이 1초 하한을 깎았다" % (where, port, gap))
-    return measured
+        for gap in page_gaps(port, ARRIVAL_LOG):
+            gaps.append(gap)
+            # 사양 `docs/specs/concept.md:25` "간격 1초 이상은 기능이 아니라" 전제 조건이다
+            assert gap >= 1.0, (
+                "%s: 포트 %d 간격 %.3f초 — 1초 하한이 깨졌다" % (where, port, gap))
+    # **하한 못** — `ARRIVAL_LOG` 가 안 차면 위 루프가 한 번도 안 돌아 조용히 통과한다.
+    # 응답 시작 쪽은 그대로 차므로 그 사고는 여기서만 보인다.
+    assert len(gaps) >= len(served), (
+        "%s: 도착 간격이 %d칸뿐이다 — 응답시작은 %d칸이다" % (where, len(gaps), len(served)))
+    return gaps
 
 
 def measured(samples, what, least):

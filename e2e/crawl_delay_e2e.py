@@ -89,13 +89,15 @@ def main():
 
     floor = page_gaps("localhost")
     assert floor, "localhost 페이지 요청이 2건 미만이다"
-    too_fast = ["%.3f" % g for g in floor if g < 0.95]
+    # 사양 `docs/specs/concept.md:25` "도메인당 요청 간격 1초 이상" — 0.95 는 느슨했다
+    too_fast = ["%.3f" % g for g in floor if g < 1.0]
     assert not too_fast, "Crawl-delay: 0 이 1초 하한을 풀었다: %s" % too_fast
     # 느린 쪽 간격이 이쪽까지 오면 도메인별이 아니라 전역으로 느려진 것이다
     leaked = ["%.3f" % g for g in floor if g >= 1.95]
     assert not leaked, "남의 Crawl-delay 가 localhost 에 샜다: %s" % leaked
 
-    print("e2e 통과 — %d페이지 %.1fs / Crawl-delay:2 최소 %.2fs · 하한 도메인 최소 %.2fs"
+    # 못이 `1.0` 이라 2자리로는 여유가 안 보인다 — 1.00 이 1.004 인지 1.000 인지가 이 자의 값이다
+    print("e2e 통과 — %d페이지 %.1fs / Crawl-delay:2 최소 %.3fs · 하한 도메인 최소 %.3fs"
           % (saved, elapsed, min(slow), min(floor)))
 
 
