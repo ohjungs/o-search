@@ -62,7 +62,11 @@ HANG_MAX_PAGES = 5
 # 시간은 파생값이라 단언 순서도 그렇게 둔다
 HANG_LIMIT = 12.0
 
-REQUEST_LOG = []  # (시각, 포트, 경로)
+REQUEST_LOG = []  # (응답을 시작한 시각, 포트, 경로)
+# **같은 요청을 두 자리에서 잰다** (계획 105 스텝 1). `REQUEST_LOG` 는 핸들러가 `PAGE_DELAY`
+# 만큼 **자고 난 뒤** 찍히므로 이 파일 자신의 `time.sleep` 오차가 간격에 섞인다. 도착 시각은
+# 그 잠 **앞**이라 안 섞인다 — 둘을 같은 판에서 재야 1초 하한을 깬 쪽이 크롤러인지 이 자인지 갈린다.
+ARRIVAL_LOG = []  # (도착 시각, 포트, 경로)
 LOG_LOCK = threading.Lock()
 BROKEN = False  # `--control`: 페이지가 사라진 세계. 측정 불능 가드가 살아 있는지 본다
 
@@ -70,12 +74,13 @@ BROKEN = False  # `--control`: 페이지가 사라진 세계. 측정 불능 가�
 def make_handler(delay, crawl_delay=0, hang=False):
     """`hang=True` 면 페이지 요청을 **받고 안 답한다** — 소켓 타임아웃을 실제로 태운다.
 
-    도착만 적고 자므로 `REQUEST_LOG` 는 여기서도 **응답이 아니라 도착**을 담는다
-    (`delay=0` 인 서버라 아래 순서가 답하는 서버와 같다).
+    받자마자 적고 자므로 `REQUEST_LOG` 는 여기서도 **응답이 아니라 받은 시각**을 담는다
+    (`delay=0` 인 서버라 `ARRIVAL_LOG` 와 사실상 같은 값이 된다).
     """
 
     class Handler(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
+            arrived = time.monotonic()  # **자기 전에** 찍는다 — 계획 105 스텝 1
             port = self.server.server_address[1]
             if self.path == "/robots.txt":
                 # robots 는 안 재운다 — 도메인당 1회 메타 요청이라 지연을 실으면
@@ -90,6 +95,7 @@ def make_handler(delay, crawl_delay=0, hang=False):
                 time.sleep(delay)  # 여기서 요청이 '떠 있는' 상태가 된다
                 with LOG_LOCK:
                     REQUEST_LOG.append((time.monotonic(), port, self.path))
+                    ARRIVAL_LOG.append((arrived, port, self.path))
                 if hang:
                     # 답하지 않는다 — 워커는 `fetcher.TIMEOUT` 10초를 태우고, 그동안
                     # 예산이 만료된다. 데몬 스레드라 e2e 가 끝날 때 같이 죽는다
@@ -117,21 +123,50 @@ def make_handler(delay, crawl_delay=0, hang=False):
     return Handler
 
 
-def page_gaps(port):
-    """그 도메인의 **페이지** 요청 간격. 서버가 응답을 시작한 시각으로 잰다."""
-    times = sorted(t for t, p, _ in REQUEST_LOG if p == port)
+def clear_logs():
+    """시나리오끼리 요청이 섞이면 간격도 유실 수치도 못 잰다. **둘은 짝으로 비운다** —
+    `REQUEST_LOG` 만 비운 자리가 실제로 하나 있었고(시나리오 2 뒤), 오늘은 그 뒤에 도착을
+    읽는 자가 없어 안 보였다. 한 자리로 모아 다음 사람이 짝을 못 깨게 한다.
+    """
+    del REQUEST_LOG[:]
+    del ARRIVAL_LOG[:]
+
+
+def page_gaps(port, log=None):
+    """그 도메인의 **페이지** 요청 간격. 기본은 서버가 응답을 시작한 시각으로 잰다.
+
+    `log=ARRIVAL_LOG` 를 주면 **도착** 시각으로 잰다 — 이 파일의 `PAGE_DELAY` 잠이
+    섞이기 전 값이다.
+    """
+    times = sorted(t for t, p, _ in (REQUEST_LOG if log is None else log) if p == port)
     return [b - a for a, b in zip(times, times[1:])]
 
 
 def check_intervals(ports, where):
-    """예산이 걸린 크롤도 도메인당 1초 하한을 지키는가. **깎으면 여기서 죽는다.**"""
-    measured = []
+    """예산이 걸린 크롤도 도메인당 1초 하한을 지키는가. **깎으면 여기서 죽는다.**
+
+    재는 것은 **도착** 시각이다. `REQUEST_LOG` 는 핸들러가 `PAGE_DELAY` 만큼 **자고 난
+    뒤**라 이 파일 자신의 `time.sleep` 초과분이 간격에 섞인다 — 계획 105 스텝 1 이
+    10판으로 갈랐다: 도착 26칸은 **전부 1.0 이상**(최소 1.007s)인데 응답 시작 쪽만
+    0.907s 까지 내려갔다. 응답 시작은 참고로만 인쇄한다.
+    """
+    served = [g for port in ports for g in page_gaps(port)]
+    arrived = [g for port in ports for g in page_gaps(port, ARRIVAL_LOG)]
+    if served and arrived:
+        print("      [간격] %s — 도착 최소 %.3fs (단언) · 응답시작 최소 %.3fs (참고)"
+              % (where, min(arrived), min(served)))
+    gaps = []
     for port in ports:
-        for gap in page_gaps(port):
-            measured.append(gap)
-            assert gap >= 0.95, (  # 0.05s 는 왕복 지터 여유 — crawl_delay_e2e.py 와 같은 값
-                "%s: 포트 %d 간격 %.3f초 — 예산이 1초 하한을 깎았다" % (where, port, gap))
-    return measured
+        for gap in page_gaps(port, ARRIVAL_LOG):
+            gaps.append(gap)
+            # 사양 `docs/specs/concept.md:25` "간격 1초 이상은 기능이 아니라" 전제 조건이다
+            assert gap >= 1.0, (
+                "%s: 포트 %d 간격 %.3f초 — 1초 하한이 깨졌다" % (where, port, gap))
+    # **하한 못** — `ARRIVAL_LOG` 가 안 차면 위 루프가 한 번도 안 돌아 조용히 통과한다.
+    # 응답 시작 쪽은 그대로 차므로 그 사고는 여기서만 보인다.
+    assert len(gaps) >= len(served), (
+        "%s: 도착 간격이 %d칸뿐이다 — 응답시작은 %d칸이다" % (where, len(gaps), len(served)))
+    return gaps
 
 
 def measured(samples, what, least):
@@ -306,12 +341,12 @@ def main():
         # 잣대가 먼저다 — 이 세계가 예산 없이 몇 페이지를 낼 수 있는지 모르면
         # 아래 둘의 "덜 모았다" 가 아무것도 안 모은 세계에서도 참이 된다
         s0_saved, s0_elapsed = scenario_0_control(seeds, ports)
-        del REQUEST_LOG[:]  # 시나리오끼리 요청이 섞이면 간격도 유실 수치도 못 잰다
+        clear_logs()
         s1_saved, s1_elapsed, s1_err = scenario_1_cli_wiring(seeds)
         gaps_1 = check_intervals(ports, "시나리오 1")
-        del REQUEST_LOG[:]
+        clear_logs()
         s2 = scenario_2_realtime_inflight(seeds, ports)
-        del REQUEST_LOG[:]
+        clear_logs()
         s3_elapsed, s3_hits = scenario_3_no_request_after_deadline(
             "http://127.0.0.1:%d/" % hang_port, hang_port)
     finally:
