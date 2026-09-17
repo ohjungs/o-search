@@ -74,8 +74,8 @@ BROKEN = False  # `--control`: 페이지가 사라진 세계. 측정 불능 가�
 def make_handler(delay, crawl_delay=0, hang=False):
     """`hang=True` 면 페이지 요청을 **받고 안 답한다** — 소켓 타임아웃을 실제로 태운다.
 
-    도착만 적고 자므로 `REQUEST_LOG` 는 여기서도 **응답이 아니라 도착**을 담는다
-    (`delay=0` 인 서버라 아래 순서가 답하는 서버와 같다).
+    받자마자 적고 자므로 `REQUEST_LOG` 는 여기서도 **응답이 아니라 받은 시각**을 담는다
+    (`delay=0` 인 서버라 `ARRIVAL_LOG` 와 사실상 같은 값이 된다).
     """
 
     class Handler(http.server.BaseHTTPRequestHandler):
@@ -121,6 +121,15 @@ def make_handler(delay, crawl_delay=0, hang=False):
             pass
 
     return Handler
+
+
+def clear_logs():
+    """시나리오끼리 요청이 섞이면 간격도 유실 수치도 못 잰다. **둘은 짝으로 비운다** —
+    `REQUEST_LOG` 만 비운 자리가 실제로 하나 있었고(시나리오 2 뒤), 오늘은 그 뒤에 도착을
+    읽는 자가 없어 안 보였다. 한 자리로 모아 다음 사람이 짝을 못 깨게 한다.
+    """
+    del REQUEST_LOG[:]
+    del ARRIVAL_LOG[:]
 
 
 def page_gaps(port, log=None):
@@ -332,14 +341,12 @@ def main():
         # 잣대가 먼저다 — 이 세계가 예산 없이 몇 페이지를 낼 수 있는지 모르면
         # 아래 둘의 "덜 모았다" 가 아무것도 안 모은 세계에서도 참이 된다
         s0_saved, s0_elapsed = scenario_0_control(seeds, ports)
-        del REQUEST_LOG[:]  # 시나리오끼리 요청이 섞이면 간격도 유실 수치도 못 잰다
-        del ARRIVAL_LOG[:]
+        clear_logs()
         s1_saved, s1_elapsed, s1_err = scenario_1_cli_wiring(seeds)
         gaps_1 = check_intervals(ports, "시나리오 1")
-        del REQUEST_LOG[:]
-        del ARRIVAL_LOG[:]
+        clear_logs()
         s2 = scenario_2_realtime_inflight(seeds, ports)
-        del REQUEST_LOG[:]
+        clear_logs()
         s3_elapsed, s3_hits = scenario_3_no_request_after_deadline(
             "http://127.0.0.1:%d/" % hang_port, hang_port)
     finally:
