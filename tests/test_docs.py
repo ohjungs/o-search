@@ -2001,6 +2001,27 @@ class ReadBudgetGapTest(unittest.TestCase):
         self.assertIsNone(read_budget_gap(self._sizes(250, 250, 100)))
 
 
+class ReadBudgetRosterTest(unittest.TestCase):
+    """명부와 파일별 상한을 `rules/docs.md` 1절 그대로 못박는다.
+
+    **명부에 하한이 없으면 자가 제 입력을 줄여 초록이 된다** — 실측(반복 612 변이 M7):
+    `READ_BUDGET_FILES` 에서 `status.md` 한 줄을 빼면 합계에서 180줄이 조용히 사라지고
+    전수 112건이 **그대로 OK** 였다. 오늘 예산을 넘긴 바로 그 파일이 빠지는 변이다.
+    파일별 상한(50/60/300/80)도 같이 못박는다 — 단언에는 안 쓰이지만 **실패 메시지가
+    사람에게 인쇄하는 수**라, 틀리면 어느 파일을 볼지를 틀리게 알려준다(M8·M9 도 살았다).
+
+    룰 파일은 저장소 밖(`~/.claude/skills/loop-harness`)이라 대조할 원본을 임포트할 수
+    없다. 그래서 **값을 그대로 적어 고정**한다 — 룰이 바뀌면 이 줄이 빨개지고, 그때
+    사람이 두 곳을 같이 고친다 (`E2E_ROSTER_FLOOR`·`CONST_CITATION_FLOOR` 과 같은 자리).
+    """
+
+    def test_the_roster_is_the_four_files_the_rule_names(self):
+        self.assertEqual(
+            READ_BUDGET_FILES,
+            (("status.md", 50), ("project.md", 60), ("history_current.md", 300)))
+        self.assertEqual(READ_BUDGET_PLAN_CAP, 80)
+
+
 class ReadBudgetSizesTest(unittest.TestCase):
     """`read_budget_sizes` 의 세 갈래를 픽스처로 밟는다.
 
