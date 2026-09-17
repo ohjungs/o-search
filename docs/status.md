@@ -1,19 +1,19 @@
 ---
-signal: GREEN
+signal: DONE
 phase: 마감
 step: 2/2
 attempt: 0
 plan: dep-zero
-iteration: 607
+iteration: 608
 updated: 2026-09-17
 mode: night
-night_iterations: 1
+night_iterations: 2
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
 ctx: 측정 불가 — 게이트 ⑦ **스물한 번째 재현**. `.context-state.json` 의 `session_id`(`4b0e3020…`)에 해당하는 `.jsonl` 이 내 프로젝트 슬러그 **40개 중 없다 — 남의 세션 파일이다**. 이번엔 **4.7분**밖에 안 낡아 신선도 검사로는 안 걸린다 — **소유가 유일한 판정이라는 ⑦ 의 요점 그대로다**. 그 파일의 `context_used 13` 은 내 값이 아니다. 다만 `five_hour 30`·`seven_day 55` 는 **계정 단위라 세션과 무관하게 참이고 둘 다 85 아래다** — 정지 조건 둘 중 한도 축은 살아 있고 컨텍스트 축만 죽었다. `SKILL.md` 3절대로 **반복 상한에 의존**한다
 rules: (저장소 밖 `~/.claude/skills/loop-harness` — 커밋 해시 없음)
-note: **e2e phase — 계획서대로 별도 파일을 안 만들고 변이를 e2e 로 돌렸다.** 진짜 소스에 평범한 임포트 한 줄을 심고 맨몸 전수를 쳤다: **넷 전부 빨감**(M-A `src` `import requests` · M-B `src` `import six` · M-C `e2e` 함수 본문 안 · M-D `tests` `from` 임포트) 이고 트리는 매번 되돌렸다. **M-B 가 이 계획이 존재하는 이유다** — `six` 는 `<stdlib>/…/site-packages/six.py` 라 반복 606 전 판정이 통과시키던 자리고, 오늘은 797 중 **정확히 하나**가 줄번호까지 짚으며 죽는다. **M-A 는 덤을 줬다**: 안 깔린 패키지는 전수가 어차피 빨갛지만 모양이 **실패 11 · 에러 10 · 수집 797→662** 인 난장판이라 「내 기계 문제」로 읽힌다 — 이 자의 값은 M-A 가 아니라 **M-B** 에 있다. 전수 **797 OK**(20.2s/21.2s) · `git status` 빔 · 제품 `src/` **0줄**. 다음 반복이 마감이다
+note: **계획 103 `dep-zero` 마감 — DONE.** 아카이브: 계획서 → `plan_history_078.md` · 설계 → `design_history_078.md`, `tests/test_deps.py:16` 의 설계 인용을 새 이름으로 따라 옮겼다(이 저장소는 코드에서 아카이브 이름을 그대로 부르는 관례다). `index.md` 103 행: 진행 → **완료 · 판정 통과**. **남긴 것** — 컨셉 경량 3·5 를 재는 코드가 **0줄**이던 자리에 자가 섰고, 그것이 `project.md` 품질 기준 표 일곱 줄 중 **유일하게 「안 쳐도 물리는」 줄**이다. 나머지 여섯은 여전히 사람이 기억해서 쳐야 한다. 제품 `src/` **0줄** — 오늘 위반이 진짜로 0 이라 고칠 것이 없었고 나온 것은 자 하나다(**굳히는 계획**). **다음 반복은 탐색**이다 — 여덟 출처가 네 밤째 0건이면 컨셉을 또 자로 댄다
 ---
 
 ## 반복 594 — 계획 phase · 컨셉을 자로 대서 빈손을 끊었다 · 계획 102 `serve-rss`
