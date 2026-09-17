@@ -1,19 +1,19 @@
 ---
 signal: GREEN
-phase: e2e
+phase: 마감
 step: 2/2
 attempt: 0
 plan: dep-zero
-iteration: 606
-updated: 2026-09-16
+iteration: 607
+updated: 2026-09-17
 mode: night
-night_iterations: 5
+night_iterations: 1
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
-ctx: 측정 불가 — 게이트 ⑦ **스무 번째 재현**. `.context-state.json` 의 `session_id`(`4b0e3020…`)에 해당하는 `.jsonl` 이 `~/.claude/projects/-Users-t2025-m0191-work-websearch/` 에 **없다 — 남의 세션 파일이다**. **104.6분** 낡았고 `five_hour_resets_at` 도 지났다. 그 파일의 `9 / 30 / 55` 는 **내 값이 아니다**. statusLine 꺼진 것과 동일 취급 · `SKILL.md` 3절대로 **반복 상한에만 의존**한다
+ctx: 측정 불가 — 게이트 ⑦ **스물한 번째 재현**. `.context-state.json` 의 `session_id`(`4b0e3020…`)에 해당하는 `.jsonl` 이 내 프로젝트 슬러그 **40개 중 없다 — 남의 세션 파일이다**. 이번엔 **4.7분**밖에 안 낡아 신선도 검사로는 안 걸린다 — **소유가 유일한 판정이라는 ⑦ 의 요점 그대로다**. 그 파일의 `context_used 13` 은 내 값이 아니다. 다만 `five_hour 30`·`seven_day 55` 는 **계정 단위라 세션과 무관하게 참이고 둘 다 85 아래다** — 정지 조건 둘 중 한도 축은 살아 있고 컨텍스트 축만 죽었다. `SKILL.md` 3절대로 **반복 상한에 의존**한다
 rules: (저장소 밖 `~/.claude/skills/loop-harness` — 커밋 해시 없음)
-note: **리뷰 phase — 백지 패스가 치명 둘을 실증해 머지 보류가 나왔고, 고쳐서 풀었다.** ① **거짓 초록**: `site-packages` 가 stdlib 디렉터리 **밑**인 설치가 대부분이라(이 저장소의 CommandLineTools 파이썬 포함) `six`·`setuptools`·`wheel` 이 **전부 통과**했다 — `requests` 만 빨갰던 것은 **안 깔려서**였고, uv 3.10 site-packages 에 심으니 `scan` 이 **위반 0**. 막겠다고 적은 문장을 그대로 재현하고 있었다. ② **거짓 빨강**: 3.11+ 의 frozen 모듈(`os`·`io`·`abc`)은 `origin` 이 `'frozen'` 이라 **3.12·3.13·3.14 에서 `import os` 41자리가 위반**. 처방은 판정 세 줄 + 테스트 세 건인데 **요점은 테스트가 `is_stdlib_origin(origin)` 을 문자열로 친다**는 것이다 — 두 판 다 이 기계에서 재현이 안 돼 그러지 않으면 **어떤 테스트에도 안 걸린다**. 변이 M6·M7·M8 전부 물림(**frozen 줄 제거는 3.9 에서도 죽는다**). 모집단 디렉터리 부재가 **수집 에러**였던 것도 고쳐 `FILE_FLOOR` 가 물게 했다. 전수 **797 OK** · **3.9~3.14 전부 초록** · 제품 `src/` **0줄**. 다음 반복이 e2e(마지막)다
+note: **e2e phase — 계획서대로 별도 파일을 안 만들고 변이를 e2e 로 돌렸다.** 진짜 소스에 평범한 임포트 한 줄을 심고 맨몸 전수를 쳤다: **넷 전부 빨감**(M-A `src` `import requests` · M-B `src` `import six` · M-C `e2e` 함수 본문 안 · M-D `tests` `from` 임포트) 이고 트리는 매번 되돌렸다. **M-B 가 이 계획이 존재하는 이유다** — `six` 는 `<stdlib>/…/site-packages/six.py` 라 반복 606 전 판정이 통과시키던 자리고, 오늘은 797 중 **정확히 하나**가 줄번호까지 짚으며 죽는다. **M-A 는 덤을 줬다**: 안 깔린 패키지는 전수가 어차피 빨갛지만 모양이 **실패 11 · 에러 10 · 수집 797→662** 인 난장판이라 「내 기계 문제」로 읽힌다 — 이 자의 값은 M-A 가 아니라 **M-B** 에 있다. 전수 **797 OK**(20.2s/21.2s) · `git status` 빔 · 제품 `src/` **0줄**. 다음 반복이 마감이다
 ---
 
 ## 반복 594 — 계획 phase · 컨셉을 자로 대서 빈손을 끊었다 · 계획 102 `serve-rss`
