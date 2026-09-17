@@ -22,6 +22,7 @@
 
 import pathlib
 import re
+import tempfile
 import unittest
 
 DOCS = pathlib.Path(__file__).resolve().parent.parent / "docs"
@@ -526,6 +527,67 @@ HISTORY_ENTRY_HEAD = re.compile(r"^### 반복 ", re.M)
 # 회전 직후에는 항목이 몇 개든 정당하고, 값에 못을 박으면 정당한 날 거짓 RED 다
 # (`CONST_CITATION_FLOOR` 이 2 가 아니라 1 인 것과 같은 이유).
 HISTORY_ENTRY_FLOOR = 1
+
+
+# `rules/docs.md` 1절이 «매 반복 읽는 넷»에 건 **총합** 상한. 파일별 상한의 합은
+# 50+60+80+300 = **490** 이라 이 수보다 작다 — 룰이 남긴 110 줄의 여유가 의도고,
+# 그래서 총합은 파일별의 파생이 아니라 **따로 물어야 하는 축**이다. 실제로 오늘
+# `history_current.md` 300 축은(`HistoryCapTest` 가 무는 유일한 축) 안 넘겼는데
+# 총합은 넘겼다.
+READ_BUDGET_CAP = 600
+# (파일명, 그 파일의 상한). 활성 계획은 슬러그가 매번 달라 여기 못 적고 아래서 붙인다.
+READ_BUDGET_FILES = (("status.md", 50), ("project.md", 60), ("history_current.md", 300))
+READ_BUDGET_PLAN_CAP = 80
+
+
+def read_budget_gap(sizes):
+    """필수 읽기 넷의 **합**이 상한을 넘었으면 한 줄로 돌려준다. 안 넘었으면 `None`.
+
+    `sizes` 는 `(파일명, 실측 줄 수, 그 파일의 상한)` 의 순서열이다 — 재는 일과 판정을
+    갈라 놔야 픽스처로 경계를 고정할 수 있다 (`cap_gap` 이 텍스트를 받는 것과 같다).
+
+    **파일별 상한은 인쇄만 하고 안 문다.** 넘긴 파일이 있어도 합이 상한 안이면 조용하다.
+    처방의 성질이 달라서다 — 합계는 중복 접기·회전이라 무인 루프가 실행할 수 있지만,
+    개별 파일을 제 상한까지 줄이는 것은 「무엇을 남길지 사람이 고르기」다. 못을 박으면
+    야간이 스스로 못 푸는 RED 가 된다(`digest.md` 200 을 일부러 안 재는 것과 같은 이유 —
+    위 `HISTORY_LINE_CAP` 주석). 대신 **실패 메시지가 파일별 실측/상한을 전부 인쇄**한다.
+    합계만 알려주면 사람이 어느 파일을 볼지 모른다.
+
+    **경계는 초과가 아니다** — 룰 문구가 「넘으면」이라 정확히 600 인 날은 조용하다
+    (`cap_gap` 과 같은 판단).
+    """
+    total = sum(n for _, n, _ in sizes)
+    if total <= READ_BUDGET_CAP:
+        return None
+    detail = " · ".join("%s %d/%d" % (name, n, cap) for name, n, cap in sizes)
+    return ("필수 읽기가 상한을 넘었다 — 합계 %d > %d (%s). 원본이"
+            " `history_current.md`·`index.md`·`docs/e2e/*/result.md` 에 **있는 것을 확인한**"
+            " 줄만 접는다 (`rules/docs.md` 1절)" % (total, READ_BUDGET_CAP, detail))
+
+
+def read_budget_sizes(docs=DOCS):
+    """살아 있는 문서에서 `read_budget_gap` 의 입력을 만든다.
+
+    **활성 계획은 `status.md` 가 가리킬 때만 센다** — DONE 인 날은 읽을 계획이 없어
+    넷이 아니라 셋이고, 다 읽은 계획서를 계속 세면 없는 비용을 무는 것이다.
+    슬러그 추출은 `PLAN_SLUG` 를 그대로 쓴다. 그 정규식이 드리프트하면 계획이 조용히
+    안 세어지지만 **그 자리는 `LivePlanSyncTest` 가 이미 물고 있다**(같은 상수로
+    `index.md` 의 진행 행을 찾는다) — 여기 하한을 또 박지 않는 이유다.
+
+    `docs` 를 인자로 받는 것은 **픽스처가 두 분기를 밟기 위해서다** — 살아 있는 트리는
+    「계획이 있고 파일도 있다」 한 갈래뿐이라 나머지 둘이 아무도 안 밟는 채로 초록이 된다
+    (실측: 변이 「파일 없어도 센다」·「아예 안 센다」가 둘 다 살았다).
+    """
+    sizes = [(name, len((docs / name).read_text(encoding="utf-8").splitlines()), cap)
+             for name, cap in READ_BUDGET_FILES]
+    slug = PLAN_SLUG.search((docs / "status.md").read_text(encoding="utf-8"))
+    if slug:
+        plan = docs / ("plan_%s.md" % slug.group(1))
+        if plan.exists():
+            sizes.append((plan.name,
+                          len(plan.read_text(encoding="utf-8").splitlines()),
+                          READ_BUDGET_PLAN_CAP))
+    return sizes
 
 
 def cap_gap(text):
@@ -1895,6 +1957,108 @@ class HistoryCapTest(unittest.TestCase):
             len(found), HISTORY_ENTRY_FLOOR,
             "history_current.md 의 `### 반복` 항목이 %d개다 — 파일이 비었거나 항목 머리"
             " 문구가 바뀌었고, 그러면 항목 축은 아무것도 안 잰다" % len(found))
+
+
+class ReadBudgetGapTest(unittest.TestCase):
+    """`read_budget_gap` 이 무는 것과 안 무는 것을 픽스처로 고정한다."""
+
+    def _sizes(self, status, project, history, plan=None):
+        sizes = [("status.md", status, 50), ("project.md", project, 60),
+                 ("history_current.md", history, 300)]
+        if plan is not None:
+            sizes.append(("plan_x.md", plan, 80))
+        return sizes
+
+    def test_under_the_cap_is_silent(self):
+        self.assertIsNone(read_budget_gap(self._sizes(50, 60, 300, 80)))
+
+    def test_exactly_the_cap_is_silent(self):
+        # 경계는 초과가 아니다 — 룰 문구가 「넘으면」이다. 그날 접기를 강요하면
+        # 거짓 RED 고, 다음 append 가 어차피 문다 (`CapGapTest` 와 같은 판단).
+        self.assertIsNone(read_budget_gap(self._sizes(100, 100, 300, 100)))
+
+    def test_one_line_over_the_cap_bites(self):
+        gap = read_budget_gap(self._sizes(100, 100, 300, 101))
+        self.assertIsNotNone(gap)
+        self.assertIn("합계 601 > 600", gap)
+
+    def test_the_message_prints_every_file_with_its_own_cap(self):
+        # 합계만 알려주면 사람이 어느 파일을 볼지 모른다. 이 단언이 없으면 내역을
+        # 빼는 변이가 살아남는다.
+        gap = read_budget_gap(self._sizes(299, 63, 241, 100))
+        for expected in ("status.md 299/50", "project.md 63/60",
+                         "history_current.md 241/300", "plan_x.md 100/80"):
+            self.assertIn(expected, gap)
+
+    def test_a_file_over_its_own_cap_is_silent_while_the_sum_fits(self):
+        # **이 자의 설계 결정 자체가 여기 걸려 있다.** status.md 가 제 상한 50 의
+        # 여섯 배여도 합이 600 안이면 안 문다 — 처방이 사람 판단이라 야간이 스스로
+        # 못 푸는 못이 되기 때문이다. 파일별을 단언으로 승격하는 변이는 여기서 죽는다.
+        self.assertIsNone(read_budget_gap(self._sizes(299, 60, 200, 40)))
+
+    def test_no_active_plan_counts_three_files(self):
+        # DONE 인 날은 읽을 계획이 없다. 없는 계획을 80 으로 쳐서 무는 변이가 여기서 죽는다.
+        self.assertIsNone(read_budget_gap(self._sizes(250, 250, 100)))
+
+
+class ReadBudgetSizesTest(unittest.TestCase):
+    """`read_budget_sizes` 의 세 갈래를 픽스처로 밟는다.
+
+    살아 있는 트리는 「계획을 가리키고 그 파일도 있다」 한 갈래뿐이다 — 나머지 둘은
+    여기서만 밟힌다.
+    """
+
+    def _docs(self, tmp, plan_line, make_plan):
+        docs = pathlib.Path(tmp)
+        (docs / "status.md").write_text("---\n%s\n---\n" % plan_line, encoding="utf-8")
+        (docs / "project.md").write_text("a\nb\n", encoding="utf-8")
+        (docs / "history_current.md").write_text("c\n", encoding="utf-8")
+        if make_plan:
+            (docs / "plan_x.md").write_text("d\ne\nf\n", encoding="utf-8")
+        return docs
+
+    def test_an_active_plan_with_a_file_is_counted(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            sizes = read_budget_sizes(self._docs(tmp, "plan: x", True))
+        self.assertEqual(sizes[-1], ("plan_x.md", 3, READ_BUDGET_PLAN_CAP))
+
+    def test_an_active_plan_without_a_file_is_not_counted(self):
+        # 아카이브 직후 `status.md` 가 아직 옛 슬러그를 가리키는 날이 있다. 없는
+        # 파일을 80 으로 치면 없는 비용을 무는 것이다.
+        with tempfile.TemporaryDirectory() as tmp:
+            sizes = read_budget_sizes(self._docs(tmp, "plan: x", False))
+        self.assertEqual(len(sizes), len(READ_BUDGET_FILES))
+
+    def test_no_plan_line_is_not_counted(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            sizes = read_budget_sizes(self._docs(tmp, "signal: DONE", False))
+        self.assertEqual(len(sizes), len(READ_BUDGET_FILES))
+
+
+class ReadBudgetTest(unittest.TestCase):
+    """살아 있는 필수 읽기 넷이 `rules/docs.md` 1절의 총합 상한 안인가.
+
+    **이 검사가 있는 이유는 그 상한을 지키는 것이 사람의 기억뿐이었기 때문이다** —
+    저장소는 이 예산을 세 번 고쳤고(`status-read-budget` 721→448 ·
+    `status-narrative-fold` 600→589 · 계획 97 `project-md-diet` 600→411) 세 번 다
+    손이라 자가 안 남았다. 97 이 스스로 적어 둔 예측(「앞 둘이 되밀린 것은 밤마다
+    쓰는 파일이라서다」)대로 `status.md` 가 103 → 299 로 돌아오는 동안 **전수 797건이
+    조용했고**, 정작 `status.md` 본문은 「525줄/600 · 여유 75줄」이라 적고 있었다 —
+    손으로 적은 수가 파일과 따로 늙는다.
+
+    `HistoryCapTest` 가 무는 `history_current.md` 300 축은 그동안 안 넘겼다.
+    **무는 자가 있는 축은 안 넘겼고, 없는 축이 넘겼다.**
+    """
+
+    def test_live_required_reading_is_within_the_budget(self):
+        gap = read_budget_gap(read_budget_sizes())
+        self.assertIsNone(gap, gap)
+
+    def test_live_sizes_are_all_nonzero(self):
+        # 위 단언은 파일이 비면 «합이 작아져» 더 초록이다. 넷 중 하나가 0줄이면
+        # 세는 일 자체가 고장 난 것이다 (`HISTORY_ENTRY_FLOOR` 과 같은 자리).
+        for name, lines, _ in read_budget_sizes():
+            self.assertGreater(lines, 0, "%s 가 0줄이다 — 재는 일이 고장 났다" % name)
 
 
 if __name__ == "__main__":
