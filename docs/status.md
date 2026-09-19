@@ -1,26 +1,27 @@
 ---
-signal: DONE
-phase: e2e
-step: 3/3
+signal: GREEN
+phase: 설계
+step: 0/3
 attempt: 0
-plan: verdict-last
-iteration: 632
+plan: zero-population
+iteration: 633
 updated: 2026-09-19
 mode: night
-night_iterations: 8
+night_iterations: 9
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
-ctx: 측정 불가 — 게이트 ⑦ **스물여섯 번째 재현**. `updated_unix` 가 **46분** 낡았고 `session_id` 는 여전히 내 프로젝트 슬러그에 없는 남의 것이라 `context_used 5` 는 내 값이 아니다. `five_hour 30`·`seven_day 55` 는 계정 단위라 참이고 **둘 다 85 아래** — 반복 상한에만 의존한다(`SKILL.md` 3절)
+ctx: 측정 불가 — 게이트 ⑦ **스물일곱 번째 재현**. `updated_unix` 가 **63분** 낡았고 `session_id` 는 여전히 내 프로젝트 슬러그에 없는 남의 것이라 `context_used 5` 는 내 값이 아니다. `five_hour 30`·`seven_day 55` 는 계정 단위라 참이고 **둘 다 85 아래** — 반복 상한에만 의존한다(`SKILL.md` 3절)
 rules: (저장소 밖 `~/.claude/skills/loop-harness` — 커밋 해시 없음)
-note: **계획 106 `verdict-last` DONE.** e2e 5종 전부 통과 — 여기서 **처음 «진짜 전수»로 쟀다**(그 전은 전부 가짜 러너였다 · `docs/e2e/verdict-last/result.md`). **③ 빨간 전수가 중심이다**: `tests/test_smoke.py` 에 변이를 심고 `-b + 2>&1 | tail -3` 으로 재니 **래퍼 없이는 판정 0줄에 쉘 `rc=0`** — 실패한 전수가 「아무 일도 없었다」로 보이고 쉘까지 0 을 준다. digest 최다 항목(35회)의 **실물**이다. **래퍼로는 `── Ran 826 tests in 25.9s FAILED (failures=1) rc=1`** 이 마지막 줄에 남고 맨몸 `rc=1`. ② 음성 대조 — 계획서 1-1 탐침이 일곱 반복 뒤 같은 기계에서 **그대로 죽는다**(판정 0줄 · 아무것도 없음). ① 초록 전수는 세 손 전부에서 판정이 마지막 줄. ④ 진짜 e2e 스크립트(`tokenizer_e2e.py`)는 판정 칸이 비고 `── rc=0` 만 — **설계 천장의 실물 확인**. ⑤ 실물 전수에 프로세스 그룹 SIGINT → **`── 중단됨 rc=130`** · rc 130(고치기 전이면 `rc=0` 이었다). **새 `e2e/*.py` 0개** — 시나리오가 전부 「러너를 어떻게 부르나」라 스크립트를 만들면 그것을 또 래퍼로 감는 자기 참조가 된다. **품질 4축은 «해당 없음 · 검증 안 함»** — 일곱 축 전부 `src/` 거동을 재는데 이 계획은 `src/` 를 0줄 고쳤다(「통과」라고 쓰지 않는다). 변이 원복은 `cmp -s` + `git diff --quiet` **두 겹**으로 확인했다(반복 628 이 공허하게 통과한 자리다). 아카이브: `plan_history_081.md` · `design_history_079.md`. **다음은 `scripts/merge-to-main.sh` 병합.**
+note: **계획 106 은 `main` 에 들어갔다**(`1dbfdde` — `scripts/merge-to-main.sh` 가 병합 «결과»에서 전수 826 OK 를 보고 밀었다). **계획 107 `zero-population` 착수 · 설계 phase.** 근거는 digest 최다 항목의 **서른일곱째**이고 그것이 106 의 래퍼가 못 덮는 나머지 절반이다 — 시작 디렉터리를 빠뜨린 전수가 `Ran 0 tests / OK / rc=0` 을 낸다. **가려진 것은 출력이 아니라 모집단**이라 판정 줄도 `rc` 도 참을 말한다. **탐침 2회(무인 상한)**: ① 실물 저장소에서 재현 — 맨몸도 래퍼도 초록(`── Ran 0 tests in 0.000s OK rc=0`). ② `git clone --local` 사본에 `tests/__init__.py` **한 개(빈 파일)** 를 놓으니 시작 디렉터리 없는 맨몸이 **826 OK** 로 돌고, 문서화된 두 꼴(`discover -b tests` · `-s tests`)도 826 OK 그대로다. **설계로 넘긴다 — 대안이 갈린다**: A 래퍼가 `Ran 0 tests` 를 사고로 읽는다(부류를 막지만 래퍼 통과분만) · B `tests/__init__.py`(덫을 뿌리에서 없애지만 0건이 나오는 다른 길은 남는다) · C 둘 다. 계획서 `docs/plan_zero-population.md`(3절에 갈림길·4절에 스텝 셋과 의존). **1~3순위 실측 0건** — 전수 826 OK · 린터·타입체커 없음 · `TODO`/`FIXME`/`HACK` 은 `tests/test_indexer.py:1027` 의 파서 입력 문자열 안 1건뿐. 4순위 `docs/candidates.md` 없음. **중복 방지 5곳 전수**: `index.md` 계획 슬러그 84개에 모집단 축 0개 · digest 완료 0건 · 활성 계획 0(`plan_userinfo-leak.md` 는 보류) · 보류 1건(userinfo-leak, 무관) · `docs/patches/` 1개(userinfo-leak, 무관) · `gh issue` 0건.
 ---
 
-## 계획 106 `verdict-last` — 판정 줄을 가리는 손을 기제로 막는다
+## 계획 107 `zero-population` — 0건 전수는 초록이 아니다
 
-**접었다(반복 631).** 근거(digest 최다 재발 35회)·재현 탐침 셋·설계 갈림길(A 얇은 zsh 래퍼)
-전문이 **이 반복이 어차피 읽는 두 문서**에 그대로 있다 — `plan_verdict-last.md` 1·1-1·7절 ·
-`design_verdict-last.md`. 반복별 서술은 `history_current.md` 625~631.
+**여기에 안 옮긴다.** 근거·탐침 2회·갈림길 셋(A 래퍼 · B `tests/__init__.py` · C 둘 다)·
+스텝 셋과 의존 전문이 **다음 반복이 어차피 읽는 계획서**에 있다 —
+`docs/plan_zero-population.md`. 계획 106 의 서술은 `history_current.md` 625~632.
+
 ## 앞 밤(2026-09-18)이 `main` 으로 보낸 것 — 103 · 104 · 105
 
 세 계획 다 **제품 `src/` 0줄**이다. 이 밤은 코드가 아니라 **재는 자들**을 고쳤다.
