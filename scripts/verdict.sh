@@ -35,7 +35,10 @@ set -u
 
 [[ $# -ge 1 ]] || { print -u2 -- "감쌀 명령이 없다: scripts/verdict.sh <명령...>"; exit 2 }
 
-log=$(mktemp)
+# 자리를 명시한다 — 인자 없는 `mktemp` 는 이 기계(macOS)에서 **`TMPDIR` 을 안 본다**
+# (`_CS_DARWIN_USER_TEMP_DIR` 을 쓴다). 그래서 「로그가 안 남는가」를 재려던 자가
+# 빈 상자만 보고 통과했다(2026-09-19 실측). 이름도 박아 둔다 — 남으면 누구 것인지 보인다.
+log=$(mktemp "${TMPDIR:-/tmp}/verdict.XXXXXX")
 trap 'rm -f "$log"' EXIT INT TERM
 
 # 흐르는 쪽을 골랐다 — `>log` 후 `cat` 판과 판정 축에서 동률이고, 갈린 것은 실행 중

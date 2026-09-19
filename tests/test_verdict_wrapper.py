@@ -125,5 +125,84 @@ class VerdictLastTest(unittest.TestCase):
                          % (out,))
 
 
+class VerdictGapTest(unittest.TestCase):
+    """테스트 phase 갭 탐색(`rules/test.md` 3절)이 찾은 것들.
+
+    **점수 8 미만도 넣었다.** 규칙은 「8 이상만 이번 스텝」인데, 이 파일이 재는 것은
+    제품이 아니라 **재는 자 자신**이라 기준을 낮췄다 — 여기가 조용히 틀리면 이 저장소의
+    모든 판정이 함께 틀린다. 각 4줄이라 비용도 그 값을 안 넘는다.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+
+    def fake(self, body):
+        path = pathlib.Path(self.tmp.name) / "runner.py"
+        path.write_text(body, encoding="utf-8")
+        return path
+
+    def test_a_green_run_also_ends_with_the_verdict(self):
+        """**갭 ⑥ · 8점** — 위의 넷은 전부 **빨간** 러너로만 쟀다.
+
+        실제 실행의 대부분은 초록이고, `rc=0` 경로는 단 한 줄도 안 밟히고 있었다.
+        `exit $rc` 가 초록에서 틀리면 **통과가 실패로 보이고**, 그건 밤을 통째로 세운다.
+        """
+        runner = self.fake("import sys\nsys.stderr.write('Ran 3 tests in 0.1s\\n\\nOK\\n')\n")
+        out, rc = run_zsh("%s python3 %s | tail -1" % (WRAPPER, runner), ROOT)
+        self.assertIn("Ran 3 tests", out)
+        self.assertIn("OK", out)
+        self.assertIn("rc=0", out)
+        self.assertEqual(0, rc, "파이프의 rc 라 0 이어야 한다 — `tail` 의 것이다")
+
+    def test_a_command_with_no_verdict_words_still_carries_rc(self):
+        """**갭 ⑥ · 7점** — 설계의 천장(`design_verdict-last.md` 「천장」)을 계약으로 바꾼다.
+
+        `grep` 이 묶여 있는 `Ran|OK|FAILED` 는 `unittest` 의 표기다. e2e 22종은 그
+        낱말을 안 쓰므로 판정 칸이 비는데, **그때도 `rc` 는 남아야** 래퍼가 e2e 에서
+        쓸모 있다. 문서에만 적힌 천장은 다음 사람이 고치면서 조용히 무너진다.
+        """
+        runner = self.fake("print('크롤 완료')\n")
+        out, _ = run_zsh("%s python3 %s | tail -1" % (WRAPPER, runner), ROOT)
+        self.assertIn("rc=0", out.strip().split("\n")[-1],
+                      "판정 낱말이 없는 명령에서 마지막 줄이 `rc` 를 안 실었다: %r" % (out,))
+
+    def test_the_log_file_does_not_survive(self):
+        """**갭 ③ · 7점** — `trap` 이 임시 로그를 지우는가.
+
+        이 저장소는 자원 누수에 한 번 데었다(반복 586 의 `ResourceWarning` 12건).
+        래퍼는 **모든 실행마다** 도므로 안 지우면 `$TMPDIR` 이 조용히 쌓인다.
+        """
+        box = pathlib.Path(self.tmp.name) / "tmpdir"
+        box.mkdir()
+        runner = self.fake("print('x')\n")
+        run_zsh("TMPDIR=%s %s python3 %s" % (box, WRAPPER, runner), ROOT)
+        leftover = sorted(p.name for p in box.iterdir())
+        self.assertEqual([], leftover, "임시 로그가 남았다: %r" % (leftover,))
+
+    def test_arguments_survive_intact_including_the_empty_one(self):
+        """**갭 ② · 6점** — `"$@"` 의 인용이 살아 있나.
+
+        **첫 판은 이빨이 없었다.** 공백 든 인자로 쟀는데 `"$@"` → `$@` 변이가 **살아남았다**
+        — zsh 는 따옴표 없는 배열 확장을 **단어 분할하지 않는다**(bash 와 다르다).
+        실제로 갈리는 것은 **빈 인자**다: 인용을 벗기면 `("하나", "", "둘")` 이 2개가 된다
+        (실측). 그래서 재는 자리를 공백에서 **빈 인자**로 옮겼다 — 빈 인자는 실제로 온다
+        (`-k ''` · 빈 환경 변수 전개).
+        """
+        runner = self.fake("import sys\nprint('받은 것:', len(sys.argv) - 1, sys.argv[1:])\n")
+        out, _ = run_zsh('%s python3 %s "두 낱말" "" 끝' % (WRAPPER, runner), ROOT)
+        self.assertIn("받은 것: 3 ['두 낱말', '', '끝']", out,
+                      "인자가 그대로 안 넘어갔다 — 빈 것이 사라졌거나 공백에서 쪼개졌다: %r" % (out,))
+
+    def test_calling_it_with_nothing_is_an_error_not_a_green(self):
+        """**갭 ① · 6점** — 가드절이 실제로 무는가.
+
+        빈 호출이 `rc=0` 으로 끝나면 **아무것도 안 돌리고 초록**이다. ㉓ 과 같은 모양
+        (0 을 세면서 통과)이라 값이 점수보다 크다.
+        """
+        out, rc = run_zsh("%s" % WRAPPER, ROOT)
+        self.assertEqual(2, rc, "빈 호출의 종료 코드가 2 가 아니다 — 출력: %r" % (out,))
+
+
 if __name__ == "__main__":
     unittest.main()

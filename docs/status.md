@@ -1,19 +1,19 @@
 ---
 signal: GREEN
-phase: 테스트
+phase: 리뷰
 step: 3/3
 attempt: 0
 plan: verdict-last
-iteration: 629
+iteration: 630
 updated: 2026-09-19
 mode: night
-night_iterations: 5
+night_iterations: 6
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
 ctx: 측정 불가 — 게이트 ⑦ **스물다섯 번째 재현**. 5반복째 재확인이라 다시 쳤다: `session_id` 가 또 바뀌었고(`0ecf2699…`) 그 이름의 `.jsonl` 이 내 프로젝트 슬러그에 **없다 — 세 번째로 다른 남의 세션**이다. `updated_unix` 는 14분 낡았고 `context_used 5` 는 내 값이 아니다. `five_hour 30`·`seven_day 55` 는 계정 단위라 참이고 **둘 다 85 아래** — 반복 상한에만 의존한다(`SKILL.md` 3절)
 rules: (저장소 밖 `~/.claude/skills/loop-harness` — 커밋 해시 없음)
-note: **스텝 3 닫혔다 — 개발 phase 끝. 다음은 테스트 phase.** `project.md` 명령 절이 래퍼를 부른다(`PYTHONPATH=src scripts/verdict.sh python3 -m unittest discover -b tests`) — **적기 전에 그 문자열 그대로 돌렸고** `── Ran 818 tests in 25.5s OK rc=0`. **조항은 안 지웠다**: 래퍼가 덮는 것은 「래퍼를 통해 부른 것」뿐이고 맨손으로 러너를 직접 치는 길은 열려 있다. **래퍼가 못 덮는 자리를 명령 옆에 적어 뒀다** — 시작 디렉터리를 빼면 `Ran 0 tests / OK / rc=0` 이 **정직하게** 실려 나간다(㉓). 기제가 지키는 것은 「판정이 보이는가」지 「모집단이 맞는가」가 아니다. README 는 안 건드렸다 — 바깥 독자가 읽는 문서에 zsh 전용 자를 끼우지 않는다.
+note: **테스트 phase — 갭 5건을 메웠고 그중 둘은 «이빨이 없던 자»였다.** 새 자 5건(전수 **823 OK**): ⓐ**초록 경로**(8점 — 앞의 넷이 전부 «빨간» 러너로만 쟀다. 실제 실행의 대부분은 초록인데 `rc=0` 경로가 한 줄도 안 밟히고 있었다) ⓑ판정 낱말 없는 명령도 `rc` 를 싣는가(7점 — 설계의 «천장»을 문서에서 계약으로 옮겼다) ⓒ임시 로그가 안 남는가(7점) ⓓ인자가 그대로 넘어가는가(6점) ⓔ빈 호출이 초록이 아닌가(6점). **다섯이 처음부터 초록이었고 그것만으로는 증거가 아니라서 겨냥 변이를 하나씩 심었다 — 첫 판에 ⓒ와 ⓓ가 살아남았다.** ⓒ: 인자 없는 `mktemp` 는 이 기계에서 **`TMPDIR` 을 안 본다**(`_CS_DARWIN_USER_TEMP_DIR`) — 자가 빈 상자만 보고 통과하고 있었다. 래퍼가 자리를 명시하게 고쳤다(`mktemp "${TMPDIR:-/tmp}/verdict.XXXXXX"`). ⓓ: **zsh 는 따옴표 없는 배열 확장을 단어 분할하지 않는다** — 공백으로는 못 가른다. 실제로 갈리는 것은 **빈 인자**라 재는 자리를 옮겼다. 고친 뒤 **변이 5판 전부 죽는다**. **밤이 세 번째로 같은 얼굴을 봤다: 자가 0 을 세면서 통과한다**(㉓ · 원복 검사 · 그리고 이 둘). **다음은 리뷰 phase.**
 ---
 
 ## 계획 106 `verdict-last` — 판정 줄을 가리는 손을 기제로 막는다 (반복 625 · 계획 phase)
