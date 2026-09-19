@@ -1,19 +1,19 @@
 ---
-signal: GREEN
+signal: DONE
 phase: e2e
 step: 3/3
 attempt: 0
 plan: verdict-last
-iteration: 631
+iteration: 632
 updated: 2026-09-19
 mode: night
-night_iterations: 7
+night_iterations: 8
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
-ctx: 측정 불가 — 게이트 ⑦ **스물다섯 번째 재현**(반복 630 확인 그대로 · 다음 확인은 635). `session_id` 가 내 프로젝트 슬러그에 없는 남의 세션이라 `context_used` 는 내 값이 아니다. `five_hour 30`·`seven_day 55` 는 계정 단위라 참이고 **둘 다 85 아래** — 반복 상한에만 의존한다(`SKILL.md` 3절)
+ctx: 측정 불가 — 게이트 ⑦ **스물여섯 번째 재현**. `updated_unix` 가 **46분** 낡았고 `session_id` 는 여전히 내 프로젝트 슬러그에 없는 남의 것이라 `context_used 5` 는 내 값이 아니다. `five_hour 30`·`seven_day 55` 는 계정 단위라 참이고 **둘 다 85 아래** — 반복 상한에만 의존한다(`SKILL.md` 3절)
 rules: (저장소 밖 `~/.claude/skills/loop-harness` — 커밋 해시 없음)
-note: **리뷰 phase 끝 — 결함 6건을 닫았고, 그중 셋은 «구현» 이 아니라 «설계 초안» 이 틀린 것이었다.** 전수 **826 OK**(래퍼를 통해 · 마지막 줄 `── Ran 826 tests in 25.7s OK rc=0`). ①**심각도 8**: `trap '…' EXIT INT TERM` 한 줄이 Ctrl-C 를 받으면 트랩만 돌고 셸이 이어서 정상 경로로 빠져나가 **`── rc=0` 을 찍고 0 으로 끝났다** — **막으려던 사고(초록으로 보이는 실패)를 정리 코드가 새 경로로 재현했다.** INT·TERM 을 `stopped 130`/`143` 으로 갈라 걸고, 중단은 판정과 **구별해** 찍는다(`── 중단됨 rc=130` · `Ran/OK` 를 지어내면 그 줄이 또 하나의 거짓말이다). ②판정 `grep` 을 `^(Ran|OK|FAILED)` 에서 `unittest` 의 실제 표기로 조였다 — 크롤 로그의 `OKAY …`·`FAILED to fetch …` 가 **마지막 줄을 위조**했다(실측). ⑤`mktemp` 실패 가드 — 빈 `$log` 로 나아가면 `tee` 도 `grep` 도 조용히 빗나가 **판정 칸이 빈 채 초록**이 된다. ③`| head` 는 SIGPIPE 라 안 덮는다(천장 주석으로 처리) ④단위 수 `818`→**`826`** ⑥초록 경로 테스트의 `assertEqual(0, rc)` 가 **파이프 아래 `tail` 의 rc 라 공허**했다 — 맨몸 호출로 다시 재게 고쳤다. **①②⑤ 는 고치기 전 코드로 되돌려 빨강을 확인하고 테스트를 붙였다**(`VerdictReviewTest` 3건 · 각 변이가 위 증상을 **글자 그대로** 재현했다: `── rc=0` · `── OKAY the crawl finished FAILED to fetch http://x rc=0` · `x` + `── rc=0`). **패스 B(대조)는 빈손이 아니었다** — 설계 문서의 코드 초안 세 줄이 그대로면 다음 사람이 「설계와 다르다」며 되돌리는 순간 셋이 함께 살아난다. `design_verdict-last.md` 에 「리뷰가 고친 것」 절을 더했다. **다음은 e2e phase.**
+note: **계획 106 `verdict-last` DONE.** e2e 5종 전부 통과 — 여기서 **처음 «진짜 전수»로 쟀다**(그 전은 전부 가짜 러너였다 · `docs/e2e/verdict-last/result.md`). **③ 빨간 전수가 중심이다**: `tests/test_smoke.py` 에 변이를 심고 `-b + 2>&1 | tail -3` 으로 재니 **래퍼 없이는 판정 0줄에 쉘 `rc=0`** — 실패한 전수가 「아무 일도 없었다」로 보이고 쉘까지 0 을 준다. digest 최다 항목(35회)의 **실물**이다. **래퍼로는 `── Ran 826 tests in 25.9s FAILED (failures=1) rc=1`** 이 마지막 줄에 남고 맨몸 `rc=1`. ② 음성 대조 — 계획서 1-1 탐침이 일곱 반복 뒤 같은 기계에서 **그대로 죽는다**(판정 0줄 · 아무것도 없음). ① 초록 전수는 세 손 전부에서 판정이 마지막 줄. ④ 진짜 e2e 스크립트(`tokenizer_e2e.py`)는 판정 칸이 비고 `── rc=0` 만 — **설계 천장의 실물 확인**. ⑤ 실물 전수에 프로세스 그룹 SIGINT → **`── 중단됨 rc=130`** · rc 130(고치기 전이면 `rc=0` 이었다). **새 `e2e/*.py` 0개** — 시나리오가 전부 「러너를 어떻게 부르나」라 스크립트를 만들면 그것을 또 래퍼로 감는 자기 참조가 된다. **품질 4축은 «해당 없음 · 검증 안 함»** — 일곱 축 전부 `src/` 거동을 재는데 이 계획은 `src/` 를 0줄 고쳤다(「통과」라고 쓰지 않는다). 변이 원복은 `cmp -s` + `git diff --quiet` **두 겹**으로 확인했다(반복 628 이 공허하게 통과한 자리다). 아카이브: `plan_history_081.md` · `design_history_079.md`. **다음은 `scripts/merge-to-main.sh` 병합.**
 ---
 
 ## 계획 106 `verdict-last` — 판정 줄을 가리는 손을 기제로 막는다
