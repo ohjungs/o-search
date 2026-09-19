@@ -1,19 +1,19 @@
 ---
 signal: GREEN
-phase: 설계
+phase: 개발
 step: 0/3
 attempt: 0
 plan: zero-population
-iteration: 633
+iteration: 634
 updated: 2026-09-19
 mode: night
-night_iterations: 9
+night_iterations: 10
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
-ctx: 측정 불가 — 게이트 ⑦ **스물일곱 번째 재현**. `updated_unix` 가 **63분** 낡았고 `session_id` 는 여전히 내 프로젝트 슬러그에 없는 남의 것이라 `context_used 5` 는 내 값이 아니다. `five_hour 30`·`seven_day 55` 는 계정 단위라 참이고 **둘 다 85 아래** — 반복 상한에만 의존한다(`SKILL.md` 3절)
+ctx: 측정 불가 — 게이트 ⑦ **스물여덟 번째 재현**. `updated_unix` 가 **75분** 낡았고 `session_id` 는 여전히 내 프로젝트 슬러그에 없는 남의 것이다. `five_hour_resets_at` 은 **이미 지난 시각**이라 `five_hour 30` 도 낡았다 — `seven_day 55` 와 함께 **둘 다 85 아래**로 읽되 반복 상한에만 의존한다(`SKILL.md` 3절)
 rules: (저장소 밖 `~/.claude/skills/loop-harness` — 커밋 해시 없음)
-note: **계획 106 은 `main` 에 들어갔다**(`1dbfdde` — `scripts/merge-to-main.sh` 가 병합 «결과»에서 전수 826 OK 를 보고 밀었다). **계획 107 `zero-population` 착수 · 설계 phase.** 근거는 digest 최다 항목의 **서른일곱째**이고 그것이 106 의 래퍼가 못 덮는 나머지 절반이다 — 시작 디렉터리를 빠뜨린 전수가 `Ran 0 tests / OK / rc=0` 을 낸다. **가려진 것은 출력이 아니라 모집단**이라 판정 줄도 `rc` 도 참을 말한다. **탐침 2회(무인 상한)**: ① 실물 저장소에서 재현 — 맨몸도 래퍼도 초록(`── Ran 0 tests in 0.000s OK rc=0`). ② `git clone --local` 사본에 `tests/__init__.py` **한 개(빈 파일)** 를 놓으니 시작 디렉터리 없는 맨몸이 **826 OK** 로 돌고, 문서화된 두 꼴(`discover -b tests` · `-s tests`)도 826 OK 그대로다. **설계로 넘긴다 — 대안이 갈린다**: A 래퍼가 `Ran 0 tests` 를 사고로 읽는다(부류를 막지만 래퍼 통과분만) · B `tests/__init__.py`(덫을 뿌리에서 없애지만 0건이 나오는 다른 길은 남는다) · C 둘 다. 계획서 `docs/plan_zero-population.md`(3절에 갈림길·4절에 스텝 셋과 의존). **1~3순위 실측 0건** — 전수 826 OK · 린터·타입체커 없음 · `TODO`/`FIXME`/`HACK` 은 `tests/test_indexer.py:1027` 의 파서 입력 문자열 안 1건뿐. 4순위 `docs/candidates.md` 없음. **중복 방지 5곳 전수**: `index.md` 계획 슬러그 84개에 모집단 축 0개 · digest 완료 0건 · 활성 계획 0(`plan_userinfo-leak.md` 는 보류) · 보류 1건(userinfo-leak, 무관) · `docs/patches/` 1개(userinfo-leak, 무관) · `gh issue` 0건.
+note: **설계 완료 — `docs/design_zero-population.md`. C(둘 다) 를 골랐고 «둘 중 하나로는 안 된다» 가 근거다.** 오늘 실제로 난 사고는 **맨몸** 명령이라 A(래퍼만)로는 그대로 다시 난다. B(`tests/__init__.py` 만)는 덫 하나를 치울 뿐 「0건인데 초록」이라는 판정은 그대로다. **둘은 겹치지 않고 서로의 구멍이 상대의 값이다.** **digest 의 처방을 탐침이 뒤집었다** — 그 항목은 「밖에서 세는 자리는 래퍼뿐」이라 했는데 더 싼 자리가 있었다: **세는 대신 덫을 치운다.** 계약 넷: ① `tests/__init__.py` 는 **한 줄 주석**을 든다(빈 파일이면 다음 사람이 지운다) ② 래퍼 마지막 줄의 꼴 `── <판정들> rc=N` 은 **안 바뀌고**, 로그에 `Ran 0 tests` 가 있고 `rc` 가 0 일 때만 낱말 `모집단 0` 이 들고 **`rc=2`**(이 저장소에서 2 는 「재지 못했다」) ③ `rc` 가 0 이 아니면 손대지 않는다 ④ **판정 칸이 빈 것과 0건은 다르다** — e2e 스크립트는 `Ran/OK` 를 안 써서 칸이 비고 `── rc=0` 인데 그건 그대로 0 이어야 하므로 조건은 「칸이 비었나」가 아니라 **「`Ran 0 tests` 가 있나」** 다. **가정 셋을 실측으로 깼다**(3-2절) — 빈 `__init__.py` 로 문서화된 세 꼴 전부 826 OK · `-m unittest tests.test_deps` 9건 OK(사본·원본 양쪽) · `Ran 0 tests in 0.000s` 표기 확인. **다음은 개발 스텝 1** — 재는 자를 먼저 빨갛게.
 ---
 
 ## 계획 107 `zero-population` — 0건 전수는 초록이 아니다
