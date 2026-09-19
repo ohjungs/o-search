@@ -1,19 +1,19 @@
 ---
 signal: GREEN
 phase: 개발
-step: 0/3
+step: 1/3
 attempt: 0
 plan: zero-population
-iteration: 634
+iteration: 635
 updated: 2026-09-19
 mode: night
-night_iterations: 10
+night_iterations: 11
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
-ctx: 측정 불가 — 게이트 ⑦ **스물여덟 번째 재현**. `updated_unix` 가 **75분** 낡았고 `session_id` 는 여전히 내 프로젝트 슬러그에 없는 남의 것이다. `five_hour_resets_at` 은 **이미 지난 시각**이라 `five_hour 30` 도 낡았다 — `seven_day 55` 와 함께 **둘 다 85 아래**로 읽되 반복 상한에만 의존한다(`SKILL.md` 3절)
+ctx: **5%** — 게이트 ⑦ 스물아홉 번째 재현이라 값은 여전히 남의 `session_id` 것이고 `updated_unix` 도 **81분** 낡았다. 다만 이 세션이 요약으로 갈린 직후라 실제 사용량도 낮다 — `five_hour 30` · `seven_day 55` 와 함께 **셋 다 85 아래**. 반복 상한(60)에 의존한다
 rules: (저장소 밖 `~/.claude/skills/loop-harness` — 커밋 해시 없음)
-note: **설계 완료 — `docs/design_zero-population.md`. C(둘 다) 를 골랐고 «둘 중 하나로는 안 된다» 가 근거다.** 오늘 실제로 난 사고는 **맨몸** 명령이라 A(래퍼만)로는 그대로 다시 난다. B(`tests/__init__.py` 만)는 덫 하나를 치울 뿐 「0건인데 초록」이라는 판정은 그대로다. **둘은 겹치지 않고 서로의 구멍이 상대의 값이다.** **digest 의 처방을 탐침이 뒤집었다** — 그 항목은 「밖에서 세는 자리는 래퍼뿐」이라 했는데 더 싼 자리가 있었다: **세는 대신 덫을 치운다.** 계약 넷: ① `tests/__init__.py` 는 **한 줄 주석**을 든다(빈 파일이면 다음 사람이 지운다) ② 래퍼 마지막 줄의 꼴 `── <판정들> rc=N` 은 **안 바뀌고**, 로그에 `Ran 0 tests` 가 있고 `rc` 가 0 일 때만 낱말 `모집단 0` 이 들고 **`rc=2`**(이 저장소에서 2 는 「재지 못했다」) ③ `rc` 가 0 이 아니면 손대지 않는다 ④ **판정 칸이 빈 것과 0건은 다르다** — e2e 스크립트는 `Ran/OK` 를 안 써서 칸이 비고 `── rc=0` 인데 그건 그대로 0 이어야 하므로 조건은 「칸이 비었나」가 아니라 **「`Ran 0 tests` 가 있나」** 다. **가정 셋을 실측으로 깼다**(3-2절) — 빈 `__init__.py` 로 문서화된 세 꼴 전부 826 OK · `-m unittest tests.test_deps` 9건 OK(사본·원본 양쪽) · `Ran 0 tests in 0.000s` 표기 확인. **다음은 개발 스텝 1** — 재는 자를 먼저 빨갛게.
+note: **스텝 1 완료 — 재는 자가 빨갛다.** `tests/test_verdict_wrapper.py` 에 `ZeroPopulationTest` 셋을 세웠고 전수 **829건 중 정확히 둘이 RED** 다: ① 시작 디렉터리 없는 전수가 **0건**을 본다(실패 메시지에 실측 인쇄) ② 래퍼 마지막 줄이 `── Ran 0 tests in 0.000s OK rc=0` — **실물 사고 그대로**다. 셋째(`rc` 가 0 이 아닌 빨간 0건은 제 코드를 지킨다)는 **오늘도 초록**이고 그것이 스텝 2 의 울타리다 — 처방을 넓게 쓰면 거기가 먼저 죽는다. **모집단은 진짜로 돌리지 않고 «센다»** — `TestLoader().discover('.').countTestCases()` 를 자식 프로세스에서 부른다(전수 안에서 전수가 도는 모양을 피한 계획 101 의 길). **`README.md:104` 를 826→829 로 동반 수정했다** — 건수 가드가 강제하는 자리고, 계획 76·98 이 이것을 계획서에 안 적어 리뷰에 두 번 걸렸기에 이번엔 5절에 미리 적었다. **다음은 스텝 2** — 빈 `tests/__init__.py`(한 줄 주석)와 래퍼의 `모집단 0`/`rc=2`.
 ---
 
 ## 계획 107 `zero-population` — 0건 전수는 초록이 아니다
