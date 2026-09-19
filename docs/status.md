@@ -1,19 +1,19 @@
 ---
 signal: GREEN
-phase: 개발
-step: 2/3
+phase: 테스트
+step: 3/3
 attempt: 0
 plan: verdict-last
-iteration: 628
+iteration: 629
 updated: 2026-09-19
 mode: night
-night_iterations: 4
+night_iterations: 5
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
-ctx: 측정 불가 — 게이트 ⑦ **스물네 번째 재현**. `.context-state.json` 은 8분밖에 안 낡았는데 `session_id`(`79c984a8…`)에 해당하는 `.jsonl` 이 내 프로젝트 슬러그에 **없다 — 또 남의 세션이다**(어젯밤의 `4b0e3020…` 과도 다르다). `context_used 5` 는 내 값이 아니다. `five_hour 30`·`seven_day 55` 는 계정 단위라 참이고 둘 다 85 아래다 — **반복 상한에만 의존한다**(`SKILL.md` 3절)
+ctx: 측정 불가 — 게이트 ⑦ **스물다섯 번째 재현**. 5반복째 재확인이라 다시 쳤다: `session_id` 가 또 바뀌었고(`0ecf2699…`) 그 이름의 `.jsonl` 이 내 프로젝트 슬러그에 **없다 — 세 번째로 다른 남의 세션**이다. `updated_unix` 는 14분 낡았고 `context_used 5` 는 내 값이 아니다. `five_hour 30`·`seven_day 55` 는 계정 단위라 참이고 **둘 다 85 아래** — 반복 상한에만 의존한다(`SKILL.md` 3절)
 rules: (저장소 밖 `~/.claude/skills/loop-harness` — 커밋 해시 없음)
-note: **스텝 2 닫혔다 — `scripts/verdict.sh` 가 섰고 변이 3판이 전부 죽는다.** 스텝 1 초록(6/6) · 맨몸 전수 **818 OK** · 진짜 러너를 감아 `| tail -1` 과 `2>/dev/null | tail -1` 둘 다 **`── Ran 818 tests in 25.1s OK rc=0`**. 변이 ①마지막 줄 삭제 3건 ②`pipestatus[1]`→`[2]`(`tee` 의 rc) 4건 ③판정을 stderr 로 2건 — 셋 다 독립 측정이고 매 판 뒤 **원본과 바이트 동일**함을 확인한 뒤 자가 초록으로 돌아오는 것까지 봤다. **그 확인 절차 자체가 첫 판에서 공허했던 것이 이 반복의 값이다** — `git checkout -- scripts/verdict.sh` 로 되돌리려 했는데 파일이 **아직 미추적**이라 복원할 것이 없었고, 뒤따른 `git diff --quiet` 는 미추적 파일을 안 보므로 **「원복 확인: 트리 무변」이 통과했다.** 변이 셋이 그대로 쌓인 채 2·3 판을 쟀다(그래서 그 수치는 버렸다). **재는 자를 재는 자도 재야 한다** — 원복 검사는 VCS 가 아니라 **원본 사본과의 `cmp`** 로 바꿨다. **환경 변수는 래퍼 앞에 둔다**(`PYTHONPATH=src scripts/verdict.sh python3 …`) — 뒤에 두면 `VAR=val` 이 명령 이름으로 읽혀 `rc=127` 이다. 조용히 안 틀리므로 파싱 코드를 안 넣었다. **다음은 스텝 3 — `project.md` 명령 절.**
+note: **스텝 3 닫혔다 — 개발 phase 끝. 다음은 테스트 phase.** `project.md` 명령 절이 래퍼를 부른다(`PYTHONPATH=src scripts/verdict.sh python3 -m unittest discover -b tests`) — **적기 전에 그 문자열 그대로 돌렸고** `── Ran 818 tests in 25.5s OK rc=0`. **조항은 안 지웠다**: 래퍼가 덮는 것은 「래퍼를 통해 부른 것」뿐이고 맨손으로 러너를 직접 치는 길은 열려 있다. **래퍼가 못 덮는 자리를 명령 옆에 적어 뒀다** — 시작 디렉터리를 빼면 `Ran 0 tests / OK / rc=0` 이 **정직하게** 실려 나간다(㉓). 기제가 지키는 것은 「판정이 보이는가」지 「모집단이 맞는가」가 아니다. README 는 안 건드렸다 — 바깥 독자가 읽는 문서에 zsh 전용 자를 끼우지 않는다.
 ---
 
 ## 계획 106 `verdict-last` — 판정 줄을 가리는 손을 기제로 막는다 (반복 625 · 계획 phase)
