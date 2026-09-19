@@ -1,13 +1,13 @@
 ---
 signal: GREEN
-phase: 설계
+phase: 개발
 step: 0/3
 attempt: 0
 plan: verdict-last
-iteration: 625
+iteration: 626
 updated: 2026-09-19
 mode: night
-night_iterations: 1
+night_iterations: 2
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
@@ -32,8 +32,12 @@ note: **계획 106 `verdict-last` 를 열었다 — 출처는 7순위(반복 실
 `-b` 가 안 삼키므로 빨간 판에서 정확히 안 보인다.** 셋째 손실 `rc` 는 출력 길이와
 무관한 **파이프 그 자체의 성질**이다.
 
-**다음 반복은 설계다** (트리거: 새 파일 · 대안 3갈래 — 래퍼 스크립트 / `unittest` 러너
-서브클래스 / 조항만 조이기). 스텝 셋은 `plan_verdict-last.md` 4절.
+**설계는 반복 626 에 닫혔다** (`design_verdict-last.md`) — **A. 얇은 zsh 래퍼**.
+가른 칸은 「러너 밖도 덮나」다: 이 저장소가 밤마다 치는 것은 `unittest` 만이 아니고
+(품질 기준 표 일곱 줄 중 여섯이 `e2e/*.py`) 실제 위반 표본 ⑮⑯⑳ 이 거기였다 —
+**B(`unittest` 러너 서브클래스)는 표본의 절반을 구조적으로 못 덮고 `rc` 도 못 만진다.**
+형태는 /tmp 탐침 두 판으로 정했다(판정 축은 동률 · 갈린 것은 실행 중 화면뿐이라
+**흐르는 쪽** `tee`+`pipestatus[1]`). **다음 반복은 개발 스텝 1**(재는 자 먼저).
 
 ## 앞 밤(2026-09-18)이 `main` 으로 보낸 것 — 103 · 104 · 105
 
