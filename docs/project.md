@@ -19,7 +19,7 @@
 (2026-09-19 실측 · digest 최다 항목 ㉓). 건수는 사람이 읽는다.
 
 - **테스트(전체)**: `PYTHONPATH=src scripts/verdict.sh python3 -m unittest discover -b tests`
-  (2026-09-19 실행 확인 · 818건 약 25초라 빠름/전체 구분 없음 · 린트·타입체크는 없다)
+  (2026-09-19 실행 확인 · 826건 약 26초라 빠름/전체 구분 없음 · 린트·타입체크는 없다)
   **시작 디렉터리 `tests` 를 빼지 않는다** — 빼면 `tests/` 에 `__init__.py` 가 없어 탐색이
   안 내려가고 **`Ran 0 tests / OK / rc=0`** 이 된다. 실제 건수는 README 의 단위 수 가드와
   대조한다(`tests/test_readme.py`). 래퍼 없이 맨몸으로 돌려도 된다 — 조항이 그 자리를 지킨다

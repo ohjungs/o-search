@@ -24,9 +24,12 @@ ponytail: zsh 전용이다. 이 저장소의 유일한 쉘 스크립트가 이�
 두면 **아무 테스트에도 안 걸리는 코드**가 된다.
 """
 
+import os
 import pathlib
+import signal
 import subprocess
 import tempfile
+import time
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -149,11 +152,14 @@ class VerdictGapTest(unittest.TestCase):
         `exit $rc` 가 초록에서 틀리면 **통과가 실패로 보이고**, 그건 밤을 통째로 세운다.
         """
         runner = self.fake("import sys\nsys.stderr.write('Ran 3 tests in 0.1s\\n\\nOK\\n')\n")
-        out, rc = run_zsh("%s python3 %s | tail -1" % (WRAPPER, runner), ROOT)
+        out, _ = run_zsh("%s python3 %s | tail -1" % (WRAPPER, runner), ROOT)
         self.assertIn("Ran 3 tests", out)
         self.assertIn("OK", out)
         self.assertIn("rc=0", out)
-        self.assertEqual(0, rc, "파이프의 rc 라 0 이어야 한다 — `tail` 의 것이다")
+        # 파이프 아래의 rc 는 `tail` 의 것이라 **늘 0 이다** — 단언해도 못 깨진다(리뷰 지적).
+        # 래퍼 자신의 종료 코드는 파이프 없이 봐야 재는 값이 된다.
+        _, bare_rc = run_zsh("%s python3 %s" % (WRAPPER, runner), ROOT)
+        self.assertEqual(0, bare_rc, "초록인데 래퍼가 0 이 아닌 값으로 끝났다")
 
     def test_a_command_with_no_verdict_words_still_carries_rc(self):
         """**갭 ⑥ · 7점** — 설계의 천장(`design_verdict-last.md` 「천장」)을 계약으로 바꾼다.
@@ -202,6 +208,78 @@ class VerdictGapTest(unittest.TestCase):
         """
         out, rc = run_zsh("%s" % WRAPPER, ROOT)
         self.assertEqual(2, rc, "빈 호출의 종료 코드가 2 가 아니다 — 출력: %r" % (out,))
+
+
+class VerdictReviewTest(unittest.TestCase):
+    """리뷰 phase(백지 패스 A)가 낸 결함 셋을 계약으로 굳힌다.
+
+    셋 다 **고친 뒤에 쓴 자**다 — TDD 순서를 어긴 것이 아니라, 리뷰가 찾은 결함은
+    「실패하는 테스트」가 아니라 **읽어서 찾은 것**이기 때문이다(`rules/review.md`).
+    대신 셋 다 **고치기 전 코드로 되돌려 빨강을 확인**하고 넣었다.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+
+    def fake(self, body):
+        path = pathlib.Path(self.tmp.name) / "runner.py"
+        path.write_text(body, encoding="utf-8")
+        return path
+
+    def test_an_interrupted_run_does_not_end_green(self):
+        """**결함 ① · 심각도 8** — Ctrl-C 가 `── rc=0` 을 찍고 0 으로 끝났다.
+
+        `trap '…' EXIT INT TERM` 한 줄로 셋을 함께 받으면 INT 가 **트랩만 돌리고**
+        셸이 이어서 정상 경로로 빠져나간다. **막으려던 사고(초록으로 보이는 실패)를
+        정리 코드가 새 경로로 재현한 것**이라 값이 가장 크다.
+        """
+        started = pathlib.Path(self.tmp.name) / "started"
+        runner = self.fake(
+            "import pathlib, time\n"
+            "pathlib.Path(%r).write_text('x')\n"
+            "time.sleep(30)\n" % str(started))
+        child = subprocess.Popen(
+            ["/bin/zsh", str(WRAPPER), "python3", str(runner)], cwd=str(ROOT),
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            universal_newlines=True, start_new_session=True)
+        self.addCleanup(child.kill)
+        deadline = time.time() + 10
+        while not started.exists() and time.time() < deadline:
+            time.sleep(0.05)
+        self.assertTrue(started.exists(), "가짜 러너가 뜨지 못했다 — 잰 것이 없다")
+        # 진짜 Ctrl-C 처럼 **프로세스 그룹 전체**에 보낸다. 래퍼에게만 보내면
+        # 터미널이 하는 일과 달라져 재는 상황이 아니게 된다.
+        os.killpg(child.pid, signal.SIGINT)
+        out, _ = child.communicate(timeout=10)
+        self.assertEqual(130, child.returncode,
+                         "중단인데 종료 코드가 130 이 아니다 — 출력: %r" % (out,))
+        self.assertNotIn("rc=0", out, "중단을 초록으로 찍었다: %r" % (out,))
+        self.assertIn("중단됨", out, "중단을 판정과 구별해 찍지 않았다: %r" % (out,))
+
+    def test_the_log_body_cannot_forge_the_verdict(self):
+        """**결함 ② · 심각도 6** — `^OK` · `^FAILED` 로 열어 두면 본문이 판정을 위조한다.
+
+        크롤 로그에 `OKAY …` 나 `FAILED to fetch …` 가 흔하다. 그것이 마지막 줄에
+        실리면 **사람이 초록/빨강을 반대로 읽는다** — 이 계획이 없애려던 바로 그 사고다.
+        """
+        runner = self.fake(
+            "print('OKAY the crawl finished')\nprint('FAILED to fetch http://x')\n")
+        out, _ = run_zsh("%s python3 %s | tail -1" % (WRAPPER, runner), ROOT)
+        last = out.strip().split("\n")[-1]
+        self.assertEqual("── rc=0", last, "본문이 판정 칸에 섞였다: %r" % (last,))
+
+    def test_a_broken_tmpdir_is_an_error_not_a_green(self):
+        """**결함 ⑤ · 심각도 7** — `mktemp` 가 실패하면 빈 `$log` 로 나아갔다.
+
+        그러면 `tee` 도 `grep` 도 조용히 빗나가 **판정 칸이 빈 채로 초록**이 된다.
+        판정을 마지막 줄로 옮기는 자가 판정을 지우는 경로를 갖고 있으면 안 된다.
+        """
+        runner = self.fake("print('x')\n")
+        out, rc = run_zsh("TMPDIR=%s/없는칸 %s python3 %s"
+                          % (self.tmp.name, WRAPPER, runner), ROOT)
+        self.assertEqual(2, rc, "임시 로그를 못 만들었는데 2 로 안 끝났다: %r" % (out,))
+        self.assertNotIn("rc=0", out, "임시 로그가 없는데 초록을 찍었다: %r" % (out,))
 
 
 if __name__ == "__main__":

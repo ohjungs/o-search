@@ -29,6 +29,9 @@
 #
 # ponytail: zsh 전용이다(`pipestatus`). 이 저장소의 유일한 다른 쉘 스크립트가 이미
 # zsh 고, `bash` 분기를 두면 아무 테스트에도 안 걸리는 코드가 된다.
+# ponytail: `| head` 로 자르면 SIGPIPE 라 판정도 `rc` 도 잃는다 — 이 자가 무해하게 만드는
+# 것은 **마지막을 남기는 손**(`tail`)이지 처음을 남기는 손이 아니다. 실측이고, `head` 는
+# 이 저장소의 위반 표본에 없어서 안 덮는다.
 # ponytail: 판정 낱말이 `unittest` 표기에 묶여 있다. e2e 스크립트는 그 낱말을 안 쓰므로
 # 판정 칸이 비고 `rc=N` 만 남는다 — 거기서 재는 값이 `rc` 라 족하다.
 set -u
@@ -38,13 +41,27 @@ set -u
 # 자리를 명시한다 — 인자 없는 `mktemp` 는 이 기계(macOS)에서 **`TMPDIR` 을 안 본다**
 # (`_CS_DARWIN_USER_TEMP_DIR` 을 쓴다). 그래서 「로그가 안 남는가」를 재려던 자가
 # 빈 상자만 보고 통과했다(2026-09-19 실측). 이름도 박아 둔다 — 남으면 누구 것인지 보인다.
-log=$(mktemp "${TMPDIR:-/tmp}/verdict.XXXXXX")
-trap 'rm -f "$log"' EXIT INT TERM
+log=$(mktemp "${TMPDIR:-/tmp}/verdict.XXXXXX") || {
+  # 빈 `$log` 로 나아가면 `tee` 도 `grep` 도 조용히 빗나가 **판정 칸이 빈 채로** 초록이 된다.
+  print -u2 -- "임시 로그를 못 만들었다: ${TMPDIR:-/tmp}"; exit 2
+}
+
+# **정리와 종료를 나눈다.** 한 트랩으로 `EXIT INT TERM` 을 함께 받으면, Ctrl-C 가
+# 트랩만 돌리고 **셸이 이어서 정상 경로로 빠져나가** `── rc=0` 을 찍고 0 으로 끝난다
+# (2026-09-19 리뷰 실측 · 심각도 8). **막으려던 사고를 정리 코드가 새 경로로 재현한 것**이라
+# 신호는 신호답게 끝낸다 — 판정이 아니라 중단이므로 `Ran/OK` 를 지어내지 않는다.
+stopped () { rm -f "$log"; print -r -- "── 중단됨 rc=$1"; exit $1 }
+trap 'stopped 130' INT
+trap 'stopped 143' TERM
+trap 'rm -f "$log"' EXIT
 
 # 흐르는 쪽을 골랐다 — `>log` 후 `cat` 판과 판정 축에서 동률이고, 갈린 것은 실행 중
 # 화면뿐이다. 분 단위 e2e 에서 「멈춘 건가」를 구별할 수 있어야 한다.
 "$@" 2>&1 | tee "$log"
 rc=${pipestatus[1]}   # 1 번은 감싼 명령이다. `tee` 의 것(늘 0)을 실으면 실패가 통과로 보인다
 
-print -r -- "── $(grep -E '^(Ran |OK|FAILED)' "$log" | tr '\n' ' ')rc=$rc"
+# 낱말을 `unittest` 의 **실제 표기**에 맞춰 조인다. `^OK` 로 열어 두면 로그 본문의
+# `OKAY the crawl…` 이나 `FAILED to fetch…` 가 판정 칸에 섞여 **마지막 줄을 위조한다**
+# (2026-09-19 리뷰 실측). 표기는 `Ran N tests` · `OK` · `OK (skipped=N)` · `FAILED (…)` 다.
+print -r -- "── $(grep -E '^(Ran [0-9]+ test|OK$|OK \(|FAILED \()' "$log" | tr '\n' ' ')rc=$rc"
 exit $rc
