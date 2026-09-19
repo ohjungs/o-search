@@ -1,19 +1,19 @@
 ---
 signal: GREEN
-phase: 개발
-step: 2/3
+phase: 테스트
+step: 3/3
 attempt: 0
 plan: zero-population
-iteration: 636
+iteration: 637
 updated: 2026-09-19
 mode: night
-night_iterations: 12
+night_iterations: 13
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
 ctx: **5%** — 게이트 ⑦ 스물아홉 번째 재현이라 값은 여전히 남의 `session_id` 것이고 `updated_unix` 도 **81분** 낡았다. 다만 이 세션이 요약으로 갈린 직후라 실제 사용량도 낮다 — `five_hour 30` · `seven_day 55` 와 함께 **셋 다 85 아래**. 반복 상한(60)에 의존한다
 rules: (저장소 밖 `~/.claude/skills/loop-harness` — 커밋 해시 없음)
-note: **스텝 2 완료 — 처방 둘이 들어갔고 스텝 1 의 단언 셋이 전부 초록이다.** ① `tests/__init__.py`(주석 세 줄 · 임포트 0) ② 래퍼가 `rc==0` 이면서 로그에 `^Ran 0 tests` 가 있을 때만 `모집단 0` 을 싣고 `rc=2` 로 나간다. **문서화된 네 꼴 전부 초록** — 시작 디렉터리 없는 맨몸 · `discover -b tests` · `discover -b -s tests`(`merge-to-main.sh` 의 꼴) 전부 **829 OK**, `-m unittest tests.test_deps` **9 OK**. 덫이 뿌리에서 사라졌다(전에는 맨몸이 0건). **변이 3판이 각각 다른 단언 하나만 죽였다** — M1 `__init__.py` 삭제 → 모집단 단언 · M2 조건 블록 제거 → 래퍼 단언 · M3 `rc == 0` 가드 제거(과적용) → **울타리 단언**. 원복은 `cmp -s` 로 확인했다. **다음은 스텝 3** — `docs/project.md` 의 「래퍼도 모집단은 못 지킨다」가 더는 참이 아니다.
+note: **스텝 3 완료 — 개발 phase 끝. `docs/project.md` 가 더는 「래퍼도 모집단은 못 지킨다」라고 말하지 않는다.** 두 자리를 고쳤다: 명령 절의 그 문단(→ 「모집단도 이제는 지킨다」 · ①덫 제거 ②`rc=2` · `rc` 가 0 이 아닌 0건은 안 건드린다 · **건수의 «값» 은 여전히 README 가드의 몫**)과 테스트 명령 줄(826→829 · 「시작 디렉터리를 빼지 않는다」가 더는 사실이 아니라 「그대로 적는다, 이제는 빼도 829건을 돈다」로). **문서 가드 둘이 물어서 함께 처리했다** — `HistoryCapTest`(항목 21>20)로 반복 616~624 를 `history_092.md` 로 밀어내고 `digest.md` 명부·회전 줄에 등재, `ReadBudgetTest`(618>600)는 그 회전으로 **545** 가 됐다. **미해명 빨강 1건** — 회전 직후 한 판이 `failures=1` 이었는데 이름을 못 잡았고(출력 미보존) **직후 3판 연속 초록**이다. 그 판만 31.3초(평소 26초)라 부하 아래 시간 민감한 자로 **추정**할 뿐 확증은 없다. **다음은 테스트 phase** — 갭 탐색.
 ---
 
 ## 계획 107 `zero-population` — 0건 전수는 초록이 아니다
