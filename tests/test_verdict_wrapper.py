@@ -1,6 +1,6 @@
 """`scripts/verdict.sh` 가 **판정을 마지막 줄로** 옮기는지 실제로 돌려서 본다.
 
-`digest.md ## 반복 실패` 최다 항목(「러너의 판정 줄을 가린다」 **35회**)이 이 파일이
+`digest.md ## 반복 실패` 최다 항목(「러너의 판정 줄을 가린다」 **37회**)이 이 파일이
 존재하는 이유다. 막으려는 시도 셋이 전부 문장이었고 셋 다 뚫렸다 — 조항, 조항 조이기,
 「러너를 파이프 왼쪽에 두지 않는다」. 항목 자신의 결론이 「문장은 소진됐다」다.
 
@@ -318,16 +318,21 @@ class ZeroPopulationTest(unittest.TestCase):
         env = dict(os.environ, PYTHONPATH="src")
         done = subprocess.run(
             ["python3", "-c",
-             "import unittest; print(unittest.TestLoader().discover('.').countTestCases())"],
+             "import unittest\n"
+             "c = unittest.TestLoader()\n"
+             "print(c.discover('.').countTestCases(), c.discover('tests').countTestCases())"],
             cwd=str(ROOT), env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             universal_newlines=True)
-        found = int((done.stdout.strip() or "-1").split("\n")[-1])
-        self.assertGreaterEqual(
-            found, 826,
-            "시작 디렉터리 없는 전수가 %d건을 본다 — 사람이 그렇게 치면 `Ran 0 tests` ·"
-            " `OK` · rc 0 이 나온다. 0건을 돌렸으니 0건이 통과다"
+        pair = (done.stdout.strip() or "-1 -2").split("\n")[-1].split()
+        bare, named = int(pair[0]), int(pair[1])
+        # 하한 상수를 안 쓴다 — 손으로 갱신해야 하고 스위트가 자라면 의미가 흐려진다.
+        # 재는 것은 **두 모집단이 같은가**이고, 그것이 `tests/__init__.py` 의 계약 그대로다.
+        self.assertEqual(
+            named, bare,
+            "시작 디렉터리를 빼면 %d건, 적으면 %d건이다 — 사람이 앞엣것을 치면"
+            " `Ran 0 tests` · `OK` · rc 0 이 나온다. 0건을 돌렸으니 0건이 통과다"
             " (`tests/__init__.py` 가 없어 탐색이 안 내려간다). stderr: %r"
-            % (found, done.stderr[-200:]))
+            % (bare, named, done.stderr[-200:]))
 
     def test_a_zero_count_sweep_is_not_reported_green(self):
         """**처방 A** — 래퍼가 `Ran 0 tests` 를 판정이 아니라 사고로 읽는다.
