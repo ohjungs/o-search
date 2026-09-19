@@ -357,6 +357,24 @@ class ZeroPopulationTest(unittest.TestCase):
         self.assertEqual(1, rc, "0건이라고 빨간 실행의 종료 코드를 덮어썼다: %r" % (out[-200:],))
         self.assertIn("rc=1", out, "마지막 줄이 원래 코드를 안 실었다: %r" % (out[-200:],))
 
+    def test_the_real_runner_is_measured_too_not_only_fakes(self):
+        """**갭 ⑦ · 8점** — 위의 전부가 **가짜 러너**다. 진짜 명령 꼴로 한 번 잰다.
+
+        설계가 「범위 밖」으로 둔 나머지 길(**잘못된 `-k` 필터**)이 여기다 —
+        `tests/__init__.py` 는 그 길을 못 막고 래퍼만 막는다. 가짜로만 재면
+        「우리 러너가 정말 그 표기를 내는가」를 영영 안 물은 채 초록이 된다.
+
+        **전수를 돌리는 것이 아니다** — 아무것도 안 맞는 필터라 수집만 하고 0건으로
+        끝난다(실측 0.17초). 전수 안에서 전수가 도는 모양이 아니다.
+        """
+        out, rc = run_zsh(
+            "PYTHONPATH=src %s python3 -m unittest discover -b -s tests -k 없는이름_없음"
+            % WRAPPER, ROOT)
+        last = out.strip().split("\n")[-1] if out.strip() else ""
+        self.assertIn("Ran 0 tests", last, "진짜 러너의 0건 표기가 바뀌었다: %r" % (last,))
+        self.assertIn("모집단 0", last, "진짜 러너의 0건을 안 물었다: %r" % (last,))
+        self.assertEqual(2, rc, "아무것도 안 맞는 필터가 초록으로 끝났다: %r" % (last,))
+
 
 if __name__ == "__main__":
     unittest.main()
