@@ -1,19 +1,19 @@
 ---
 signal: GREEN
 phase: 개발
-step: 1/3
+step: 2/3
 attempt: 0
 plan: zero-population
-iteration: 635
+iteration: 636
 updated: 2026-09-19
 mode: night
-night_iterations: 11
+night_iterations: 12
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
 ctx: **5%** — 게이트 ⑦ 스물아홉 번째 재현이라 값은 여전히 남의 `session_id` 것이고 `updated_unix` 도 **81분** 낡았다. 다만 이 세션이 요약으로 갈린 직후라 실제 사용량도 낮다 — `five_hour 30` · `seven_day 55` 와 함께 **셋 다 85 아래**. 반복 상한(60)에 의존한다
 rules: (저장소 밖 `~/.claude/skills/loop-harness` — 커밋 해시 없음)
-note: **스텝 1 완료 — 재는 자가 빨갛다.** `tests/test_verdict_wrapper.py` 에 `ZeroPopulationTest` 셋을 세웠고 전수 **829건 중 정확히 둘이 RED** 다: ① 시작 디렉터리 없는 전수가 **0건**을 본다(실패 메시지에 실측 인쇄) ② 래퍼 마지막 줄이 `── Ran 0 tests in 0.000s OK rc=0` — **실물 사고 그대로**다. 셋째(`rc` 가 0 이 아닌 빨간 0건은 제 코드를 지킨다)는 **오늘도 초록**이고 그것이 스텝 2 의 울타리다 — 처방을 넓게 쓰면 거기가 먼저 죽는다. **모집단은 진짜로 돌리지 않고 «센다»** — `TestLoader().discover('.').countTestCases()` 를 자식 프로세스에서 부른다(전수 안에서 전수가 도는 모양을 피한 계획 101 의 길). **`README.md:104` 를 826→829 로 동반 수정했다** — 건수 가드가 강제하는 자리고, 계획 76·98 이 이것을 계획서에 안 적어 리뷰에 두 번 걸렸기에 이번엔 5절에 미리 적었다. **다음은 스텝 2** — 빈 `tests/__init__.py`(한 줄 주석)와 래퍼의 `모집단 0`/`rc=2`.
+note: **스텝 2 완료 — 처방 둘이 들어갔고 스텝 1 의 단언 셋이 전부 초록이다.** ① `tests/__init__.py`(주석 세 줄 · 임포트 0) ② 래퍼가 `rc==0` 이면서 로그에 `^Ran 0 tests` 가 있을 때만 `모집단 0` 을 싣고 `rc=2` 로 나간다. **문서화된 네 꼴 전부 초록** — 시작 디렉터리 없는 맨몸 · `discover -b tests` · `discover -b -s tests`(`merge-to-main.sh` 의 꼴) 전부 **829 OK**, `-m unittest tests.test_deps` **9 OK**. 덫이 뿌리에서 사라졌다(전에는 맨몸이 0건). **변이 3판이 각각 다른 단언 하나만 죽였다** — M1 `__init__.py` 삭제 → 모집단 단언 · M2 조건 블록 제거 → 래퍼 단언 · M3 `rc == 0` 가드 제거(과적용) → **울타리 단언**. 원복은 `cmp -s` 로 확인했다. **다음은 스텝 3** — `docs/project.md` 의 「래퍼도 모집단은 못 지킨다」가 더는 참이 아니다.
 ---
 
 ## 계획 107 `zero-population` — 0건 전수는 초록이 아니다

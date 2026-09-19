@@ -63,5 +63,22 @@ rc=${pipestatus[1]}   # 1 번은 감싼 명령이다. `tee` 의 것(늘 0)을 �
 # 낱말을 `unittest` 의 **실제 표기**에 맞춰 조인다. `^OK` 로 열어 두면 로그 본문의
 # `OKAY the crawl…` 이나 `FAILED to fetch…` 가 판정 칸에 섞여 **마지막 줄을 위조한다**
 # (2026-09-19 리뷰 실측). 표기는 `Ran N tests` · `OK` · `OK (skipped=N)` · `FAILED (…)` 다.
-print -r -- "── $(grep -E '^(Ran [0-9]+ test|OK$|OK \(|FAILED \()' "$log" | tr '\n' ' ')rc=$rc"
+verdict=$(grep -E '^(Ran [0-9]+ test|OK$|OK \(|FAILED \()' "$log" | tr '\n' ' ')
+
+# **0건으로 끝난 전수는 판정이 아니라 사고다.** 위의 세 손실과 달리 여기는 판정 줄도
+# `rc` 도 멀쩡하고 둘 다 참을 말한다 — 0건을 돌렸으니 0건이 통과다. **가려진 것은 출력이
+# 아니라 모집단**이라 이 래퍼가 그대로는 못 덮었다(`design_zero-population.md`).
+# 2 는 이 저장소에서 **판정이 아니라 「재지 못했다」** 이고 0건이 정확히 그것이다.
+#
+# `rc` 가 0 이 아닐 때는 손대지 않는다 — 수집 단계에서 죽어 0건인 경우는 이미
+# 빨갛고, 덧쓰면 원래 코드를 잃는다. 판정 칸이 **빈 것과 0건은 다르다** — e2e
+# 스크립트는 `Ran/OK` 를 안 써서 칸이 비고 `── rc=0` 이 남는데 그건 그대로 0 이다.
+# ponytail: 로그 본문이 줄 머리에 `Ran 0 tests` 를 찍으면 오탐이 난다. 그건 **시끄러운
+# 거짓 빨강**이라 조용한 초록보다 싸다 — 위의 판정 `grep` 과 같은 저울이다.
+if (( rc == 0 )) && grep -q '^Ran 0 tests' "$log"; then
+  verdict="${verdict}모집단 0 "
+  rc=2
+fi
+
+print -r -- "── ${verdict}rc=$rc"
 exit $rc
