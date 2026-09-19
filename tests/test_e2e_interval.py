@@ -34,6 +34,11 @@ FLOOR_LINES = {
 # 단언 루프가 도는 자리. `page_gaps(port)` 는 잠 뒤(`REQUEST_LOG`)를 준다.
 ARRIVAL_LOOP = re.compile(r"for gap in page_gaps\(port, ARRIVAL_LOG\)")
 
+# 재는 자를 **부르는** 자리. `def` 줄은 빼고 센다.
+CHECK_CALLS = re.compile(r"^(?!def )\s*(?:\w+\s*=\s*)?check_intervals\(", re.MULTILINE)
+# 오늘 크롤을 돌리는 대목 셋: 대조군 · 시나리오 1 · 시나리오 2.
+CHECK_CALL_COUNT = 3
+
 
 def e2e_source(name):
     return (E2E / name).read_text(encoding="utf-8")
@@ -61,6 +66,20 @@ class IntervalFloorTest(unittest.TestCase):
             ARRIVAL_LOOP.search(e2e_source("deadline_e2e.py")),
             "단언 루프가 `ARRIVAL_LOG` 를 안 돈다 — 옛 자리로 돌아가면 제 `time.sleep`"
             " 초과분이 간격에서 빠져 1초를 지킨 크롤도 0.9 대로 찍힌다")
+
+    def test_every_crawl_run_calls_the_check(self):
+        """재는 자는 **불려야** 잰다 — 몸만 보면 호출을 지운 트리가 조용히 초록이다.
+
+        실측(2026-09-19): `check_intervals` 호출 세 자리를 지우면 `deadline_e2e` 는
+        `rc=0` 이고 `[간격]` 판정 줄만 사라지는데 전수는 **811 그대로 OK** 였다.
+        위 두 단언은 함수의 몸을 읽으므로 호출이 0이어도 전부 통과한다.
+        """
+        found = CHECK_CALLS.findall(e2e_source("deadline_e2e.py"))
+        self.assertEqual(
+            CHECK_CALL_COUNT, len(found),
+            "`check_intervals` 호출이 %d 자리다 — 크롤을 돌리는 대목이 늘거나 줄었으면"
+            " 이 수를 함께 고친다. 줄었다면 그 대목은 간격을 안 재고 지나간다"
+            % len(found))
 
 
 if __name__ == "__main__":
