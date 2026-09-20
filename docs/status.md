@@ -1,26 +1,27 @@
 ---
-signal: DONE
-phase: e2e
+signal: GREEN
+phase: 리뷰
 step: 3/3
 attempt: 0
-plan: verdict-last
-iteration: 632
+plan: zero-population
+iteration: 638
 updated: 2026-09-19
 mode: night
-night_iterations: 8
+night_iterations: 14
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
-ctx: 측정 불가 — 게이트 ⑦ **스물여섯 번째 재현**. `updated_unix` 가 **46분** 낡았고 `session_id` 는 여전히 내 프로젝트 슬러그에 없는 남의 것이라 `context_used 5` 는 내 값이 아니다. `five_hour 30`·`seven_day 55` 는 계정 단위라 참이고 **둘 다 85 아래** — 반복 상한에만 의존한다(`SKILL.md` 3절)
+ctx: **5%** — 게이트 ⑦ 스물아홉 번째 재현이라 값은 여전히 남의 `session_id` 것이고 `updated_unix` 도 **81분** 낡았다. 다만 이 세션이 요약으로 갈린 직후라 실제 사용량도 낮다 — `five_hour 30` · `seven_day 55` 와 함께 **셋 다 85 아래**. 반복 상한(60)에 의존한다
 rules: (저장소 밖 `~/.claude/skills/loop-harness` — 커밋 해시 없음)
-note: **계획 106 `verdict-last` DONE.** e2e 5종 전부 통과 — 여기서 **처음 «진짜 전수»로 쟀다**(그 전은 전부 가짜 러너였다 · `docs/e2e/verdict-last/result.md`). **③ 빨간 전수가 중심이다**: `tests/test_smoke.py` 에 변이를 심고 `-b + 2>&1 | tail -3` 으로 재니 **래퍼 없이는 판정 0줄에 쉘 `rc=0`** — 실패한 전수가 「아무 일도 없었다」로 보이고 쉘까지 0 을 준다. digest 최다 항목(35회)의 **실물**이다. **래퍼로는 `── Ran 826 tests in 25.9s FAILED (failures=1) rc=1`** 이 마지막 줄에 남고 맨몸 `rc=1`. ② 음성 대조 — 계획서 1-1 탐침이 일곱 반복 뒤 같은 기계에서 **그대로 죽는다**(판정 0줄 · 아무것도 없음). ① 초록 전수는 세 손 전부에서 판정이 마지막 줄. ④ 진짜 e2e 스크립트(`tokenizer_e2e.py`)는 판정 칸이 비고 `── rc=0` 만 — **설계 천장의 실물 확인**. ⑤ 실물 전수에 프로세스 그룹 SIGINT → **`── 중단됨 rc=130`** · rc 130(고치기 전이면 `rc=0` 이었다). **새 `e2e/*.py` 0개** — 시나리오가 전부 「러너를 어떻게 부르나」라 스크립트를 만들면 그것을 또 래퍼로 감는 자기 참조가 된다. **품질 4축은 «해당 없음 · 검증 안 함»** — 일곱 축 전부 `src/` 거동을 재는데 이 계획은 `src/` 를 0줄 고쳤다(「통과」라고 쓰지 않는다). 변이 원복은 `cmp -s` + `git diff --quiet` **두 겹**으로 확인했다(반복 628 이 공허하게 통과한 자리다). 아카이브: `plan_history_081.md` · `design_history_079.md`. **다음은 `scripts/merge-to-main.sh` 병합.**
+note: **테스트 phase 완료 — 갭 1건을 메웠고 미해명 빨강의 절반이 해명됐다.** 갭 ⑦(8점): 이 파일의 모든 0건 측정이 **가짜 러너**였다 — 진짜 명령 꼴(`discover -b -s tests -k 없는이름`)로 한 번 잰다. 설계가 「범위 밖」으로 둔 나머지 길(**잘못된 `-k`**)이 정확히 거기고 `tests/__init__.py` 는 그 길을 못 막는다. 실측 **0.17초**(아무것도 안 맞는 필터라 수집만 한다 — 전수 안에서 전수가 도는 모양이 아니다)이고 조건 블록을 지우는 변이로 **이빨 확인**했다. 8점 미만 갭 셋은 안 넣었다 — 본문이 `Ran 0 tests` 를 위조하는 오탐(4점 · 시끄러운 거짓 빨강이라 주석의 저울 그대로) · `tests/__init__.py` 임포트 금지 가드(3점 · 나쁜 임포트는 수집 전체를 **시끄럽게** 깨뜨린다) · `-m unittest tests.test_deps` 회귀(5점 · 전수가 이미 문다). **빨강 둘 중 하나는 해명됐다** — 830건이 된 판의 `failures=1` 은 `README.md` 건수 가드(829→830)였고 고쳤다. **첫 번째(반복 637)는 여전히 미해명**이고 8판 연속 초록이라 재현이 안 된다 — 두 빨강이 다 **31초대**(평소 26초)라 부하 아래 시간 단언으로 **추정**하며 후보는 `tests/test_crawl.py:1412`(`assertLess(elapsed, 0.5)`)다. 전수 **830 OK**. **다음은 리뷰 phase.**
 ---
 
-## 계획 106 `verdict-last` — 판정 줄을 가리는 손을 기제로 막는다
+## 계획 107 `zero-population` — 0건 전수는 초록이 아니다
 
-**접었다(반복 631).** 근거(digest 최다 재발 35회)·재현 탐침 셋·설계 갈림길(A 얇은 zsh 래퍼)
-전문이 **이 반복이 어차피 읽는 두 문서**에 그대로 있다 — `plan_verdict-last.md` 1·1-1·7절 ·
-`design_verdict-last.md`. 반복별 서술은 `history_current.md` 625~631.
+**여기에 안 옮긴다.** 근거·탐침 2회·갈림길 셋(A 래퍼 · B `tests/__init__.py` · C 둘 다)·
+스텝 셋과 의존 전문이 **다음 반복이 어차피 읽는 계획서**에 있다 —
+`docs/plan_zero-population.md`. 계획 106 의 서술은 `history_current.md` 625~632.
+
 ## 앞 밤(2026-09-18)이 `main` 으로 보낸 것 — 103 · 104 · 105
 
 세 계획 다 **제품 `src/` 0줄**이다. 이 밤은 코드가 아니라 **재는 자들**을 고쳤다.

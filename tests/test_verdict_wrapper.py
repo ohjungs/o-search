@@ -1,6 +1,6 @@
 """`scripts/verdict.sh` 가 **판정을 마지막 줄로** 옮기는지 실제로 돌려서 본다.
 
-`digest.md ## 반복 실패` 최다 항목(「러너의 판정 줄을 가린다」 **35회**)이 이 파일이
+`digest.md ## 반복 실패` 최다 항목(「러너의 판정 줄을 가린다」 **37회**)이 이 파일이
 존재하는 이유다. 막으려는 시도 셋이 전부 문장이었고 셋 다 뚫렸다 — 조항, 조항 조이기,
 「러너를 파이프 왼쪽에 두지 않는다」. 항목 자신의 결론이 「문장은 소진됐다」다.
 
@@ -280,6 +280,105 @@ class VerdictReviewTest(unittest.TestCase):
                           % (self.tmp.name, WRAPPER, runner), ROOT)
         self.assertEqual(2, rc, "임시 로그를 못 만들었는데 2 로 안 끝났다: %r" % (out,))
         self.assertNotIn("rc=0", out, "임시 로그가 없는데 초록을 찍었다: %r" % (out,))
+
+
+class ZeroPopulationTest(unittest.TestCase):
+    """계획 107 — **0건으로 끝난 전수는 초록이 아니다** (`design_zero-population.md`).
+
+    같은 항목(「러너의 판정 줄을 가린다」)의 **서른일곱째**인데 사라진 것이 다르다.
+    앞의 셋은 판정 줄·`rc` 가 사라졌는데 여기는 **둘 다 멀쩡하고 참이다** — 0건을
+    돌렸으니 0건이 통과다. **가려진 것은 출력이 아니라 모집단**이라 위의 계약 넷은
+    전부 통과하면서 사고가 난다. 그래서 재는 자리가 하나 더 필요하다.
+
+    설계가 고른 처방이 둘이라 재는 자도 둘이다 — 뿌리의 덫(`tests/__init__.py`)과
+    래퍼의 판정(`Ran 0 tests` → `rc=2`). 하나만으로는 안 되는 이유는 설계 비교표에 있다.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+
+    def fake(self, body):
+        path = pathlib.Path(self.tmp.name) / "runner.py"
+        path.write_text(body, encoding="utf-8")
+        return path
+
+    # 0건으로 끝난 전수의 모양 — 판정도 `rc` 도 멀쩡하다. 그것이 문제다.
+    EMPTY_RUN = ("import sys\n"
+                 "sys.stderr.write('Ran 0 tests in 0.000s\\n\\nOK\\n')\n")
+
+    def test_the_bare_sweep_does_not_find_an_empty_population(self):
+        """**처방 B** — 시작 디렉터리를 빠뜨린 전수가 0건이 아니라 전부를 본다.
+
+        그날 친 명령이 이것이다(`PYTHONPATH=src python3 -m unittest discover -b`).
+        `tests/` 에 `__init__.py` 가 없어 탐색이 안 내려갔고 **초록으로 답했다.**
+        여기서는 **세기만 한다** — 진짜로 돌리면 전수 안에서 전수가 도는 모양이 된다
+        (계획 101·`VerdictLastTest` 가 같은 자리에서 피한 길).
+        """
+        env = dict(os.environ, PYTHONPATH="src")
+        done = subprocess.run(
+            ["python3", "-c",
+             "import unittest\n"
+             "c = unittest.TestLoader()\n"
+             "print(c.discover('.').countTestCases(), c.discover('tests').countTestCases())"],
+            cwd=str(ROOT), env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            universal_newlines=True)
+        pair = (done.stdout.strip() or "-1 -2").split("\n")[-1].split()
+        bare, named = int(pair[0]), int(pair[1])
+        # 하한 상수를 안 쓴다 — 손으로 갱신해야 하고 스위트가 자라면 의미가 흐려진다.
+        # 재는 것은 **두 모집단이 같은가**이고, 그것이 `tests/__init__.py` 의 계약 그대로다.
+        self.assertEqual(
+            named, bare,
+            "시작 디렉터리를 빼면 %d건, 적으면 %d건이다 — 사람이 앞엣것을 치면"
+            " `Ran 0 tests` · `OK` · rc 0 이 나온다. 0건을 돌렸으니 0건이 통과다"
+            " (`tests/__init__.py` 가 없어 탐색이 안 내려간다). stderr: %r"
+            % (bare, named, done.stderr[-200:]))
+
+    def test_a_zero_count_sweep_is_not_reported_green(self):
+        """**처방 A** — 래퍼가 `Ran 0 tests` 를 판정이 아니라 사고로 읽는다.
+
+        계획 106 의 래퍼는 감싼 명령의 `rc` 를 그대로 싣는데 그 `rc` 가 0 이라
+        **이 자리를 못 덮는다**(탐침 1 실측: `── Ran 0 tests in 0.000s OK rc=0`).
+        이 저장소의 관용구에서 **2 는 판정이 아니라 「재지 못했다」** 이고 0건이 그것이다.
+        """
+        runner = self.fake(self.EMPTY_RUN)
+        out, _ = run_zsh("%s python3 %s | tail -1" % (WRAPPER, runner), ROOT)
+        last = out.strip().split("\n")[-1] if out.strip() else ""
+        self.assertIn("모집단 0", last,
+                      "0건인데 마지막 줄이 그 말을 안 한다 — 읽힌 것: %r" % (last,))
+        self.assertIn("rc=2", last,
+                      "0건 전수를 `rc=0` 으로 실었다 — 읽힌 것: %r" % (last,))
+        _, bare_rc = run_zsh("%s python3 %s" % (WRAPPER, runner), ROOT)
+        self.assertEqual(2, bare_rc, "0건인데 래퍼가 초록으로 끝났다 — 「재지 못했다」가 2 다")
+
+    def test_a_red_run_keeps_its_own_exit_code(self):
+        """**덧쓰지 않는다** — 수집 단계에서 죽어 0건인 경우는 이미 빨갛다.
+
+        거기까지 2 로 바꾸면 **원래 코드를 잃는다**(설계 「계약」 3번). 오늘도 초록인
+        자인데, 처방을 넓게 쓰면 바로 여기가 죽으므로 스텝 2 의 울타리다.
+        """
+        runner = self.fake(self.EMPTY_RUN + "sys.exit(1)\n")
+        out, rc = run_zsh("%s python3 %s" % (WRAPPER, runner), ROOT)
+        self.assertEqual(1, rc, "0건이라고 빨간 실행의 종료 코드를 덮어썼다: %r" % (out[-200:],))
+        self.assertIn("rc=1", out, "마지막 줄이 원래 코드를 안 실었다: %r" % (out[-200:],))
+
+    def test_the_real_runner_is_measured_too_not_only_fakes(self):
+        """**갭 ⑦ · 8점** — 위의 전부가 **가짜 러너**다. 진짜 명령 꼴로 한 번 잰다.
+
+        설계가 「범위 밖」으로 둔 나머지 길(**잘못된 `-k` 필터**)이 여기다 —
+        `tests/__init__.py` 는 그 길을 못 막고 래퍼만 막는다. 가짜로만 재면
+        「우리 러너가 정말 그 표기를 내는가」를 영영 안 물은 채 초록이 된다.
+
+        **전수를 돌리는 것이 아니다** — 아무것도 안 맞는 필터라 수집만 하고 0건으로
+        끝난다(실측 0.17초). 전수 안에서 전수가 도는 모양이 아니다.
+        """
+        out, rc = run_zsh(
+            "PYTHONPATH=src %s python3 -m unittest discover -b -s tests -k 없는이름_없음"
+            % WRAPPER, ROOT)
+        last = out.strip().split("\n")[-1] if out.strip() else ""
+        self.assertIn("Ran 0 tests", last, "진짜 러너의 0건 표기가 바뀌었다: %r" % (last,))
+        self.assertIn("모집단 0", last, "진짜 러너의 0건을 안 물었다: %r" % (last,))
+        self.assertEqual(2, rc, "아무것도 안 맞는 필터가 초록으로 끝났다: %r" % (last,))
 
 
 if __name__ == "__main__":
