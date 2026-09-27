@@ -319,8 +319,14 @@ class ZeroPopulationTest(unittest.TestCase):
         done = subprocess.run(
             ["python3", "-c",
              "import unittest\n"
-             "c = unittest.TestLoader()\n"
-             "print(c.discover('.').countTestCases(), c.discover('tests').countTestCases())"],
+             # 로더를 **둘로 나눈다.** 하나를 재사용하면 첫 `discover('.')` 가 거기에
+             # `_top_level_dir = ROOT` 를 심고, 그러면 두 번째 `discover('tests')` 가
+             # `start_dir != top_level_dir` 길로 들어가 `tests/__init__.py` 를 **요구**한다.
+             # 그 파일을 지우는 변이를 심으면 0건을 세는 게 아니라 ImportError 로 죽어,
+             # 폴백 `-1 -2` 가 「빼면 -1건」이라는 없는 숫자를 실패 메시지에 찍었다.
+             # 같은 부류를 `test_readme.py` 가 이미 적어 뒀다(모듈 싱글턴 오염) — 거기 교훈이다.
+             "print(unittest.TestLoader().discover('.').countTestCases(),\n"
+             "      unittest.TestLoader().discover('tests').countTestCases())"],
             cwd=str(ROOT), env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             universal_newlines=True)
         pair = (done.stdout.strip() or "-1 -2").split("\n")[-1].split()
