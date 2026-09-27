@@ -20,7 +20,7 @@ case "$BRANCH" in
   *) echo "병합 대상이 아니다: $BRANCH — 계획 브랜치는 loop/<슬러그> 다" >&2; exit 2 ;;
 esac
 
-TEST_CMD="${MERGE_TEST_CMD:-PYTHONDONTWRITEBYTECODE=1 PYTHONPYCACHEPREFIX=\$(mktemp -d) PYTHONPATH=src python3 -m unittest discover -b -s tests}"
+TEST_CMD="${MERGE_TEST_CMD:-PYTHONDONTWRITEBYTECODE=1 PYTHONPYCACHEPREFIX=\$(mktemp -d) PYTHONPATH=src scripts/verdict.sh python3 -m unittest discover -b -s tests}"
 
 git push -q origin "$BRANCH" || { echo "브랜치 푸시 실패" >&2; exit 1; }
 git fetch -q origin || { echo "fetch 실패" >&2; exit 1; }
