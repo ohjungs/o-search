@@ -357,6 +357,27 @@ class ZeroPopulationTest(unittest.TestCase):
         _, bare_rc = run_zsh("%s python3 %s" % (WRAPPER, runner), ROOT)
         self.assertEqual(2, bare_rc, "0건인데 래퍼가 초록으로 끝났다 — 「재지 못했다」가 2 다")
 
+    def test_the_zero_count_verdict_does_not_read_green_to_a_grep(self):
+        """**e2e 시나리오 3** — `| tail -1` 로 봐도 초록이 아니다. **낱말 하나까지.**
+
+        반복 639 리뷰 실측: 마지막 줄이 `── Ran 0 tests in 0.000s OK 모집단 0 rc=2` 라
+        줄 전체를 읽으면 `rc=2` 로 빨갛지만 `grep -c OK` 는 **1** 이었다. 이 저장소
+        최다 재발(37회)의 방아쇠가 바로 「초록일 것 같은 실행을 `grep OK` 로 훑는 손」이라,
+        0건일 때는 판정 칸에서 `OK` 를 **뗀다**. 사고에는 통과 낱말이 없어야 한다.
+
+        **정상 전수의 `OK` 는 건드리지 않는다** — 그 자리는
+        `test_a_green_run_also_ends_with_the_verdict` 가 지킨다.
+        """
+        runner = self.fake(self.EMPTY_RUN)
+        out, _ = run_zsh("%s python3 %s | tail -1" % (WRAPPER, runner), ROOT)
+        last = out.strip().split("\n")[-1] if out.strip() else ""
+        self.assertNotIn("OK", last,
+                         "0건 판정 줄에 `OK` 가 남아 `grep OK` 하는 손에는 초록이다 "
+                         "— 읽힌 것: %r" % (last,))
+        # 뗀 것이 `OK` 뿐임을 함께 못박는다 — 건수와 사고 표시가 사라지면 다른 사고다.
+        self.assertIn("Ran 0 tests", last, "건수까지 지웠다 — 읽힌 것: %r" % (last,))
+        self.assertIn("모집단 0", last, "사고 표시까지 지웠다 — 읽힌 것: %r" % (last,))
+
     def test_a_red_run_keeps_its_own_exit_code(self):
         """**덧쓰지 않는다** — 수집 단계에서 죽어 0건인 경우는 이미 빨갛다.
 

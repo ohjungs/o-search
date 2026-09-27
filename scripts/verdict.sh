@@ -76,6 +76,12 @@ verdict=$(grep -E '^(Ran [0-9]+ test|OK$|OK \(|FAILED \()' "$log" | tr '\n' ' ')
 # ponytail: 로그 본문이 줄 머리에 `Ran 0 tests` 를 찍으면 오탐이 난다. 그건 **시끄러운
 # 거짓 빨강**이라 조용한 초록보다 싸다 — 위의 판정 `grep` 과 같은 저울이다.
 if (( rc == 0 )) && grep -q '^Ran 0 tests' "$log"; then
+  # **통과 낱말을 뗀다.** 줄 전체를 읽으면 `rc=2` 로 빨갛지만, 반복 639 리뷰가
+  # `tail -1 | grep -c OK` → **1** 을 실측했다. 이 저장소 최다 재발(37회)의 방아쇠가
+  # 「초록일 것 같은 실행을 `grep OK` 로 훑는 손」이라, 사고에는 그 낱말이 없어야 한다.
+  # 접미사만 떼는 이유: 본문이 `^Ran 0 tests` 를 위조해 판정이 `OK (skipped=N)` 인
+  # 오탐에서는 안 지워지고 그대로 시끄러운 빨강으로 남는다 — 위 `grep` 과 같은 저울이다.
+  verdict="${verdict%OK }"
   verdict="${verdict}모집단 0 "
   rc=2
 fi
