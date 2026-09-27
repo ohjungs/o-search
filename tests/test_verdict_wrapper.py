@@ -283,7 +283,7 @@ class VerdictReviewTest(unittest.TestCase):
 
 
 class ZeroPopulationTest(unittest.TestCase):
-    """계획 107 — **0건으로 끝난 전수는 초록이 아니다** (`design_zero-population.md`).
+    """계획 107 — **0건으로 끝난 전수는 초록이 아니다** (`design_history_080.md`).
 
     같은 항목(「러너의 판정 줄을 가린다」)의 **서른일곱째**인데 사라진 것이 다르다.
     앞의 셋은 판정 줄·`rc` 가 사라졌는데 여기는 **둘 다 멀쩡하고 참이다** — 0건을
