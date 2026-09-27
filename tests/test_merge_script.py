@@ -98,7 +98,8 @@ class MergeScriptTest(unittest.TestCase):
         위 테스트는 `MERGE_TEST_CMD` 주입으로 재므로 **기본값이 래퍼를 안 타도
         초록이다.** 사람이 병합할 때 쓰는 것은 기본값이라 그 줄을 직접 읽는다.
         환경 변수 배정보다 **뒤**인지도 본다 — 앞에 오면 배정이 명령 이름으로
-        읽혀 `rc=127` 이다(`scripts/verdict.sh:7-11` 의 실측).
+        읽혀 `rc=127` 이다. 래퍼 머리글이 「`command not found: PYTHONPATH=src` 와
+        `rc=127` 이 마지막 줄에 찍힌다」로 실측을 적어 둔 그 자리다.
         """
         lines = [ln for ln in pathlib.Path(SCRIPT).read_text(encoding="utf-8").splitlines()
                  if ln.startswith("TEST_CMD=")]
