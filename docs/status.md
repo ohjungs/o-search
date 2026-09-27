@@ -1,26 +1,29 @@
 ---
-signal: GREEN
+signal: DONE
 phase: e2e
-step: 4/4
+step: 0/0
 attempt: 0
-plan: zero-population
-iteration: 641
-updated: 2026-09-27
-mode: interactive
-night_iterations: 14
+plan: null
+iteration: 642
+updated: 2026-09-28
+mode: night
+night_iterations: 1
 night_red: 0
 night_retries: 0
-night_self_amendments: 0
-ctx: **5%** — 게이트 ⑦ 스물아홉 번째 재현이라 값은 여전히 남의 `session_id` 것이고 `updated_unix` 도 **81분** 낡았다. 다만 이 세션이 요약으로 갈린 직후라 실제 사용량도 낮다 — `five_hour 30` · `seven_day 55` 와 함께 **셋 다 85 아래**. 반복 상한(60)에 의존한다
+night_self_amendments: 1
+ctx: **37%** — 이번은 `session_id` 가 내 것이고 `updated_unix` 도 새롭다 — 게이트 ⑦ 의 재현이 아니라 **정상 판**이다. `five_hour 1` · `seven_day 11` · 셋 다 85 아래. 야간 시작이라 카운터 셋을 0 으로 리셋하고 이 반복을 1 로 올렸다
 rules: (저장소 밖 `~/.claude/skills/loop-harness` — 커밋 해시 없음)
-note: **사람 결정 ⑤ 가 ㉮ 로 닫혔고 개발 스텝 4 를 그대로 반영했다.** 0건 판정 줄에서 `OK` 를 뗀다 — `verdict="${verdict%OK }"` 한 줄. 실측이 `── Ran 0 tests in 0.000s OK 모집단 0 rc=2` 에서 **`── Ran 0 tests in 0.000s 모집단 0 rc=2`** 로 바뀌었고 `tail -1 | grep -c OK` 는 **1 → 0**. 정상 전수의 `OK` 는 그대로다(`── Ran 113 tests in 0.054s OK rc=0` 실측). **시나리오를 낮추는 대신 계약을 고쳤다** — `design_zero-population.md` 계약에 ③ 을 자기수정으로 적었다(「바뀌는 것은 둘」 → 셋). TDD 로 갔다: 새 테스트가 `OK unexpectedly found in …` 로 **먼저 빨갰고**, 처방 줄을 지우는 변이에서 그 테스트만 다시 죽고(`failures=1`) 원복은 `cmp` 로 확인했다. 접미사만 떼므로 본문이 `^Ran 0 tests` 를 위조하고 판정이 `OK (skipped=N)` 인 오탐은 **안 지워지고 시끄러운 빨강으로 남는다**. 테스트 1건이 늘어 README 단위 수 가드가 830→831 로 물었고 고쳤다 — 반복 639 리뷰가 informational 로 예고한 자리다. 전수 **831 OK**(19.8초). **다음은 e2e** — 시나리오 4개를 막던 판단이 없어졌다.
+note: **계획 107 이 닫혔다 — e2e 네 시나리오 전부 통과.** 관문은 전수 **831 OK**(21.9s · `rc=0`) · 린트·타입체크·CI 없음 · 품질 7축은 **「해당 없음 · 검증하지 않았다」로 적었다**(이 계획의 `src/` 는 0줄 — 계획 106 e2e 와 같은 판정이고 「통과」라고 쓰지 않았다). **값이 있는 것은 음성 대조다** — 사본 `/tmp/zp107` 에서 `tests/__init__.py` **하나만 지우니 덫이 그대로 되살아났다**(`Ran 0 tests / OK / rc=0` · 계획서 1절의 사고 현장). 같은 자리에서 래퍼는 혼자 `rc=2` 로 빨갰다. 그래서 설계가 C(둘 다)를 고른 근거가 **논증에서 실측으로 올라갔다** — B 만 있으면 `-s scripts` 0건이 초록이고, A 만 있으면 맨몸이 초록이다. **자기수정 ④**: 6절 시나리오 1 의 문면(「초록이 안 나온다」)이 설계 가정 1(반복 634 「맨몸이 826건을 돈다」)에 **이미 앞질러져 있었다** — 갈림길 A 에서만 참인 문장이라 「**0건** 초록이 안 나온다」로 옮겼고, 완료 기준과 나머지 세 시나리오는 **안 낮췄다**. **아카이브가 인용 넷을 끊었고 전수 831 OK 가 하나도 안 물었다** — `tests/__init__.py`·`scripts/verdict.sh`·`test_verdict_wrapper.py`·`digest.md` 가 `design_zero-population.md` 를 가리키고 있었고 `design_history_080.md` 로 손수정했다. 가장 아픈 자리가 `tests/__init__.py` 다(그 주석의 존재 이유가 포인터인데 끊기면 파일이 지워지고 덫이 되살아난다) — **digest 후보 [7]** 로 등재했다. 다음은 **새 계획 탐색**.
 ---
 
-## 계획 107 `zero-population` — 0건 전수는 초록이 아니다
+## 계획 107 `zero-population` — **닫혔다** (반복 642 · 2026-09-28)
 
-**여기에 안 옮긴다.** 근거·탐침 2회·갈림길 셋(A 래퍼 · B `tests/__init__.py` · C 둘 다)·
-스텝 셋과 의존 전문이 **다음 반복이 어차피 읽는 계획서**에 있다 —
-`docs/plan_zero-population.md`. 계획 106 의 서술은 `history_current.md` 625~632.
+아카이브: `docs/plan_history_082.md` · `docs/design_history_080.md` ·
+e2e `docs/e2e/zero-population/result.md`. 서술은 `index.md` 해당 행.
+**활성 계획 0개다** — 다음 반복은 탐색(`discover.md` 1절)으로 연다.
+
+**밤에 손대지 않은 것 하나**: 사본 `/tmp/zp107` 은 음성 대조용 `git clone --local` 이고
+측정 뒤 지운다. 실물 트리는 측정 내내 `git status --short` 빈 출력 · `git diff --quiet` 무변.
 
 ## 앞 밤(2026-09-18)이 `main` 으로 보낸 것 — 103 · 104 · 105
 
