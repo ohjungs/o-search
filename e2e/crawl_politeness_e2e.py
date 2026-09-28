@@ -1,4 +1,4 @@
-"""crawl-politeness e2e — plan_crawl-politeness.md 의 시나리오 그대로.
+"""crawl-politeness e2e — plan_history_012.md 의 시나리오 그대로.
 
 `crawl_delay_e2e.py` 가 **정상 경로**의 간격을 재는 데 반해, 여기서는 계획 013 이 연
 **두 구멍**을 실물로 재현한다. 진짜 소켓·진짜 HTTP·진짜 robots·진짜 프런티어를 쓴다

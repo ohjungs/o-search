@@ -1,4 +1,4 @@
-"""noindex-respect e2e — plan_noindex-respect.md 의 시나리오 + 계획 69 의 엔티티 갈래.
+"""noindex-respect e2e — plan_history_003.md 의 시나리오 + 계획 69 의 엔티티 갈래.
 
 로컬 서버에 일반 페이지 / `<meta name="robots" content="noindex">` / `content="none"` /
 **`name` 을 엔티티로 인코딩한 `<meta name="&#114;obots" content="noindex">`** /

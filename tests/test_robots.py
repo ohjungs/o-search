@@ -199,7 +199,7 @@ class TestKnownDelay(unittest.TestCase):
     """`known_delay()` 는 **캐시만 본다** — 메인 스레드가 부를 수 있는 유일한 조회다.
 
     동시화 설계 계약 4(메인 스레드는 네트워크를 안 한다). `delay()` 와 달리 아직 안 받은
-    도메인에 대해 robots.txt 를 받으러 나가지 않는다 (design_crawl-politeness.md 1-1절).
+    도메인에 대해 robots.txt 를 받으러 나가지 않는다 (design_history_012.md 1-1절).
     """
 
     def test_returns_none_without_touching_the_network(self):

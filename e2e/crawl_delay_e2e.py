@@ -1,4 +1,4 @@
-"""crawl-delay e2e — plan_crawl-delay.md 의 시나리오 그대로.
+"""crawl-delay e2e — plan_history_005.md 의 시나리오 그대로.
 
 같은 로컬 서버를 **두 도메인**으로 쓴다(`127.0.0.1` 과 `localhost` 는 netloc 이 다르다).
 Host 헤더로 robots.txt 를 갈라 낸다:

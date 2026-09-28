@@ -21,7 +21,7 @@ def fetch(url, before_send=None, retries=RETRIES):
     """`before_send` 는 **시도 하나하나 앞에서** 불린다 — 재시도 앞에서도 불린다.
 
     도메인 간격을 지키며 재우는 것도, 발신 시각을 재는 것도 **호출부의 몫**이다.
-    `fetcher` 는 간격이라는 개념을 모른다 (docs/design_crawl-politeness.md 2-1절).
+    `fetcher` 는 간격이라는 개념을 모른다 (docs/design_history_012.md 2-1절).
     훅이 뒤가 아니라 앞에서 불려야 호출부가 재는 것이 응답이 아니라 **발신**이 된다.
 
     `retries=0` 은 "간격을 지킬 수 없는 도메인이니 다시 보내지 않는다" 는 뜻이다(설계 2-4절).

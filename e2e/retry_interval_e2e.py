@@ -1,4 +1,4 @@
-"""retry-interval e2e — plan_retry-interval.md 5절의 시나리오 그대로.
+"""retry-interval e2e — plan_history_014.md 5절의 시나리오 그대로.
 
 계획이 연 문제는 **한 서버인데 두 경로가 다른 값을 쓴다**는 것이었다.
 `robots.txt` 는 스킴별 문서라 `https` 쪽에는 선언이 없고, `_fetch_one` 이 그것만 보면

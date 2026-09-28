@@ -16,7 +16,7 @@ def pop(f, now, exclude=()):
     """`next()` 하고 **요청이 나갔다고 알린다.** 크롤 루프가 하는 일이 이것이다.
 
     간격 시계를 거는 자리는 `mark_sent()` 하나뿐이다 — 팝은 요청이 아니다
-    (design_cooldown-burn.md 계약 1·2). 팝만 하고 요청을 안 보내는 경우
+    (design_history_011.md 계약 1·2). 팝만 하고 요청을 안 보내는 경우
     (`store.has` 스킵·robots 차단)를 재는 곳은 `tests/test_crawl.py` 다.
     """
     url = f.next(exclude)
@@ -69,7 +69,7 @@ class TestFrontier(unittest.TestCase):
 
 
 class TestPerDomainDelay(unittest.TestCase):
-    """robots 의 Crawl-delay 를 반영한 도메인별 간격 (design_crawl-delay.md 계약)."""
+    """robots 의 Crawl-delay 를 반영한 도메인별 간격 (design_history_005.md 계약)."""
 
     def setUp(self):
         self.clock = FakeClock()
@@ -145,7 +145,7 @@ class TestPerDomainDelay(unittest.TestCase):
 
 
 class TestConcurrentPops(unittest.TestCase):
-    """동시 fetch 계약 — docs/design_crawl-throughput.md 계약 2·3·9."""
+    """동시 fetch 계약 — docs/design_history_008.md 계약 2·3·9."""
 
     def test_next_skips_excluded_domain(self):
         f = Frontier(now=lambda: 1000.0)
@@ -156,7 +156,7 @@ class TestConcurrentPops(unittest.TestCase):
     def test_next_does_not_start_the_clock(self):
         # 팝은 요청이 아니다. 팝해 놓고 요청을 안 보내는 경로가 실제로 둘 있고
         # (`store.has` 스킵·robots 차단), 팝이 시계를 걸면 **요청도 없이** 그 도메인이
-        # 쉰다 (design_cooldown-burn.md). 시계를 거는 자리는 `mark_sent()` 하나다
+        # 쉰다 (design_history_011.md). 시계를 거는 자리는 `mark_sent()` 하나다
         t = {"v": 1000.0}
         f = Frontier(now=lambda: t["v"])
         f.add(["http://a.test/1", "http://a.test/2"])

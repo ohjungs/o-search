@@ -5,12 +5,12 @@
     GET /passages?q= 근거 문단 (JSON, 문서당 최대 1개 · 페이지를 나누지 않는다)
 
 요청마다 sqlite 연결을 새로 연다 — 연결 open+close 가 0.04ms 로 질의(1.16ms)의
-3% 라 아낄 것이 없다(docs/design_search-api.md 탐침). 그래서 indexer.search() 를
+3% 라 아낄 것이 없다(docs/design_history_004.md 탐침). 그래서 indexer.search() 를
 그대로 쓴다.
 
 **HTML 과 JSON 을 경로로 가른다** — 같은 URL 을 Accept 헤더로 협상하면
 e2e/perf_search.py 가 재는 p95 가 "어느 코드의 p95 인지 헤더에 달리게" 된다
-(docs/design_search-ui.md 갈림길 1). /search 의 응답은 화면이 붙은 뒤에도 그대로다.
+(docs/design_history_009.md 갈림길 1). /search 의 응답은 화면이 붙은 뒤에도 그대로다.
 """
 import collections
 import html
@@ -127,7 +127,7 @@ MAX_SNIPPET = 200
 
 # 색은 **전부 토큰으로만** 선언한다. e2e/design_check.py 가 --fg-* 와 --bg-* 를 여기서
 # 읽어 WCAG 대비를 매번 다시 계산하기 때문이다 — 검사기가 값을 따로 들면 색을 고쳐도
-# 옛 값으로 통과를 내준다(docs/design_search-ui.md 갈림길 2).
+# 옛 값으로 통과를 내준다(docs/design_history_009.md 갈림길 2).
 # **색 토큰을 새로 만들면 design_check 의 PAIRS/NONTEXT_PAIRS 에 짝을 적거나
 # NO_PAIR 에 사유를 적어야 한다.** 안 적으면
 # 검사기가 종료 2(측정 불능)를 낸다 — 재지 않고 넘어가는 길을 규약으로 막았다.
@@ -227,7 +227,7 @@ def _has_next(hits, page):
     """다음 페이지가 있는가. **JSON 화면 두 경로가 나눠 쓰는 한 벌이다.**
 
     `limit=PAGE_SIZE + 1` 로 받아 **11번째의 유무**로 판정한다 — 개수 질의는 두 번째
-    전수 질의라 p95 에 그대로 얹힌다(docs/design_search-api.md 계약).
+    전수 질의라 p95 에 그대로 얹힌다(docs/design_history_004.md 계약).
     상한도 서버가 정한 것이니 마지막이라는 사실도 서버가 알려야 한다 — 아니면
     다음을 따라간 사용자가 400 을 맞는다.
     """
@@ -353,13 +353,13 @@ def make_server(db_path, port=8000, rate_limit=RATE_LIMIT):
                     found = indexer.passages(db_path, query, limit=PASSAGE_LIMIT)
                 else:
                     # 탐침 한 줄로 has_next 를 판정한다 — 개수 질의는 두 번째 전수 질의라
-                    # p95 에 그대로 얹힌다 (design_search-api.md 계약)
+                    # p95 에 그대로 얹힌다 (design_history_004.md 계약)
                     hits = _page_hits(db_path, query, page)
             except ValueError as exc:
                 self._send(400, {"error": str(exc)})
             # **`except Exception` 앞이어야 한다** — 뒤면 영영 안 닿는다. 색인을 다시
             # 돌리면 낫는 상태에 500(재시도 안 함)은 틀린 신호다. 이 코드를 읽는 것은
-            # 사람이 아니라 인프라다(사양 디자인 5 · design_json-contract.md 갈림길 B).
+            # 사람이 아니라 인프라다(사양 디자인 5 · design_history_032.md 갈림길 B).
             # 본문은 고정 문구다 — `str(exc)` 는 곧 DB 경로다.
             except (FileNotFoundError, indexer.StaleIndexError,
                     indexer.NoCrawlDataError) as exc:
@@ -374,7 +374,7 @@ def make_server(db_path, port=8000, rate_limit=RATE_LIMIT):
             else:
                 if passages:
                     # has_next·page 는 **응답에 없다** — 페이지네이션을 안 열었으므로
-                    # 소비자에게 따라갈 손잡이를 주지 않는다 (design_passage-api.md 계약).
+                    # 소비자에게 따라갈 손잡이를 주지 않는다 (design_history_034.md 계약).
                     self._send(200, {
                         "query": query,
                         "passages": [{"url": url, "title": title, "position": pos,

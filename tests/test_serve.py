@@ -522,7 +522,7 @@ class TestScreenMatchesJson(ServeTestCase):
 
     두 경로가 `_page_hits` 한 벌을 나눠 쓰므로 오늘 **구조상** 참이다. 그런데 그 구조가
     계약인데 재는 단언이 0건이었다 — 화면 쪽만 페이지를 어긋내거나(`page + 1`) 순서를
-    뒤집는 변이가 스위트를 하나도 못 죽였다(design_json-contract.md 변이 M13·M14).
+    뒤집는 변이가 스위트를 하나도 못 죽였다(design_history_032.md 변이 M13·M14).
 
     **리스트로 비교한다** — 집합이면 순서를 뒤집는 변이가 안 죽어 "일치"를 안 재게 된다.
     화면에서 URL 을 뽑는 자리는 `<div class="url">` 이다. 링크(`<a href>`)로 뽑으면
@@ -1006,7 +1006,7 @@ class TestResultsPage(ServeTestCase):
 
 
 class TestHtmlEscaping(ServeTestCase):
-    """이스케이프는 타협하지 않는 영역이다 (plan_search-ui.md 8절).
+    """이스케이프는 타협하지 않는 영역이다 (plan_history_009.md 8절).
 
     질의어·제목·URL·스니펫 **네 자리 전부**를 본다. 한 자리만 막으면 나머지 셋이 열린다.
     """

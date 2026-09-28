@@ -38,7 +38,7 @@ ROOT_FONT_PX = 16          # rem→px 환산. 사용자가 기본 글꼴을 키�
 DOC_BUDGET = 100 * 1024    # LCP 대리: 왕복이 1이므로 전송 시간의 유일한 변수다
 SERVER_BUDGET_MS = 300     # LCP 대리: 서버 생성 시간. perf_search.py 의 예산과 같은 값
 
-# **이름만 여기 있고 값은 매번 CSS 에서 읽는다** (docs/design_search-ui.md 갈림길 2).
+# **이름만 여기 있고 값은 매번 CSS 에서 읽는다** (docs/design_history_009.md 갈림길 2).
 # 검사기가 색값을 들고 있으면 CSS 를 고쳐도 옛 값으로 통과를 내준다 — 드리프트한다.
 PAIRS = [
     ("--fg-body", "--bg-page"),
