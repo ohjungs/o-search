@@ -2091,7 +2091,7 @@ class ReadBudgetTest(unittest.TestCase):
 # 사람에게 설계를 가리키는 것」이라 포인터가 끊기면 파일이 지워진다.
 # **아카이브 꼴도 함께 문다** — 그쪽 18회는 오늘 결손 0 이고 이름이 불변이라 공짜다.
 # 백틱 없는 이름과 `.md` 를 뗀 슬러그는 약속 밖이다 — 합성 픽스처와 과거 사례 산문이
-# 그리로 빠져나간다(`docs/design_citation-alive.md` 결정 A). 자리표시자
+# 그리로 빠져나간다(`docs/design_history_082.md` 결정 A). 자리표시자
 # (`` `plan_<슬러그>.md` ``)는 첫 글자가 꺾쇠라 걸리지 않는다(줄번호 축과 같은 탈출구).
 # **한 백틱 안에 절·줄 표기를 같이 넣은 꼴도 문다** — 이 저장소의 관용구는 절을 백틱
 # 밖에 따로 적는 것(`` `design_history_010.md` `## 계약` ``)인데, 붙여 적은 자리가 하나
@@ -2102,7 +2102,7 @@ ALIVE_CITATION = re.compile(
     r"`(?:docs/)?((?:plan|design)_[A-Za-z0-9][A-Za-z0-9_-]*\.md)(?:[ :][^`\n]*)?`")
 # 인용이 사는 네 곳과 읽을 확장자. `docs/` 는 이 축 밖이다 — 그쪽 결손 44종은 해석
 # 뿌리가 넷(저장소 루트·`docs/specs/`·`docs/e2e/<슬러그>/result.md`·저장소 밖 루프 룰)
-# 으로 갈려 판정이 다르다(`docs/plan_citation-alive.md` 3절).
+# 으로 갈려 판정이 다르다(`docs/plan_history_084.md` 3절).
 ALIVE_DIRS = ("src", "tests", "e2e", "scripts")
 ALIVE_SUFFIXES = (".py", ".sh", ".js")
 # 순회가 죽으면 **0건 초록**이 된다 — `CONST_CITATION_FLOOR` 과 같은 실패 유형이라 같은
@@ -2143,7 +2143,7 @@ def citation_alive_gap(sites, docs):
     if not dead:
         return None
     return ("코드가 없는 문서를 가리킨다 — 아카이브된 이름으로 고치거나, 파일이 아닌"
-            " 예시면 `.md` 를 떼고 슬러그로 적는다 (`docs/design_citation-alive.md`"
+            " 예시면 `.md` 를 떼고 슬러그로 적는다 (`docs/design_history_082.md`"
             " 계약 2):\n" + "\n".join(dead))
 
 
