@@ -2093,7 +2093,13 @@ class ReadBudgetTest(unittest.TestCase):
 # 백틱 없는 이름과 `.md` 를 뗀 슬러그는 약속 밖이다 — 합성 픽스처와 과거 사례 산문이
 # 그리로 빠져나간다(`docs/design_citation-alive.md` 결정 A). 자리표시자
 # (`` `plan_<슬러그>.md` ``)는 첫 글자가 꺾쇠라 걸리지 않는다(줄번호 축과 같은 탈출구).
-ALIVE_CITATION = re.compile(r"`(?:docs/)?((?:plan|design)_[A-Za-z0-9][A-Za-z0-9_-]*\.md)`")
+# **한 백틱 안에 절·줄 표기를 같이 넣은 꼴도 문다** — 이 저장소의 관용구는 절을 백틱
+# 밖에 따로 적는 것(`` `design_history_010.md` `## 계약` ``)인데, 붙여 적은 자리가 하나
+# 있었고 그 하나가 **없는 파일을 가리킨 채 조용했다**(반복 654 리뷰 실측:
+# `tests/test_design_check.py:10`). 계획 42 가 콜론 꼴만 막아 한국어 꼴이 탈출구가 된
+# 것과 같은 부류라 같은 손을 쓴다 — 닫는 백틱 앞의 꼬리를 받아 준다.
+ALIVE_CITATION = re.compile(
+    r"`(?:docs/)?((?:plan|design)_[A-Za-z0-9][A-Za-z0-9_-]*\.md)(?:[ :][^`\n]*)?`")
 # 인용이 사는 네 곳과 읽을 확장자. `docs/` 는 이 축 밖이다 — 그쪽 결손 44종은 해석
 # 뿌리가 넷(저장소 루트·`docs/specs/`·`docs/e2e/<슬러그>/result.md`·저장소 밖 루프 룰)
 # 으로 갈려 판정이 다르다(`docs/plan_citation-alive.md` 3절).
@@ -2155,6 +2161,8 @@ class CitationAlivePatternTest(unittest.TestCase):
         "옮겨 간 자리는 `%s` 다" % (NAME % ("plan", "history_012")),   # 아카이브 꼴
         "경로까지 적은 꼴 `docs/%s`" % (NAME % ("design", "y-slug")),
         "| `%s` | 표 칸 안 |" % (NAME % ("plan", "z-slug")),
+        "절까지 같은 백틱 `%s ## 계약`" % (NAME % ("design", "w-slug")),
+        "줄까지 같은 백틱 `%s:12`" % (NAME % ("plan", "v-slug")),
     )
     NOT_CAUGHT = (
         "백틱 없는 %s" % (NAME % ("plan", "q-slug")),
