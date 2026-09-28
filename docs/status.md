@@ -1,19 +1,19 @@
 ---
 signal: DONE
-phase: e2e
-step: 3/3
+phase: 마감
+step: 0/0
 attempt: 0
-plan: bare-citation
-iteration: 662
+plan: null
+iteration: 663
 updated: 2026-09-28
 mode: night
-night_iterations: 21
+night_iterations: 22
 night_red: 0
 night_retries: 0
 night_self_amendments: 3
 ctx: **모른다 — 게이트 ⑦ 서른한 번째.** `.context-state.json` 은 `updated_unix` 가 방금 것(1790569986 · 13:33)이라 **낡지는 않았지만** `session_id` 가 `12a898a7…` 로 **내 것이 아니다**(내 것은 `5fd9742b…`, 같은 프로젝트 디렉터리에 그 이름의 `.jsonl` 이 없다). 그러므로 `context_used_percentage 39` · `five_hour 1` · `seven_day 11` 은 **남의 값**이고 85 아래라는 판정의 근거가 못 된다. **낡음만 보는 판정으로는 이 판을 못 거른다** — 563 이 한 줄로 줄인 「세션 대조」가 이번 판을 가른 유일한 자다. SKILL.md 대로 **반복 상한(60)과 야간 계획 상한(3)에만 의존한다.** 이 밤 실적은 반복 15 · 계획 1(109 닫힘).
 rules: (저장소 밖 `~/.claude/skills/loop-harness` — 커밋 해시 없음)
-note: **계획 110 e2e 통과 — DONE.** 새 e2e 파일 0개 · 시나리오 3종 전부 사본(`/tmp/bc110_e2e`)에서 실행. ① 대조군 **844 OK rc=0** ② 사건 재연 — 백틱 **없는** 주석 한 줄(`src/websearch/serve.py:2`)을 심고 계획서를 아카이브 이름으로 옮기니 **failures=1**, 자리를 그대로 댄다(계획 109 의 자였다면 조용했을 편집이다) ③ 음성 대조 — 축만 되돌리면 「조용하다」가 **성립하지 않았고 더 좋은 쪽으로** 틀렸다: 심은 bare 인용은 안 잡히지만(그것이 이 계획이 잡는 것이라는 증거) **하한이 52<100 으로 물고**, 되돌린 축은 **뒤 낱말 경계도 같이 잃어** 리뷰 [R110-1] 이 고친 오탐이 되살아난다 — 축 제거 변이가 **세 자리에서** 죽는다. 제품 동작 0줄(`src` 21줄 전부 산문 · 16쌍 대조) · 워킹트리 무변경 · DB mtime 09-15 그대로. **이 반복에서 하나 잃었다** — e2e 기록 커밋(`2103c29`)이 **빨간 트리 위에서** 나갔다. 전수가 `FAILED rc=1` 을 화면에 찍었는데 `… | tail -3 && git commit` 의 `&&` 가 `tail` 의 rc 를 읽었다(판정 줄을 가린 게 아니라 **문을 여는 자리가 파이프 뒤**였다 · digest 반복 실패 ㊳). 원인은 `history_current.md` **항목 21 > 20 회전 누락**이라 곧바로 반복 642~649 를 `history_094.md` 로 밀고 844 OK 로 되돌렸다. **다음 손: 검증과 커밋을 한 줄에 잇지 않는다.** **다음** — 마감(`rules/docs.md` 4절): 계획·설계 아카이브 · 인용 4자리 정정 · `index.md` · 병합은 `scripts/merge-to-main.sh`.
+note: **계획 110 마감 — DONE.** `plan_history_085.md`·`design_history_083.md` 로 옮기고 그 이름을 가리키던 인용 **4자리**를 같은 커밋에서 고쳤다(전부 백틱 안 — 그중 하나는 **실패 메시지 문자열 안**이다). `index.md` 갱신. 전수 **844 OK rc=0**. **이 밤 실적** — 반복 22 · 계획 2(109·110 닫힘). **다음** — `scripts/merge-to-main.sh` 로 병합하고 야간 보고서를 쓴다. 계획 상한 3 중 둘을 썼다.
 ---
 
 ## 계획 110 — e2e · **통과 · DONE** (반복 662 · 2026-09-28)

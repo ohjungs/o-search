@@ -1617,7 +1617,7 @@ class ArchiveGapTest(unittest.TestCase):
         self.assertIsNone(archive_gap(self.index(self.DONE % "gone-one"), set()))
 
     # 픽스처 이름은 **조립한다** — 리터럴로 박으면 `citation_sites` 가 제 픽스처를 물어
-    # 검사가 자기 때문에 영원히 빨갛다 (`docs/design_bare-citation.md` 계약).
+    # 검사가 자기 때문에 영원히 빨갛다 (`docs/design_history_083.md` 계약).
     def test_live_done_plan_is_a_gap(self):
         gap = archive_gap(self.index(self.DONE % "stayed-one"),
                           {"plan_%s.md" % "stayed-one"})
@@ -2094,7 +2094,7 @@ class ReadBudgetTest(unittest.TestCase):
 # **아카이브 꼴도 함께 문다** — 그쪽은 이름이 불변이라 공짜다.
 # **계획 110 이 백틱 조건을 없앴다** — 109 의 자는 백틱에 든 `` `design_<이름>.md` `` 는
 # 물고 같은 줄의 맨 이름은 놓쳐 **코드 인용의 41%(48/117)만** 봤고, 실제로 끊긴 65자리가 그
-# 반대편에 있었다. 이제 **표기 형태를 안 본다**(`docs/design_bare-citation.md` 결정 A).
+# 반대편에 있었다. 이제 **표기 형태를 안 본다**(`docs/design_history_083.md` 결정 A).
 # 약속 밖으로 남는 것은 둘뿐이다 — `.md` 를 뗀 슬러그(과거 사례 산문이 그리로 빠진다)와
 # 자리표시자 `` `plan_<슬러그>.md` ``(첫 글자가 꺾쇠라 안 걸린다). **합성 픽스처는
 # 예외를 받지 않는다** — 자에 구멍을 내는 대신 픽스처 쪽이 이름을 **조립해서** 쓴다.
@@ -2149,7 +2149,7 @@ def citation_alive_gap(sites, docs):
     return ("코드가 없는 문서를 가리킨다 — 아카이브된 이름으로 고치거나, 파일이 아닌"
             " 예시면 `.md` 를 떼고 슬러그로 적는다 (`docs/design_history_082.md`"
             " 계약 2). 테스트의 합성 픽스처면 셋째 길이다 — 한 리터럴에 토큰을 담지 말고"
-            " 이름을 **조립**한다 (`docs/design_bare-citation.md` 계약):\n" + "\n".join(dead))
+            " 이름을 **조립**한다 (`docs/design_history_083.md` 계약):\n" + "\n".join(dead))
 
 
 class CitationAlivePatternTest(unittest.TestCase):
@@ -2227,7 +2227,7 @@ class CitationAliveGapTest(unittest.TestCase):
 
         `tests` 가 `ALIVE_DIRS` 에 있어 이 자는 **자기 픽스처를 문다**. 그때 유일한
         해법이 이름 조립인데 메시지가 아카이브 이름과 슬러그 둘만 대면 다음 사람은
-        **틀린 방향으로** 간다 (`docs/design_bare-citation.md` 계약 4번).
+        **틀린 방향으로** 간다 (`docs/design_history_083.md` 계약 4번).
         """
         self.code("tests/t.py", "# `%s`" % ("plan_%s.md" % "fixture"))
         gap = citation_alive_gap(citation_sites(self.root), self.docs)
