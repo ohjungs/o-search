@@ -2098,16 +2098,20 @@ class ReadBudgetTest(unittest.TestCase):
 # 약속 밖으로 남는 것은 둘뿐이다 — `.md` 를 뗀 슬러그(과거 사례 산문이 그리로 빠진다)와
 # 자리표시자 `` `plan_<슬러그>.md` ``(첫 글자가 꺾쇠라 안 걸린다). **합성 픽스처는
 # 예외를 받지 않는다** — 자에 구멍을 내는 대신 픽스처 쪽이 이름을 **조립해서** 쓴다.
+# 백틱이 주던 경계를 낱말 경계가 **양쪽에서** 대신한다 — 앞만 막으면
+# `plan_x.mdx`·`plan_x.md_backup` 이 잘려 들어와 없는 문서로 잡힌다.
 ALIVE_CITATION = re.compile(
-    r"(?<![A-Za-z0-9_-])(?:docs/)?((?:plan|design)_[A-Za-z0-9][A-Za-z0-9_-]*\.md)")
+    r"(?<![A-Za-z0-9_-])(?:docs/)?((?:plan|design)_[A-Za-z0-9][A-Za-z0-9_-]*\.md)"
+    r"(?![A-Za-z0-9_-])")
 # 인용이 사는 네 곳과 읽을 확장자. `docs/` 는 이 축 밖이다 — 그쪽 결손 44종은 해석
 # 뿌리가 넷(저장소 루트·`docs/specs/`·`docs/e2e/<슬러그>/result.md`·저장소 밖 루프 룰)
 # 으로 갈려 판정이 다르다(`docs/plan_history_084.md` 3절).
 ALIVE_DIRS = ("src", "tests", "e2e", "scripts")
 ALIVE_SUFFIXES = (".py", ".sh", ".js")
 # 순회가 죽으면 **0건 초록**이 된다 — `CONST_CITATION_FLOOR` 과 같은 실패 유형이라 같은
-# 방식으로 못을 박는다. 축을 넓힌 오늘 실물은 **117회**(백틱 안 48 + 밖 69)이고 정정이
-# 끝나도 인용 수는 줄지 않는다(이름만 바뀐다). 100 은 「아무것도 안 잰다」와 대량 삭제만 문다.
+# 방식으로 못을 박는다. 축을 넓힌 직후가 **117회**(백틱 안 48 + 밖 69)였고, 픽스처 9개를
+# 조립 꼴로 옮긴 **오늘 실물은 108**이다(정정은 이름만 바꿔 수를 안 줄인다). 100 은
+# 「아무것도 안 잰다」와 대량 삭제만 문다 — 여유가 8뿐이라 인용을 9개 걷어내면 여기가 먼저 운다.
 ALIVE_CITATION_FLOOR = 100
 
 
@@ -2144,7 +2148,8 @@ def citation_alive_gap(sites, docs):
         return None
     return ("코드가 없는 문서를 가리킨다 — 아카이브된 이름으로 고치거나, 파일이 아닌"
             " 예시면 `.md` 를 떼고 슬러그로 적는다 (`docs/design_history_082.md`"
-            " 계약 2):\n" + "\n".join(dead))
+            " 계약 2). 테스트의 합성 픽스처면 셋째 길이다 — 한 리터럴에 토큰을 담지 말고"
+            " 이름을 **조립**한다 (`docs/design_bare-citation.md` 계약):\n" + "\n".join(dead))
 
 
 class CitationAlivePatternTest(unittest.TestCase):
@@ -2170,6 +2175,10 @@ class CitationAlivePatternTest(unittest.TestCase):
         "자리표시자 `plan_<슬러그>.md`",
         "`.md` 를 뗀 슬러그 `%s`" % "recrawl",
         "다른 접두 `spec_%s`" % (NAME % ("x", "y"))[2:],
+        # 뒤쪽 경계. 백틱을 버린 대가로 **양쪽**을 낱말 경계가 대신해야 하는데
+        # 앞만 막으면 `.md` 로 시작하는 더 긴 이름이 잘려 들어온다 (계획 110 리뷰).
+        "확장자가 더 붙은 꼴 %sx" % (NAME % ("plan", "s-slug")),
+        "뒤에 낱말이 붙은 꼴 %s_backup" % (NAME % ("design", "t-slug")),
     )
 
     def test_pattern_catches_document_citations(self):
@@ -2212,6 +2221,17 @@ class CitationAliveGapTest(unittest.TestCase):
         self.assertIsNotNone(gap, "없는 문서를 가리키는데 조용하다")
         self.assertIn("src/a.py:2", gap, "자리를 안 알려준다 — 사람이 못 찾는다")
         self.assertIn("design_%s.md" % "gone", gap, "이름을 안 알려준다")
+
+    def test_the_gap_message_offers_the_fixture_way_out(self):
+        """설계 계약 — 고칠 **세 번째 길**을 메시지에서 읽는다.
+
+        `tests` 가 `ALIVE_DIRS` 에 있어 이 자는 **자기 픽스처를 문다**. 그때 유일한
+        해법이 이름 조립인데 메시지가 아카이브 이름과 슬러그 둘만 대면 다음 사람은
+        **틀린 방향으로** 간다 (`docs/design_bare-citation.md` 계약 4번).
+        """
+        self.code("tests/t.py", "# `%s`" % ("plan_%s.md" % "fixture"))
+        gap = citation_alive_gap(citation_sites(self.root), self.docs)
+        self.assertIn("조립", gap, "픽스처가 이름을 조립하는 길을 안 알려준다")
 
     # 명부를 **리터럴로** 든다. `ALIVE_DIRS` 로 픽스처와 기대를 함께 만들면 상수를
     # 줄이는 변이가 양쪽을 같이 줄여 **조용히 산다** — 2026-09-28 실측에서 `scripts`
