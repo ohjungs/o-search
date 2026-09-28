@@ -1,4 +1,4 @@
-"""deadline e2e — plan_deadline.md 스텝 4/4.
+"""deadline e2e — plan_history_018.md 스텝 4/4.
 
 **단위 테스트가 구조적으로 못 보는 두 자리**를 본다. 겹치는 것은 안 다시 잰다.
 

@@ -1,4 +1,4 @@
-"""domain-key e2e — plan_domain-key.md 5절의 시나리오 그대로.
+"""domain-key e2e — plan_history_015.md 5절의 시나리오 그대로.
 
 계획이 연 문제는 **한 서버인데 표기가 다르면 다른 서버 취급**이라는 것이었다.
 열쇠가 날 `netloc` 이라 `http://a.test` · `http://A.test` · `http://a.test:80` 이

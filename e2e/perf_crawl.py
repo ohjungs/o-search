@@ -58,7 +58,7 @@ MIN_GAP = 0.95                 # 1.0 - 왕복 지터 여유. crawl_delay_e2e.py:
 
 # **기준선은 합격선과 다른 질문이다.** TARGET_RATE 는 "제품 목표를 넘나",
 # 아래는 "어제보다 나빠졌나". 그리고 기준선에는 **어떤 세계에서 잰 숫자인지**를 적는다 —
-# 이걸 안 적어서 8일 동안 못 본 것이 아래 차단 시나리오다 (docs/design_cooldown-burn.md).
+# 이걸 안 적어서 8일 동안 못 본 것이 아래 차단 시나리오다 (docs/design_history_011.md).
 BASELINE_BLOCKED = 9.0         # robots 가 페이지 11개 중 6개를 막는 세계. 실측 10.3/s.
 # 이 시나리오가 없던 동안 실제 값은 **4.5/s** 로 TARGET_RATE 밑이었고 아무도 몰랐다.
 # 팝 시점에 간격 시계를 걸어 요청도 안 보낸 URL 이 쿨다운을 태우고 있었다.
@@ -195,7 +195,7 @@ def scenario_blocked():
     n, lo = assert_gaps_kept("[차단]")
     assert rate >= BASELINE_BLOCKED, (
         "[차단] 초당 %.2f문서 — 기준선 %.1f 미달. 요청도 안 보낸 URL 이 도메인 쿨다운을 "
-        "태우고 있는지 본다 (docs/design_cooldown-burn.md)" % (rate, BASELINE_BLOCKED))
+        "태우고 있는지 본다 (docs/design_history_011.md)" % (rate, BASELINE_BLOCKED))
     print("[차단] 통과: %.2f/s (기준선 %.1f) · 도메인 %d개 최소 간격 %.3fs (하한 %.2fs) · "
           "차단 경로 요청 0건" % (rate, BASELINE_BLOCKED, n, lo, MIN_GAP))
 
@@ -281,7 +281,7 @@ def main():
           "(하한 %.2fs) · 중복 0" % (rate, TARGET_RATE, measured_n, lo, MIN_GAP))
 
     # **여기서 끝내면 안 된다.** 위 숫자는 아무것도 막지 않는 세계의 것이고,
-    # 현실의 사이트는 대개 무언가를 막는다 (docs/design_cooldown-burn.md 범위 밖 절)
+    # 현실의 사이트는 대개 무언가를 막는다 (docs/design_history_011.md 범위 밖 절)
     scenario_blocked()
     scenario_worker_exception()
     print("e2e 통과: 3시나리오(열림·차단·워커예외) 전부 통과")

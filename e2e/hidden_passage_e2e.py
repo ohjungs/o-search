@@ -1,4 +1,4 @@
-"""hidden-passage e2e — plan_hidden-passage.md 5절 완료 기준 1·2 를 **사용자 자리**에서.
+"""hidden-passage e2e — plan_history_037.md 5절 완료 기준 1·2 를 **사용자 자리**에서.
 
 계획 3절의 탐침은 `indexer.passages()` 를 **프로세스 안에서** 불렀다. 사용자는 그렇게
 쓰지 않는다 — crawl 로 남의 HTML 을 받아 색인하고, README 그대로 CLI 서버를 띄워

@@ -1,4 +1,4 @@
-"""pagination-ui e2e — plan_pagination-ui.md 의 시나리오 그대로.
+"""pagination-ui e2e — plan_history_013.md 의 시나리오 그대로.
 
 **링크가 있느냐가 아니라 따라간 결과를 잰다.** 계획이 연 문제는 "주소창을 편집할 줄
 아는 사람만 11번째 결과를 본다" 였다. 그러니 검증도 주소창을 안 건드리고 **화면에

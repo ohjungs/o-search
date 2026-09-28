@@ -148,7 +148,7 @@ class TestUserAgentIsSent(unittest.TestCase):
 
 
 class TestSendHook(unittest.TestCase):
-    """재시도가 **간격 없이 몰아치지 않게** 하는 손잡이 (design_crawl-politeness.md 2-1절).
+    """재시도가 **간격 없이 몰아치지 않게** 하는 손잡이 (design_history_012.md 2-1절).
 
     `fetcher` 는 간격이라는 개념을 모른다. 시도 하나하나 앞에서 `before_send()` 를 부를
     뿐이고, 재우는 것도 발신 시각을 재는 것도 `crawl._fetch_one` 이 넘긴 클로저가 한다.

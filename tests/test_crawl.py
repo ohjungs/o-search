@@ -495,7 +495,7 @@ class TestCrawlDelayWiring(unittest.TestCase):
 
 
 class TestConcurrency(unittest.TestCase):
-    """동시 fetch 계약 — docs/design_crawl-throughput.md 계약 1·3·6·7.
+    """동시 fetch 계약 — docs/design_history_008.md 계약 1·3·6·7.
 
     시간을 재지 않는다 — 시간으로 동시성을 판정하면 부하 걸린 기계에서 흔들린다.
     배리어(만나야만 통과)와 동시 실행 수 최고치로 본다.
@@ -600,7 +600,7 @@ class TestConcurrency(unittest.TestCase):
 class TestCooldownBurn(unittest.TestCase):
     """팝했지만 **요청을 안 보낸** URL 이 도메인 쿨다운을 태우지 않는가.
 
-    design_cooldown-burn.md 계약 2·3. 시간을 재지 않고 **가짜 시계**로 결정적으로 본다 —
+    design_history_011.md 계약 2·3. 시간을 재지 않고 **가짜 시계**로 결정적으로 본다 —
     `time.sleep` 이 시계를 흘려보내므로 간격이 정확히 몇 초였는지 단언할 수 있다.
     """
 
@@ -701,7 +701,7 @@ class TestCooldownBurn(unittest.TestCase):
 
 
 class FakeRobots:
-    """`RobotsCache` 의 계약만 흉내낸다 (design_crawl-politeness.md 1-1절).
+    """`RobotsCache` 의 계약만 흉내낸다 (design_history_012.md 1-1절).
 
     `delay()` 는 필요하면 받아 오지만 `known_delay()` 는 **이미 받아 둔 것만** 준다 —
     그 차이가 이 테스트들이 재는 것이다.
@@ -819,7 +819,7 @@ class TestDelaySurvivesWorkerException(unittest.TestCase):
 
 
 class TestRetriesKeepTheInterval(unittest.TestCase):
-    """`fetcher` 의 재시도가 도메인 간격을 지키는가 (design_crawl-politeness.md 2절).
+    """`fetcher` 의 재시도가 도메인 간격을 지키는가 (design_history_012.md 2절).
 
     실측(반복 87 리뷰 탐침): 연결 거부 도메인 1건 → **TCP 연결 3회, 간격 0.0002초**.
     재시도는 `fetcher` 안에서 일어나 `mark_sent` 를 한 번도 안 지나므로 프런티어는
@@ -1223,7 +1223,7 @@ class TestUrlNormalization(unittest.TestCase):
 
 
 class TestDeadline(unittest.TestCase):
-    """총 크롤 시간 예산 — docs/design_deadline.md.
+    """총 크롤 시간 예산 — docs/design_history_018.md.
 
     예산이 하는 일은 **"덜 보낸다" 뿐**이고 "빨리 보낸다" 는 아니다. 후자가 되는
     순간 `test_budget_never_shortens_the_interval` 이 먼저 죽는다.
@@ -1459,7 +1459,7 @@ class WokenStop(FakeStop):
 
 
 class TestGracefulInterrupt(unittest.TestCase):
-    """중단 신호가 메인 루프를 접는다 — docs/design_graceful-interrupt.md 계약 2·6.
+    """중단 신호가 메인 루프를 접는다 — docs/design_history_021.md 계약 2·6.
 
     **스텝 1 은 메인 루프만 본다.** 워커 쪽(재시도 잠을 깨우기·발신 취소)은 스텝 2 라
     여기서 재지 않는다.
@@ -1578,7 +1578,7 @@ class TestGracefulInterrupt(unittest.TestCase):
 
 
 class TestWorkerSeesTheSignal(unittest.TestCase):
-    """워커가 중단을 본다 — design_graceful-interrupt.md 계약 3·4·5.
+    """워커가 중단을 본다 — design_history_021.md 계약 3·4·5.
 
     **깨우기와 취소는 한 변경이다.** 재시도 잠을 깨우기만 하고 발신을 안 접으면
     `Crawl-delay: 30` 을 선언한 서버에 10초 간격으로 3발이 나간다 — 지금 워커가
@@ -1896,7 +1896,7 @@ class TestBudgetFoldsRetries(unittest.TestCase):
 
 
 class TestCliTurnsSigintIntoTheSignal(unittest.TestCase):
-    """CLI 가 SIGINT 를 `stop` 으로 바꾼다 — design_graceful-interrupt.md 계약 7.
+    """CLI 가 SIGINT 를 `stop` 으로 바꾼다 — design_history_021.md 계약 7.
 
     **진짜 `os.kill(os.getpid(), SIGINT)` 는 안 쓴다.** 핸들러가 제 손으로 SIG_DFL 로
     돌아간 뒤라면 그 신호가 테스트 프로세스를 죽인다. 대신 **설치된 핸들러를 직접

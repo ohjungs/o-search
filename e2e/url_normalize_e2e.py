@@ -1,4 +1,4 @@
-"""url-normalize e2e — plan_url-normalize.md 5절의 시나리오 그대로.
+"""url-normalize e2e — plan_history_016.md 5절의 시나리오 그대로.
 
 계획이 연 문제는 **같은 문서인데 표기가 다르면 다른 문서 취급**이라는 것이었다.
 017(`domain-key`)이 "어느 서버인가" 를 한 칸으로 모은 뒤에도 `Frontier._seen` 과

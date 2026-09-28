@@ -1616,22 +1616,24 @@ class ArchiveGapTest(unittest.TestCase):
     def test_archived_plan_is_quiet(self):
         self.assertIsNone(archive_gap(self.index(self.DONE % "gone-one"), set()))
 
+    # 픽스처 이름은 **조립한다** — 리터럴로 박으면 `citation_sites` 가 제 픽스처를 물어
+    # 검사가 자기 때문에 영원히 빨갛다 (`docs/design_history_083.md` 계약).
     def test_live_done_plan_is_a_gap(self):
         gap = archive_gap(self.index(self.DONE % "stayed-one"),
-                          {"plan_stayed-one.md"})
+                          {"plan_%s.md" % "stayed-one"})
         self.assertIsNotNone(gap)
         self.assertIn("stayed-one", gap)
 
     def test_held_plan_stays_put(self):
         # 오탐 축 — `보류` 는 승인에 막힌 것이라 제자리가 맞다.
         self.assertIsNone(archive_gap(self.index(self.HELD % "waiting-one"),
-                                      {"plan_waiting-one.md"}))
+                                      {"plan_%s.md" % "waiting-one"}))
 
     def test_prefix_sharing_slug_is_not_bitten(self):
         # 이름 대조는 **완전 일치**다. `startswith` 로 넓히는 변이는 `plan_seed` 행이
         # 아직 살아 있는 `plan_seed-tier1` 계획서를 물어, 안 끝난 계획서를 치우라고 시킨다.
         self.assertIsNone(archive_gap(self.index(self.DONE % "seed"),
-                                      {"plan_seed-tier1.md"}))
+                                      {"plan_%s.md" % "seed-tier1"}))
 
 
 class ConstGapTest(unittest.TestCase):
@@ -1966,7 +1968,7 @@ class ReadBudgetGapTest(unittest.TestCase):
         sizes = [("status.md", status, 50), ("project.md", project, 60),
                  ("history_current.md", history, 300)]
         if plan is not None:
-            sizes.append(("plan_x.md", plan, 80))
+            sizes.append(("plan_%s.md" % "x", plan, 80))
         return sizes
 
     def test_under_the_cap_is_silent(self):
@@ -1987,7 +1989,7 @@ class ReadBudgetGapTest(unittest.TestCase):
         # 빼는 변이가 살아남는다.
         gap = read_budget_gap(self._sizes(299, 63, 241, 100))
         for expected in ("status.md 299/50", "project.md 63/60",
-                         "history_current.md 241/300", "plan_x.md 100/80"):
+                         "history_current.md 241/300", "plan_%s.md 100/80" % "x"):
             self.assertIn(expected, gap)
 
     def test_a_file_over_its_own_cap_is_silent_while_the_sum_fits(self):
@@ -2035,13 +2037,13 @@ class ReadBudgetSizesTest(unittest.TestCase):
         (docs / "project.md").write_text("a\nb\n", encoding="utf-8")
         (docs / "history_current.md").write_text("c\n", encoding="utf-8")
         if make_plan:
-            (docs / "plan_x.md").write_text("d\ne\nf\n", encoding="utf-8")
+            (docs / ("plan_%s.md" % "x")).write_text("d\ne\nf\n", encoding="utf-8")
         return docs
 
     def test_an_active_plan_with_a_file_is_counted(self):
         with tempfile.TemporaryDirectory() as tmp:
             sizes = read_budget_sizes(self._docs(tmp, "plan: x", True))
-        self.assertEqual(sizes[-1], ("plan_x.md", 3, READ_BUDGET_PLAN_CAP))
+        self.assertEqual(sizes[-1], ("plan_%s.md" % "x", 3, READ_BUDGET_PLAN_CAP))
 
     def test_an_active_plan_without_a_file_is_not_counted(self):
         # 아카이브 직후 `status.md` 가 아직 옛 슬러그를 가리키는 날이 있다. 없는
@@ -2089,26 +2091,28 @@ class ReadBudgetTest(unittest.TestCase):
 # 2026-09-28 실측으로 코드 안 **28자리**가 없는 파일을 가리켰고 전수 833 이 하나도 안
 # 물었다. 가장 아픈 자리는 `tests/__init__.py` 다: 그 주석의 존재 이유가 「지우려는
 # 사람에게 설계를 가리키는 것」이라 포인터가 끊기면 파일이 지워진다.
-# **아카이브 꼴도 함께 문다** — 그쪽 18회는 오늘 결손 0 이고 이름이 불변이라 공짜다.
-# 백틱 없는 이름과 `.md` 를 뗀 슬러그는 약속 밖이다 — 합성 픽스처와 과거 사례 산문이
-# 그리로 빠져나간다(`docs/design_history_082.md` 결정 A). 자리표시자
-# (`` `plan_<슬러그>.md` ``)는 첫 글자가 꺾쇠라 걸리지 않는다(줄번호 축과 같은 탈출구).
-# **한 백틱 안에 절·줄 표기를 같이 넣은 꼴도 문다** — 이 저장소의 관용구는 절을 백틱
-# 밖에 따로 적는 것(`` `design_history_010.md` `## 계약` ``)인데, 붙여 적은 자리가 하나
-# 있었고 그 하나가 **없는 파일을 가리킨 채 조용했다**(반복 654 리뷰 실측:
-# `tests/test_design_check.py:10`). 계획 42 가 콜론 꼴만 막아 한국어 꼴이 탈출구가 된
-# 것과 같은 부류라 같은 손을 쓴다 — 닫는 백틱 앞의 꼬리를 받아 준다.
+# **아카이브 꼴도 함께 문다** — 그쪽은 이름이 불변이라 공짜다.
+# **계획 110 이 백틱 조건을 없앴다** — 109 의 자는 백틱에 든 `` `design_<이름>.md` `` 는
+# 물고 같은 줄의 맨 이름은 놓쳐 **코드 인용의 41%(48/117)만** 봤고, 실제로 끊긴 65자리가 그
+# 반대편에 있었다. 이제 **표기 형태를 안 본다**(`docs/design_history_083.md` 결정 A).
+# 약속 밖으로 남는 것은 둘뿐이다 — `.md` 를 뗀 슬러그(과거 사례 산문이 그리로 빠진다)와
+# 자리표시자 `` `plan_<슬러그>.md` ``(첫 글자가 꺾쇠라 안 걸린다). **합성 픽스처는
+# 예외를 받지 않는다** — 자에 구멍을 내는 대신 픽스처 쪽이 이름을 **조립해서** 쓴다.
+# 백틱이 주던 경계를 낱말 경계가 **양쪽에서** 대신한다 — 앞만 막으면
+# `plan_x.mdx`·`plan_x.md_backup` 이 잘려 들어와 없는 문서로 잡힌다.
 ALIVE_CITATION = re.compile(
-    r"`(?:docs/)?((?:plan|design)_[A-Za-z0-9][A-Za-z0-9_-]*\.md)(?:[ :][^`\n]*)?`")
+    r"(?<![A-Za-z0-9_-])(?:docs/)?((?:plan|design)_[A-Za-z0-9][A-Za-z0-9_-]*\.md)"
+    r"(?![A-Za-z0-9_-])")
 # 인용이 사는 네 곳과 읽을 확장자. `docs/` 는 이 축 밖이다 — 그쪽 결손 44종은 해석
 # 뿌리가 넷(저장소 루트·`docs/specs/`·`docs/e2e/<슬러그>/result.md`·저장소 밖 루프 룰)
 # 으로 갈려 판정이 다르다(`docs/plan_history_084.md` 3절).
 ALIVE_DIRS = ("src", "tests", "e2e", "scripts")
 ALIVE_SUFFIXES = (".py", ".sh", ".js")
 # 순회가 죽으면 **0건 초록**이 된다 — `CONST_CITATION_FLOOR` 과 같은 실패 유형이라 같은
-# 방식으로 못을 박는다. 오늘 실물은 **46회**(결손 28 + 아카이브 꼴 18)이고 정정이 끝나도
-# 인용 수는 줄지 않는다(이름만 바뀐다). 40 은 「아무것도 안 잰다」와 대량 삭제만 문다.
-ALIVE_CITATION_FLOOR = 40
+# 방식으로 못을 박는다. 축을 넓힌 직후가 **117회**(백틱 안 48 + 밖 69)였고, 픽스처 9개를
+# 조립 꼴로 옮긴 **오늘 실물은 108**이다(정정은 이름만 바꿔 수를 안 줄인다). 100 은
+# 「아무것도 안 잰다」와 대량 삭제만 문다 — 여유가 8뿐이라 인용을 9개 걷어내면 여기가 먼저 운다.
+ALIVE_CITATION_FLOOR = 100
 
 
 def citation_sites(root):
@@ -2144,7 +2148,8 @@ def citation_alive_gap(sites, docs):
         return None
     return ("코드가 없는 문서를 가리킨다 — 아카이브된 이름으로 고치거나, 파일이 아닌"
             " 예시면 `.md` 를 떼고 슬러그로 적는다 (`docs/design_history_082.md`"
-            " 계약 2):\n" + "\n".join(dead))
+            " 계약 2). 테스트의 합성 픽스처면 셋째 길이다 — 한 리터럴에 토큰을 담지 말고"
+            " 이름을 **조립**한다 (`docs/design_history_083.md` 계약):\n" + "\n".join(dead))
 
 
 class CitationAlivePatternTest(unittest.TestCase):
@@ -2163,12 +2168,17 @@ class CitationAlivePatternTest(unittest.TestCase):
         "| `%s` | 표 칸 안 |" % (NAME % ("plan", "z-slug")),
         "절까지 같은 백틱 `%s ## 계약`" % (NAME % ("design", "w-slug")),
         "줄까지 같은 백틱 `%s:12`" % (NAME % ("plan", "v-slug")),
+        "백틱이 아예 없는 꼴 %s" % (NAME % ("plan", "q-slug")),        # 계획 110
+        "경로까지 맨몸으로 docs/%s" % (NAME % ("design", "r-slug")),   # 계획 110
     )
     NOT_CAUGHT = (
-        "백틱 없는 %s" % (NAME % ("plan", "q-slug")),
         "자리표시자 `plan_<슬러그>.md`",
         "`.md` 를 뗀 슬러그 `%s`" % "recrawl",
         "다른 접두 `spec_%s`" % (NAME % ("x", "y"))[2:],
+        # 뒤쪽 경계. 백틱을 버린 대가로 **양쪽**을 낱말 경계가 대신해야 하는데
+        # 앞만 막으면 `.md` 로 시작하는 더 긴 이름이 잘려 들어온다 (계획 110 리뷰).
+        "확장자가 더 붙은 꼴 %sx" % (NAME % ("plan", "s-slug")),
+        "뒤에 낱말이 붙은 꼴 %s_backup" % (NAME % ("design", "t-slug")),
     )
 
     def test_pattern_catches_document_citations(self):
@@ -2202,7 +2212,7 @@ class CitationAliveGapTest(unittest.TestCase):
 
     def test_citation_to_an_existing_document_is_quiet(self):
         self.code("src/a.py", "# 근거는 `%s` 다" % ("design_%s.md" % "alive"))
-        self.doc("design_alive.md")
+        self.doc("design_%s.md" % "alive")
         self.assertIsNone(citation_alive_gap(citation_sites(self.root), self.docs))
 
     def test_citation_to_a_missing_document_is_a_gap(self):
@@ -2210,7 +2220,18 @@ class CitationAliveGapTest(unittest.TestCase):
         gap = citation_alive_gap(citation_sites(self.root), self.docs)
         self.assertIsNotNone(gap, "없는 문서를 가리키는데 조용하다")
         self.assertIn("src/a.py:2", gap, "자리를 안 알려준다 — 사람이 못 찾는다")
-        self.assertIn("design_gone.md", gap, "이름을 안 알려준다")
+        self.assertIn("design_%s.md" % "gone", gap, "이름을 안 알려준다")
+
+    def test_the_gap_message_offers_the_fixture_way_out(self):
+        """설계 계약 — 고칠 **세 번째 길**을 메시지에서 읽는다.
+
+        `tests` 가 `ALIVE_DIRS` 에 있어 이 자는 **자기 픽스처를 문다**. 그때 유일한
+        해법이 이름 조립인데 메시지가 아카이브 이름과 슬러그 둘만 대면 다음 사람은
+        **틀린 방향으로** 간다 (`docs/design_history_083.md` 계약 4번).
+        """
+        self.code("tests/t.py", "# `%s`" % ("plan_%s.md" % "fixture"))
+        gap = citation_alive_gap(citation_sites(self.root), self.docs)
+        self.assertIn("조립", gap, "픽스처가 이름을 조립하는 길을 안 알려준다")
 
     # 명부를 **리터럴로** 든다. `ALIVE_DIRS` 로 픽스처와 기대를 함께 만들면 상수를
     # 줄이는 변이가 양쪽을 같이 줄여 **조용히 산다** — 2026-09-28 실측에서 `scripts`
@@ -2230,8 +2251,16 @@ class CitationAliveGapTest(unittest.TestCase):
         self.assertEqual([], citation_sites(self.root),
                          "확장자 밖 파일까지 읽는다 — 데이터 픽스처가 빨개진다")
 
-    def test_a_name_without_backticks_is_not_a_citation(self):
+    def test_a_name_without_backticks_is_also_a_citation(self):
+        # 계획 110 이 뒤집은 갈래다. 끊긴 65자리가 전부 이 모양이었다.
         self.code("src/a.py", "# 과거 사례는 %s 였다" % ("plan_%s.md" % "gone"))
+        self.assertEqual([("src/a.py", 2, "plan_%s.md" % "gone")],
+                         citation_sites(self.root))
+
+    def test_a_longer_word_ending_in_the_name_is_not_a_citation(self):
+        # 백틱이 경계를 주던 자리를 **낱말 경계**가 대신한다. 이것이 없으면
+        # `my_plan_x.md` 같은 접두 붙은 이름까지 물어 오탐이 된다.
+        self.code("src/a.py", "# 파일 my_%s 를 만든다" % ("plan_%s.md" % "gone"))
         self.assertEqual([], citation_sites(self.root))
 
     def test_an_empty_tree_is_quiet_here(self):

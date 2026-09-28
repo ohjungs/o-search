@@ -1,7 +1,7 @@
 """크롤 루프: robots 확인 → fetch → 저장 → 링크를 프런티어에. CLI 엔트리 포함.
 
 **네트워크만 동시에 돈다.** `Store`·`Frontier`·카운터는 메인 스레드가 독점하므로
-락도 스레드별 SQLite 커넥션도 없다 (docs/design_crawl-throughput.md).
+락도 스레드별 SQLite 커넥션도 없다 (docs/design_history_008.md).
 """
 import concurrent.futures
 import signal
@@ -47,7 +47,7 @@ class StoreOpenError(Exception):
 
     그물은 `Store(db_path)` **생성자 한 줄**이다. 크롤 도중의 쓰기 실패는 오늘 그대로
     트레이스백이다 — 그것은 "DB 를 못 열었다" 가 아니라 "N페이지를 줍고 나서 죽었다" 라
-    안내 문구가 달라야 한다(docs/design_crawl-db-guard.md 물음 1).
+    안내 문구가 달라야 한다(docs/design_history_027.md 물음 1).
     """
 
 
@@ -57,7 +57,7 @@ class _Interrupted(Exception):
     `fetcher` 는 훅을 `try` 밖에서 부르므로(`fetcher.py:36-37`) 이 예외는 그대로 나온다.
     밖으로 흘리면 `_store_result` 의 `except` 가 **모르는 실패**로 읽어 in-flight 개수만큼
     `요청이 예외로 끝났다` 를 찍는다 — 일부러 만든 상태를 오류로 보고하는 것이다
-    (docs/design_graceful-interrupt.md 계약 5).
+    (docs/design_history_021.md 계약 5).
     """
 
 
@@ -73,7 +73,7 @@ def _fetch_one(url, robots, now, floor, sleep=time.sleep, stop=None):
     요청 순서가 변하지 않는다.
 
     **재시도도 요청이다.** `fetcher` 는 간격을 모르므로 여기서 넘기는 훅이 재운다
-    (docs/design_crawl-politeness.md 2절). 그래서 `sent_at` 은 **마지막** 발신 시각이다 —
+    (docs/design_history_012.md 2절). 그래서 `sent_at` 은 **마지막** 발신 시각이다 —
     첫 발신으로 시계를 걸면 마지막 재시도 직후 0초 만에 다음 요청이 나간다.
 
     `floor` 는 **프런티어가 그 서버에 대해 아는 간격**이다. `robots.delay()` 만
@@ -144,7 +144,7 @@ def crawl(seeds, max_pages, db_path=None, robots_cache=None,
     `workers=1` 이면 요청이 하나씩 떠서 순차 루프와 같은 순서로 돈다 — 되돌리기 수단이다.
 
     `deadline` 은 **총 크롤 시간 예산(상대 초)** 이다. `None` 이면 오늘과 같은 경로만
-    돈다 — 기본값이 곧 꺼진 플래그다(docs/design_deadline.md 6절).
+    돈다 — 기본값이 곧 꺼진 플래그다(docs/design_history_018.md 6절).
     예산이 하는 일은 **"덜 보낸다"** 뿐이고 "빨리 보낸다" 는 아니다: 간격은 안 깎는다.
     **예산이 만료되면 `stop` 을 세운다**(계획 35) — 그래야 워커도 재시도를 접는다.
     메인만 끊으면 이미 뜬 워커가 `Crawl-delay` 만큼 자고 다음 요청을 냈다
@@ -155,7 +155,7 @@ def crawl(seeds, max_pages, db_path=None, robots_cache=None,
     (`threading.Event`). `set()` 이 계약에 든 것은 계획 35 부터다 — 예산 만료를 이 함수가
     직접 세우므로, 읽기 두 개만 흉내낸 객체를 넘기면 그 자리에서 `AttributeError` 다.
     `None` 이면 오늘과 같은 경로만 돈다 — `deadline` 과 같은 형태로 기본값이 곧 꺼진
-    플래그다(docs/design_graceful-interrupt.md). 신호가 서면 **새 요청을 제출하지 않고**
+    플래그다(docs/design_history_021.md). 신호가 서면 **새 요청을 제출하지 않고**
     예산 소진과 같은 가지로 빠진다 — 떠 있는 결과는 줍는다.
     잠드는 자리도 `stop.wait` 로 간다: 신호가 잠을 깨워야 하기 때문이다.
 
@@ -170,7 +170,7 @@ def crawl(seeds, max_pages, db_path=None, robots_cache=None,
     (탐침이 적어 뒀던 "최악 90초" 는 오답이다: 간격 대기가 이미 흘러간 타임아웃을 빼므로
     발신 간격은 `interval + 10` 이 아니라 `interval` 이다. 분해는 계획서 2절).
     `stop` 을 주면 재시도가 접혀 **남는 것은 소켓 읽기 1회(`fetcher` 타임아웃 10초)뿐**이다.
-    재시도 대기는 예의를 위해 치르기로 한 값이다(docs/design_crawl-politeness.md 2-3절).
+    재시도 대기는 예의를 위해 치르기로 한 값이다(docs/design_history_012.md 2-3절).
     저장은 upsert 마다 커밋이라 **유실은 없다**. `cancel_futures` 로는 안 줄어든다 —
     취소되는 건 대기 중인 작업뿐인데 여기선 제출한 것이 곧 실행 중인 것이다.
     """
@@ -352,9 +352,9 @@ def _apply_delay(frontier, domain, requested):
 def _store_result(future, url, domain, store, frontier, now, robots, rejected=None):
     """워커 결과 하나를 반영한다. 수집에 성공했으면 1, 아니면 0.
 
-    **간격 시계를 거는 유일한 자리다** (docs/design_cooldown-burn.md 계약 2·3).
+    **간격 시계를 거는 유일한 자리다** (docs/design_history_011.md 계약 2·3).
     **간격 값을 거는 자리도 여기 하나다** — 성공이든 예외든 `_apply_delay()` 를 지난다
-    (docs/design_crawl-politeness.md 1-5절).
+    (docs/design_history_012.md 1-5절).
     robots 가 막았으면 페이지 요청이 안 나갔으니 걸지 않는다 — 그 도메인을 재우면
     요청도 없이 쿨다운을 태우는 것이다.
 
@@ -492,7 +492,7 @@ def main(argv):
         print("모르는 인자: %s — 시드 URL 로 읽지 않는다" % " ".join(unknown),
               file=sys.stderr)
         return 2
-    # Ctrl-C 를 크롤이 보는 신호로 바꾼다 (docs/design_graceful-interrupt.md 계약 7)
+    # Ctrl-C 를 크롤이 보는 신호로 바꾼다 (docs/design_history_021.md 계약 7)
     stop = threading.Event()
     # **rc 는 이쪽으로만 가른다.** `stop` 은 예산 만료도 세우므로(계획 35) rc 를 거기서
     # 읽으면 `--deadline` 이 130 을 내고 `crawl && indexer` 가 통째로 선다

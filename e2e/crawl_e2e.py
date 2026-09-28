@@ -1,4 +1,4 @@
-"""crawler-core e2e — plan_crawler-core.md 의 시나리오 그대로.
+"""crawler-core e2e — plan_history_001.md 의 시나리오 그대로.
 
 로컬 서버(페이지 20개, /secret robots 차단)에 시드 1개로 CLI 를 실제 실행한다.
 검증: ① 15페이지 수집(stdout·exit code·DB) ② 차단 URL 요청 0건

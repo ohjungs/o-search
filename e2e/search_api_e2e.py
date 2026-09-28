@@ -1,4 +1,4 @@
-"""search-api e2e — plan_search-api.md 의 시나리오 그대로.
+"""search-api e2e — plan_history_004.md 의 시나리오 그대로.
 
 로컬 서버 페이지를 crawl 로 수집·색인한 뒤, **사용자가 하는 그대로**
 `python3 -m websearch.serve <db> --port 0` 로 API 를 띄우고 HTTP 로 때린다.

@@ -1,4 +1,4 @@
-"""indexer e2e — plan_indexer.md 의 시나리오 그대로.
+"""indexer e2e — plan_history_002.md 의 시나리오 그대로.
 
 로컬 서버(한국어·영어 본문 3페이지)를 crawl 로 수집한 뒤, 사용자가 하는 그대로
 `python3 -m websearch.indexer <db>` 로 색인하고 `--query` 로 질의한다.
