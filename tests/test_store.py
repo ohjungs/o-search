@@ -177,7 +177,7 @@ class TestFreshness(unittest.TestCase):
 
         실패를 성공과 같은 30일로 두면 일시 장애가 그만큼 오래 결손으로 남고,
         같은 빈도로 두면 죽은 URL 을 영원히 같은 속도로 두드린다
-        (`plan_recrawl.md` 2절 정책 1).
+        (`plan_history_066.md` 2절 정책 1).
         """
         self._aged("http://a.com/ok", 20, status=200)
         self._aged("http://a.com/err", 20, status=500)

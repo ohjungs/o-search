@@ -3,10 +3,10 @@
 컨셉 성능 1 은 **100만 문서에서 p95 300ms** 다. 여기서 재는 색인은 그보다 훨씬
 작으므로 나오는 숫자는 **합격 판정이 아니라 기준선**이다 — 색인이 커지거나 질의
 경로가 바뀌었을 때 이 숫자와 비교해 회귀를 잡는 것이 목적이다
-(`docs/plan_search-api.md` 가정 절).
+(`docs/plan_history_004.md` 가정 절).
 
 순차 측정이다. 동시 요청 부하 곡선은 서버 구조를 바꿀 근거가 필요할 때 잰다
-(`docs/design_search-api.md` 범위 밖).
+(`docs/design_history_004.md` 범위 밖).
 
 실행: PYTHONPATH=src python3 e2e/perf_search.py [문서수] [질의당_반복]
 """

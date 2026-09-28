@@ -655,7 +655,7 @@ class TestTrustBoundary(ServeTestCase):
 
 
 class TestConcurrency(ServeTestCase):
-    """요청마다 새 sqlite 연결을 여는 것이 설계 결정이다(`docs/design_search-api.md` A안).
+    """요청마다 새 sqlite 연결을 여는 것이 설계 결정이다(`docs/design_history_004.md` A안).
 
     sqlite 연결은 만든 스레드 밖에서 쓸 수 없다. 나중에 "연결을 아끼자" 며 하나로
     끌어올리면 **단일 요청 테스트는 전부 통과한 채** 동시 요청에서만 깨진다.
@@ -677,7 +677,7 @@ class TestConcurrency(ServeTestCase):
 class TestUnindexedDb(ServeTestCase):
     """수집만 하고 색인을 안 돌린 DB. docs 테이블이 아직 없다.
 
-    **이 200 은 일부러 남긴 것이다**(`docs/design_json-contract.md` 갈림길 D). 사양
+    **이 200 은 일부러 남긴 것이다**(`docs/design_history_032.md` 갈림길 D). 사양
     디자인 5 는 *"503 = 색인이 없다"* 라 적었지 *"결과 0건"* 이라 안 적었다.
     crawl → index → serve 순서상 이 상태는 **정상적으로 존재하는 창**이지 고장이 아니다.
     `indexer.search` 는 `indexer.py:183-185` 에서 «docs 가 없다» 를 이미 판별하고서

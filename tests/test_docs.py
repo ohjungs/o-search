@@ -58,7 +58,7 @@ HIST_ITER = re.compile(r"^### 반복 (?:[0-9]+~)?([0-9]+)", re.M)
 # 합성 리터럴로 고정한다(실물 문서는 늘 맞는 모양이라 자기를 못 잰다).
 DOC_HEAD = re.compile(r"^# \S")
 # 스텝 번호가 사는 두 자리. `index.md` 는 행이 수십 개라 **`plan:` 슬러그로 집는다** —
-# 상태 칸(`진행`/`완료`)은 안 본다(`docs/design_index-step-sync.md` 「결정」).
+# 상태 칸(`진행`/`완료`)은 안 본다(`docs/design_history_046.md` 「결정」).
 # 행 패턴은 슬러그를 `re.escape` 해 끼우므로 상수는 템플릿이다. 이름 뒤 ` | ` 를
 # 요구해 **접두 일치를 막는다** — 아니면 `plan_index-step-sync-2` 가 대신 통과한다.
 # 아래 `StepPatternTest` 가 이 셋을 합성 표로 고정한다.
@@ -333,7 +333,7 @@ def archive_gap(index_text, live_names):
 
     **`docs.md` 4절이 오늘까지 재는 자가 0개였다.** 계획을 마치면 `plan_<slug>.md` 를
     `plan_history_<NNN>.md` 로 옮기라고 적혀 있는데 강제하는 것이 없어 **두 번 미끄러졌다**
-    (2026-09-09 실측: 계획 80 의 `design_recrawl.md` · 계획 81 의 `plan_ethics-floor.md`).
+    (2026-09-09 실측: 계획 80 의 `design_recrawl` · 계획 81 의 `plan_ethics-floor`).
     값은 다음 반복이 문다 — 루프는 「활성 계획은 동시에 1개」를 `docs/plan_*.md` 로 세고
     (`discover.md` 5절), 치우지 않은 완료본이 그 셈에 그대로 낀다.
 
@@ -1629,7 +1629,7 @@ class ArchiveGapTest(unittest.TestCase):
 
     def test_prefix_sharing_slug_is_not_bitten(self):
         # 이름 대조는 **완전 일치**다. `startswith` 로 넓히는 변이는 `plan_seed` 행이
-        # 아직 살아 있는 `plan_seed-tier1.md` 를 물어, 안 끝난 계획서를 치우라고 시킨다.
+        # 아직 살아 있는 `plan_seed-tier1` 계획서를 물어, 안 끝난 계획서를 치우라고 시킨다.
         self.assertIsNone(archive_gap(self.index(self.DONE % "seed"),
                                       {"plan_seed-tier1.md"}))
 
@@ -2204,12 +2204,17 @@ class CitationAliveGapTest(unittest.TestCase):
         self.assertIn("src/a.py:2", gap, "자리를 안 알려준다 — 사람이 못 찾는다")
         self.assertIn("design_gone.md", gap, "이름을 안 알려준다")
 
+    # 명부를 **리터럴로** 든다. `ALIVE_DIRS` 로 픽스처와 기대를 함께 만들면 상수를
+    # 줄이는 변이가 양쪽을 같이 줄여 **조용히 산다** — 2026-09-28 실측에서 `scripts`
+    # 를 뺀 변이가 122건 전부 초록이었다(그 디렉터리의 인용은 2회라 하한 40 도 안 문다).
+    ROSTER = ("src", "tests", "e2e", "scripts")
+
     def test_all_four_dirs_are_walked(self):
-        for i, name in enumerate(ALIVE_DIRS):
+        for i, name in enumerate(self.ROSTER):
             self.code("%s/f%d.py" % (name, i), "# `%s`" % ("plan_%s.md" % name))
         sites = citation_sites(self.root)
         self.assertEqual(sorted(n for _, _, n in sites),
-                         sorted("plan_%s.md" % n for n in ALIVE_DIRS),
+                         sorted("plan_%s.md" % n for n in self.ROSTER),
                          "네 디렉터리 중 안 훑은 곳이 있다 — 변이가 조용히 산다")
 
     def test_other_suffixes_are_not_read(self):

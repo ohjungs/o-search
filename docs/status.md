@@ -1,20 +1,32 @@
 ---
 signal: GREEN
 phase: 개발
-step: 1/3
+step: 2/3
 attempt: 0
 plan: citation-alive
-iteration: 652
+iteration: 653
 updated: 2026-09-28
 mode: night
-night_iterations: 11
+night_iterations: 12
 night_red: 0
 night_retries: 0
 night_self_amendments: 2
 ctx: **모른다 — 게이트 ⑦ 서른 번째 재현.** 반복 642 를 닫으며 이 칸을 「`session_id` 가 내 것이고 `updated_unix` 도 새롭다 · 정상 판」으로 적었는데 **틀렸고, 같은 반복 안에서 대조해 고쳤다.** 실측: `session_id` 는 `12a898a7…` 인데 `~/.claude/projects/-Users-t2025-m0191-work-websearch/12a898a7….jsonl` 이 **없다**(내 것은 `5fd9742b…`) — 563 이 한 줄로 줄인 판정 그대로 **남의 것**이다. `updated_unix` 1790517357 vs 실제 1790534262 = **4.7시간 낡았다**(10분 기준의 28배). 그러니 `context_used_percentage 37` · `five_hour 1` · `seven_day 11` 은 **셋 다 내 값이 아니고, 85 아래라는 판정도 근거가 없다.** SKILL.md 대로 **반복 상한(60)과 야간 계획 상한(3)에만 의존한다.** 이 밤 실적은 반복 1 · 계획 1. **자기 오류의 값**: 이 칸을 처음 읽을 때 낡음을 계산하지 않고 「새롭다」고 적었다 — ⑦ 의 처방이 SKILL.md 안이라 밤이 못 여는 사이, 판정이 사람 눈에 의존하면 **서른 번째에도 똑같이 미끄러진다**는 표본이다
 rules: (저장소 밖 `~/.claude/skills/loop-harness` — 커밋 해시 없음)
-note: **계획 109 스텝 1/3 — 재는 자가 섰고 빨갛다(28자리).** `tests/test_docs.py` 에 관용구대로 셋: `ALIVE_CITATION`(+`ALIVE_DIRS`·`ALIVE_SUFFIXES`·`ALIVE_CITATION_FLOOR 40`) · `citation_sites(root)`/`citation_alive_gap(sites, docs)` · 클래스 셋(`CitationAlivePatternTest` 리터럴 고정 · `CitationAliveGapTest` 합성 6갈래 · `CitationAliveTest` 실물). **RED 는 실물 축 하나뿐이고 28자리를 파일:줄과 이름으로 뱉는다** — 계획서가 예고한 그 숫자다. **음성 대조 둘이 성립했다**: ① `tests/__init__.py:3`(반복 649 가 손으로 고친 자리)은 목록에 없다 ② 패턴 픽스처는 **조립한 이름**이라 실물 순회가 자기를 안 문다(설계 계약 4번 — 리터럴로 박으면 검사가 자기 때문에 영원히 빨갛다). 전수 **842건 · 실패 2**: 의도한 그 하나 + `ReadmeCommandsTest` 가 강제한 `README.md:104` 건수(833→**842**, 계획 108 과 같은 자리). **규모 판단을 남긴다** — 154줄은 야간 자동 적용선(40)의 3.9배지만 **전부 검사 코드**이고 계획의 건드릴 파일 안이며 제품 `src/` 0줄이다. `dev.md` 6절의 세 물음(계획 안 · 같은 스텝의 테스트 · 소유)이 다 통과라 적용했고, 임계값 근거로 `metrics.md` 에 적었다 — TDD 스텝을 줄 수로만 재면 밤은 어떤 재는 자도 못 세운다. 다음은 **스텝 2/3**(28자리 정정 → GREEN).
+note: **계획 109 스텝 2/3 — 28자리를 고쳤고 초록이다.** 포인터 **25자리**는 아카이브 이름으로(`design_tokenizer`→`design_history_010` 5 · `design_verdict-last`→`design_history_079` 6 · `plan_recrawl`→`plan_history_066` 4 · `design_passage-api`→`design_history_034` 3 · `design_search-api`→`design_history_004` 2 · 나머지 5종 각 1), **포인터가 아닌 3자리**는 `.md` 를 떼고 슬러그로(`test_docs.py:336` 의 과거 사례 둘 · `:1632` 의 픽스처 설명 하나). 후보가 여럿이던 4종은 **아카이브 머리를 읽고** 골랐다 — `plan_recrawl` 은 이름 되짚기로 9개가 떴지만 실제 슬러그 보유자는 `plan_history_066`(계획 80) 하나였고, `design_clock-injection` 은 「후계자 없음」이 아니라 `design_history_020` 이었다(그쪽 머리가 `plan_clock-injection.md` 를 인용한다). 제품 `src/` 는 **주석 5줄**뿐이고 동작 0줄. 전수 **842 OK rc=0**. **변이 4판 중 하나가 살아서 같은 스텝에서 고쳤다** — `ALIVE_DIRS` 에서 `scripts` 를 뺀 변이가 122건 전부 초록이었다(순회 테스트가 **픽스처와 기대를 같은 상수로** 만들어 함께 줄었고, 그 디렉터리 인용은 2회라 하한 40 도 안 물었다). 명부를 리터럴 `ROSTER` 로 못 박아 재판정하니 죽는다. 나머지 셋(`docs/` 접두 제거 · `design` 제외 · 판정 무력화)도 전부 죽었다. 다음은 **스텝 3/3 리뷰**.
 ---
+## 계획 109 — 스텝 2/3 · **28자리 정정 · GREEN** (반복 653 · 2026-09-28)
+
+포인터 25 → 아카이브 이름 · 포인터 아닌 3 → `.md` 를 떼고 슬러그. 제품 주석 5줄 · 동작 0줄.
+후보 다중 4종은 아카이브 머리를 읽고 골랐다 — `plan_recrawl` 의 9개 중 슬러그 보유자는
+`plan_history_066` 뿐이고, `design_clock-injection` 은 후계자가 **있었다**(`design_history_020`).
+**변이 4판 중 M3(`scripts` 제거)이 살아서 같은 스텝에서 고쳤다** — 순회 테스트가 픽스처와
+기대를 같은 상수로 만들어 함께 줄었다. 명부를 리터럴 `ROSTER` 로 못 박으니 죽는다.
+전수 **842 OK rc=0**.
+
+**다음 스텝 3/3** — 리뷰. 패스 A(백지) 먼저, 그리고 이 검사가 **다음 마감**에도 무는지
+(이 계획을 아카이브하면 `tests/test_docs.py` 의 설계 인용이 바로 그 표본이 된다).
+
 ## 계획 109 — 스텝 1/3 · **재는 자가 섰고 빨갛다** (반복 652 · 2026-09-28)
 
 **RED 28자리**(실물 축 하나) — `src` 5 · `tests` 18 · `e2e` 4 · `scripts` 1.

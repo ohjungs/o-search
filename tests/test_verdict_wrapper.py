@@ -4,7 +4,7 @@
 존재하는 이유다. 막으려는 시도 셋이 전부 문장이었고 셋 다 뚫렸다 — 조항, 조항 조이기,
 「러너를 파이프 왼쪽에 두지 않는다」. 항목 자신의 결론이 「문장은 소진됐다」다.
 
-**사라지는 것이 셋이고 원인이 다르다**(2026-09-19 반복 625 실측 · `design_verdict-last.md`):
+**사라지는 것이 셋이고 원인이 다르다**(2026-09-19 반복 625 실측 · `design_history_079.md`):
 
 1. `Ran/OK` 줄 — 판정은 stderr(**무버퍼**)인데 테스트 stdout 은 파이프 아래 **블록
    버퍼**라 프로세스가 끝날 때 한꺼번에 밀려 나온다. **순서가 뒤집혀** 판정이 위로
@@ -57,7 +57,7 @@ def run_zsh(command, cwd):
 
 
 class VerdictLastTest(unittest.TestCase):
-    """계약 넷을 하나씩 친다 (`design_verdict-last.md` 「계약」 절)."""
+    """계약 넷을 하나씩 친다 (`design_history_079.md` 「계약」 절)."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -73,7 +73,7 @@ class VerdictLastTest(unittest.TestCase):
             self.assertIn(token, last,
                           "%s 아래에서 마지막 줄이 판정을 안 실었다 — 읽힌 마지막 줄은 %r 다."
                           " 계약 1: `tail -1` 로 잘라도 `Ran`·`OK|FAILED`·`rc` 셋이 다 있어야"
-                          " 한다 (`design_verdict-last.md`)" % (shape, last))
+                          " 한다 (`design_history_079.md`)" % (shape, last))
 
     def test_verdict_survives_a_pipe(self):
         """손실 ① — stdout 이 블록 버퍼로 밀려 나와도 판정이 마지막이다."""
@@ -95,7 +95,7 @@ class VerdictLastTest(unittest.TestCase):
         out, _ = run_zsh("%s 2>&1 | tail -3" % self.call, ROOT)
         self.assertIn("rc=1", out,
                       "파이프 아래에서 `rc=1` 이 안 보인다 — 래퍼가 `tee` 의 종료 코드를"
-                      " 실었으면 `rc=0` 이다. 계약 2 (`design_verdict-last.md`). 읽힌 것: %r"
+                      " 실었으면 `rc=0` 이다. 계약 2 (`design_history_079.md`). 읽힌 것: %r"
                       % (out[-200:],))
 
     def test_bare_exit_code_is_preserved(self):
@@ -162,7 +162,7 @@ class VerdictGapTest(unittest.TestCase):
         self.assertEqual(0, bare_rc, "초록인데 래퍼가 0 이 아닌 값으로 끝났다")
 
     def test_a_command_with_no_verdict_words_still_carries_rc(self):
-        """**갭 ⑥ · 7점** — 설계의 천장(`design_verdict-last.md` 「천장」)을 계약으로 바꾼다.
+        """**갭 ⑥ · 7점** — 설계의 천장(`design_history_079.md` 「천장」)을 계약으로 바꾼다.
 
         `grep` 이 묶여 있는 `Ran|OK|FAILED` 는 `unittest` 의 표기다. e2e 22종은 그
         낱말을 안 쓰므로 판정 칸이 비는데, **그때도 `rc` 는 남아야** 래퍼가 e2e 에서
