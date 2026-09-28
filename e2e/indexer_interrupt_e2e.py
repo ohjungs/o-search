@@ -1,4 +1,4 @@
-"""색인 중단 e2e — `plan_indexer-interrupt.md` e2e phase. 계획 6절 기대 결과를 실물로 잰다.
+"""색인 중단 e2e — `plan_history_023.md` e2e phase. 계획 6절 기대 결과를 실물로 잰다.
 
 **단위 456건이 구조적으로 못 보는 것: 진짜 SIGINT 를 진짜 색인 프로세스에.**
 단위는 `extract.extract_text` 가 `KeyboardInterrupt` 를 던지게 만들어 그 자리를 잰다 —

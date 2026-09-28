@@ -21,7 +21,7 @@ SCHEMA = (
 # 한글 런의 문자 2-gram 을 담는 보조 열이 `*_ng` 다. `unicode61` 은 복합어를 한 토큰으로
 # 보므로 접두 매치가 뒷부분(`김치찌개보관법` ← `보관법`)에 닿지 못한다.
 # **제목과 본문을 따로 담는 것이 핵심이다** — 한 열로 합치면 정답이 꼴찌로 밀린다
-# (`docs/design_tokenizer.md` `## 계약` 1). `porter` 는 영어 굴절(tuples ← tuple)용이다.
+# (`docs/design_history_010.md` `## 계약` 1). `porter` 는 영어 굴절(tuples ← tuple)용이다.
 # `prefix='2 3'` 은 테이블 단위라 `*_ng` 열에도 붙는다 — 2-gram 토큰은 길이가 전부 2 라
 # `prefix=2` 는 토큰 자체의 사본이고 `prefix=3` 은 영영 매치되지 않는다. 열별로 끌 수
 # 없어서 지불하는 값이고, 색인이 커진 원인 중 하나다 (2026-08-27 리뷰)
@@ -178,7 +178,7 @@ def _docs_sql(db):
 
 
 # 「없어졌다」의 표준 표현. 5xx·`status 0` 은 여기 없다 — 그것은 「그때 못 받았다」라
-# 일시 장애를 영구 삭제로 만들지 않는다(`plan_recrawl.md` 2절 정책 1).
+# 일시 장애를 영구 삭제로 만들지 않는다(`plan_history_066.md` 2절 정책 1).
 _GONE = (404, 410)
 
 
@@ -366,7 +366,7 @@ def _fts_query(query):
         phrase = " + ".join('"%s"' % gram for gram in grams)
         # 두 열을 `{title_ng body_ng}` 하나로 묶으면 안 된다 — 한국어 포함률이
         # 20/20 에서 17/20 으로 떨어진다(정답이 13위로 밀린다). 설계가 열을 나눈
-        # 이유가 질의 쪽에도 그대로 걸린다 (`docs/design_tokenizer.md` `## 계약` 1)
+        # 이유가 질의 쪽에도 그대로 걸린다 (`docs/design_history_010.md` `## 계약` 1)
         parts.append("(%s OR {title_ng} : %s OR {body_ng} : %s)"
                      % (plain, phrase, phrase))
     return " AND ".join(parts)
@@ -395,7 +395,7 @@ def search(db_path, query, limit=10, offset=0):
         rows = db.execute(
             # 스니펫은 title(0)·body(1) 에서만 뽑는다. `-1` 은 **매치된 열 중 가장 왼쪽**을
             # 고르는데, 2-gram 으로만 매치된 문서는 title_ng 가 뽑혀 화면에
-            # `김치 치찌 찌개` 가 나온다 (`docs/design_tokenizer.md` `## 가정`).
+            # `김치 치찌 찌개` 가 나온다 (`docs/design_history_010.md` `## 가정`).
             # rowid 로 동점을 가른다 — 같은 틀로 찍힌 페이지들은 bm25 가 정확히 같고,
             # 2차 키가 없으면 페이지 사이 순서가 정해지지 않아 결과가 겹치거나 빠질 수 있다.
             # **url 이 아니라 rowid 인 이유는 값이다**: 2만 문서에서 url 은 p50 을 13→27ms 로

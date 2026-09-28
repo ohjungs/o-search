@@ -302,7 +302,7 @@ class TestIndexPages(unittest.TestCase):
         """없어진 문서는 검색에서 사라지고, `pages` 행은 **묘비로 남는다**.
 
         `pages` 를 지우면 「404 를 받았다」는 사실이 사라져 다음 크롤이 그 URL 을 새
-        것으로 다시 줍는다 — 삭제가 **망각**이 되어 루프가 돈다(`plan_recrawl.md` 2절
+        것으로 다시 줍는다 — 삭제가 **망각**이 되어 루프가 돈다(`plan_history_066.md` 2절
         정책 2). `status`·`fetched_at` 을 든 행으로 남기고 검색에서만 뺀다.
         """
         self._seed([("http://a.test/", "<p>pyeongsan 본문</p>")])
@@ -1069,7 +1069,7 @@ class TestPassages(unittest.TestCase):
         # 0.939~0.970 이상» 이라 적었지만 표본이 그것을 넘어 부등호가 거짓이었다).
         # 실물 코퍼스 p95 는 1.54ms(예산의 0.3%)라 이 350ms 는 **캡 최악 모양의 상한**
         # 이지 실측 분포가 아니다. 캡·`PASSAGE_LIMIT` 를 내리는 판단은 여전히 «긴 문서의
-        # 뒷부분 근거» 쪽 몫이다(`design_passage-api.md` 갈림길 5).
+        # 뒷부분 근거» 쪽 몫이다(`design_history_034.md` 갈림길 5).
         from websearch import serve
         # **2026-09-07 계획 74 — 이 가드의 축도 바이트에서 태그로 옮겼다.** 위 문단이
         # 계수가 세 번 낡았다고 적어 둔 이유가 여기 있다: 계수를 «ms/1000자» 로 잡으면
@@ -1442,7 +1442,7 @@ class TestHangulBigrams(unittest.TestCase):
 
 
 class TestTokenizerMatching(unittest.TestCase):
-    """`docs/design_tokenizer.md` 가 고른 안이 실제로 무엇을 매치시키는가."""
+    """`docs/design_history_010.md` 가 고른 안이 실제로 무엇을 매치시키는가."""
 
     def setUp(self):
         self.dir = tempfile.TemporaryDirectory()

@@ -58,7 +58,7 @@ HIST_ITER = re.compile(r"^### 반복 (?:[0-9]+~)?([0-9]+)", re.M)
 # 합성 리터럴로 고정한다(실물 문서는 늘 맞는 모양이라 자기를 못 잰다).
 DOC_HEAD = re.compile(r"^# \S")
 # 스텝 번호가 사는 두 자리. `index.md` 는 행이 수십 개라 **`plan:` 슬러그로 집는다** —
-# 상태 칸(`진행`/`완료`)은 안 본다(`docs/design_index-step-sync.md` 「결정」).
+# 상태 칸(`진행`/`완료`)은 안 본다(`docs/design_history_046.md` 「결정」).
 # 행 패턴은 슬러그를 `re.escape` 해 끼우므로 상수는 템플릿이다. 이름 뒤 ` | ` 를
 # 요구해 **접두 일치를 막는다** — 아니면 `plan_index-step-sync-2` 가 대신 통과한다.
 # 아래 `StepPatternTest` 가 이 셋을 합성 표로 고정한다.
@@ -333,7 +333,7 @@ def archive_gap(index_text, live_names):
 
     **`docs.md` 4절이 오늘까지 재는 자가 0개였다.** 계획을 마치면 `plan_<slug>.md` 를
     `plan_history_<NNN>.md` 로 옮기라고 적혀 있는데 강제하는 것이 없어 **두 번 미끄러졌다**
-    (2026-09-09 실측: 계획 80 의 `design_recrawl.md` · 계획 81 의 `plan_ethics-floor.md`).
+    (2026-09-09 실측: 계획 80 의 `design_recrawl` · 계획 81 의 `plan_ethics-floor`).
     값은 다음 반복이 문다 — 루프는 「활성 계획은 동시에 1개」를 `docs/plan_*.md` 로 세고
     (`discover.md` 5절), 치우지 않은 완료본이 그 셈에 그대로 낀다.
 
@@ -1629,7 +1629,7 @@ class ArchiveGapTest(unittest.TestCase):
 
     def test_prefix_sharing_slug_is_not_bitten(self):
         # 이름 대조는 **완전 일치**다. `startswith` 로 넓히는 변이는 `plan_seed` 행이
-        # 아직 살아 있는 `plan_seed-tier1.md` 를 물어, 안 끝난 계획서를 치우라고 시킨다.
+        # 아직 살아 있는 `plan_seed-tier1` 계획서를 물어, 안 끝난 계획서를 치우라고 시킨다.
         self.assertIsNone(archive_gap(self.index(self.DONE % "seed"),
                                       {"plan_seed-tier1.md"}))
 
@@ -2080,6 +2080,173 @@ class ReadBudgetTest(unittest.TestCase):
         # 세는 일 자체가 고장 난 것이다 (`HISTORY_ENTRY_FLOOR` 과 같은 자리).
         for name, lines, _ in read_budget_sizes():
             self.assertGreater(lines, 0, "%s 가 0줄이다 — 재는 일이 고장 났다" % name)
+
+
+# ── 인용의 존재 축 (계획 109) ────────────────────────────────────────────────
+# 코드가 대는 `` `plan_<이름>.md` ``·`` `design_<이름>.md` `` 는 **「실재하는 파일을
+# 가리킨다」는 약속**이다. 계획을 마치면 `plan_<슬러그>.md` 가 아카이브 이름으로 옮겨
+# 가는데(`rules/docs.md` 4절) 인용은 따라가지 않아 **포인터가 조용히 끊긴다** —
+# 2026-09-28 실측으로 코드 안 **28자리**가 없는 파일을 가리켰고 전수 833 이 하나도 안
+# 물었다. 가장 아픈 자리는 `tests/__init__.py` 다: 그 주석의 존재 이유가 「지우려는
+# 사람에게 설계를 가리키는 것」이라 포인터가 끊기면 파일이 지워진다.
+# **아카이브 꼴도 함께 문다** — 그쪽 18회는 오늘 결손 0 이고 이름이 불변이라 공짜다.
+# 백틱 없는 이름과 `.md` 를 뗀 슬러그는 약속 밖이다 — 합성 픽스처와 과거 사례 산문이
+# 그리로 빠져나간다(`docs/design_history_082.md` 결정 A). 자리표시자
+# (`` `plan_<슬러그>.md` ``)는 첫 글자가 꺾쇠라 걸리지 않는다(줄번호 축과 같은 탈출구).
+# **한 백틱 안에 절·줄 표기를 같이 넣은 꼴도 문다** — 이 저장소의 관용구는 절을 백틱
+# 밖에 따로 적는 것(`` `design_history_010.md` `## 계약` ``)인데, 붙여 적은 자리가 하나
+# 있었고 그 하나가 **없는 파일을 가리킨 채 조용했다**(반복 654 리뷰 실측:
+# `tests/test_design_check.py:10`). 계획 42 가 콜론 꼴만 막아 한국어 꼴이 탈출구가 된
+# 것과 같은 부류라 같은 손을 쓴다 — 닫는 백틱 앞의 꼬리를 받아 준다.
+ALIVE_CITATION = re.compile(
+    r"`(?:docs/)?((?:plan|design)_[A-Za-z0-9][A-Za-z0-9_-]*\.md)(?:[ :][^`\n]*)?`")
+# 인용이 사는 네 곳과 읽을 확장자. `docs/` 는 이 축 밖이다 — 그쪽 결손 44종은 해석
+# 뿌리가 넷(저장소 루트·`docs/specs/`·`docs/e2e/<슬러그>/result.md`·저장소 밖 루프 룰)
+# 으로 갈려 판정이 다르다(`docs/plan_history_084.md` 3절).
+ALIVE_DIRS = ("src", "tests", "e2e", "scripts")
+ALIVE_SUFFIXES = (".py", ".sh", ".js")
+# 순회가 죽으면 **0건 초록**이 된다 — `CONST_CITATION_FLOOR` 과 같은 실패 유형이라 같은
+# 방식으로 못을 박는다. 오늘 실물은 **46회**(결손 28 + 아카이브 꼴 18)이고 정정이 끝나도
+# 인용 수는 줄지 않는다(이름만 바뀐다). 40 은 「아무것도 안 잰다」와 대량 삭제만 문다.
+ALIVE_CITATION_FLOOR = 40
+
+
+def citation_sites(root):
+    """`root` 아래 코드에서 `(경로, 줄번호, 이름)` 을 모은다.
+
+    `root` 를 인자로 받는 것은 **픽스처가 순회를 밟기 위해서다** — 실물 트리는 네
+    디렉터리가 다 살아 있는 한 갈래뿐이라 `ALIVE_DIRS` 를 줄이는 변이가 조용히 산다.
+    """
+    sites = []
+    for name in ALIVE_DIRS:
+        base = root / name
+        if not base.is_dir():
+            continue
+        for path in sorted(base.rglob("*")):
+            if not path.is_file() or path.suffix not in ALIVE_SUFFIXES:
+                continue
+            for no, line in enumerate(path.read_text(encoding="utf-8").split("\n"), 1):
+                for found in ALIVE_CITATION.finditer(line):
+                    sites.append((str(path.relative_to(root)), no, found.group(1)))
+    return sites
+
+
+def citation_alive_gap(sites, docs):
+    """실재하지 않는 문서를 가리킨 인용을 한 줄로 돌려준다. 없으면 `None`.
+
+    재는 일(`citation_sites`)과 판정을 가른다 — `read_budget_gap` 과 같은 이유다.
+    **빈 목록에서는 조용하다**: 순회가 죽은 경우를 여기서 막으면 픽스처가 「인용이
+    하나도 없는 트리」를 못 만든다. 그 자리는 `ALIVE_CITATION_FLOOR` 이 실물에서 문다.
+    """
+    dead = ["  %s:%d — `%s`" % (path, no, name)
+            for path, no, name in sites if not (docs / name).exists()]
+    if not dead:
+        return None
+    return ("코드가 없는 문서를 가리킨다 — 아카이브된 이름으로 고치거나, 파일이 아닌"
+            " 예시면 `.md` 를 떼고 슬러그로 적는다 (`docs/design_history_082.md`"
+            " 계약 2):\n" + "\n".join(dead))
+
+
+class CitationAlivePatternTest(unittest.TestCase):
+    """`ALIVE_CITATION` 자신을 리터럴로 붙든다 — 실물 축은 자기를 못 잰다.
+
+    **이름을 조립해서 만든다.** 픽스처를 리터럴로 박으면 `CitationAliveTest` 가 자기
+    픽스처를 물어 **검사가 자기 때문에 영원히 빨갛다**(설계 계약 4번). 조립한 이름은
+    백틱 안에 있어도 소스에는 조각으로만 남아 순회가 못 본다.
+    """
+
+    NAME = "%s_%s.md"
+    CAUGHT = (
+        "설계는 `%s` 에 있다" % (NAME % ("design", "x-slug")),
+        "옮겨 간 자리는 `%s` 다" % (NAME % ("plan", "history_012")),   # 아카이브 꼴
+        "경로까지 적은 꼴 `docs/%s`" % (NAME % ("design", "y-slug")),
+        "| `%s` | 표 칸 안 |" % (NAME % ("plan", "z-slug")),
+        "절까지 같은 백틱 `%s ## 계약`" % (NAME % ("design", "w-slug")),
+        "줄까지 같은 백틱 `%s:12`" % (NAME % ("plan", "v-slug")),
+    )
+    NOT_CAUGHT = (
+        "백틱 없는 %s" % (NAME % ("plan", "q-slug")),
+        "자리표시자 `plan_<슬러그>.md`",
+        "`.md` 를 뗀 슬러그 `%s`" % "recrawl",
+        "다른 접두 `spec_%s`" % (NAME % ("x", "y"))[2:],
+    )
+
+    def test_pattern_catches_document_citations(self):
+        for line in self.CAUGHT:
+            with self.subTest(line=line):
+                self.assertRegex(line, ALIVE_CITATION, "인용을 못 잡는다 — 검사가 좁아졌다")
+
+    def test_pattern_leaves_non_citations(self):
+        for line in self.NOT_CAUGHT:
+            with self.subTest(line=line):
+                self.assertNotRegex(line, ALIVE_CITATION, "인용이 아닌 것을 잡는다 — 오탐")
+
+
+class CitationAliveGapTest(unittest.TestCase):
+    """`citation_sites` 와 `citation_alive_gap` 의 갈래를 합성 트리로 밟는다."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = pathlib.Path(self.tmp.name)
+        self.docs = self.root / "docs"
+        self.docs.mkdir()
+
+    def code(self, rel, line):
+        path = self.root / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("머리\n%s\n" % line, encoding="utf-8")
+
+    def doc(self, name):
+        (self.docs / name).write_text("# 문서\n", encoding="utf-8")
+
+    def test_citation_to_an_existing_document_is_quiet(self):
+        self.code("src/a.py", "# 근거는 `%s` 다" % ("design_%s.md" % "alive"))
+        self.doc("design_alive.md")
+        self.assertIsNone(citation_alive_gap(citation_sites(self.root), self.docs))
+
+    def test_citation_to_a_missing_document_is_a_gap(self):
+        self.code("src/a.py", "# 근거는 `%s` 다" % ("design_%s.md" % "gone"))
+        gap = citation_alive_gap(citation_sites(self.root), self.docs)
+        self.assertIsNotNone(gap, "없는 문서를 가리키는데 조용하다")
+        self.assertIn("src/a.py:2", gap, "자리를 안 알려준다 — 사람이 못 찾는다")
+        self.assertIn("design_gone.md", gap, "이름을 안 알려준다")
+
+    # 명부를 **리터럴로** 든다. `ALIVE_DIRS` 로 픽스처와 기대를 함께 만들면 상수를
+    # 줄이는 변이가 양쪽을 같이 줄여 **조용히 산다** — 2026-09-28 실측에서 `scripts`
+    # 를 뺀 변이가 122건 전부 초록이었다(그 디렉터리의 인용은 2회라 하한 40 도 안 문다).
+    ROSTER = ("src", "tests", "e2e", "scripts")
+
+    def test_all_four_dirs_are_walked(self):
+        for i, name in enumerate(self.ROSTER):
+            self.code("%s/f%d.py" % (name, i), "# `%s`" % ("plan_%s.md" % name))
+        sites = citation_sites(self.root)
+        self.assertEqual(sorted(n for _, _, n in sites),
+                         sorted("plan_%s.md" % n for n in self.ROSTER),
+                         "네 디렉터리 중 안 훑은 곳이 있다 — 변이가 조용히 산다")
+
+    def test_other_suffixes_are_not_read(self):
+        self.code("src/a.txt", "# `%s`" % ("plan_%s.md" % "gone"))
+        self.assertEqual([], citation_sites(self.root),
+                         "확장자 밖 파일까지 읽는다 — 데이터 픽스처가 빨개진다")
+
+    def test_a_name_without_backticks_is_not_a_citation(self):
+        self.code("src/a.py", "# 과거 사례는 %s 였다" % ("plan_%s.md" % "gone"))
+        self.assertEqual([], citation_sites(self.root))
+
+    def test_an_empty_tree_is_quiet_here(self):
+        # 순회가 죽은 경우를 판정에 섞지 않는다 — 실물은 `ALIVE_CITATION_FLOOR` 이 문다.
+        self.assertIsNone(citation_alive_gap(citation_sites(self.root), self.docs))
+
+
+class CitationAliveTest(unittest.TestCase):
+    def test_code_cites_documents_that_exist(self):
+        sites = citation_sites(DOCS.parent)
+        self.assertGreaterEqual(
+            len(sites), ALIVE_CITATION_FLOOR,
+            "인용을 %d 회밖에 못 셌다 — 순회가 죽었으면 0건 초록이 된다" % len(sites))
+        gap = citation_alive_gap(sites, DOCS)
+        self.assertIsNone(gap, gap)
 
 
 if __name__ == "__main__":

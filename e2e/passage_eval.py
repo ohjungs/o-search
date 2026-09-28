@@ -2,7 +2,7 @@
 
 `docs/specs/concept.md` 기능 8 은 **반환 문단의 90% 이상이 질의어 또는 그 2-gram 을
 포함**할 것을, 성능 5 는 **p95 500ms** 를 요구한다. 이 스크립트가 그 두 숫자를 내는
-유일한 수단이고, 계약은 `docs/design_passage-api.md` 갈림길 4 다.
+유일한 수단이고, 계약은 `docs/design_history_034.md` 갈림길 4 다.
 
 **코퍼스·질의는 `quality_eval` 과 같은 동결 fixture 를 그대로 읽는다** — 새로 하는
 것은 HTML 포장 하나뿐이다. `quality_eval` 은 본문 전체를 `<p>` 하나로 감싸 문서당

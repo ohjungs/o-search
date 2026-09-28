@@ -1357,7 +1357,7 @@ class TestDeadline(unittest.TestCase):
 
 
 class TestSleepIsInjected(unittest.TestCase):
-    """잠드는 자리도 `now` 와 같은 주입 지점인가 — 계획 33 (`design_clock-injection.md`).
+    """잠드는 자리도 `now` 와 같은 주입 지점인가 — 계획 33 (`design_history_020.md`).
 
     이 파일의 간격 단언 10곳은 한때 전역 `time.sleep` 을 몽키패치했는데, 그 패치는
     `websearch.crawl` 만이 아니라 **stdlib `time` 모듈을 프로세스 전역·전 스레드로**

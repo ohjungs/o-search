@@ -29,7 +29,7 @@ QUERIES = os.path.join(_ROOT, "e2e", "quality", "queries.json")
 # 그전 기준선은 ko 17 · en 18 이었고, 미포함 5건은 전부 토크나이저 실패였다
 # (복합어 `보관법`·`일출봉`, 띄어쓰기 `올레길`, 굴절 `tuples`·`loaf`).
 # 앞의 넷을 한글 2-gram 열과 `porter` 로 닫았다. 남은 하나는 영어 **불규칙** 복수라
-# 사전 없이 못 고친다 (`docs/design_tokenizer.md` `## 범위 밖`).
+# 사전 없이 못 고친다 (`docs/design_history_010.md` `## 범위 밖`).
 KO_BASELINE = 20
 EN_BASELINE = 19
 
