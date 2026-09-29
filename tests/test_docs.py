@@ -97,8 +97,11 @@ CANDIDATE_HEAD_FLOOR = 2
 # **둘 다** 요구하는 것이 이 자의 전부다 — 제목 인용만으로 뽑으면 후보를 집어간 행과
 # 방법론으로 인용한 행이 **같은 꼴**이라 오탐이 60% 다(2026-09-29 반복 667 실측: 제목이
 # 취소선 없이 살아 있는 5건 중 셋이 `index-step-sync`·`head-anchor-cover`·
-# `spec-citation-anchor` 의 방법론 인용이었다). 둘을 함께 요구하면 26행이 6행으로
-# 좁아지고 그 안에 오탐이 0이다 — **오탐보다 미탐을 고른 자리**다.
+# `spec-citation-anchor` 의 방법론 인용이었다). 오탐 셋을 실제로 거르는 것은 `PICK`
+# 쪽이다 — 완료 91행 중 `PICK` 단독이 이미 6행이고 `START` 가 더 거르는 행은 **오늘 0**
+# 이다(반복 670 재실측: 앞서 적었던 「26행이 6행으로」는 틀린 수였다). 그래도 `START` 를
+# 함께 요구하는 것은 **인용과 착수를 가르는 술어**라서다 — 「다음 계획 후보 [N]「제목」」
+# 이라는 꼴 자체는 방법론 인용도 쓸 수 있고, 그때 걸러낼 것이 이쪽뿐이다.
 OPENED_START = re.compile(r"탐색\s*\*{0,2}\d+순위")
 OPENED_PICK = re.compile(r"다음 계획 후보`?\s*(?:의|에서)?\s*`?\[(?:\d+|high|medium)\]`?"
                          r"\s*「([^」]+)」")
@@ -113,8 +116,12 @@ CLOSED_POINTER = re.compile(r"닫혔다[^`\n]{0,40}`([A-Za-z0-9_-]+)`")
 ANY_PLAN_ROW = r"^\| (?:plan_|\(짧은 경로\) )%s \| ([^|]*) \|"
 # 두 자의 **가시 표본 하한**. 이 계획이 열린 이유 자체가 계획 61 의 `strike_gap` 이
 # 표본 0으로 조용해진 것이라(후보 75줄 중 관용구 0), 같은 실명이 오면 빨개져야 한다.
-# 실측은 착수 6 · 마감 5 이고 못은 3 에 박는다 — 회전이 후보를 지워도 안 흔들릴 폭이다.
-OPENED_FLOOR = 3
+# **못은 「대조에 도달한 쌍」에 박는다** — 착수 관용구를 쓴 완료 행은 6이지만 그 제목이
+# digest 후보 절에 아직 남아 있는 것은 3뿐이고(반복 670 실측), `index.md` 완료 행은
+# append-only 라 **영원히 안 줄어든다.** 거기 못을 박으면 회전이 후보를 다 지워 대조가
+# 0이 돼도 이 자가 조용하다 — 계획 61 이 죽은 것과 똑같은 죽음이다. 실측 3 에 한 칸
+# 여유를 두고 2 에 박는다. 마감 쪽은 취소선 줄이 곧 대조 대상이라 모집단이 하나다(실측 6).
+OPENED_FLOOR = 2
 CLOSED_FLOOR = 3
 
 # 같은 계획 행의 **다섯째 칸(e2e)**. `STEP_ROW` 는 넷째, `PLAN_ROW` 는 둘째를 보고
@@ -331,7 +338,7 @@ def opened_candidates(index_text):
     """완료 행이 **착수 관용구**로 가리킨 `(슬러그, 후보 제목)`.
 
     「탐색 N순위」와 후보 절 이름을 **둘 다** 품은 행만 센다 — 한쪽만 보면 방법론
-    인용이 섞인다(`OPENED_START` 주석의 실측). 관용구를 안 쓴 완료 행 65개는 뿌리가
+    인용이 섞인다(`OPENED_START` 주석의 실측). 관용구를 안 쓴 완료 행 85개는 뿌리가
     없어 여기서 **조용히 빠진다**: 서식을 강제하는 것은 계획 111 이 뺀 축이다.
     """
     out = []
@@ -367,16 +374,18 @@ def open_gap(digest_text, index_text):
     거짓 취소선, 이쪽은 **긋는 것을 잊은 자리**다. 실물은 `OpenSyncTest` 가,
     갈래는 `OpenGapTest` 가 부른다.
     """
-    opened = opened_candidates(index_text)
-    if len(opened) < OPENED_FLOOR:
-        return ("착수 관용구를 쓴 완료 행이 %d 개뿐이다 — 하한 %d. 이 자가 표본 0으로"
-                " 조용해지는 것이 계획 111 의 근거였다" % (len(opened), OPENED_FLOOR))
     lines = candidate_lines(digest_text)
-    for slug, title in opened:
-        hit = [l for l in lines if title in l]
-        if not hit:
-            continue  # 후보 절에서 이미 지워진 자리. 삭제인지 표기 차이인지 못 가른다.
-        if not hit[0].startswith("- ~~"):
+    # 후보 절에 제목이 안 남은 자리는 뺀다 — 삭제인지 표기 차이인지 못 가른다.
+    # 남은 것이 **이 자가 실제로 대조하는 전부**라, 하한도 여기에 박는다.
+    compared = [(slug, title, [l for l in lines if title in l])
+                for slug, title in opened_candidates(index_text)]
+    compared = [(slug, title, hit[0]) for slug, title, hit in compared if hit]
+    if len(compared) < OPENED_FLOOR:
+        return ("완료 행의 후보 제목 중 digest 후보 절에 남아 대조된 것이 %d 자리뿐이다"
+                " — 하한 %d. 이 자가 표본 0으로 조용해지는 것이 계획 111 의 근거였다"
+                % (len(compared), OPENED_FLOOR))
+    for slug, title, line in compared:
+        if not line.startswith("- ~~"):
             return ("집어간 후보에 취소선이 없다 — index.md `%s` 는 `완료` 인데 digest"
                     " 후보 줄 「%s」 가 `- ~~` 로 시작하지 않는다" % (slug, title))
     return None
@@ -1635,11 +1644,20 @@ class OpenGapTest(unittest.TestCase):
         self.assertIn("하한", open_gap(self.DIGEST % "어떤 자리", rows))
 
     def test_a_candidate_outside_the_section_is_not_read(self):
-        digest = "## 완료\n\n- [7] **어떤 자리**\n"
-        self.assertIsNone(open_gap(digest, self._index()))
+        # 절 밖의 줄을 읽었으면 「취소선이 없다」가 나온다. 하한 문구가 나온다는 것이
+        # 곧 **안 읽었다**는 뜻이다 — 대조 표본이 0이라 못이 먼저 문다.
+        gap = open_gap("## 완료\n\n- [7] **어떤 자리**\n", self._index())
+        self.assertNotIn("취소선이 없다", gap)
+        self.assertIn("하한", gap)
 
-    def test_too_few_opened_rows_bite(self):
-        self.assertIn("하한 3", open_gap(self.DIGEST % "어떤 자리", self._index(2)))
+    def test_too_few_compared_pairs_bite(self):
+        self.assertIn("하한 2", open_gap(self.DIGEST % "어떤 자리", self._index(1)))
+
+    def test_rotation_draining_the_section_bites(self):
+        # 착수 행은 append-only 라 안 줄지만 후보 절은 회전으로 마른다. 못을 완료 행
+        # 수에 박았다면 여기서 조용했다 — 계획 61 의 자가 죽은 것과 같은 죽음이다.
+        gap = open_gap("## 다음 계획 후보\n\n- [1] **딴 자리**\n", self._index(6))
+        self.assertIn("대조된 것이 0 자리", gap)
 
 
 class FalseStrikeGapTest(unittest.TestCase):

@@ -1,19 +1,19 @@
 ---
 signal: GREEN
-phase: 개발
+phase: 리뷰
 step: 3/3
 attempt: 0
 plan: candidate-close
-iteration: 669
+iteration: 670
 updated: 2026-09-29
 mode: night
-night_iterations: 4
+night_iterations: 5
 night_red: 0
 night_retries: 0
-night_self_amendments: 0
+night_self_amendments: 1
 ctx: **모른다 — 게이트 ⑦ 서른세 번째.** `.context-state.json` 의 `session_id` 는 `12a898a7…` 인데 이 프로젝트 디렉터리에 그 이름의 `.jsonl` 이 **없고**(실측), `updated_unix` 도 12.5시간 낡았다. 퍼센트는 남의 값이라 85 판정의 근거가 못 된다. **반복 상한(60)과 야간 계획 상한(3)에만 의존한다.** 이 밤은 반복 **666** 에서 시작했고 계획은 **111(`candidate-close`)** 하나다.
 rules: (저장소 밖 `~/.claude/skills/loop-harness` — 커밋 해시 없음)
-note: **스텝 2/3 GREEN (반복 669).** 결손 1자리에 취소선 — 전수 **856 OK rc=0** · `docs/digest.md` 한 줄만 · 줄 수 증가 0. 앞 밤 기록 두 절을 접어 읽기 예산을 589→약 570 으로 되돌렸다(사람 결정 셋은 보존). **다음** — 스텝 3/3 리뷰.
+note: **스텝 3/3 리뷰 통과 (반복 670).** 백지 패스 A 를 별도 세션에 넘겨 4건을 받았고 **넷 다 실측으로 재현**했다. 셋 수정 · 하나 기각. 가장 큰 것은 **설계 계약 자체의 결함**이라 계약을 정정했다(자기 수정 1) — 하한을 `index.md` 완료 행(append-only, 6)이 아니라 **대조에 도달한 쌍**(3)에 다시 박았다. 전수 **857 OK rc=0** · 변이 **4판 전부 죽는다** (판정 무력화 · 뿌리 정규식 좁히기 · 하한 내리기 · **못을 옛 모집단으로 되돌리기**). **기록 회전** — 항목 21>20 이라 반복 650~659 를 `history_095.md` 로 밀어냈다(11항목 82줄). **다음** — e2e 3종(대조군 · 사건 재연 · 음성 대조).
 ---
 
 ## 이 밤(2026-09-29) — 계획 111 설계 확정 · **실측이 대안 하나를 깼다** (반복 666~667)
