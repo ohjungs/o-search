@@ -93,6 +93,37 @@ CANDIDATE_HEAD = "## 다음 계획 후보"
 # 자는 아래 못 하나뿐이다 — 합성 갈래 넷은 문서 드리프트에 전부 조용했다.
 CANDIDATE_HEAD_FLOOR = 2
 
+# 마감이 `index.md` 완료 행에 적는 **착수 관용구**. 「탐색 N순위」와 후보 절 이름을
+# **둘 다** 요구하는 것이 이 자의 전부다 — 제목 인용만으로 뽑으면 후보를 집어간 행과
+# 방법론으로 인용한 행이 **같은 꼴**이라 오탐이 60% 다(2026-09-29 반복 667 실측: 제목이
+# 취소선 없이 살아 있는 5건 중 셋이 `index-step-sync`·`head-anchor-cover`·
+# `spec-citation-anchor` 의 방법론 인용이었다). 오탐 셋을 실제로 거르는 것은 `PICK`
+# 쪽이다 — 완료 91행 중 `PICK` 단독이 이미 6행이고 `START` 가 더 거르는 행은 **오늘 0**
+# 이다(반복 670 재실측: 앞서 적었던 「26행이 6행으로」는 틀린 수였다). 그래도 `START` 를
+# 함께 요구하는 것은 **인용과 착수를 가르는 술어**라서다 — 「다음 계획 후보 [N]「제목」」
+# 이라는 꼴 자체는 방법론 인용도 쓸 수 있고, 그때 걸러낼 것이 이쪽뿐이다.
+OPENED_START = re.compile(r"탐색\s*\*{0,2}\d+순위")
+OPENED_PICK = re.compile(r"다음 계획 후보`?\s*(?:의|에서)?\s*`?\[(?:\d+|high|medium)\]`?"
+                         r"\s*「([^」]+)」")
+# `digest` 취소선 줄이 다는 **마감 관용구**. `STRIKE_POINTER` 가 *열린* 줄에 요구하던
+# 「를 열었다」는 실물이 0으로 말랐지만(계획 111 의 근거) 이쪽은 **취소선 5줄 5/5** 가
+# 이미 단다. 「계획 N」과 「짧은 경로」를 둘 다 받는 이유는 실측이 3 대 2 라서고,
+# 백틱을 안 넘게 막은 것은 본문의 다른 백틱 낱말을 슬러그로 읽지 않으려는 것이다.
+CLOSED_POINTER = re.compile(r"닫혔다[^`\n]{0,40}`([A-Za-z0-9_-]+)`")
+# 같은 계획 행을 **두 등재 꼴**로 찾는다 — 짧은 경로는 `| plan_<슬러그> |` 와
+# `| (짧은 경로) <슬러그> |` 가 섞여 산다(실측: `interval-call-site` 는 앞,
+# `verdict-head` 는 뒤). `PLAN_ROW` 만 쓰면 뒤엣것이 「등재에 없다」로 거짓 RED 다.
+ANY_PLAN_ROW = r"^\| (?:plan_|\(짧은 경로\) )%s \| ([^|]*) \|"
+# 두 자의 **가시 표본 하한**. 이 계획이 열린 이유 자체가 계획 61 의 `strike_gap` 이
+# 표본 0으로 조용해진 것이라(후보 75줄 중 관용구 0), 같은 실명이 오면 빨개져야 한다.
+# **못은 「대조에 도달한 쌍」에 박는다** — 착수 관용구를 쓴 완료 행은 6이지만 그 제목이
+# digest 후보 절에 아직 남아 있는 것은 3뿐이고(반복 670 실측), `index.md` 완료 행은
+# append-only 라 **영원히 안 줄어든다.** 거기 못을 박으면 회전이 후보를 다 지워 대조가
+# 0이 돼도 이 자가 조용하다 — 계획 61 이 죽은 것과 똑같은 죽음이다. 실측 3 에 한 칸
+# 여유를 두고 2 에 박는다. 마감 쪽은 취소선 줄이 곧 대조 대상이라 모집단이 하나다(실측 6).
+OPENED_FLOOR = 2
+CLOSED_FLOOR = 3
+
 # 같은 계획 행의 **다섯째 칸(e2e)**. `STEP_ROW` 는 넷째, `PLAN_ROW` 는 둘째를 보고
 # 이것은 다섯째를 본다. 슬러그로 집지 않고 **행 전부를 훑는다** — 재는 대상이
 # 「지금 진행 중인 계획」이 아니라 「이미 닫힌 47행의 부기」라서다.
@@ -288,6 +319,96 @@ def strike_gap(digest_text, index_text):
         if not struck:
             return ("닫힌 후보에 취소선이 없다 — index.md `plan_%s` 는 `완료` 인데"
                     " digest 후보 줄이 `- ~~` 로 시작하지 않는다" % slug)
+    return None
+
+
+def candidate_lines(digest_text):
+    """후보 절의 목록 줄. `candidate_pointers` 의 절 자르기와 **같은 술어**를 쓴다."""
+    out, in_section = [], False
+    for line in digest_text.split("\n"):
+        if line.startswith("## "):
+            in_section = line.startswith(CANDIDATE_HEAD)
+            continue
+        if in_section and line.startswith("- "):
+            out.append(line)
+    return out
+
+
+def opened_candidates(index_text):
+    """완료 행이 **착수 관용구**로 가리킨 `(슬러그, 후보 제목)`.
+
+    「탐색 N순위」와 후보 절 이름을 **둘 다** 품은 행만 센다 — 한쪽만 보면 방법론
+    인용이 섞인다(`OPENED_START` 주석의 실측). 관용구를 안 쓴 완료 행 85개는 뿌리가
+    없어 여기서 **조용히 빠진다**: 서식을 강제하는 것은 계획 111 이 뺀 축이다.
+    """
+    out = []
+    for line in index_text.split("\n"):
+        cells = line.split("|")
+        if len(cells) < 3 or not line.startswith("| plan_"):
+            continue
+        if cells[2].strip() != "완료" or not OPENED_START.search(line):
+            continue
+        title = OPENED_PICK.search(line)
+        if title is not None:
+            out.append((cells[1].strip(), title.group(1)))
+    return out
+
+
+def closed_pointers(digest_text):
+    """취소선 줄이 **마감 관용구**로 가리킨 `(슬러그, 줄)`."""
+    out = []
+    for line in candidate_lines(digest_text):
+        if not line.startswith("- ~~"):
+            continue
+        hit = CLOSED_POINTER.search(line)
+        if hit is not None:
+            out.append((hit.group(1), line))
+    return out
+
+
+def open_gap(digest_text, index_text):
+    """집어간 후보가 취소선 없이 살아 있는 자리를 한 줄로. 없으면 `None`.
+
+    **`strike_gap` 과 방향이 반대다** — 저쪽은 후보 줄의 포인터에서 계획으로 가고
+    이쪽은 완료 행의 착수 관용구에서 후보 줄로 온다. 잡는 사고도 다르다: 저쪽은
+    거짓 취소선, 이쪽은 **긋는 것을 잊은 자리**다. 실물은 `OpenSyncTest` 가,
+    갈래는 `OpenGapTest` 가 부른다.
+    """
+    lines = candidate_lines(digest_text)
+    # 후보 절에 제목이 안 남은 자리는 뺀다 — 삭제인지 표기 차이인지 못 가른다.
+    # 남은 것이 **이 자가 실제로 대조하는 전부**라, 하한도 여기에 박는다.
+    compared = [(slug, title, [l for l in lines if title in l])
+                for slug, title in opened_candidates(index_text)]
+    compared = [(slug, title, hit[0]) for slug, title, hit in compared if hit]
+    if len(compared) < OPENED_FLOOR:
+        return ("완료 행의 후보 제목 중 digest 후보 절에 남아 대조된 것이 %d 자리뿐이다"
+                " — 하한 %d. 이 자가 표본 0으로 조용해지는 것이 계획 111 의 근거였다"
+                % (len(compared), OPENED_FLOOR))
+    for slug, title, line in compared:
+        if not line.startswith("- ~~"):
+            return ("집어간 후보에 취소선이 없다 — index.md `%s` 는 `완료` 인데 digest"
+                    " 후보 줄 「%s」 가 `- ~~` 로 시작하지 않는다" % (slug, title))
+    return None
+
+
+def false_strike(digest_text, index_text):
+    """취소선 줄이 **안 닫힌 계획**을 가리키는 자리를 한 줄로. 없으면 `None`.
+
+    실물은 `FalseStrikeSyncTest` 가, 갈래는 `FalseStrikeGapTest` 가 부른다.
+    """
+    closed = closed_pointers(digest_text)
+    if len(closed) < CLOSED_FLOOR:
+        return ("마감 관용구를 단 취소선 줄이 %d 개뿐이다 — 하한 %d. 취소선을 그으면서"
+                " 닫은 계획을 안 적으면 이 자가 표본 0으로 조용해진다"
+                % (len(closed), CLOSED_FLOOR))
+    for slug, line in closed:
+        row = re.search(ANY_PLAN_ROW % re.escape(slug), index_text, re.M)
+        if row is None:
+            return ("취소선 줄이 등재에 없는 계획을 가리킨다 — `%s` (%s…)"
+                    % (slug, line[:40]))
+        if row.group(1).strip() != "완료":
+            return ("거짓 취소선 — index.md `%s` 의 상태는 `%s` 인데 digest 후보 줄은"
+                    " 이미 `- ~~` 다" % (slug, row.group(1).strip()))
     return None
 
 
@@ -1473,6 +1594,99 @@ class StrikeGapTest(unittest.TestCase):
         # 일곱이라 하한 2 를 그냥 넘긴다. 넓어지는 쪽은 여기서만 죽는다.
         text = "# 다이제스트\n## 완료\n## 반복 실패\n## 다음 계획 후보\n- 줄\n"
         self.assertEqual(candidate_heads(text), ["## 다음 계획 후보"])
+
+
+class OpenSyncTest(unittest.TestCase):
+    """집어간 후보가 실물에서 닫혀 있나. 갈래는 `OpenGapTest` 가 밟는다.
+
+    `StrikeSyncTest` 와 **같은 두 문서를 반대 방향으로** 읽는다. 저쪽이 못 보는 것이
+    여기 산다: 후보 줄에 포인터 관용구가 하나도 안 남아(2026-09-29 실측 75줄 중 0)
+    저쪽은 표본 0으로 조용한데, 착수 관용구는 완료 행에 26개가 살아 있다.
+    """
+
+    def test_opened_candidates_are_struck_through(self):
+        gap = open_gap((DOCS / "digest.md").read_text(encoding="utf-8"),
+                       (DOCS / "index.md").read_text(encoding="utf-8"))
+        self.assertIsNone(gap, gap)
+
+
+class FalseStrikeSyncTest(unittest.TestCase):
+    """취소선 줄이 실물에서 닫힌 계획만 가리키나. 갈래는 `FalseStrikeGapTest`."""
+
+    def test_struck_lines_point_at_finished_plans(self):
+        gap = false_strike((DOCS / "digest.md").read_text(encoding="utf-8"),
+                           (DOCS / "index.md").read_text(encoding="utf-8"))
+        self.assertIsNone(gap, gap)
+
+
+class OpenGapTest(unittest.TestCase):
+    """`open_gap` 의 갈래를 합성으로 밟는다. 실물은 고치면 초록이라 한 번씩만 지난다."""
+
+    ROW = ("| plan_%s | 완료 | loop/x | 1/1 | 통과 | **99.** 탐색 **6순위** — "
+           "`digest ## 다음 계획 후보` 의 `[7]` 「%s」 를 집었다 |")
+    DIGEST = "## 다음 계획 후보\n\n- [7] **%s** (2026-09-29 실측)\n"
+
+    def _index(self, n=3, title="어떤 자리"):
+        return "\n".join(self.ROW % ("s%d" % i, title) for i in range(n))
+
+    def test_a_live_candidate_of_a_finished_plan_bites(self):
+        gap = open_gap(self.DIGEST % "어떤 자리", self._index())
+        self.assertIn("취소선이 없다", gap)
+        self.assertIn("어떤 자리", gap)
+
+    def test_a_struck_candidate_is_silent(self):
+        digest = "## 다음 계획 후보\n\n- ~~[7] **어떤 자리**~~ 닫혔다 — 계획 99 `s0`.\n"
+        self.assertIsNone(open_gap(digest, self._index()))
+
+    def test_a_row_without_the_rank_idiom_is_not_counted(self):
+        # 방법론 인용은 「탐색 N순위」가 없다 — 오탐 축이라 실물에 표본이 안 남는다.
+        rows = self._index().replace("탐색 **6순위** — ", "")
+        self.assertIn("하한", open_gap(self.DIGEST % "어떤 자리", rows))
+
+    def test_a_candidate_outside_the_section_is_not_read(self):
+        # 절 밖의 줄을 읽었으면 「취소선이 없다」가 나온다. 하한 문구가 나온다는 것이
+        # 곧 **안 읽었다**는 뜻이다 — 대조 표본이 0이라 못이 먼저 문다.
+        gap = open_gap("## 완료\n\n- [7] **어떤 자리**\n", self._index())
+        self.assertNotIn("취소선이 없다", gap)
+        self.assertIn("하한", gap)
+
+    def test_too_few_compared_pairs_bite(self):
+        self.assertIn("하한 2", open_gap(self.DIGEST % "어떤 자리", self._index(1)))
+
+    def test_rotation_draining_the_section_bites(self):
+        # 착수 행은 append-only 라 안 줄지만 후보 절은 회전으로 마른다. 못을 완료 행
+        # 수에 박았다면 여기서 조용했다 — 계획 61 의 자가 죽은 것과 같은 죽음이다.
+        gap = open_gap("## 다음 계획 후보\n\n- [1] **딴 자리**\n", self._index(6))
+        self.assertIn("대조된 것이 0 자리", gap)
+
+
+class FalseStrikeGapTest(unittest.TestCase):
+    """`false_strike` 의 갈래를 합성으로 밟는다."""
+
+    DIGEST = "## 다음 계획 후보\n\n" + "".join(
+        "- ~~[7] **자리 %d**~~ **닫혔다 — 2026-09-29 계획 9%d `s%d`.**\n" % (i, i, i)
+        for i in range(3))
+    ROWS = "\n".join("| plan_s%d | 완료 | loop/x | 1/1 | 통과 | 비고 |" % i
+                     for i in range(3))
+
+    def test_all_pointers_finished_is_silent(self):
+        self.assertIsNone(false_strike(self.DIGEST, self.ROWS))
+
+    def test_a_pointer_at_a_running_plan_bites(self):
+        rows = self.ROWS.replace("| plan_s1 | 완료 |", "| plan_s1 | 진행 |")
+        self.assertIn("거짓 취소선", false_strike(self.DIGEST, rows))
+
+    def test_a_pointer_missing_from_the_index_bites(self):
+        rows = self.ROWS.replace("| plan_s2 |", "| plan_other |")
+        self.assertIn("등재에 없는", false_strike(self.DIGEST, rows))
+
+    def test_the_short_path_row_form_is_accepted(self):
+        rows = self.ROWS.replace("| plan_s0 |", "| (짧은 경로) s0 |")
+        self.assertIsNone(false_strike(self.DIGEST, rows))
+
+    def test_too_few_struck_pointers_bite(self):
+        digest = self.DIGEST.replace("**닫혔다 — 2026-09-29 계획 92 `s2`.**", "")
+        self.assertIn("하한 3", false_strike(digest, self.ROWS))
 
 
 class VerdictSyncTest(unittest.TestCase):
