@@ -1,19 +1,19 @@
 ---
 signal: DONE
-phase: e2e
+phase: 계획
 step: 0/0
 attempt: 0
 plan: null
-iteration: 671
+iteration: 672
 updated: 2026-09-29
 mode: night
-night_iterations: 6
+night_iterations: 7
 night_red: 0
 night_retries: 0
 night_self_amendments: 1
 ctx: **모른다 — 게이트 ⑦ 서른세 번째.** `.context-state.json` 의 `session_id` 는 `12a898a7…` 인데 이 프로젝트 디렉터리에 그 이름의 `.jsonl` 이 **없고**(실측), `updated_unix` 도 12.5시간 낡았다. 퍼센트는 남의 값이라 85 판정의 근거가 못 된다. **반복 상한(60)과 야간 계획 상한(3)에만 의존한다.** 이 밤은 반복 **666** 에서 시작했고 계획은 **111(`candidate-close`)** 하나다.
 rules: (저장소 밖 `~/.claude/skills/loop-harness` — 커밋 해시 없음)
-note: **계획 111 `candidate-close` DONE (반복 671).** e2e 3종 통과 — ① 대조군 857 OK ② **사건 재연**: 사본에서 취소선을 떼니 `failures=1` 이고 메시지가 `plan_history_085` 와 제목으로 **그 줄을 댄다** ③ 음성 대조: 새 자를 빼면 같은 편집이 조용하다(856 OK). 새 파일 0개 · 증거 `docs/e2e/candidate-close/result.md`. 아카이브 `plan_history_086` · `design_history_086`. **이 밤의 계획 1/3 소진.** 야간 상한은 반복 60(현재 6) · 계획 3. **다음** — 병합 후 탐색, 또는 정지.
+note: **밤 마감 (반복 672).** 계획 111 `candidate-close` 를 수립~병합까지 통째로 닫았다(`main` 병합 `04bba63`). 탐색을 한 번 더 돌렸다 — 1~3순위 **0건**(전수 초록·린터 없음·코드 `TODO` 는 픽스처 1건), 4순위 큐 부재, 6순위에서 「파일별 읽기 상한」을 집으려다 **물러섰다**: `read_budget_gap` docstring 이 그 못을 **일부러 안 박은 이유**를 이미 적어 뒀고(사람이 고를 일 · 밤이 못 푸는 RED), 결손은 실재하되 **처방이 밤의 것이 아니다.** 후보를 **사람 결정**으로 옮겨 적었다. **정지 사유 — 계획 소진**(표의 사유 · 뜻은 「탐색이 밤에 맞는 후보를 못 냈다(빈손이 아니라 «밤의 것이 아니다»로 물러선 것).** 야간 상한은 안 찼다(반복 7/60 · 계획 1/3). `ctx` 는 게이트 ⑦ 로 여전히 못 읽는다.
 ---
 
 ## 이 밤(2026-09-29) — 계획 111 설계 확정 · **실측이 대안 하나를 깼다** (반복 666~667)
