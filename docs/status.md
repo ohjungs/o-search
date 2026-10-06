@@ -4,16 +4,16 @@ phase: 짧은 경로
 step: 0/0
 attempt: 1
 plan: null
-iteration: 688
+iteration: 689
 updated: 2026-10-07
 mode: night
-night_iterations: 9
+night_iterations: 10
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
 ctx: **모른다 — 게이트 ⑦ 서른아홉 번째.** `.context-state.json` 의 `session_id`(`122b87c2…`)로 `~/.claude/projects/-Users-t2025-m0191-work-websearch/` 를 찾으면 **그 파일이 없다**(남의 세션) · `updated_unix` 도 **1.6시간** 낡았다. **반복 상한(60)과 야간 계획 상한(3)에만 의존한다.**
 rules: (저장소 밖 `~/.claude/skills/loop-harness` — 커밋 해시 없음)
-note: **짧은 경로 1건 — 명부가 없는 파일을 들고 있었다 (반복 688).** 근거는 **6순위**이고 계획 112 가 **범위 밖으로 두고 등재한 그 후보**다. `digest.md` 「아카이브 명부」가 **`history_075.md`** 를 드는데 그 파일이 없다. `ArchiveIndexTest` 는 「모든 아카이브가 명부에 있나」 **한 방향만** 보고, 이 밤이 세운 문서 인용 자도 못 본다(패턴이 `plan_`·`design_` 접두만 읽는다). **075 는 번호 구멍이 아니다** — `git log` 가 짚는다: 계획 89 커밋 `144e1ed` 에서 만들어졌다 **같은 계획의 `1b79a74` 에서 지워졌고** 내용은 `history_079.md` 로 갔다. 명부만 그 이름을 들고 **반 년**을 갔다. 고친 것: **반대 방향 단언**(`ArchiveIndexTest` 범위 확장 — 등재문이 적은 그 길) + **하한 90**(절을 잘못 자르면 0건 초록이 된다) + 명부에서 이름 1개 제거. TDD 로 돌았다 — 단언을 먼저 넣어 **`['history_075.md']` 로 RED** 를 보고 고쳤다. 전수 **866 OK rc=0** · 장부 `README.md` 865 → 866 · 제품 `src/` **0줄**. **짧은 경로 판정 근거**: 한 스텝 · 파일 2개(`tests/test_docs.py`·`docs/digest.md`) · 20줄급 · 설계 트리거 없음(새 파일 0 · 대안 갈림 없음 — 등재문이 「새 자가 아니라 범위 확장」을 이미 지정했다) · 보안·스키마·의존성 무관. **연속 1건**(앞 여덟 반복은 계획 112 였다). **정지 조건 미달** — 반복 9/60 · 계획 2/3.
+note: **짧은 경로 2건째 — 후보의 «전제»가 이미 거짓이었다 (반복 689).** 6순위 후보 `[7]`(`robots.allowed()`·`delay()` 가 비ASCII 호스트에서 예외를 흘린다)을 「도달 불가라 못 연다」로 넘기기 전에 **전제를 코드에 대봤다.** 등재문은 「`robots.py` 는 `URLError`·`OSError` 만 잡는다」고 적었는데 **계획 100 `robots-nonascii` 가 2026-09-18 에 `UnicodeError` 를 더했다** — 전제가 **19일 전에** 죽어 있었고 그 사이 아무도 안 봤다(포인터가 없는 후보 줄은 `StrikeSyncTest`·`OpenSyncTest` 둘 다 표본 밖이다). `socket.getaddrinfo` 그물을 씌우고 세 호스트 모양으로 직접 불러 쟀다 — `allowed()`→**False** · `delay()`→**None** · `known_delay()`→**None** · **예외 누출 0건**. 재는 자도 실재한다(`tests/test_robots.py` 의 `test_a_non_ascii_host_is_blocked_not_raised` · `..._has_no_declared_delay`). **덤이 본건보다 값질 수 있다** — `tests/test_crawl.py` 의 동기 주석이 **옛 동작**(「예외를 그대로 던진다」)을 들고 있었다. 바뀐 것은 테스트의 필요가 아니라 **막는 고장의 모양**이다: 정규화가 robots 뒤로 밀리면 크롤 루프가 죽는 대신 **모든 비ASCII 호스트가 조용히 차단으로 접혀 크롤이 0건**이 된다 — **죽는 쪽보다 알아채기 어려운 고장으로 바뀌었다.** 전수 **866 OK rc=0** · 제품 `src/` **0줄** · 테스트 코드 **0줄**(주석만). **짧은 경로 연속 2건이고 둘 다 6순위다** — 셋째가 또 6순위면 `SKILL.md` 4-1절대로 멈추고 출처를 본다. **정지 사유 — 야간 계획 상한 3 소진**(계획 112 + 짧은 경로 2건). 반복 10/60.
 ---
 
 ## 이 밤(2026-10-07) — 계획 112 `doc-cite-roots` (반복 680~)

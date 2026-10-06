@@ -366,9 +366,14 @@ class TestNonAsciiUrl(unittest.TestCase):
 
     def test_robots_and_store_never_see_non_ascii_url(self):
         # 정규화가 URL 이 태어나는 자리에서 끝난다는 계약을 순서로 못박는다.
-        # robots.allowed() 는 비ASCII 호스트에서 UnicodeEncodeError 를 그대로 던지고
-        # (robots.py 는 URLError·OSError 만 잡는다) crawl 에도 잡는 곳이 없다 —
-        # 정규화가 robots 뒤로 밀리는 순간 크롤 루프를 죽인 원래 버그가 되살아난다.
+        # **2026-10-07 정정** — 이 주석은 계획 100 `robots-nonascii` 전의 동작을 적고
+        # 있었다(「`allowed()` 가 `UnicodeEncodeError` 를 그대로 던지고 `crawl` 에도 잡는
+        # 곳이 없다」). 지금은 `robots.py` 의 `except` 가 `UnicodeError` 까지 잡아
+        # **차단(599)으로 접고** `allowed()`→`False` · `delay()`→`None` 이다
+        # (`tests/test_robots.py` 의 `test_a_non_ascii_host_is_blocked_not_raised`).
+        # **그래서 이 테스트가 필요 없어진 것이 아니라 막는 것이 바뀌었다**: 정규화가
+        # robots 뒤로 밀리면 이제 크롤 루프가 죽는 대신 **모든 비ASCII 호스트가 조용히
+        # 차단으로 접혀 크롤이 0건이 된다.** 죽는 쪽보다 알아채기 어려운 고장이다.
         # store 쪽은 죽지는 않지만 같은 페이지가 두 표기로 2행이 된다.
         asked, keys = [], []
         pages = {
