@@ -131,7 +131,7 @@
   → `concept.md:22-23` 기능 2 합격**(합격선 80%). 순위 분포 1위 39 · 미검출 1.
   `tokenizer` 계획(010)이 옛 기준선 ko 17 · en 18 을 여기까지 올렸다.
   - **미포함 1건은 `loaf`←`loaves`** 다. 영어 **불규칙** 복수(f→ves)라 `porter` 가
-    `loaf`/`loav` 로 가른다. 사전을 들이지 않는 한 못 고친다 (`docs/design_tokenizer.md` 범위 밖)
+    `loaf`/`loav` 로 가른다. 사전을 들이지 않는 한 못 고친다 (`docs/design_history_010.md` 범위 밖)
   - **오탐 기준선 — 매치 수 평균 14.0 · 최소 11 · 최대 28.** 옛 토크나이저는 평균 13.8 ·
     최소 11 · 최대 28 이었다. **매치를 넓히면 이 줄이 먼저 움직인다** — 포함률은 정답이
     들어왔는지만 세고 함께 딸려 온 것은 못 센다. `quality_eval.py` 가 매 실행 찍는다.
@@ -290,6 +290,6 @@
   - 단위 테스트도 같은 변이를 잡는다(각각 `TestCooldownBurn` 2건+`test_next_does_not_start_the_clock`,
     `test_worker_exception_still_holds_the_interval`)
   - **②는 변이 없이도 발화한다** — 도메인 2개로 좁히면 옛 코드가 0.819초 간격을 낸다
-    (`design_crawl-throughput.md` 참조)
+    (`design_history_008.md` 참조)
 - **성능 측정**: `PYTHONPATH=src python3 e2e/perf_search.py [문서수] [반복]`
   (2026-08-25 실행 확인, 2.1s — 기본 3000문서 × 5질의 × 200회)
