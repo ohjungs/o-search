@@ -1,19 +1,19 @@
 ---
-signal: DONE
-phase: e2e
+signal: GREEN
+phase: 짧은 경로
 step: 0/0
 attempt: 1
 plan: null
-iteration: 687
+iteration: 688
 updated: 2026-10-07
 mode: night
-night_iterations: 8
+night_iterations: 9
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
 ctx: **모른다 — 게이트 ⑦ 서른아홉 번째.** `.context-state.json` 의 `session_id`(`122b87c2…`)로 `~/.claude/projects/-Users-t2025-m0191-work-websearch/` 를 찾으면 **그 파일이 없다**(남의 세션) · `updated_unix` 도 **1.6시간** 낡았다. **반복 상한(60)과 야간 계획 상한(3)에만 의존한다.**
 rules: (저장소 밖 `~/.claude/skills/loop-harness` — 커밋 해시 없음)
-note: **계획 112 `doc-cite-roots` DONE — e2e 3종 통과 · `main` 으로 보냈다 (반복 687).** **② 음성 대조가 이 계획의 존재 증명이다** — `plan_userinfo-leak.md` 를 인용을 안 고치고 아카이브로 옮기면 새 자가 `failures=1` 로 두 자리를 대는데(`index.md` 635·670), **자를 떼면 인용 관련 실패가 0건**이다(뜬 것은 테스트를 하나 뺀 탓의 단위 수뿐). 다른 가드는 하나도 안 운다 — `ArchiveIndexTest` 는 `history_[0-9]*.md` 만 보고 `ArchiveMatchTest` 는 `완료` 행만 요구한다. ③ 은 **표기 정책이 코드 없이 성립하는 것**을 사람이 글 쓰는 자리에서 실측했다(꺾쇠 꼴 조용 · 없는 맨 이름은 자리까지 대고 잡힘). **그리고 이 계획 자신의 아카이브가 그 자의 첫 손님이었다** — `plan_history_087`·`design_history_087` 로 옮기니 세 자리(`status.md`·`history_current.md`·`tests/test_docs.py` 주석)가 끊겨 **자가 즉시 물었다.** 고치고 초록. **앞 관문**: 전수 **865 OK rc=0** · e2e **18종 rc=0** · `quality_eval` ko 20/20 · en 19/20 합격 · `passage_eval` 100%(398/398) p95 1.67ms. **린트·타입체크는 이 저장소에 없어 「검증되지 않았다」로 적는다** · `perf_*` 는 **안 돌렸다**(제품 `src/` 0줄이라 움직일 경로가 없다 · `e2e.md` 1절). **남는 천장 넷**은 결과 문서에 적었다 — 전방 참조 금지 · 금지된 꼴의 «설명»이 우회를 요구함 · `docs/specs/`·`result.md`·저장소 밖 룰·`candidates.md` 축 밖 · `history_*.md` 축 미봉(`history_075.md`, 다음 후보). **정지 사유 — 계획 소진.** 상한 미달(반복 8/60 · 계획 1/3). 이 밤의 조항 위반 **2건**: ① `f17e621` 을 전수 재검증 없이 커밋(`StepSyncTest` RED 를 못 봤다) ② 변이 되돌림에 `git restore <파일>` 을 써서 미커밋 리뷰 수정 6건을 날렸다(재적용 복구). 둘 다 **「고친 뒤 다시 돌린다」와 「탐침 전에 커밋한다」**다.
+note: **짧은 경로 1건 — 명부가 없는 파일을 들고 있었다 (반복 688).** 근거는 **6순위**이고 계획 112 가 **범위 밖으로 두고 등재한 그 후보**다. `digest.md` 「아카이브 명부」가 **`history_075.md`** 를 드는데 그 파일이 없다. `ArchiveIndexTest` 는 「모든 아카이브가 명부에 있나」 **한 방향만** 보고, 이 밤이 세운 문서 인용 자도 못 본다(패턴이 `plan_`·`design_` 접두만 읽는다). **075 는 번호 구멍이 아니다** — `git log` 가 짚는다: 계획 89 커밋 `144e1ed` 에서 만들어졌다 **같은 계획의 `1b79a74` 에서 지워졌고** 내용은 `history_079.md` 로 갔다. 명부만 그 이름을 들고 **반 년**을 갔다. 고친 것: **반대 방향 단언**(`ArchiveIndexTest` 범위 확장 — 등재문이 적은 그 길) + **하한 90**(절을 잘못 자르면 0건 초록이 된다) + 명부에서 이름 1개 제거. TDD 로 돌았다 — 단언을 먼저 넣어 **`['history_075.md']` 로 RED** 를 보고 고쳤다. 전수 **866 OK rc=0** · 장부 `README.md` 865 → 866 · 제품 `src/` **0줄**. **짧은 경로 판정 근거**: 한 스텝 · 파일 2개(`tests/test_docs.py`·`docs/digest.md`) · 20줄급 · 설계 트리거 없음(새 파일 0 · 대안 갈림 없음 — 등재문이 「새 자가 아니라 범위 확장」을 이미 지정했다) · 보안·스키마·의존성 무관. **연속 1건**(앞 여덟 반복은 계획 112 였다). **정지 조건 미달** — 반복 9/60 · 계획 2/3.
 ---
 
 ## 이 밤(2026-10-07) — 계획 112 `doc-cite-roots` (반복 680~)

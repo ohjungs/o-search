@@ -1288,6 +1288,33 @@ class ArchiveIndexTest(unittest.TestCase):
             "아카이브가 `digest.md` 의 `## 완료` 명부에 없다 — 이름으로 못 찾는다:\n"
             + "\n".join("  " + n for n in missing))
 
+    def test_the_done_section_names_only_archives_that_exist(self):
+        """**반대 방향** — 명부가 가리킨 것이 실재하나.
+
+        위 단언은 「모든 아카이브가 명부에 있나」만 본다. 2026-10-07 실측으로 명부가
+        **없는 파일 `history_075.md`** 를 들고 있었다 — 그 파일은 계획 89 커밋에서
+        만들어졌다가 **같은 커밋에서 지워졌고**(내용은 `history_079.md` 로 갔다),
+        명부는 그 이름을 그대로 들고 반 년을 갔다. 계획 112 가 세운 문서 인용 자도
+        이걸 못 본다 — 그 패턴은 `plan_`·`design_` 접두만 읽는다.
+
+        **절을 `## 완료` 로 자르는 것은 위 단언과 같은 이유다** — 다른 절에는 「없는
+        이름을 신고하는 문장 자신」이 산다(이 구멍을 등재한 후보 줄이 실제로 그렇다).
+        """
+        digest = DOCS / "digest.md"
+        section = done_section(digest.read_text(encoding="utf-8"))
+        self.assertIsNotNone(section, "digest.md 에서 `## 완료` 절을 못 찾았다")
+        named = sorted(set(re.findall(r"history_[0-9]+\.md", section)))
+        # 순회가 죽으면 **0건 초록**이 된다. 실물은 아카이브 수만큼 있으니 하한을 둔다.
+        self.assertGreaterEqual(
+            len(named), 90,
+            "명부에서 아카이브 이름을 %d 개밖에 못 읽었다 — 절을 잘못 잘랐으면 0건"
+            " 초록이 된다" % len(named))
+        gone = [n for n in named if not (DOCS / n).is_file()]
+        self.assertEqual(
+            [], gone,
+            "명부가 없는 파일을 가리킨다 — 지워졌거나 개명된 아카이브다. 이름을 빼거나"
+            " 실제 파일 이름으로 고친다:\n" + "\n".join("  " + n for n in gone))
+
 
 class IterationPatternTest(unittest.TestCase):
     """`ITER_ROW`·`ITER_LINE` 자신을 합성 표로 붙든다 — 위 검사는 자기를 못 잰다.
