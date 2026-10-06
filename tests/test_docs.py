@@ -2494,7 +2494,7 @@ class CitationAliveTest(unittest.TestCase):
 
 # 계획 112 — 위의 `ALIVE_*` 축과 **같은 결손의 문서 쪽**이다. 그쪽은 `ALIVE_DIRS` 네 곳만
 # 보고, 2026-10-07 착수 때 `docs/*.md` 안 **42자리**가 없는 파일을 가리키는데 전수가 하나도
-# 안 물었다(경위·실측은 `docs/design_doc-cite-roots.md`).
+# 안 물었다(경위·실측은 `docs/design_history_087.md`).
 #
 # **축을 합치지 않은 것이 설계의 결정이다** — `ALIVE_DIRS` 에 `docs` 를 끼우면 2줄로 끝나지만
 # 문서 쪽 인용이 코드 쪽보다 많아서 `ALIVE_CITATION_FLOOR` 가 **코드 축을 지키는 일을
