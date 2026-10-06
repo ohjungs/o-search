@@ -1,19 +1,19 @@
 ---
 signal: GREEN
 phase: 개발
-step: 3/4
+step: 4/4
 attempt: 1
 plan: doc-cite-roots
-iteration: 684
+iteration: 685
 updated: 2026-10-07
 mode: night
-night_iterations: 5
+night_iterations: 6
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
 ctx: **모른다 — 게이트 ⑦ 서른아홉 번째.** `.context-state.json` 의 `session_id`(`122b87c2…`)로 `~/.claude/projects/-Users-t2025-m0191-work-websearch/` 를 찾으면 **그 파일이 없다**(남의 세션) · `updated_unix` 도 **1.6시간** 낡았다. **반복 상한(60)과 야간 계획 상한(3)에만 의존한다.**
 rules: (저장소 밖 `~/.claude/skills/loop-harness` — 커밋 해시 없음)
-note: **계획 112 개발 스텝 3/4 — 전수 864 OK · 결손 42자리 전부 닫혔다 (반복 684).** 남은 14를 같은 `git` 사상으로 교정(`digest.md` 8 · `baselines.md` 2 · `metrics.md` 2) + **자리표시자 2자리는 면제가 아니라 표기로 닫았다** — 슬러그 `plan_x` 에 `.md` 를 붙인 꼴 → `` `plan_<슬러그>.md` ``(첫 글자가 꺾쇠라 정규식 밖이다). **설계 계약 4 가 코드 없이 성립한 것을 실물이 확인했다** — 면제 목록을 안 만들었고, 안 만들어도 초록이다. **전수 864 OK rc=0** · 제품 `src/` **0줄**. 남은 것은 스텝 4(변이 4판)와 리뷰·e2e. **스텝 1 의 위반을 되풀이하지 않았다** — `index.md` 행·`metrics.md`·기록을 고친 **뒤에** 전수를 다시 돌려 초록을 보고 커밋한다. **정지 조건 미달** — 반복 5/60 · 계획 1/3.
+note: **계획 112 개발 스텝 4/4 — 변이 5판 전부 잡힘 (반복 685).** 계획서가 적은 네 판을 실물에 맞게 옮기고 하나를 더했다. **M1** 아카이브 제외 제거 → 잡힘(갈래 + 실물 **둘 다** — 아카이브는 본래 끊긴 이름을 들고 있으니 실물도 운다) · **M2** 순회 glob 을 `*.markdown` 으로 → 잡힘(**하한이 물었다**: 「문서 인용을 0 회밖에 못 셌다」) · **M3** `index.md` 의 `design_history_027.md` 를 살아 있던 이름으로 되돌림(**실물 재발 모양**) → 잡힘(`failures=1`, 실물 축만) · **M4** 공유 정규식에서 `design` 갈래 제거 → 잡힘(`failures=8` — **코드 축까지 함께 운다**. 정규식을 공유한 대가이자 값이다) · **M5** `ARCHIVE` 를 `^.*\.md$` 로 넓혀 **실물만** 0건으로 → 잡힘(하한, 같은 메시지). **M5 를 더한 이유**: M2 는 갈래 테스트도 함께 죽여 「하한이 혼자 무는가」를 못 가린다. M5 가 그것을 고립시켜 **하한의 고유한 몫**(코드가 아니라 **실물 트리**가 비는 경우)을 실측했다. 변이는 `PYTHONDONTWRITEBYTECODE=1` **과** `PYTHONPYCACHEPREFIX` 를 함께 주고 돌렸고 전부 되돌렸다(`git status --short` 빈손 확인). **스텝 4/4 종료 · 전수 864 OK rc=0 · 제품 `src/` 0줄.** 다음은 **리뷰**. **리뷰 거리 2건을 미리 적어 둔다**: ① 금지된 꼴을 «설명»하려면 매번 우회해 써야 한다(이 밤에 두 번 물렸다) — 되풀이될 마찰이다 ② `ArchiveIndexTest` 가 한 방향만 봐서 명부가 없는 `history_075.md` 를 들고 있다(범위 밖). **정지 조건 미달** — 반복 6/60 · 계획 1/3.
 ---
 
 ## 이 밤(2026-10-07) — 계획 112 `doc-cite-roots` 수립 (반복 680)
