@@ -2492,29 +2492,38 @@ class CitationAliveTest(unittest.TestCase):
         self.assertIsNone(gap, gap)
 
 
-# 계획 112 — 같은 결손의 **문서 쪽**이다. 위의 `ALIVE_*` 축은 `src`·`tests`·`e2e`·`scripts`
-# 만 보고, 2026-10-07 실측으로 살아 있는 `docs/*.md` 안 **40자리**가 없는 파일을 가리키는데
-# 전수 857 이 하나도 안 물었다. 가장 아픈 자리가 `index.md` 다 — 그 파일 머리 주석이 적은
-# 존재 이유가 「아카이브를 다 열어볼 필요가 없게 하는 것」인데 포인터 28개가 끊겨 있었다.
+# 계획 112 — 위의 `ALIVE_*` 축과 **같은 결손의 문서 쪽**이다. 그쪽은 `ALIVE_DIRS` 네 곳만
+# 보고, 2026-10-07 착수 때 `docs/*.md` 안 **42자리**가 없는 파일을 가리키는데 전수가 하나도
+# 안 물었다(경위·실측은 `docs/design_doc-cite-roots.md`).
 #
-# **축을 합치지 않은 것이 설계의 결정이다**(`docs/design_doc-cite-roots.md` ①안 기각).
-# `ALIVE_DIRS` 에 `docs` 를 끼우면 2줄로 끝나지만, 문서 쪽 인용만 **121회**라
-# `ALIVE_CITATION_FLOOR = 100` 이 **코드 축을 지키는 일을 그만둔다** — 코드 인용이 전부
-# 사라져도 하한이 조용해진다. 그래서 순회와 하한만 따로 두고 **판정자와 정규식은 공유한다.**
+# **축을 합치지 않은 것이 설계의 결정이다** — `ALIVE_DIRS` 에 `docs` 를 끼우면 2줄로 끝나지만
+# 문서 쪽 인용이 코드 쪽보다 많아서 `ALIVE_CITATION_FLOOR` 가 **코드 축을 지키는 일을
+# 그만둔다**(코드 인용이 전부 사라져도 합산 하한은 조용하다). 그래서 **순회와 하한만** 따로
+# 두고 판정자와 정규식은 공유한다.
 #
-# 아카이브(`ARCHIVE`)는 안 훑는다 — 접힌 기록이고, 그때는 그 파일이 있었다.
-# 하한 근거: 실물 121 중 **`index.md` 혼자 98**이고 그 파일은 회전하지 않고 계획마다 한 줄씩
-# 늘기만 한다. 나머지 23(`digest.md` 15 · `baselines.md` 3 · `metrics.md` 3 · 계획서 2)은
-# 회전·덮어쓰기로 흔들려 하한에 안 기댄다. 90 이 무는 것은 **순회가 죽는 것**과
-# **`index.md` 가 대상에서 빠지는 것**이다.
+# **날짜 박힌 실측치는 여기 안 적는다** — 리뷰 A-2 지적이다. 아무도 안 거는 숫자는 쓰인
+# 다음 반복에 거짓이 된다(이 주석의 첫 판이 이미 그랬다: 121 이라 적었고 실물은 126 이었다).
+# 거는 숫자는 아래 하나뿐이고, 분포 서술은 설계 문서가 든다.
+#
+# 하한 90 의 근거: 실물 인용의 대다수가 `index.md` 한 파일에 있고 그 파일은 **회전하지 않고
+# 계획마다 한 줄씩 늘기만 한다.** 나머지는 회전·덮어쓰기로 흔들려 하한에 안 기댄다.
 DOC_CITATION_FLOOR = 90
 
 
 def doc_citation_sites(docs):
     """`docs` 의 **살아 있는** `*.md` 에서 `(파일명, 줄번호, 이름)` 을 모은다.
 
+    **계약**(리뷰 A-1 — 판정 기제가 이 함수 밖에 있어 읽는 사람이 역추론해야 했다):
+    인용은 `ALIVE_CITATION` 이 읽는 `` `(plan|design)_<슬러그>.md` `` 꼴이고(백틱 유무를
+    안 보며 꺾쇠로 시작하는 자리표시자는 안 걸린다), **결손 판정은 `citation_alive_gap`
+    이 `docs / 이름` 의 실재로** 한다. 이 함수는 **모으기만** 한다.
+
+    **최상위만 훑는다**(비재귀 — 리뷰 A-4). `docs/specs/` 와 `docs/e2e/<슬러그>/result.md`
+    는 해석 뿌리가 또 갈려 판정이 다르므로 **일부러** 축 밖이다(계획 5절). 넓히려면
+    `rglob` 이 아니라 뿌리를 먼저 정해야 한다.
+
     `docs` 를 인자로 받는 것은 `citation_sites` 와 같은 이유다 — **픽스처가 순회를
-    밟아야** 「아카이브를 빼는 조건」과 「대상 확장자」를 지우는 변이가 조용히 살지 않는다.
+    밟아야** 「아카이브를 빼는 조건」과 「대상 확장자」를 좁히는 변이가 조용히 살지 않는다.
     """
     sites = []
     for path in sorted(docs.glob("*.md")):
@@ -2563,11 +2572,22 @@ class DocCitationAliveGapTest(unittest.TestCase):
     def test_archived_documents_are_not_scanned(self):
         """접힌 기록은 그때 그 파일이 있었다 — 고치면 과거를 고쳐 쓰는 것이다."""
         name = "plan_%s.md" % "gone"
-        self.write("history_077.md", "근거는 `%s` 다" % name)
-        self.write("plan_history_077.md", "근거는 `%s` 다" % name)
-        self.write("design_history_077.md", "근거는 `%s` 다" % name)
+        # 아카이브 이름도 **조립한다**(리뷰 A-5). 통째 리터럴로 쓰면 `tests` 가
+        # `ALIVE_DIRS` 안이라 **코드 축이 이 줄을 실물 인용으로 읽고**, 077 이 개명되는
+        # 날 픽스처 문자열이 결손으로 보고된다 — 지금 초록인 것은 우연이었다.
+        for shape in ("history_%s.md", "plan_history_%s.md", "design_history_%s.md"):
+            self.write(shape % "077", "근거는 `%s` 다" % name)
         self.assertEqual([], doc_citation_sites(self.docs),
                          "아카이브를 훑었다 — `ARCHIVE` 조건이 죽었다")
+
+    def test_a_non_markdown_file_is_not_scanned(self):
+        """docstring 이 「대상 확장자」를 주장하니 거는 자를 둔다 (리뷰 A-6).
+
+        넓히는 변이(`glob("*")`)는 좁히는 변이와 달리 다른 테스트가 안 잡는다.
+        """
+        self.write("note.txt", "근거는 `%s` 다" % ("plan_%s.md" % "intxt"))
+        self.assertEqual([], doc_citation_sites(self.docs),
+                         "`.md` 가 아닌 파일을 훑었다 — 대상 확장자가 넓어졌다")
 
     def test_a_bare_name_outside_backticks_is_caught(self):
         """계획 110 이 백틱 조건을 없앴다 — 문서 쪽도 같은 정규식을 쓰므로 함께 문다."""
@@ -2588,7 +2608,10 @@ class DocCitationAliveTest(unittest.TestCase):
         sites = doc_citation_sites(DOCS)
         self.assertGreaterEqual(
             len(sites), DOC_CITATION_FLOOR,
-            "문서 인용을 %d 회밖에 못 셌다 — 순회가 죽었으면 0건 초록이 된다" % len(sites))
+            "문서 인용을 %d 회밖에 못 셌다 (하한 %d). 둘 중 하나다 — ① 순회가 죽었다"
+            "(0 에 가까우면 이쪽. 그대로 두면 0건 초록이 된다) ② `index.md` 가 대상에서"
+            " 빠졌거나 쪼개졌다(대다수 인용이 그 파일에 있다. 축은 멀쩡하고 하한이 낡은"
+            " 것이니 수를 다시 재서 고친다)" % (len(sites), DOC_CITATION_FLOOR))
         gap = citation_alive_gap(sites, DOCS)
         self.assertIsNone(gap, gap)
 
