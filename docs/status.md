@@ -1,19 +1,19 @@
 ---
 signal: GREEN
 phase: 개발
-step: 1/4
+step: 2/4
 attempt: 1
 plan: doc-cite-roots
-iteration: 682
+iteration: 683
 updated: 2026-10-07
 mode: night
-night_iterations: 3
+night_iterations: 4
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
 ctx: **모른다 — 게이트 ⑦ 서른아홉 번째.** `.context-state.json` 의 `session_id`(`122b87c2…`)로 `~/.claude/projects/-Users-t2025-m0191-work-websearch/` 를 찾으면 **그 파일이 없다**(남의 세션) · `updated_unix` 도 **1.6시간** 낡았다. **반복 상한(60)과 야간 계획 상한(3)에만 의존한다.**
 rules: (저장소 밖 `~/.claude/skills/loop-harness` — 커밋 해시 없음)
-note: **계획 112 개발 스텝 1/4 — 자를 세웠고 «실물에서 빨갛다» (반복 682).** `doc_citation_sites(docs)` + `DOC_CITATION_FLOOR = 90` + 실물 축 `DocCitationAliveTest` + 갈래 **6벌**. 판정은 `citation_alive_gap` 을 그대로 부르고 `ALIVE_CITATION`·`ALIVE_DIRS`·`ALIVE_CITATION_FLOOR` 는 **불변**이다. **완료 기준대로 RED 다** — 전수 **864** 중 `failures=1` 이고 그 하나가 실물 축이며, 메시지가 **42자리**를 `파일:줄 — 이름` 으로 전부 댄다(`index.md` 28 · `digest.md` 10[결손 8 + 자리표시자 2] · `baselines.md` 2 · `metrics.md` 2). 갈래 6벌은 **초록**: 빈 트리 조용 · 실재 인용 조용 · 결손 신고(자리+이름) · **아카이브 셋을 안 훑는다** · **백틱 밖 맨 이름도 문다**(계획 110 의 정규식을 공유하므로) · **꺾쇠 자리표시자는 인용이 아니다**(면제 기제를 안 만든 근거를 코드가 지킨다). **계약 하나를 정정했다** (`design.md` 6절 · 설계 계약 2 에 적었다): 판정자가 두 축에 공유되는 순간 메시지 주어 「코드가 없는 문서를 가리킨다」가 문서 축에서 **거짓**이 되므로 한 낱말만 `인용이` 로 고쳤다 — 판정 로직·정규식·하한은 안 건드렸다. 장부 줄도 함께 맞췄다(`README.md` 단위 857 → **864**, `test_readme.py` 가 실측치를 그대로 댔다). 세우다 들여온 미사용 상수 하나는 **지웠다**(ponytail 1번). **정지 조건 미달** — 반복 3/60 · 계획 1/3.
+note: **계획 112 개발 스텝 2/4 — `index.md` 28자리 교정 (반복 683).** **사상을 머리 읽기가 아니라 `git` 으로 세웠다** — 아카이브 머리에 슬러그가 늘 있지 않은데(`design_history_082.md` 머리에 없다) `git log --diff-filter=R -M` 이 이름 변경을 **R100** 으로 들고 있어 **죽은 이름 34종 중 33종이 기계적으로 해소**됐다(남은 하나는 자리표시자). 계획 109 가 손으로 갈랐던 일이다. `index.md` **28/28** 교정 · 남은 결손 **14**(`digest.md` 10[결손 8 + 자리표시자 2] · `baselines.md` 2 · `metrics.md` 2) → 스텝 3. **행 첫 칸은 안 건드려진다** — `| plan_<슬러그> |` 에 `.md` 가 없어 정규식 밖이고, 그래서 「아카이브 이름은 주제어를 잃는다」는 손해도 `index.md` 에서는 안 생긴다. **그리고 이 반복이 앞 커밋의 위반을 찾아냈다 (카파시 4번)** — `f17e621`(스텝 1)은 **전수가 빨간 채로** 커밋됐다. `status.md` 를 `step: 1/4` 로 고친 뒤 **다시 돌리지 않고** 커밋해 `index.md` 행 `0/4` 와 어긋난 `StepSyncTest` RED 를 못 봤다(마지막 검증이 그 편집 **앞**이었다). 실물 축 RED 는 의도한 것이지만 **StepSyncTest RED 는 보고하지 않은 것**이다. 회수는 행을 `2/4` 로 맞춘 것 · 교훈은 「문서 편집도 코드 편집이다」. **지금 전수는 `failures=1`(실물 축)이고 그것만이다** — 스텝 3 이 닫는다. **정지 조건 미달** — 반복 4/60 · 계획 1/3.
 ---
 
 ## 이 밤(2026-10-07) — 계획 112 `doc-cite-roots` 수립 (반복 680)
