@@ -2360,7 +2360,7 @@ def citation_alive_gap(sites, docs):
             for path, no, name in sites if not (docs / name).exists()]
     if not dead:
         return None
-    return ("코드가 없는 문서를 가리킨다 — 아카이브된 이름으로 고치거나, 파일이 아닌"
+    return ("인용이 없는 문서를 가리킨다 — 아카이브된 이름으로 고치거나, 파일이 아닌"
             " 예시면 `.md` 를 떼고 슬러그로 적는다 (`docs/design_history_082.md`"
             " 계약 2). 테스트의 합성 픽스처면 셋째 길이다 — 한 리터럴에 토큰을 담지 말고"
             " 이름을 **조립**한다 (`docs/design_history_083.md` 계약):\n" + "\n".join(dead))
@@ -2488,6 +2488,130 @@ class CitationAliveTest(unittest.TestCase):
         self.assertGreaterEqual(
             len(sites), ALIVE_CITATION_FLOOR,
             "인용을 %d 회밖에 못 셌다 — 순회가 죽었으면 0건 초록이 된다" % len(sites))
+        gap = citation_alive_gap(sites, DOCS)
+        self.assertIsNone(gap, gap)
+
+
+# 계획 112 — 위의 `ALIVE_*` 축과 **같은 결손의 문서 쪽**이다. 그쪽은 `ALIVE_DIRS` 네 곳만
+# 보고, 2026-10-07 착수 때 `docs/*.md` 안 **42자리**가 없는 파일을 가리키는데 전수가 하나도
+# 안 물었다(경위·실측은 `docs/design_history_087.md`).
+#
+# **축을 합치지 않은 것이 설계의 결정이다** — `ALIVE_DIRS` 에 `docs` 를 끼우면 2줄로 끝나지만
+# 문서 쪽 인용이 코드 쪽보다 많아서 `ALIVE_CITATION_FLOOR` 가 **코드 축을 지키는 일을
+# 그만둔다**(코드 인용이 전부 사라져도 합산 하한은 조용하다). 그래서 **순회와 하한만** 따로
+# 두고 판정자와 정규식은 공유한다.
+#
+# **날짜 박힌 실측치는 여기 안 적는다** — 리뷰 A-2 지적이다. 아무도 안 거는 숫자는 쓰인
+# 다음 반복에 거짓이 된다(이 주석의 첫 판이 이미 그랬다: 121 이라 적었고 실물은 126 이었다).
+# 거는 숫자는 아래 하나뿐이고, 분포 서술은 설계 문서가 든다.
+#
+# 하한 90 의 근거: 실물 인용의 대다수가 `index.md` 한 파일에 있고 그 파일은 **회전하지 않고
+# 계획마다 한 줄씩 늘기만 한다.** 나머지는 회전·덮어쓰기로 흔들려 하한에 안 기댄다.
+DOC_CITATION_FLOOR = 90
+
+
+def doc_citation_sites(docs):
+    """`docs` 의 **살아 있는** `*.md` 에서 `(파일명, 줄번호, 이름)` 을 모은다.
+
+    **계약**(리뷰 A-1 — 판정 기제가 이 함수 밖에 있어 읽는 사람이 역추론해야 했다):
+    인용은 `ALIVE_CITATION` 이 읽는 `` `(plan|design)_<슬러그>.md` `` 꼴이고(백틱 유무를
+    안 보며 꺾쇠로 시작하는 자리표시자는 안 걸린다), **결손 판정은 `citation_alive_gap`
+    이 `docs / 이름` 의 실재로** 한다. 이 함수는 **모으기만** 한다.
+
+    **최상위만 훑는다**(비재귀 — 리뷰 A-4). `docs/specs/` 와 `docs/e2e/<슬러그>/result.md`
+    는 해석 뿌리가 또 갈려 판정이 다르므로 **일부러** 축 밖이다(계획 5절). 넓히려면
+    `rglob` 이 아니라 뿌리를 먼저 정해야 한다.
+
+    `docs` 를 인자로 받는 것은 `citation_sites` 와 같은 이유다 — **픽스처가 순회를
+    밟아야** 「아카이브를 빼는 조건」과 「대상 확장자」를 좁히는 변이가 조용히 살지 않는다.
+    """
+    sites = []
+    for path in sorted(docs.glob("*.md")):
+        if ARCHIVE.match(path.name):
+            continue
+        for no, line in enumerate(path.read_text(encoding="utf-8").split("\n"), 1):
+            for found in ALIVE_CITATION.finditer(line):
+                sites.append((path.name, no, found.group(1)))
+    return sites
+
+
+class DocCitationAliveGapTest(unittest.TestCase):
+    """`doc_citation_sites` 의 갈래를 합성 트리로 밟는다 — 실물은 초록이면 자기를 못 잰다.
+
+    **픽스처는 토큰을 조립해서 쓴다**(`CitationAliveGapTest` 와 같은 계약) — 한 리터럴에
+    `design_<이름>.md` 를 담으면 이 파일 자신이 없는 문서를 가리키게 되고, 위의 코드 축이 문다.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.docs = pathlib.Path(self.tmp.name)
+
+    def write(self, name, line):
+        (self.docs / name).write_text("# 문서\n%s\n" % line, encoding="utf-8")
+
+    def test_an_empty_tree_is_quiet(self):
+        """순회가 빈손인 경우는 여기서 안 문다 — 그 자리는 실물의 하한이 맡는다."""
+        self.assertEqual([], doc_citation_sites(self.docs))
+        self.assertIsNone(citation_alive_gap(doc_citation_sites(self.docs), self.docs))
+
+    def test_a_citation_to_an_existing_document_is_quiet(self):
+        name = "design_%s.md" % "alive"
+        self.write("index.md", "근거는 `%s` 다" % name)
+        self.write(name, "# 설계")
+        self.assertIsNone(citation_alive_gap(doc_citation_sites(self.docs), self.docs))
+
+    def test_a_citation_to_a_missing_document_is_a_gap(self):
+        name = "design_%s.md" % "gone"
+        self.write("index.md", "근거는 `%s` 다" % name)
+        gap = citation_alive_gap(doc_citation_sites(self.docs), self.docs)
+        self.assertIsNotNone(gap, "없는 문서를 가리키는데 조용하다")
+        self.assertIn("index.md:2", gap, "자리를 안 알려준다 — 사람이 못 찾는다")
+        self.assertIn(name, gap, "이름을 안 알려준다")
+
+    def test_archived_documents_are_not_scanned(self):
+        """접힌 기록은 그때 그 파일이 있었다 — 고치면 과거를 고쳐 쓰는 것이다."""
+        name = "plan_%s.md" % "gone"
+        # 아카이브 이름도 **조립한다**(리뷰 A-5). 통째 리터럴로 쓰면 `tests` 가
+        # `ALIVE_DIRS` 안이라 **코드 축이 이 줄을 실물 인용으로 읽고**, 077 이 개명되는
+        # 날 픽스처 문자열이 결손으로 보고된다 — 지금 초록인 것은 우연이었다.
+        for shape in ("history_%s.md", "plan_history_%s.md", "design_history_%s.md"):
+            self.write(shape % "077", "근거는 `%s` 다" % name)
+        self.assertEqual([], doc_citation_sites(self.docs),
+                         "아카이브를 훑었다 — `ARCHIVE` 조건이 죽었다")
+
+    def test_a_non_markdown_file_is_not_scanned(self):
+        """docstring 이 「대상 확장자」를 주장하니 거는 자를 둔다 (리뷰 A-6).
+
+        넓히는 변이(`glob("*")`)는 좁히는 변이와 달리 다른 테스트가 안 잡는다.
+        """
+        self.write("note.txt", "근거는 `%s` 다" % ("plan_%s.md" % "intxt"))
+        self.assertEqual([], doc_citation_sites(self.docs),
+                         "`.md` 가 아닌 파일을 훑었다 — 대상 확장자가 넓어졌다")
+
+    def test_a_bare_name_outside_backticks_is_caught(self):
+        """계획 110 이 백틱 조건을 없앴다 — 문서 쪽도 같은 정규식을 쓰므로 함께 문다."""
+        name = "plan_%s.md" % "bare"
+        self.write("index.md", "근거는 %s 다" % name)
+        gap = citation_alive_gap(doc_citation_sites(self.docs), self.docs)
+        self.assertIsNotNone(gap, "백틱 밖 이름을 놓쳤다")
+
+    def test_the_placeholder_form_is_not_a_citation(self):
+        """면제 기제를 안 만든 근거 — 자리표시자는 **표기**로 빠진다(설계 계약 4)."""
+        self.write("index.md", "자리표시자 `plan_%s.md` 는 파일이 아니다" % "<슬러그>")
+        self.assertEqual([], doc_citation_sites(self.docs),
+                         "꺾쇠 자리표시자를 인용으로 읽었다 — 정책이 성립하지 않는다")
+
+
+class DocCitationAliveTest(unittest.TestCase):
+    def test_live_docs_cite_documents_that_exist(self):
+        sites = doc_citation_sites(DOCS)
+        self.assertGreaterEqual(
+            len(sites), DOC_CITATION_FLOOR,
+            "문서 인용을 %d 회밖에 못 셌다 (하한 %d). 둘 중 하나다 — ① 순회가 죽었다"
+            "(0 에 가까우면 이쪽. 그대로 두면 0건 초록이 된다) ② `index.md` 가 대상에서"
+            " 빠졌거나 쪼개졌다(대다수 인용이 그 파일에 있다. 축은 멀쩡하고 하한이 낡은"
+            " 것이니 수를 다시 재서 고친다)" % (len(sites), DOC_CITATION_FLOOR))
         gap = citation_alive_gap(sites, DOCS)
         self.assertIsNone(gap, gap)
 
