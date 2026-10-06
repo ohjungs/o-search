@@ -58,7 +58,9 @@
 1. **`doc_citation_sites(docs)`** → `(파일명, 줄번호, 이름)` 목록. 대상은 `docs/*.md` 중
    `ARCHIVE` 정규식에 **안 걸리는 것만**. 정규식은 `ALIVE_CITATION`. `docs` 를 인자로 받는다 —
    픽스처가 순회를 밟아야 「대상을 줄이는 변이」가 조용히 살지 않는다(`citation_sites` 와 같은 이유).
-2. **판정은 `citation_alive_gap` 을 그대로 부른다.** 그 함수와 `ALIVE_CITATION` ·
+2. **판정은 `citation_alive_gap` 을 그대로 부른다.** **계약 정정(개발 스텝 1 · `design.md` 6절)** —
+   그 함수의 메시지 주어 한 낱말만 고쳤다(`코드가` → `인용이`). 판정자가 두 축에 공유되는 순간
+   「코드가 없는 문서를 가리킨다」가 문서 축에서 **거짓**이 된다. 판정 로직·정규식·하한은 불변이다. 그 함수와 `ALIVE_CITATION` ·
    `ALIVE_DIRS` · `ALIVE_CITATION_FLOOR` 는 **한 글자도 안 고친다** — 코드 축과 독립이다.
 3. **하한 `DOC_CITATION_FLOOR = 90`.** 근거: 실물 121 중 **`index.md` 혼자 98**이고 그 파일은
    회전하지 않고 계획마다 한 줄씩 **늘기만** 한다. 나머지 28은 회전·덮어쓰기로 흔들리는
