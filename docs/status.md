@@ -1,19 +1,19 @@
 ---
 signal: GREEN
 phase: 개발
-step: 1/2
+step: 2/2
 attempt: 1
 plan: deps-unknown-branches
-iteration: 691
+iteration: 692
 updated: 2026-10-09
 mode: night
-night_iterations: 1
+night_iterations: 2
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
 ctx: **모른다 — 게이트 ⑦ 마흔한 번째.** `.context-state.json` 의 `session_id`(`122b87c2…`)가 또 남의 세션이고 `updated_unix` 는 **25.4시간** 낡았다(77%·5h 13%·7d 12% 는 전부 그 세션 것이다). **반복 상한(60)과 야간 계획 상한(3)에만 의존한다.**
 rules: f21b7b7   # `git -C ~/.claude log -1 --format=%h -- skills/loop-harness`
-note: **계획 113 `deps-unknown-branches` 수립 — 네 밤 연속 짧은 경로를 끊었다.** 근거는 **6순위** digest 후보 `[6]`(계획 103 테스트 phase 가 등재). 탐색 1~4순위 0건을 **어제보다 넓게** 재서 확인했다 — 단위 **866 OK rc=0** · e2e **18종 rc=0** · `quality_eval` 39/40 합격 · `passage_eval` 100% p95 1.65ms · **`perf_search` p95 8.78ms**(예산 300ms 의 2.9% · 여러 밤 만에 처음 쟀다) · 코드 TODO **0** · `candidates.md` 파일 부재 · `gh issue` 0. 5순위는 보안 패치뿐이라 밤이 못 연다. **전제를 코드에 대봤다** — `tests/test_deps.py` 를 전문으로 읽어 `is_allowed` 의 방어 갈래 둘(`except (ImportError, ValueError)` · `not spec.origin`)을 밟는 테스트가 **0개**임을 확인했고, 저장소 **밖**(`/tmp`)에서 두 갈래의 **재현 가능성까지 쟀다**: `sys.modules` 에 `__spec__ = None` 을 심으면 `find_spec` 이 `ValueError: ghostmod.__spec__ is None` · `__init__.py` 없는 디렉터리는 spec 은 있고 `origin is None`. 둘 다 표준 라이브러리만으로 결정적이다. **설계 생략** — 트리거 0건(새 파일 0 · 공개 인터페이스 변경 0 · 파일 2개 · 커밋 하나로 revert · 갈림길 없음). **곁딸린 일 하나를 먼저 했다**: `status.md` 를 접지 않으면 계획서를 **쓸 수가 없었다** — 필수 읽기 합이 522 라 80줄 계획서를 더하면 `ReadBudgetTest` 상한 600 을 넘는다(게이트 ⑬ 이 예고한 그 자리). `rules/docs.md` 1절대로 **원본이 있는 것만** 접었다 · 249 → **157줄**. 그 157 이 계획서 76줄 + 이 밤의 기록 17줄을 **같은 예산 안에** 들여놨다 — 접기 전 522 → 지금 **523/600**.
+note: **개발 1/2 — ㉠ `find_spec` 이 터지는 길에 자를 붙였다 · 갭을 0 으로 쟀다.** `JudgeTest.test_rejects_when_find_spec_itself_raises` 하나(단언 2줄 + 왜의 docstring). `sys.modules` 에 `__spec__ = None` 모듈을 심고 `addCleanup` 으로 되돌린다 — 안 되돌리면 이름순 실행이라 뒤에 도는 테스트가 그 유령을 본다. **TDD 는 면제 갈래다**(`dev.md` 0절 「테스트 코드 자체가 산출물인 스텝」) — 대신 **변이로 이빨을 쟀다**. **갭 증명이 이 반복의 값이다**: `HEAD`(새 테스트 **없는** 상태) + 변이 M1(`except …: return True`) 에서 전수 **866 OK rc=0** — **무는 자가 0개**다. 새 테스트를 넣고 같은 변이를 심으면 그 테스트 하나만 `FAILED`(장부 줄은 건수 때문에 따로 울었다 · 변이와 무관). 되돌리기는 `git restore` 가 아니라 **사본 교체**로 했다 — 반복 686 이 `git restore <파일>` 로 미커밋 리뷰 수정 6건을 날린 자리다. 장부 `README.md:104` **866 → 867** · 전수 **867 OK rc=0** · 제품 `src/` **0줄**. 다음은 스텝 2(㉡ 네임스페이스 패키지).
 ---
 
 ## 이 밤(2026-10-09) — 계획 113 `deps-unknown-branches` (반복 691~)
