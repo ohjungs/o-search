@@ -1,19 +1,19 @@
 ---
 signal: GREEN
-phase: 테스트
+phase: 리뷰
 step: 2/2
 attempt: 1
 plan: deps-unknown-branches
-iteration: 693
+iteration: 694
 updated: 2026-10-09
 mode: night
-night_iterations: 3
+night_iterations: 4
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
 ctx: **모른다 — 게이트 ⑦ 마흔한 번째.** `.context-state.json` 의 `session_id`(`122b87c2…`)가 또 남의 세션이고 `updated_unix` 는 **25.4시간** 낡았다(77%·5h 13%·7d 12% 는 전부 그 세션 것이다). **반복 상한(60)과 야간 계획 상한(3)에만 의존한다.**
 rules: f21b7b7   # `git -C ~/.claude log -1 --format=%h -- skills/loop-harness`
-note: **개발 2/2 — ㉡ 네임스페이스 패키지에 자를 붙였다 · 변이 셋을 다 쟀고 갭은 셋 다 0 이었다.** `JudgeTest.test_rejects_namespace_package`. `__init__.py` 없는 디렉터리를 `sys.path` 에 두면 `find_spec` 이 **스펙은 주고 `origin` 은 `None`** 이라 `spec is None` 과 **다른 갈래**다. `sys.path` 에서 빼는 것을 `with` **안의 `finally`** 로 했다 — `addCleanup` 에 맡기면 디렉터리가 먼저 지워지고 경로 칸이 그보다 오래 산다. 「스펙이 왔다」를 `assertIsNotNone` 으로 먼저 못박는다(안 박으면 `spec is None` 갈래로 새어도 같은 `False` 가 나와 **재는 대상을 잃은 채 초록**). **변이 3판 · 전부 「새 테스트 없으면 전수 조용」이 먼저 확인됐다**: M1 `except … return True` → 갭 **866 OK**(무는 자 0) / 지금 `FAILED` · M2 `origin` 조건 제거 → 갭 **867 OK** / 지금 `ERROR TypeError`(**시끄럽게** 틀린다) · M3 `if not spec.origin: return True` → 갭 **867 OK** / 지금 `FAILED`. **M3 이 이 계획의 핵이다** — 조용히 통과시키는 쪽인데 그 자리를 지키는 자가 0개였다. 장부 **867 → 868** · 전수 **868 OK rc=0** · 제품 `src/` **0줄**. **기록 회전 — 항목 21 > 20 이 이 커밋에서 걸렸다**: 반복 673~677 을 `history_097.md` 로 밀어냈다(242줄 → 189줄 · 줄 수는 여유가 컸다). `digest.md` 에 압축 한 줄. **그 다섯 중 넷이 「후보·보류·조건의 전제가 이미 죽어 있었다」 한 모양**이고, 지금 계획 113 이 같은 재발 계열의 **갈래** 쪽을 닫고 있다. 다음은 테스트 phase(갭 탐색).
+note: **테스트 phase — 갭 넷을 훑어 8점 이상 0건 · 등가 변이 하나를 「갭이 아니다」로 못박았다.** ① **부정 경로**: 변이 **M4**(`except ValueError:` 로 좁힘)가 전수 **868 을 통과한다.** 갭으로 적기 전에 **도달성을 쳤다** — 최상위 이름으로 `ImportError` 를 내는 길을 네 모양(비ASCII·숫자 머리·300자·빈 문자열)으로 재니 **전부 `None`** 이다. `is_allowed` 가 이름을 **첫 마디로 자르므로** 부모를 임포트하다 터지는 길이 구조적으로 막혀 있다 → **등가 변이**, 중요도 **4** 로 등재. ② **경계값**: `not spec.origin` 은 `None` 과 **빈 문자열**을 함께 덮는데 재는 것은 `None` 뿐 — 3.9 에 실물이 없어 같은 항목에 묶어 등재(중요도 3). ③ **격리는 실측으로 깨끗하다**: 새 테스트 둘을 한 프로세스에서 **연달아 두 판** 돌려 `OK` · `sys.modules` 잔류 **0** · `sys.path` 변화 **0**. ⑧ **fixture 가 상상이 아니다**: `ValueError` 문구는 실물에서 뽑아 docstring 에 박았고, **네임스페이스 쪽은 이 기계에 실물이 있다** — site 디렉터리의 `bin` 이 `origin is None` 이다. e2e 시나리오 1 이 합성 픽스처가 아니라 **그 실물 이름**으로 돈다. 전수 **868 OK rc=0**(전체 · 맨몸 래퍼) · 단언 변경 0 · 제품 `src/` **0줄**. 다음은 리뷰.
 ---
 
 ## 이 밤(2026-10-09) — 계획 113 `deps-unknown-branches` (반복 691~)
