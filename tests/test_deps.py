@@ -247,7 +247,7 @@ class JudgeTest(unittest.TestCase):
         """**`spec` 은 있는데 `origin` 이 없는 길** — `is_allowed` 의 `not spec.origin` 갈래다.
 
         `__init__.py` 가 없는 디렉터리는 **네임스페이스 패키지**라 `find_spec` 이 스펙을
-        주면서 `origin` 은 `None` 이다(`submodule_search_locations` 만 있다). 바로 위
+        주면서 `origin` 은 `None` 이다(`submodule_search_locations` 만 있다). 같은 클래스의
         `test_rejects_third_party` 가 밟는 `spec is None` 과 **다른 갈래**고, 서드파티가
         실제로 이 모양으로 깔린다 — 그래서 `spec` 이 왔다는 것만으로 통과시키면 안 된다.
 
