@@ -1,19 +1,19 @@
 ---
-signal: GREEN
-phase: e2e
-step: 2/2
+signal: DONE
+phase: 마감
+step: 0/0
 attempt: 1
-plan: deps-unknown-branches
-iteration: 695
+plan: null
+iteration: 696
 updated: 2026-10-09
 mode: night
-night_iterations: 5
+night_iterations: 6
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
 ctx: **모른다 — 게이트 ⑦ 마흔한 번째.** `.context-state.json` 의 `session_id`(`122b87c2…`)가 또 남의 세션이고 `updated_unix` 는 **25.4시간** 낡았다(77%·5h 13%·7d 12% 는 전부 그 세션 것이다). **반복 상한(60)과 야간 계획 상한(3)에만 의존한다.**
 rules: f21b7b7   # `git -C ~/.claude log -1 --format=%h -- skills/loop-harness`
-note: **리뷰 — 패스 A 1건 수정 · 패스 B 가 이 밤의 조항 위반 셋을 잡았다(43 → 46).** 패스 A 는 별도 세션에 **diff 와 수정 파일만** 줬다(상태·계획 문서 금지). 그 세션이 **변이 넷을 직접 돌려** 표로 가져왔고 「각 테스트가 자기 갈래의 변이만 죽인다 · 기존 11건은 하나도 못 잡는다」를 독립적으로 재현했다 — 내 측정과 일치한다. **A-1 이 참이었다**: 네임스페이스 테스트 docstring 이 `test_rejects_third_party` 를 「바로 위」로 가리키는데 실물에서 바로 위는 반복 692 가 넣은 테스트다 → 「같은 클래스의」로 고쳤다. **A-2 는 등재로 돌렸다**(`ImportError` 팔) — 그 세션의 처방 「테스트가 아니라 **팔을 좁히는 쪽**이 더 솔직하다」가 내 등재문보다 낫고, 그쪽은 `is_allowed` 동작 변경이라 「하지 않을 것」 밖이라 후보 `[4]` 에 그대로 적었다. **천장 하나를 함께 받았다**: 새 테스트 둘이 `sys.modules`·`sys.path` 를 프로세스 전역으로 만져 **병렬 러너**를 들이는 날 레이스다 — 같은 후보에 조건으로 달았다. `sys.path_importer_cache` 잔류는 경로가 매번 유일하고 `sys.path` 에서 이미 빠져 손대지 않는다. **패스 B 가 잡은 것이 더 아프다** — 탐색 phase 에서 측정 도구 셋을 **래퍼 없이 파이프로** 받았다: ㊹ `quality_eval`·`passage_eval` 의 `rc` 를 `tail` 것으로 읽었다 · ㊺ `perf_search` 는 `${PIPESTATUS[0]}` 이 `env` 때문에 **빈 값**이었는데 보고도 넘어갔다 · ㊻ 진단 `grep`. **셋 다 래퍼로 다시 쟀다** — `quality_eval` `── rc=0` · `passage_eval` `── rc=0` · `perf_search` `── rc=0`, 숫자는 전부 같았다(39/40 · 100% p95 1.65ms · p95 8.78ms). **새 방아쇠**: 전수·e2e 는 래퍼로 돌면서 「측정 도구」만 맨손으로 쳤다 — 조항을 「테스트 러너의 것」으로 좁혀 읽은 것이고 `project.md` 는 「아래 명령은 전부」라고 적는다. 전수 **868 OK rc=0** · 단언 변경 0 · 제품 `src/` **0줄**. 다음은 e2e.
+note: **e2e 3종 통과 · 계획 113 DONE.** 새 e2e 파일 **0개** — 이 계획의 산출물이 테스트라 e2e 는 「실물에서 재발 경로를 재연하는 것」이고 전수 러너와 실물 패키지 하나로 끝난다(사다리 1번). ① **실물로 쳤다** — 이 기계 site 디렉터리의 `bin`(`__init__.py` 없음 · `origin is None`)을 `src/websearch/flags.py:1` 에 `import bin` 으로 심으니 `DependencyZeroTest` 가 `flags.py:1 import bin` 과 **어긴 사양 조항까지** 대며 RED(`rc=1`) · 무는 자 **하나**. `bin` 은 `LOCAL` 로 먼저 통과하지도 않는다(실측 0건). ② **음성 대조가 이 계획의 핵이다** — `import bin` 을 **그대로 심어 둔 채** ㉡ 갈래만 뒤집으니(M3) **`DependencyZeroTest` 가 초록으로 돌아섰고** 빨간 것은 이 계획이 세운 테스트 **하나뿐**이다. 반복 693 의 「갭 0」이 합성 변이가 아니라 **실물 임포트 위에서** 재확인됐다. ③ 심은 줄과 변이를 **사본 교체로** 되돌려(`git restore` 안 썼다 — 반복 686 의 자리) `git status` 빈손 · 전수 **868 OK rc=0** · e2e **18종 전부 `rc=0`**(래퍼 마지막 줄로 판정). **못 잰 것**: 린트·타입체크는 없어서 미검증 · `perf_*` 는 안 돌렸다(`src/` 0줄이라 같은 트리) · `ImportError` 팔은 여전히 무증인(후보 `[4]`). 계획서는 `plan_history_088.md` 로 옮겼다 · 설계 문서 없음.
 ---
 
 ## 이 밤(2026-10-09) — 계획 113 `deps-unknown-branches` (반복 691~)
@@ -24,7 +24,7 @@ note: **리뷰 — 패스 A 1건 수정 · 패스 B 가 이 밤의 조항 위반
 밟는 갈래 둘에 테스트가 0개다 — 둘 다 `return False` 를 `return True` 로 바꾸면
 **안 깔린 서드파티가 초록**이 되어 이 파일이 존재하는 이유가 사라진다.
 
-계획서는 `docs/plan_deps-unknown-branches.md`.
+계획서는 `docs/plan_history_088.md` 로 옮겼다(마감).
 
 ## 접은 밤들 — 원본이 `history_current.md`·`index.md` 에 있다 (2026-10-06 반복 679 접음)
 
