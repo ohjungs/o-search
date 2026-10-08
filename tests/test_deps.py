@@ -60,6 +60,7 @@ import pathlib
 import sys
 import sysconfig
 import tempfile
+import types
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -218,6 +219,57 @@ class JudgeTest(unittest.TestCase):
         )
         self.assertFalse(is_stdlib_origin(os.path.join(stdlib, "dist-packages", "six.py")))
         self.assertTrue(is_stdlib_origin(os.path.join(stdlib, "json", "__init__.py")))
+
+    def test_rejects_when_find_spec_itself_raises(self):
+        """**`find_spec` 이 값을 안 주고 터지는 길** — `is_allowed` 의 `except` 갈래다.
+
+        `sys.modules` 에 `__spec__` 이 `None` 인 모듈이 있으면 `find_spec` 은 그 이름에
+        대해 `ValueError` 를 던진다(실측 문구: `ghostmod.__spec__ is None`). 런타임에
+        만들어 끼운 모듈이 그 모양이라 **「안 깔린 패키지」와는 다른 사고**고, 위
+        `test_rejects_third_party` 가 밟는 `spec is None` 갈래로는 영영 안 온다.
+
+        **이 갈래가 `True` 를 주면 그 이름은 조용히 통과한다** — `except` 옆 주석이
+        적어 둔 바로 그 사고가 2026-10-09 까지 **아무 테스트에도 안 걸려 있었다**.
+
+        예외가 **실제로 나는지를 같은 자리에서 다시 잰다.** 안 재면 파이썬이 이 모양에
+        `None` 을 돌려주게 되는 날 `spec is None` 갈래가 같은 `False` 를 내주어
+        **이 테스트가 초록인 채로 재는 대상을 잃는다** (`url_normalize_e2e` 의 「값은
+        맞는데 다른 이유로 통과」와 같은 부류).
+        """
+        sys.modules["ghostmod"] = types.ModuleType("ghostmod")
+        sys.modules["ghostmod"].__spec__ = None
+        self.addCleanup(sys.modules.pop, "ghostmod", None)
+        with self.assertRaises(ValueError):
+            importlib.util.find_spec("ghostmod")
+        self.assertFalse(is_allowed("ghostmod"))
+
+    def test_rejects_namespace_package(self):
+        """**`spec` 은 있는데 `origin` 이 없는 길** — `is_allowed` 의 `not spec.origin` 갈래다.
+
+        `__init__.py` 가 없는 디렉터리는 **네임스페이스 패키지**라 `find_spec` 이 스펙을
+        주면서 `origin` 은 `None` 이다(`submodule_search_locations` 만 있다). 같은 클래스의
+        `test_rejects_third_party` 가 밟는 `spec is None` 과 **다른 갈래**고, 서드파티가
+        실제로 이 모양으로 깔린다 — 그래서 `spec` 이 왔다는 것만으로 통과시키면 안 된다.
+
+        **이 갈래가 `True` 를 주면 그 이름은 조용히 통과한다.** 갈래를 아예 지우면
+        `is_stdlib_origin(None)` 이 `os.path.realpath(None)` 에서 터져 **시끄럽게** 틀리지만,
+        `True` 로 뒤집는 쪽은 **초록인 채로** 틀린다 — 이 저장소가 반복해서 겪은 모양이다.
+
+        `sys.path` 에서 빼는 것을 `with` **안에서** 한다 — `addCleanup` 에 맡기면 디렉터리가
+        먼저 지워지고 경로 칸이 그보다 오래 산다.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            (pathlib.Path(tmp) / "ghostns").mkdir()
+            sys.path.insert(0, tmp)
+            try:
+                spec = importlib.util.find_spec("ghostns")
+                # 「스펙이 왔다」를 먼저 못박는다 — 안 박으면 `spec is None` 갈래로
+                # 새어도 같은 `False` 가 나와 **재는 대상을 잃은 채 초록**이다.
+                self.assertIsNotNone(spec)
+                self.assertIsNone(spec.origin)
+                self.assertFalse(is_allowed("ghostns"))
+            finally:
+                sys.path.remove(tmp)
 
     def test_accepts_frozen_origin(self):
         """3.11+ 의 `os`·`io`·`abc` 는 `origin` 이 경로가 아니라 `'frozen'` 이다.
