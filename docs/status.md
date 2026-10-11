@@ -1,30 +1,29 @@
 ---
-signal: GREEN
-phase: 테스트
-step: 1/1
+signal: DONE
+phase: e2e
+step: 0/0
 attempt: 1
-plan: opened-title-drop
-iteration: 698
-updated: 2026-10-11
+plan: null
+iteration: 701
+updated: 2026-10-12
 mode: night
-night_iterations: 1
+night_iterations: 2  # 이 밤(10-12) 시작 시 0 리셋 후 +2
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
-ctx: **모른다 — 게이트 ⑦ 마흔두 번째.** `.context-state.json` 의 `session_id`(`122b87c2…`)가 여전히 남의 세션이고(내 cwd 슬러그에 그 `.jsonl` 이 없다) `updated_unix` 는 **15.1시간** 낡았다(80%·5h 13%·7d 12% 는 전부 그 세션 것이다). **반복 상한(60)과 야간 계획 상한(3)에만 의존한다.**
+ctx: **모른다 — 게이트 ⑦ 마흔네 번째.** `.context-state.json` 의 `session_id` 가 여전히 내 cwd 슬러그가 아니라 홈 슬러그에 있다 — 남의 세션 것이라 신선해도 못 읽는다. **5h·7d 는 계정 단위라 적용되고 둘 다 한참 낮았다**(반복 700 확인 13%·12%). 컨텍스트만 반복 상한(60)·야간 계획 상한(3)에 의존했다.
 rules: 51a6d48   # `git -C ~/.claude log -1 --format=%h -- skills/loop-harness`
-note: **[중단·보존 · 반복 698]** 사용자가 예약 루프를 내렸고, 끝난 개발 스텝이 기록 전에 끊겨 `8b388e9` 로 보존했다(869 OK). main 병합은 계획이 열려 있어 안 했다 — 서술은 `history_current.md` 698. 다음은 테스트 phase. — **계획 114 `opened-title-drop` 착수 · 설계 생략.** 근거는 **이 밤의 탐색이 실제로 밟은 자리**다 — 6순위로 집으려던 후보 `[7]` 「화면에 안 보이는 텍스트가 «근거 문단» 으로 나온다」가 **계획 51 `hidden-passage` 가 2026-09-02 에 닫은 것**인데 취소선 없이 열려 있고 세 자(`strike_gap`·`open_gap`·`false_strike`)가 전부 초록이었다. 원인을 실측으로 찍었다: `완료`+`OPENED_START` 를 통과한 행 **29개 중 제목 추출이 6개**뿐이고 **23개가 `if title is not None` 에서 조용히 빠진다** — `OPENED_PICK` 이 `다음 계획 후보` 뒤에 **`[N]` 을 필수로** 요구하는데 그 행은 점수 없이 적는다. `OPENED_FLOOR` 가 2 고 대조가 3자리라 하한도 안 물렸다. **완화판으로 오탐을 먼저 쟀다** — 추출 6→**8** · 대조 3→**4** · 새로 들어온 것은 `hidden-passage` 하나 · **거짓 양성 0건**이라 설계 갈림(A/B/C)이 숫자로 접혔다. 1~5순위 0건(전수 **868 OK rc=0** · 린터·타입체커 없음 · 코드 `TODO` 0 · `## 보류` 비어 있음 · 4순위 큐 파일 없음=후보 `[6]` 그대로). 스텝 **하나**다 — 재는 자를 넓히면 그 자리에서 실물이 RED 가 되므로 완화와 교정을 갈라 커밋하면 사이 반복이 빨간 저장소를 물려받는다(계획 72 와 같은 이유).
+note: **[e2e phase 통과 · 계획 114 DONE · 반복 701]** 앞 관문 먼저 — 전수 **869 OK rc=0**(래퍼 · README 단위 수 가드와 일치) · `quality_eval` 합격(en 19/20) · `passage_eval` 100%(398/398) p95 1.62ms · **린트·타입체크·CI 는 이 저장소에 없어 「검증되지 않았다」로 적었다**(통과가 아니다) · `perf_crawl`·`perf_search`·`perf_memory` 는 제품 `src/` **0줄**이라 안 돌렸다(`e2e.md` 1절). 시나리오 **셋 전부 통과** — ① 후보 절 81줄(열림 **70** · 취소선 **11**)에서 `plan_hidden-passage` 의 제목이 **열린 70줄에 없고 취소선 쪽에 있다** · 추출 6→**8** · 대조 3→**4** · 모집단 **29** · 세 자 전부 `None` ② **되돌림을 추적 트리 복사본에서만 했다**(워킹트리 무접촉 · 되돌림이 바이트 단위로 정확함을 `git --work-tree=$W diff` 빈손으로 확인): 취소선을 떼면 `OpenSyncTest` `rc=1`, 되돌리면 `rc=0`, **그 상태에서 `OPENED_PICK` 을 계획 전으로 조이면 실물 자가 조용히 초록**이고 무는 것은 새로 넣은 갈래 자뿐이다 — 40일을 열린 채 산 줄이 왜 안 보였는지의 재연이고 **이 계획의 존재 증명**이다 ③ e2e **18/18 rc=0**(2 를 낸 것 0종). **이 밤에 조항을 한 번 밟았다** — E1 판정을 `| tail -6` 으로 받아 `rc=0` 을 봤는데 그것은 `tail` 의 `rc` 였고(판정 줄은 `FAILED`) 래퍼로 다시 재 `rc=1` 을 봤다. `project.md` 「맨몸으로 돈다」가 무는 바로 그 자리다. 아카이브 — 계획서 `plan_history_089.md` · 결과 `docs/e2e/opened-title-drop/result.md` · `index.md` 완료 행. 읽기 예산은 계획 아카이브로 **500/600**(여유 100). 제품 `src/` **0줄** · 새 e2e 파일 **0개**.
 ---
 
-## 이 밤(2026-10-11) — 계획 114 `opened-title-drop` (반복 697~)
+## 이 밤 — 계획 114 `opened-title-drop` **DONE** (반복 697~701)
 
-`open_gap` 은 **완료 행의 착수 관용구 → digest 후보 줄** 방향으로 「집어간 후보에 취소선을
-긋는 것을 잊은 자리」를 잡는 자다. 그 모집단을 만드는 `opened_candidates` 가 제목을 못 뽑으면
-그 행을 **말없이 버린다**(29개 중 23개). 버려진 것 하나가 **실물 갭을 들고 있었고**, 그 갭은
-오늘 탐색이 직접 밟았다 — 닫힌 후보를 열린 것으로 세어 하마터면 계획을 다시 세울 뻔했다.
-처방은 정규식 1줄(`[N]` 을 선택으로)과 digest 후보 줄 교정이다. **제품 `src/` 0줄.**
+**접었다(반복 701)** — 서술 원본이 `docs/plan_history_089.md` 「목표」 절과
+`docs/e2e/opened-title-drop/result.md`, `history_current.md` 반복 697~701 에 있다.
+`rules/docs.md` 1절대로 **원본을 확인한 줄만** 접었다.
 
-계획서는 `docs/plan_opened-title-drop.md` 다.
+**밤 종료 — 정지 사유 `지시 완료`**(반복 2/60 · 야간 계획 1/3 로 둘 다 여유가 있었지만 사용자 지시가 「계획 114 를 닫는다」였고 그것만 하고 끝냈다 · 탐색 안 함).
+보고서 `docs/reports/night_2026-10-12.md`(gitignore) · `metrics.jsonl` 한 줄은 스크립트가 이 파일에서 직접 읽어 썼다. **병합은 아침 결정** — `loop/opened-title-drop` `3851e2b`.
 
 ## 접은 밤들 — 원본이 `history_current.md`·`index.md` 에 있다 (2026-10-06 반복 679 접음)
 
