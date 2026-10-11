@@ -22,6 +22,9 @@ note: **[e2e phase 통과 · 계획 114 DONE · 반복 701]** 앞 관문 먼저 
 `docs/e2e/opened-title-drop/result.md`, `history_current.md` 반복 697~701 에 있다.
 `rules/docs.md` 1절대로 **원본을 확인한 줄만** 접었다.
 
+**밤 종료 — 정지 사유 `지시 완료`**(반복 2/60 · 야간 계획 1/3 로 둘 다 여유가 있었지만 사용자 지시가 「계획 114 를 닫는다」였고 그것만 하고 끝냈다 · 탐색 안 함).
+보고서 `docs/reports/night_2026-10-12.md`(gitignore) · `metrics.jsonl` 한 줄은 스크립트가 이 파일에서 직접 읽어 썼다. **병합은 아침 결정** — `loop/opened-title-drop` `3851e2b`.
+
 ## 접은 밤들 — 원본이 `history_current.md`·`index.md` 에 있다 (2026-10-06 반복 679 접음)
 
 `ReadBudgetTest` 가 합계 651 > 600 으로 물어서 접었다. `rules/docs.md` 1절대로 **원본이 있는 것을
