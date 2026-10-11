@@ -103,8 +103,14 @@ CANDIDATE_HEAD_FLOOR = 2
 # 함께 요구하는 것은 **인용과 착수를 가르는 술어**라서다 — 「다음 계획 후보 [N]「제목」」
 # 이라는 꼴 자체는 방법론 인용도 쓸 수 있고, 그때 걸러낼 것이 이쪽뿐이다.
 OPENED_START = re.compile(r"탐색\s*\*{0,2}\d+순위")
-OPENED_PICK = re.compile(r"다음 계획 후보`?\s*(?:의|에서)?\s*`?\[(?:\d+|high|medium)\]`?"
-                         r"\s*「([^」]+)」")
+# **점수 `[N]` 은 선택이다** — 필수로 두면 점수를 안 적은 완료 행이 `opened_candidates`
+# 에서 **조용히 빠지고**(2026-10-11 실측: 29행 중 추출 6 · 대조 3), 그 중 하나가 실물
+# 갭을 들고 있었다(`plan_hidden-passage` 가 2026-09-02 등재 뒤 계획 51 이 닫았는데도
+# 취소선 없이 살아 있었다). 완화의 오탐을 먼저 쟀다 — 추출 6→8 · 대조 3→4 · 새로 들어온
+# 자리는 그 하나뿐이고 **거짓 양성 0건**이다(제목이 산문과 겹쳐 엉뚱한 줄을 무는 축은
+# 완화판에서도 안 들어온다). 「인용과 착수를 가르는」 몫은 위 `OPENED_START` 가 진다.
+OPENED_PICK = re.compile(r"다음 계획 후보`?\s*(?:의|에서)?\s*"
+                         r"(?:`?\[(?:\d+|high|medium)\]`?\s*)?「([^」]+)」")
 # `digest` 취소선 줄이 다는 **마감 관용구**. `STRIKE_POINTER` 가 *열린* 줄에 요구하던
 # 「를 열었다」는 실물이 0으로 말랐지만(계획 111 의 근거) 이쪽은 **취소선 5줄 5/5** 가
 # 이미 단다. 「계획 N」과 「짧은 경로」를 둘 다 받는 이유는 실측이 3 대 2 라서고,
@@ -1652,6 +1658,10 @@ class OpenGapTest(unittest.TestCase):
     ROW = ("| plan_%s | 완료 | loop/x | 1/1 | 통과 | **99.** 탐색 **6순위** — "
            "`digest ## 다음 계획 후보` 의 `[7]` 「%s」 를 집었다 |")
     DIGEST = "## 다음 계획 후보\n\n- [7] **%s** (2026-09-29 실측)\n"
+    # 같은 관용구에서 **점수 표기만** 뺀 꼴. 실물 `index.md` 의 완료 행 다수가 이렇게
+    # 적는다(2026-10-11 실측: 29행 중 제목이 읽힌 것 6 · 대조 3).
+    SCORELESS_ROW = ("| plan_%s | 완료 | loop/x | 1/1 | 통과 | **99.** 탐색 **6순위** — "
+                     "`digest ## 다음 계획 후보` 의 「%s」 를 집었다 |")
 
     def _index(self, n=3, title="어떤 자리"):
         return "\n".join(self.ROW % ("s%d" % i, title) for i in range(n))
@@ -1685,6 +1695,22 @@ class OpenGapTest(unittest.TestCase):
         # 수에 박았다면 여기서 조용했다 — 계획 61 의 자가 죽은 것과 같은 죽음이다.
         gap = open_gap("## 다음 계획 후보\n\n- [1] **딴 자리**\n", self._index(6))
         self.assertIn("대조된 것이 0 자리", gap)
+
+    def test_a_row_citing_the_title_without_a_score_is_counted(self):
+        # **제목 추출 실패는 조용히 빠진다** — 하한은 점수를 적은 다른 둘이 채우고,
+        # 빠진 행이 들고 온 **열린 후보가 숨는다.** 실물의 조용한 초록을 그대로
+        # 재연한 자리다(2026-10-11: `plan_hidden-passage` 가 2026-09-02 등재 뒤
+        # 계획 51 이 닫았는데도 취소선 없이 살아 있었고 전수 868 이 초록이었다).
+        index = "\n".join([self.ROW % ("s0", "닫힌 자리"),
+                           self.ROW % ("s1", "닫힌 자리"),
+                           self.SCORELESS_ROW % ("s2", "숨은 자리")])
+        digest = ("## 다음 계획 후보\n\n"
+                  "- ~~[7] **닫힌 자리**~~ 닫혔다 — 계획 99 `s0`.\n"
+                  "- [7] **숨은 자리** (2026-10-11 실측)\n")
+        gap = open_gap(digest, index)
+        self.assertIsNotNone(gap, "점수 없는 완료 행이 모집단에서 빠져 열린 후보가 숨었다")
+        self.assertIn("취소선이 없다", gap)
+        self.assertIn("숨은 자리", gap)
 
 
 class FalseStrikeGapTest(unittest.TestCase):
