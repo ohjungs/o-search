@@ -1,22 +1,30 @@
 ---
-signal: DONE
-phase: e2e
-step: 0/0
+signal: GREEN
+phase: 설계
+step: 0/2
 attempt: 1
-plan: null
-iteration: 701
-updated: 2026-10-12
+plan: nav-inline-passage
+iteration: 702
+updated: 2026-10-14
 mode: night
-night_iterations: 2  # 이 밤(10-12) 시작 시 0 리셋 후 +2
+night_iterations: 1  # 이 밤(10-14) 시작 시 0 리셋 후 +1
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
-ctx: **모른다 — 게이트 ⑦ 마흔네 번째.** `.context-state.json` 의 `session_id` 가 여전히 내 cwd 슬러그가 아니라 홈 슬러그에 있다 — 남의 세션 것이라 신선해도 못 읽는다. **5h·7d 는 계정 단위라 적용되고 둘 다 한참 낮았다**(반복 700 확인 13%·12%). 컨텍스트만 반복 상한(60)·야간 계획 상한(3)에 의존했다.
+ctx: **모른다 — 게이트 ⑦ 마흔다섯 번째.** `.context-state.json` 은 읽히지만 `updated_unix` 가 **2026-10-13 13:40 · 13.6시간 전**이라 `SKILL.md` 3절의 「10분 넘게 오래됐으면 statusLine 이 꺼진 것」에 걸린다 — 적힌 `86%` 는 **내 세션 것이 아니라 어제 남의 세션 값**이라 정지 판정에 쓸 수 없다. 그래서 **반복 상한(60)·야간 계획 상한(3)에만 의존한다.** `5h`·`7d` 값(13%·12%)도 같은 파일이라 같이 낡았다.
 rules: 51a6d48   # `git -C ~/.claude log -1 --format=%h -- skills/loop-harness`
-note: **[e2e phase 통과 · 계획 114 DONE · 반복 701]** 앞 관문 먼저 — 전수 **869 OK rc=0**(래퍼 · README 단위 수 가드와 일치) · `quality_eval` 합격(en 19/20) · `passage_eval` 100%(398/398) p95 1.62ms · **린트·타입체크·CI 는 이 저장소에 없어 「검증되지 않았다」로 적었다**(통과가 아니다) · `perf_crawl`·`perf_search`·`perf_memory` 는 제품 `src/` **0줄**이라 안 돌렸다(`e2e.md` 1절). 시나리오 **셋 전부 통과** — ① 후보 절 81줄(열림 **70** · 취소선 **11**)에서 `plan_hidden-passage` 의 제목이 **열린 70줄에 없고 취소선 쪽에 있다** · 추출 6→**8** · 대조 3→**4** · 모집단 **29** · 세 자 전부 `None` ② **되돌림을 추적 트리 복사본에서만 했다**(워킹트리 무접촉 · 되돌림이 바이트 단위로 정확함을 `git --work-tree=$W diff` 빈손으로 확인): 취소선을 떼면 `OpenSyncTest` `rc=1`, 되돌리면 `rc=0`, **그 상태에서 `OPENED_PICK` 을 계획 전으로 조이면 실물 자가 조용히 초록**이고 무는 것은 새로 넣은 갈래 자뿐이다 — 40일을 열린 채 산 줄이 왜 안 보였는지의 재연이고 **이 계획의 존재 증명**이다 ③ e2e **18/18 rc=0**(2 를 낸 것 0종). **이 밤에 조항을 한 번 밟았다** — E1 판정을 `| tail -6` 으로 받아 `rc=0` 을 봤는데 그것은 `tail` 의 `rc` 였고(판정 줄은 `FAILED`) 래퍼로 다시 재 `rc=1` 을 봤다. `project.md` 「맨몸으로 돈다」가 무는 바로 그 자리다. 아카이브 — 계획서 `plan_history_089.md` · 결과 `docs/e2e/opened-title-drop/result.md` · `index.md` 완료 행. 읽기 예산은 계획 아카이브로 **500/600**(여유 100). 제품 `src/` **0줄** · 새 e2e 파일 **0개**.
+note: **[계획 phase 통과 · 계획 115 수립 · 반복 702]** 탐색 1~5순위 **0건**(전수 **869 OK rc=0** 래퍼 · 린터·타입체커 없음 · 코드 `TODO` 0건 · `candidates.md` 없음 · `## 보류` 는 보안 건 하나라 밤이 안 건드린다) → **6순위** `digest ## 다음 계획 후보` 의 `[7]` 「내비·인라인 연접이 «근거 문단» 을 이긴다」(계획 114 리뷰가 분가시킨 축). 중복 방지 **5곳 전부 확인** — `index.md` 무관 행 0 · `digest ## 완료` 없음 · 활성 `plan_*.md` 없음(`plan_userinfo-leak` 은 보류) · `docs/patches/` 에 이 슬러그 없음. **등재문을 실행 전에 다시 쟀고 한 곳이 틀렸다** — 「밀도가 본문을 점수로 이긴다 · 동점 깨기로는 안 닫힌다」는 **등재문이 든 그 예시에서 거짓**이다(질의 1어: `nav` score 1·len 8 대 `p` score 1·len 27 → 동점 깨기 `len` 이 **본문을 고른다**). 실제로 지는 조건은 **연접이 점수를 쌓을 때**다 — 질의 2어가 내비에 흩어지면 `nav` score **2** 대 `p` **1**, 내비가 같은 낱말을 든 링크를 셋 들면 `nav` **3** 대 `p` **1**. 계획서가 그 표를 들고 있다. **설계 필요**(트리거 「대안이 2개 이상 갈림」 — 네 갈래 A~D 가 동작이 다르고 C 는 재색인·승인 게이트라 밤이 못 간다). 제품 `src/` **0줄**.
 ---
 
-## 이 밤 — 계획 114 `opened-title-drop` **DONE** (반복 697~701)
+## 이 밤 — 계획 115 `nav-inline-passage` 수립 (반복 702~)
+
+계획서 `docs/plan_nav-inline-passage.md`(110줄) · 브랜치 `loop/nav-inline-passage`.
+**다음 반복은 설계 phase** — 갈래 A(블록 파서 전용 술어 · 색인 경로 무변경) 와
+B(점수 포화 · 본문의 정당한 반복도 깎는다) 중 하나를 `concept.md` 갈림길 우선순위
+(**검색 품질 > 검색 성능 > 계약 안정성**)로 고르고 `design_nav-inline-passage`(아직 없다)
+에 **버린 이유까지** 적는다. C 는 재색인이라 밤의 금지 목록이고 D 는 「안 한다」다.
+
+## 이전 밤 — 계획 114 `opened-title-drop` **DONE** (반복 697~701)
 
 **접었다(반복 701)** — 서술 원본이 `docs/plan_history_089.md` 「목표」 절과
 `docs/e2e/opened-title-drop/result.md`, `history_current.md` 반복 697~701 에 있다.
