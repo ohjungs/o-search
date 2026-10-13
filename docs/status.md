@@ -1,19 +1,19 @@
 ---
 signal: GREEN
-phase: 설계
+phase: 개발
 step: 0/2
 attempt: 1
 plan: nav-inline-passage
-iteration: 702
+iteration: 703
 updated: 2026-10-14
 mode: night
-night_iterations: 1  # 이 밤(10-14) 시작 시 0 리셋 후 +1
+night_iterations: 2  # 이 밤(10-14) 시작 시 0 리셋 후 +2
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
 ctx: **모른다 — 게이트 ⑦ 마흔다섯 번째.** `.context-state.json` 은 읽히지만 `updated_unix` 가 **2026-10-13 13:40 · 13.6시간 전**이라 `SKILL.md` 3절의 「10분 넘게 오래됐으면 statusLine 이 꺼진 것」에 걸린다 — 적힌 `86%` 는 **내 세션 것이 아니라 어제 남의 세션 값**이라 정지 판정에 쓸 수 없다. 그래서 **반복 상한(60)·야간 계획 상한(3)에만 의존한다.** `5h`·`7d` 값(13%·12%)도 같은 파일이라 같이 낡았다.
 rules: 51a6d48   # `git -C ~/.claude log -1 --format=%h -- skills/loop-harness`
-note: **[계획 phase 통과 · 계획 115 수립 · 반복 702]** 탐색 1~5순위 **0건**(전수 **869 OK rc=0** 래퍼 · 린터·타입체커 없음 · 코드 `TODO` 0건 · `candidates.md` 없음 · `## 보류` 는 보안 건 하나라 밤이 안 건드린다) → **6순위** `digest ## 다음 계획 후보` 의 `[7]` 「내비·인라인 연접이 «근거 문단» 을 이긴다」(계획 114 리뷰가 분가시킨 축). 중복 방지 **5곳 전부 확인** — `index.md` 무관 행 0 · `digest ## 완료` 없음 · 활성 `plan_*.md` 없음(`plan_userinfo-leak` 은 보류) · `docs/patches/` 에 이 슬러그 없음. **등재문을 실행 전에 다시 쟀고 한 곳이 틀렸다** — 「밀도가 본문을 점수로 이긴다 · 동점 깨기로는 안 닫힌다」는 **등재문이 든 그 예시에서 거짓**이다(질의 1어: `nav` score 1·len 8 대 `p` score 1·len 27 → 동점 깨기 `len` 이 **본문을 고른다**). 실제로 지는 조건은 **연접이 점수를 쌓을 때**다 — 질의 2어가 내비에 흩어지면 `nav` score **2** 대 `p` **1**, 내비가 같은 낱말을 든 링크를 셋 들면 `nav` **3** 대 `p` **1**. 계획서가 그 표를 들고 있다. **설계 필요**(트리거 「대안이 2개 이상 갈림」 — 네 갈래 A~D 가 동작이 다르고 C 는 재색인·승인 게이트라 밤이 못 간다). 제품 `src/` **0줄**.
+note: **[설계 phase 통과 · 계획 115 · 반복 703]** `docs/design_nav-inline-passage.md`(96줄). **결정 — `_BlockParser` 전용으로 «인접한 `<a>` 사이»에 블록 경계를 넣는다.** 링크가 붙어 `score` 를 쌓는 것이 기제이므로 붙는 것을 끊으면 **기존 동점 깨기(`len`)가 본문을 고른다** — 점수 규칙·`_INLINE_TAGS`·색인 경로 전부 무변경. 출발점 셋(① 최소=표에 기록만 ② 정공법 ③ 되돌리기 우선=상수 뒤)에서 각각 냈고 **② 로 갔다** — ①은 `concept.md` top 축(검색 품질)을 포기하는 선택이라 버렸지만 **표 두 행은 ②의 계약으로 흡수**했고(갈림길 6 을 증명하는 자가 그 표뿐이다), ③은 **끌 축이 아니라 이진 결정**이라 제거 조건이 「영영 True」로밖에 안 적혀 뺐다. 되돌리기는 **덧붙이기만 + 커밋 하나 revert**. **가장 위험한 가정을 개발 전에 깨봤고 참이었다**(monkeypatch 탐침 · `/tmp` · 워킹트리 무접촉 · 커밋 0): `_SHAPES` **19행 + `_UNMATCHED_SHAPES` 4행이 한 행도 안 움직이고**(양방향 가드라 좋아져도 빨개진다) · 오탐 대조군 **5모양 블록이 글자 그대로 같고** · **색인 경로 `extract_text` 가 코퍼스 64건+합성 4 에서 바이트 단위로 같다**(→ **재색인 없음** = 이 계획이 밤에 돌 수 있는 조건) · 전수 **869 OK rc=0**. **탐침이 범위 증가 하나를 찾았다** — 표가 21행이 되면 머리 주석의 동점 규칙 세 수(「점수만 11/19 · 길이 15/19 · 이름표 12/19」)가 거짓이라 **다시 재야 한다**(이 저장소 리뷰가 `[R75-1]`·`[R98-1]`·`[R111-3]`·`[R114-3]` 로 반복해 잡아 온 부류). 스텝 1 완료 기준에 넣었고 `README.md` 단위 수도 건드릴 파일에 적었다(같은 누락 네 번째 재발 방지). 제품 `src/` **아직 0줄** — 개발 phase 가 약 6줄 쓴다.
 ---
 
 ## 이 밤 — 계획 115 `nav-inline-passage` 수립 (반복 702~)
@@ -24,15 +24,6 @@ B(점수 포화 · 본문의 정당한 반복도 깎는다) 중 하나를 `conce
 (**검색 품질 > 검색 성능 > 계약 안정성**)로 고르고 `design_nav-inline-passage`(아직 없다)
 에 **버린 이유까지** 적는다. C 는 재색인이라 밤의 금지 목록이고 D 는 「안 한다」다.
 
-## 이전 밤 — 계획 114 `opened-title-drop` **DONE** (반복 697~701)
-
-**접었다(반복 701)** — 서술 원본이 `docs/plan_history_089.md` 「목표」 절과
-`docs/e2e/opened-title-drop/result.md`, `history_current.md` 반복 697~701 에 있다.
-`rules/docs.md` 1절대로 **원본을 확인한 줄만** 접었다.
-
-**밤 종료 — 정지 사유 `지시 완료`**(반복 2/60 · 야간 계획 1/3 로 둘 다 여유가 있었지만 사용자 지시가 「계획 114 를 닫는다」였고 그것만 하고 끝냈다 · 탐색 안 함).
-보고서 `docs/reports/night_2026-10-12.md`(gitignore) · `metrics.jsonl` 한 줄은 스크립트가 이 파일에서 직접 읽어 썼다. **병합은 아침 결정** — `loop/opened-title-drop` `3851e2b`.
-
 ## 접은 밤들 — 원본이 `history_current.md`·`index.md` 에 있다 (2026-10-06 반복 679 접음)
 
 `ReadBudgetTest` 가 합계 651 > 600 으로 물어서 접었다. `rules/docs.md` 1절대로 **원본이 있는 것을
@@ -40,6 +31,7 @@ B(점수 포화 · 본문의 정당한 반복도 깎는다) 중 하나를 `conce
 
 | 접은 것 | 원본 |
 |---|---|
+| 2026-10-12 반복 697~701 · 계획 114 `opened-title-drop` | `history_current.md` 반복 697~701 · `index.md` `plan_opened-title-drop` 행 |
 | 2026-10-06 반복 679 `gap-nail-census` | `history_current.md` 반복 679 · `index.md` `(짧은 경로) gap-nail-census` |
 | 2026-10-03 반복 677 `delay-floor-jitter` | `history_current.md` 반복 677 · `index.md` `(짧은 경로) delay-floor-jitter` |
 | 2026-10-02 반복 676 `candidate-36-closed` | `history_current.md` 반복 676 · `index.md` 같은 슬러그 행 |
