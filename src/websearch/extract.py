@@ -245,6 +245,17 @@ class _BlockParser(_TextParser):
         # (테스트 51 실측: `<div hidden><div>속</div><p>숨은</p></div>` 가 샜다).
         # `_open` 이 같은 관용구로 안전한 것은 그쪽이 빈틈없는 스택이기 때문이다.
         self._els = []
+        # 직전에 `</a>` 가 닫혔고 그 뒤로 **공백 아닌 글자가 없는가** — 내비·목차처럼
+        # 링크가 연달아 오는 모양을 가른다. `<a>` 가 `_INLINE_TAGS` 라 링크 텍스트가
+        # 공백 없이 한 블록으로 붙고, 그 블록의 점수가 **링크 수의 합**이 돼 본문 한
+        # 문단이 구조적으로 진다(계획 115 · `indexer.passages` 의 `score`).
+        # **«인접» 이 범위의 전부다** — 문단 안에 하나 낀 링크(`<p>가<a>나</a>다</p>`)
+        # 와 링크 사이에 글자가 든 산문(`<p><a>가</a>그리고<a>나</a></p>`)은 안 끊는다.
+        # ponytail: 안 닫힌 `<a>` 는 안 센다(`<nav><a>가<a>나</nav>`) — 브라우저는
+        # 중첩 링크를 금지해 앞엣것을 닫지만 `html.parser` 는 안 닫는다. 방향이
+        # «덜 끊는다» 라 계약을 어기지 않고, 실물에서 세지면 `_els` 에 `a` 가 열려
+        # 있는지를 함께 보면 된다
+        self._after_link = False
 
     def _flush(self):
         block = _normalize(self.text_parts)
@@ -256,6 +267,11 @@ class _BlockParser(_TextParser):
         # 블록에 **자기를 낸 태그**를 붙여 준다. 부모가 먼저 이전 블록을 끊으므로
         # 스택은 그 뒤에 쌓는다 — 끊기는 블록의 주인은 아직 앞 태그다.
         # 문단 안에 끼어드는 태그(`<img>`·`<script>`)는 주인이 아니라 지나간다
+        # 인접한 링크 사이는 문단 경계다 — `super()` 가 `<a>` 를 인라인으로 보고
+        # early-return 하므로 **그보다 앞에서** 끊어야 앞 링크의 텍스트가 산다
+        if tag == "a" and self._after_link:
+            self._flush()
+        self._after_link = False
         super().handle_starttag(tag, attrs)
         # 브라우저처럼 **암묵적으로 닫는다** — `html.parser` 는 안 닫아서 `<li hidden>`
         # 의 숨김이 **다음 형제로 샜다**(리뷰 51 [R51-1]: 보이는 문단이 조용히 사라진다).
@@ -297,6 +313,7 @@ class _BlockParser(_TextParser):
             if self._els[i][0] == tag:
                 del self._els[i:]
                 break
+        self._after_link = (tag == "a")
 
     def handle_data(self, data):
         # 숨김 영역 안의 텍스트는 **애초에 안 담는다** — 블록을 사후에 버리면
@@ -307,6 +324,12 @@ class _BlockParser(_TextParser):
         if self._els and self._els[-1][1]:
             return
         super().handle_data(data)
+        # 공백만이면 여전히 «인접» 이다 — 실물 내비는 링크 사이에 줄바꿈이 있다.
+        # 숨김 영역이라 위에서 돌아갔으면 이 줄에 안 오고 깃발이 그대로 남는데,
+        # 그 방향은 «덜 끊는다» 가 아니라 «더 끊는다» 다 — 숨은 글자가 링크 둘을
+        # 갈라 놓은 모양이고, 숨은 것은 어차피 블록에 안 담기므로 끊는 쪽이 맞다
+        if data.strip():
+            self._after_link = False
 
     def _separate(self, block=True):
         if self._in_title or not block:
