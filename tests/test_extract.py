@@ -514,6 +514,25 @@ class TestExtractBlocks(unittest.TestCase):
         self.assertEqual(extract_text(html)[1], "김치찌개된장찌개")
         self.assertNotEqual(" ".join(texts(html)), extract_text(html)[1])
 
+    def test_the_link_boundary_never_reaches_the_index_path(self):
+        # 계획 115 스텝 2 — **재색인이 없다는 계약을 자로 만든다.** 스텝 1 의 경계는
+        # `_BlockParser` 안에만 살고 `extract_text` 는 `_TextParser` 를 쓰므로 색인
+        # 본문이 안 바뀐다. 그 「안 바뀐다」를 **값으로** 못박아 둔다 — 자가 없으면
+        # 다음 계획이 `_INLINE_TAGS` 에서 `a` 를 빼며 재색인을 조용히 들여올 수 있고,
+        # 그때 깨지는 것은 테스트가 아니라 **이미 색인된 모든 문서의 본문**이다.
+        # 아래 기대값의 링크 텍스트가 **공백 없이 붙어 있는 것**이 계약의 전부다
+        for html, want in [
+            ("<nav><a>김치찌개</a><a>된장찌개</a></nav>", "김치찌개된장찌개"),
+            ("<nav>\n  <a>가</a>\n  <a>나</a>\n  <a>다</a>\n</nav>", "가 나 다"),
+            ("<nav><a><b>가</b>나</a><a>다</a></nav>", "가나다"),
+            ("<p>가<a>나</a>다</p>", "가나다"),
+            ("<p><a>가</a>그리고<a>나</a></p>", "가그리고나"),
+            ("<nav><a>김치찌개</a></nav><p>본문이다</p>", "김치찌개 본문이다"),
+            ("<p>Kim<b>chi</b> 찌개</p>", "Kimchi 찌개"),
+        ]:
+            with self.subTest(html=html):
+                self.assertEqual(extract_text(html)[1], want)
+
     def test_control_only_block_is_dropped_and_that_breaks_the_join(self):
         # 불변식의 **깨진 입력 쪽 위반**을 현 동작 그대로 고정한다. 통짜 정규화는
         # 제어문자 블록 자리에 겹공백을 남기고(`'가  나'`), 블록 쪽은 빈 블록을 버린다.
