@@ -109,6 +109,59 @@ class TestExtractBlocks(unittest.TestCase):
         self.assertEqual(extract_blocks(html),
                          [("nav", "김치"), ("p", "본문 문단"), ("footer", "맨 끝")])
 
+    def test_adjacent_links_do_not_pile_into_one_block(self):
+        # 계획 115 — `<a>` 가 `_INLINE_TAGS` 라 내비의 링크가 **공백 없이 한 블록으로
+        # 붙고**, 그 블록의 점수가 링크 N 개의 합이 된다. 본문 한 문단은 자기 안의
+        # 출현 수밖에 못 세므로 **구조적으로 진다**(`plan_nav-inline-passage` 의 표).
+        # 끊는 자리는 «인접» 뿐이다 — 아래 대조군 테스트가 그 경계를 지킨다
+        self.assertEqual(texts("<nav><a>김치찌개</a><a>된장찌개</a></nav>"),
+                         ["김치찌개", "된장찌개"])
+        # 공백·줄바꿈만 끼어도 인접이다 (실물 내비는 거의 전부 이 모양이다)
+        self.assertEqual(texts("<nav>\n  <a>가</a>\n  <a>나</a>\n  <a>다</a>\n</nav>"),
+                         ["가", "나", "다"])
+        # 링크마다 안쪽 인라인이 껴 있어도 링크 경계는 산다
+        self.assertEqual(texts("<nav><a><b>가</b>나</a><a>다</a></nav>"),
+                         ["가나", "다"])
+
+    def test_only_adjacent_links_break_a_block(self):
+        # 대조군 — 「모든 `<a>` 를 끊는다」로 넓히는 변이가 여기서 죽는다.
+        # 본문 속 링크는 문단의 일부지 문단 경계가 아니다
+        self.assertEqual(texts("<p>가<a>나</a>다</p>"), ["가나다"])
+        # 링크 사이에 **글자**가 있으면 인접이 아니다 — 한 문단에 링크 둘이 든 산문
+        self.assertEqual(texts("<p><a>가</a>그리고<a>나</a></p>"), ["가그리고나"])
+        # 링크가 하나뿐인 내비는 오늘과 같다 — `_SHAPES` 가 이미 든 모양이라
+        # 여기서 갈리면 그 표가 함께 빨개진다
+        self.assertEqual(extract_blocks("<nav><a>김치찌개</a></nav><p>본문이다</p>"),
+                         [("nav", "김치찌개"), ("p", "본문이다")])
+        # 낱말 안의 인라인은 절대 안 쪼갠다 — `_INLINE_TAGS` 가 사는 이유다
+        self.assertEqual(texts("<p>Kim<b>chi</b> 찌개</p>"), ["Kimchi 찌개"])
+        # 링크 둘 사이에 **블록** 태그가 들면 그쪽이 먼저 끊는다 (경계가 겹쳐도 한 번)
+        self.assertEqual(texts("<p><a>가</a></p><p><a>나</a></p>"), ["가", "나"])
+
+    def test_links_hidden_from_people_do_not_cut_the_visible_paragraph(self):
+        # 리뷰 115 [R115-2] — 경계가 **숨김·스킵 상태를 함께 본다.** 안 보면 숨은 링크
+        # 쌍이 그 앞의 **보이는 문단**을 끊고, 남은 다섯 글자 조각이 근거 자리를
+        # 이긴다 — `_BlockParser` docstring 이 `<br>` 을 뺀 이유와 같은 부류다.
+        # 실물 1,600문서에서 방아쇠는 688문서·4,130회 섰고 블록 변경은 0건이었다.
+        # 오늘 무해한 것이 내일 무해하다는 뜻이 아니라서 자로 만든다
+        for name, html in [
+            ("style 로 숨긴 컨테이너",
+             '<p>본문은<span style="display:none"><a>광고</a><a>제휴</a></span>'
+             ' 여기서 이어진다.</p>'),
+            ("hidden 속성", "<p>본문은<span hidden><a>광고</a><a>제휴</a></span>"
+                            " 여기서 이어진다.</p>"),
+            ("noscript (스킵 태그)", "<p>본문은<noscript><a>가</a><a>나</a></noscript>"
+                                     " 여기서 이어진다."),
+        ]:
+            with self.subTest(name):
+                self.assertEqual(texts(html), ["본문은 여기서 이어진다."])
+        # 숨김 안의 글자가 링크 둘을 가르는 모양도 같다 — 보이는 양끝이 한 블록이다
+        self.assertEqual(texts("<p>보이는<span hidden><a>가</a>숨<a>나</a></span>뒤</p>"),
+                         ["보이는뒤"])
+        # **보이는 내비는 그대로 끊긴다** — 가드가 경계를 통째로 지우지 않았다는 대조
+        self.assertEqual(texts("<nav><a>김치찌개</a><a>된장찌개</a></nav>"),
+                         ["김치찌개", "된장찌개"])
+
     def test_the_label_survives_a_title_and_a_closing_tag(self):
         # 리뷰 6 [R6-2] — 이름표가 새는 자리 둘. ① `<title>` 은 부모가 블록을 **안 끊고**
         # early-return 하는데 이름표만 갈아 끼워져, 앞 문단이 `title` 로 나왔다.
@@ -472,6 +525,37 @@ class TestExtractBlocks(unittest.TestCase):
         self.assertEqual(texts(html), ["보이는 글"])
         self.assertEqual(extract_text(html)[1], "보이는 글 숨은 글")
         self.assertNotEqual(" ".join(texts(html)), extract_text(html)[1])
+
+    def test_adjacent_links_are_the_fourth_exception_to_the_join_invariant(self):
+        # 불변식 `" ".join(blocks) == extract_text()[1]` 의 **네 번째** 예외 (계획 115).
+        # 셋째와 같은 부류다 — «깨진 입력» 이 아니라 정상 HTML 에서 갈리고, 갈리는
+        # 쪽은 **근거 후보뿐**이다. 색인 본문은 한 글자도 안 바뀐다(아래 둘째 단언이
+        # 그 계약이고, 그래서 이 변경에 재색인이 없다).
+        # 블록 쪽에만 공백이 하나 **늘어난다** — 색인은 링크를 붙여 담으므로
+        # `김치찌개된장찌개` 라는 한 낱말로 남고, 그 낱말로도 검색은 계속 된다
+        html = "<nav><a>김치찌개</a><a>된장찌개</a></nav>"
+        self.assertEqual(texts(html), ["김치찌개", "된장찌개"])
+        self.assertEqual(extract_text(html)[1], "김치찌개된장찌개")
+        self.assertNotEqual(" ".join(texts(html)), extract_text(html)[1])
+
+    def test_the_link_boundary_never_reaches_the_index_path(self):
+        # 계획 115 스텝 2 — **재색인이 없다는 계약을 자로 만든다.** 스텝 1 의 경계는
+        # `_BlockParser` 안에만 살고 `extract_text` 는 `_TextParser` 를 쓰므로 색인
+        # 본문이 안 바뀐다. 그 「안 바뀐다」를 **값으로** 못박아 둔다 — 자가 없으면
+        # 다음 계획이 `_INLINE_TAGS` 에서 `a` 를 빼며 재색인을 조용히 들여올 수 있고,
+        # 그때 깨지는 것은 테스트가 아니라 **이미 색인된 모든 문서의 본문**이다.
+        # 아래 기대값의 링크 텍스트가 **공백 없이 붙어 있는 것**이 계약의 전부다
+        for html, want in [
+            ("<nav><a>김치찌개</a><a>된장찌개</a></nav>", "김치찌개된장찌개"),
+            ("<nav>\n  <a>가</a>\n  <a>나</a>\n  <a>다</a>\n</nav>", "가 나 다"),
+            ("<nav><a><b>가</b>나</a><a>다</a></nav>", "가나다"),
+            ("<p>가<a>나</a>다</p>", "가나다"),
+            ("<p><a>가</a>그리고<a>나</a></p>", "가그리고나"),
+            ("<nav><a>김치찌개</a></nav><p>본문이다</p>", "김치찌개 본문이다"),
+            ("<p>Kim<b>chi</b> 찌개</p>", "Kimchi 찌개"),
+        ]:
+            with self.subTest(html=html):
+                self.assertEqual(extract_text(html)[1], want)
 
     def test_control_only_block_is_dropped_and_that_breaks_the_join(self):
         # 불변식의 **깨진 입력 쪽 위반**을 현 동작 그대로 고정한다. 통짜 정규화는

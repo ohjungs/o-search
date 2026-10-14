@@ -245,6 +245,26 @@ class _BlockParser(_TextParser):
         # (테스트 51 실측: `<div hidden><div>속</div><p>숨은</p></div>` 가 샜다).
         # `_open` 이 같은 관용구로 안전한 것은 그쪽이 빈틈없는 스택이기 때문이다.
         self._els = []
+        # 직전에 `</a>` 가 닫혔고 그 뒤로 **공백 아닌 글자가 없는가** — 내비·목차처럼
+        # 링크가 연달아 오는 모양을 가른다. `<a>` 가 `_INLINE_TAGS` 라 링크 텍스트가
+        # 공백 없이 한 블록으로 붙고, 그 블록의 점수가 **링크 수의 합**이 돼 본문 한
+        # 문단이 구조적으로 진다(계획 115 · `indexer.passages` 의 `score`).
+        # **«인접» 이 범위의 전부다** — 문단 안에 하나 낀 링크(`<p>가<a>나</a>다</p>`)
+        # 와 링크 사이에 글자가 든 산문(`<p><a>가</a>그리고<a>나</a></p>`)은 안 끊는다.
+        # ponytail: 안 닫힌 `<a>` 는 안 센다(`<nav><a>가<a>나</nav>`) — 브라우저는
+        # 중첩 링크를 금지해 앞엣것을 닫지만 `html.parser` 는 안 닫는다. 방향이
+        # «덜 끊는다» 라 계약을 어기지 않고, 실물에서 세지면 `_els` 에 `a` 가 열려
+        # 있는지를 함께 보면 된다
+        # **천장 둘 — 리뷰 115 가 실물에서 재서 적는다.** 둘 다 「인접만 끊는다」의
+        # 직접 결과라 결함이 아니고, 고치려면 설계가 갈린다(사람 몫):
+        # ⓐ **산문 속 인접 링크도 끊는다** — `<p>…는 <a>레시피</a><a>영상</a> 에서…</p>`
+        #   가 문장 중간부터 시작하는 조각을 낸다. `ohse.de/uwe/software/lrzsz.html` 에서
+        #   근거가 279자(score 2) → **212자 조각(score 1)** 으로 나빠진 것이 이 모양이다.
+        # ⓑ **구분자가 끼면 안 끊는다** — `<a>가</a> | <a>나</a>` · `<a>가</a><br><a>나</a>`
+        #   · `<a>가</a><img><a>나</a>` 는 한 블록으로 남는다(글자·시작 태그가 깃발을
+        #   내린다). 빵부스러기·아이콘 내비가 그 모양이라 「링크 수의 합」이 거기 남아
+        #   있다 — 실물 110문서에서 블록이 30.9% 움직였는데 근거는 2건만 바뀐 이유다
+        self._after_link = False
 
     def _flush(self):
         block = _normalize(self.text_parts)
@@ -256,6 +276,11 @@ class _BlockParser(_TextParser):
         # 블록에 **자기를 낸 태그**를 붙여 준다. 부모가 먼저 이전 블록을 끊으므로
         # 스택은 그 뒤에 쌓는다 — 끊기는 블록의 주인은 아직 앞 태그다.
         # 문단 안에 끼어드는 태그(`<img>`·`<script>`)는 주인이 아니라 지나간다
+        # 인접한 링크 사이는 문단 경계다 — `super()` 가 `<a>` 를 인라인으로 보고
+        # early-return 하므로 **그보다 앞에서** 끊어야 앞 링크의 텍스트가 산다
+        if tag == "a" and self._after_link:
+            self._flush()
+        self._after_link = False
         super().handle_starttag(tag, attrs)
         # 브라우저처럼 **암묵적으로 닫는다** — `html.parser` 는 안 닫아서 `<li hidden>`
         # 의 숨김이 **다음 형제로 샜다**(리뷰 51 [R51-1]: 보이는 문단이 조용히 사라진다).
@@ -297,6 +322,17 @@ class _BlockParser(_TextParser):
             if self._els[i][0] == tag:
                 del self._els[i:]
                 break
+        # **숨김·스킵 안에서 닫힌 링크는 안 센다** — 깃발이 거기서 서면 다음 `<a>` 가
+        # 블록을 끊는데, 그때 끊기는 것은 숨은 글자가 아니라 **그 앞의 보이는 문단**이다
+        # (`<p>본문은<span style=display:none><a>광고</a><a>제휴</a></span> 이어진다</p>`
+        # 이 다섯 글자 조각을 근거로 냈다). 위 docstring 이 `<br>` 을 `_NON_BLOCK_TAGS`
+        # 로 뺀 이유와 **같은 자리**다 — 조각이 근거 자리를 이긴다(계획 48 리뷰 4).
+        # 실물 1,600문서 실측: 이 깃발이 숨김 안에서 서던 자리가 **688문서·4,130회**인데
+        # 블록이 바뀐 문서는 **0건**이었다(전부 빈 `text_parts` 라 `_flush` 가 no-op).
+        # 오늘은 무해하지만 앞에 보이는 글자 한 조각만 있으면 조각이 나온다 — 그래서
+        # 「실물에 없다」가 아니라 「경계가 숨김을 봐야 한다」로 닫는다 (리뷰 115 [R115-2])
+        self._after_link = (tag == "a" and not self._skip_depth
+                            and not (self._els and self._els[-1][1]))
 
     def handle_data(self, data):
         # 숨김 영역 안의 텍스트는 **애초에 안 담는다** — 블록을 사후에 버리면
@@ -307,6 +343,13 @@ class _BlockParser(_TextParser):
         if self._els and self._els[-1][1]:
             return
         super().handle_data(data)
+        # 공백만이면 여전히 «인접» 이다 — 실물 내비는 링크 사이에 줄바꿈이 있다.
+        # 숨김 영역이면 위에서 돌아가 이 줄에 **안 온다.** 그래도 남은 깃발이 보이는
+        # 문단을 끊는 일은 없다 — `handle_endtag` 가 숨김 안에서는 깃발을 애초에
+        # 안 세운다(아래 그 자리). 처음 판은 여기 「끊는 쪽이 맞다」고 적었는데,
+        # 끊기는 것이 숨은 글자가 아니라 **보이는 문단**이라 거짓이었다 ([R115-2])
+        if data.strip():
+            self._after_link = False
 
     def _separate(self, block=True):
         if self._in_title or not block:
