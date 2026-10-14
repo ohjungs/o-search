@@ -138,6 +138,30 @@ class TestExtractBlocks(unittest.TestCase):
         # 링크 둘 사이에 **블록** 태그가 들면 그쪽이 먼저 끊는다 (경계가 겹쳐도 한 번)
         self.assertEqual(texts("<p><a>가</a></p><p><a>나</a></p>"), ["가", "나"])
 
+    def test_links_hidden_from_people_do_not_cut_the_visible_paragraph(self):
+        # 리뷰 115 [R115-2] — 경계가 **숨김·스킵 상태를 함께 본다.** 안 보면 숨은 링크
+        # 쌍이 그 앞의 **보이는 문단**을 끊고, 남은 다섯 글자 조각이 근거 자리를
+        # 이긴다 — `_BlockParser` docstring 이 `<br>` 을 뺀 이유와 같은 부류다.
+        # 실물 1,600문서에서 방아쇠는 688문서·4,130회 섰고 블록 변경은 0건이었다.
+        # 오늘 무해한 것이 내일 무해하다는 뜻이 아니라서 자로 만든다
+        for name, html in [
+            ("style 로 숨긴 컨테이너",
+             '<p>본문은<span style="display:none"><a>광고</a><a>제휴</a></span>'
+             ' 여기서 이어진다.</p>'),
+            ("hidden 속성", "<p>본문은<span hidden><a>광고</a><a>제휴</a></span>"
+                            " 여기서 이어진다.</p>"),
+            ("noscript (스킵 태그)", "<p>본문은<noscript><a>가</a><a>나</a></noscript>"
+                                     " 여기서 이어진다."),
+        ]:
+            with self.subTest(name):
+                self.assertEqual(texts(html), ["본문은 여기서 이어진다."])
+        # 숨김 안의 글자가 링크 둘을 가르는 모양도 같다 — 보이는 양끝이 한 블록이다
+        self.assertEqual(texts("<p>보이는<span hidden><a>가</a>숨<a>나</a></span>뒤</p>"),
+                         ["보이는뒤"])
+        # **보이는 내비는 그대로 끊긴다** — 가드가 경계를 통째로 지우지 않았다는 대조
+        self.assertEqual(texts("<nav><a>김치찌개</a><a>된장찌개</a></nav>"),
+                         ["김치찌개", "된장찌개"])
+
     def test_the_label_survives_a_title_and_a_closing_tag(self):
         # 리뷰 6 [R6-2] — 이름표가 새는 자리 둘. ① `<title>` 은 부모가 블록을 **안 끊고**
         # early-return 하는데 이름표만 갈아 끼워져, 앞 문단이 `title` 로 나왔다.
