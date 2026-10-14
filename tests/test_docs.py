@@ -350,11 +350,17 @@ def opened_candidates(index_text):
     「탐색 N순위」와 후보 절 이름을 **둘 다** 품은 행만 센다 — 한쪽만 보면 방법론
     인용이 섞인다(`OPENED_START` 주석의 실측). 관용구를 안 쓴 완료 행 85개는 뿌리가
     없어 여기서 **조용히 빠진다**: 서식을 강제하는 것은 계획 111 이 뺀 축이다.
+
+    **모집단은 접두 둘이다** — `| plan_` 과 `| (짧은 경로) `. 위 `ANY_PLAN_ROW` 가
+    같은 이유로 이미 둘을 받는데 여기만 앞엣것으로 좁아, 짧은 경로가 집은 후보는
+    관용구를 ① 꼴로 맞춰 적어도 **구조적으로** 안 읽혔다(2026-10-15 반복 709 실측:
+    착수 관용구를 단 짧은 경로 행 5 · 추출 0 · 그중 하나가 그날 닫은 자리였다).
     """
     out = []
     for line in index_text.split("\n"):
         cells = line.split("|")
-        if len(cells) < 3 or not line.startswith("| plan_"):
+        if len(cells) < 3 or not (line.startswith("| plan_")
+                                  or line.startswith("| (짧은 경로) ")):
             continue
         if cells[2].strip() != "완료" or not OPENED_START.search(line):
             continue
@@ -1680,6 +1686,36 @@ class OpenGapTest(unittest.TestCase):
     def test_a_struck_candidate_is_silent(self):
         digest = "## 다음 계획 후보\n\n- ~~[7] **어떤 자리**~~ 닫혔다 — 계획 99 `s0`.\n"
         self.assertIsNone(open_gap(digest, self._index()))
+
+    # 짧은 경로 행은 `| (짧은 경로) <슬러그> |` 로 등재된다. 같은 파일의
+    # `ANY_PLAN_ROW`(`:126`) 가 **그 두 꼴이 섞여 산다**고 이미 적어 뒀는데
+    # `opened_candidates` 의 모집단만 `| plan_` 접두로 좁아, 짧은 경로가 집은 후보는
+    # **관용구를 ① 꼴로 맞춰 적어도** 구조적으로 안 읽혔다(2026-10-15 반복 709 실측:
+    # 착수 관용구를 단 짧은 경로 행 5개 · 추출 0).
+    SHORT_ROW = ("| (짧은 경로) %s | 완료 | loop/x | 1/1 | 해당 없음 | **짧은 경로.** "
+                 "근거 — 탐색 **6순위** · `digest ## 다음 계획 후보` 의 `[6]` 「%s」 를 집었다 |")
+
+    def test_a_short_path_row_is_in_the_population(self):
+        """짧은 경로 행이 집어간 후보도 대조된다 — 접두가 둘이라서다.
+
+        `plan_` 쪽 제목은 **그어 두고** 짧은 경로 쪽만 열어 둔다 — `open_gap` 은 첫
+        어긋남에서 돌아오므로, 그러지 않으면 `plan_` 행이 먼저 물어 이 축이 조용히
+        통과한다(처음 쓴 판이 실제로 그랬다).
+        """
+        index = self._index(2) + "\n" + self.SHORT_ROW % ("짧은것", "짧은 자리")
+        digest = ("## 다음 계획 후보\n\n"
+                  "- ~~[7] **어떤 자리**~~ 닫혔다 — 계획 99 `s0`.\n"
+                  "- [6] **짧은 자리** (2026-10-15 실측)\n")
+        gap = open_gap(digest, index)
+        self.assertIn("취소선이 없다", gap)
+        self.assertIn("짧은 자리", gap)
+
+    def test_a_short_path_row_struck_is_silent(self):
+        index = self._index(2) + "\n" + self.SHORT_ROW % ("짧은것", "짧은 자리")
+        digest = (self.DIGEST % "어떤 자리"
+                  + "- ~~[6] **짧은 자리**~~ 닫혔다 — 계획 99 `짧은것`.\n")
+        # 「어떤 자리」가 안 그어져 있으니 그쪽이 물어야 하고, 짧은 자리는 조용하다.
+        self.assertNotIn("짧은 자리", open_gap(digest, index) or "")
 
     def test_a_row_without_the_rank_idiom_is_not_counted(self):
         # 방법론 인용은 「탐색 N순위」가 없다 — 오탐 축이라 실물에 표본이 안 남는다.
