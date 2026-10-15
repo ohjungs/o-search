@@ -238,8 +238,11 @@ class _BlockParser(_TextParser):
         super().__init__()
         self.blocks = []
         self._open = []  # 열려 있는 블록 태그 — 꼭대기가 이름표다
-        # 열려 있는 **모든** 비-void 요소 — `(태그, 조상 중 하나라도 숨김인가)`.
-        # 꼭대기의 두 번째 칸이 「지금 숨김 안인가」다(전파해 두므로 O(1)).
+        # 열려 있는 **모든** 비-void 요소 — `(태그, 숨김인가, 링크 안인가)`.
+        # 꼭대기의 두 번째 칸이 「지금 숨김 안인가」, 세 번째가 「지금 `<a>` 안인가」다
+        # (둘 다 전파해 두므로 O(1)). 셋째 칸을 쓰는 곳은 `handle_data` 의 산문 판정
+        # 하나뿐이고, 거기서 `_els` 를 훑으면 **가장 뜨거운 경로가 O(깊이)** 가 된다 —
+        # 리뷰 51 [R51-2] 가 같은 클래스에서 깊이² 비용을 이미 한 번 잡았다.
         # **숨긴 태그만 담으면 안 된다** — 닫을 때 이름으로 찾는데 성긴 스택이면
         # 숨김 컨테이너 안의 **같은 이름 자식**이 바깥 숨김을 함께 풀어 버린다
         # (테스트 51 실측: `<div hidden><div>속</div><p>숨은</p></div>` 가 샜다).
@@ -255,22 +258,31 @@ class _BlockParser(_TextParser):
         # 중첩 링크를 금지해 앞엣것을 닫지만 `html.parser` 는 안 닫는다. 방향이
         # «덜 끊는다» 라 계약을 어기지 않고, 실물에서 세지면 `_els` 에 `a` 가 열려
         # 있는지를 함께 보면 된다
-        # **천장 둘 — 리뷰 115 가 실물에서 재서 적는다.** 둘 다 「인접만 끊는다」의
-        # 직접 결과라 결함이 아니고, 고치려면 설계가 갈린다(사람 몫):
-        # ⓐ **산문 속 인접 링크도 끊는다** — `<p>…는 <a>레시피</a><a>영상</a> 에서…</p>`
-        #   가 문장 중간부터 시작하는 조각을 낸다. `ohse.de/uwe/software/lrzsz.html` 에서
-        #   근거가 279자(score 2) → **212자 조각(score 1)** 으로 나빠진 것이 이 모양이다.
+        # **천장 ⓐ 는 계획 116 이 닫았다** — 「산문 속 인접 링크도 끊는다」가
+        # `ohse.de/uwe/software/lrzsz.html` 의 근거를 279자(score 2) → **212자
+        # 조각(score 1)** 으로 떨어뜨렸다. 그래서 경계는 이제 **링크 밖 글자가 아직
+        # 안 쌓인 블록에서만** 선다(아래 `_prose`). 실물 520문서에서 오늘 끊던 5,521
+        # 자리 중 **2,049(37.1%)** 가 산문이었고, 내비 모양은 산문이 거의 0 이라
+        # 그대로 끊긴다(`section` 821 중 0 · `li` 2,403 중 291)
+        # — 설계 `docs/design_prose-link-boundary.md`.
+        # **천장 ⓑ 는 남아 있다 — 리뷰 115 가 실물에서 쟀다.** 「인접만 끊는다」의
+        # 직접 결과라 결함이 아니고, 고치려면 설계가 갈린다(사람 몫 · `digest` 후보 `[6]`):
         # ⓑ **구분자가 끼면 안 끊는다** — `<a>가</a> | <a>나</a>` · `<a>가</a><br><a>나</a>`
         #   · `<a>가</a><img><a>나</a>` 는 한 블록으로 남는다(글자·시작 태그가 깃발을
         #   내린다). 빵부스러기·아이콘 내비가 그 모양이라 「링크 수의 합」이 거기 남아
         #   있다 — 실물 110문서에서 블록이 30.9% 움직였는데 근거는 2건만 바뀐 이유다
         self._after_link = False
+        # **이 블록에 링크 «밖» 글자가 쌓였나** — 쌓였으면 산문이라 인접 링크로 안
+        # 끊는다(계획 116 · 천장 ⓐ). **블록마다 새로 판정한다** — `_flush` 에서 안
+        # 내리면 첫 문단 뒤의 모든 내비가 안 끊긴다
+        self._prose = False
 
     def _flush(self):
         block = _normalize(self.text_parts)
         if block:
             self.blocks.append((self._open[-1] if self._open else "", block))
         del self.text_parts[:]
+        self._prose = False
 
     def handle_starttag(self, tag, attrs):
         # 블록에 **자기를 낸 태그**를 붙여 준다. 부모가 먼저 이전 블록을 끊으므로
@@ -278,7 +290,7 @@ class _BlockParser(_TextParser):
         # 문단 안에 끼어드는 태그(`<img>`·`<script>`)는 주인이 아니라 지나간다
         # 인접한 링크 사이는 문단 경계다 — `super()` 가 `<a>` 를 인라인으로 보고
         # early-return 하므로 **그보다 앞에서** 끊어야 앞 링크의 텍스트가 산다
-        if tag == "a" and self._after_link:
+        if tag == "a" and self._after_link and not self._prose:
             self._flush()
         self._after_link = False
         super().handle_starttag(tag, attrs)
@@ -298,7 +310,8 @@ class _BlockParser(_TextParser):
         # 사라진다. 인라인·비블록 태그도 숨길 수 있어 아래 early-return 보다 앞이다
         if tag not in _VOID_TAGS:
             self._els.append((tag, (self._els and self._els[-1][1])
-                              or _is_hidden(tag, attrs)))
+                              or _is_hidden(tag, attrs),
+                              tag == "a" or bool(self._els and self._els[-1][2])))
         # `<title>` 은 부모가 블록을 **안 끊고** 돌아간다 — 안 끊었으면 주인도 안 바뀐다
         # (리뷰 6 [R6-2]: `<p>김치<title>제목</title>` 의 이름표가 `title` 로 샜다)
         if self._in_title or tag in _INLINE_TAGS or tag in _NON_BLOCK_TAGS:
@@ -350,6 +363,12 @@ class _BlockParser(_TextParser):
         # 끊기는 것이 숨은 글자가 아니라 **보이는 문단**이라 거짓이었다 ([R115-2])
         if data.strip():
             self._after_link = False
+            # 링크 **밖** 글자가 이 블록에 담겼으면 산문이다. `_in_title`·`_skip_depth`
+            # 면 부모가 `text_parts` 에 **안 담았으므로** 둘을 함께 본다 — 제목·스크립트
+            # 글자로 깃발이 서면 그 뒤 내비가 안 끊긴다
+            if not self._in_title and not self._skip_depth and not (
+                    self._els and self._els[-1][2]):
+                self._prose = True
 
     def _separate(self, block=True):
         if self._in_title or not block:

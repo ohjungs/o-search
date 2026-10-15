@@ -138,6 +138,32 @@ class TestExtractBlocks(unittest.TestCase):
         # 링크 둘 사이에 **블록** 태그가 들면 그쪽이 먼저 끊는다 (경계가 겹쳐도 한 번)
         self.assertEqual(texts("<p><a>가</a></p><p><a>나</a></p>"), ["가", "나"])
 
+    def test_prose_already_in_the_block_keeps_adjacent_links_together(self):
+        # 계획 116 (천장 ⓐ) — 경계는 «내비 모양» 에서만 서야 한다. 링크 밖 글자가 이미
+        # 쌓인 블록에서 끊으면 **문장 중간부터 시작하는 조각**이 근거로 나간다.
+        # 실물에서 쟀다 — `ohse.de/uwe/software/lrzsz.html` 의 근거가 머리 문장
+        # 279자(score 2) → 212자 조각(score 1) 으로 나빠졌다
+        # (`docs/e2e/nav-inline-passage/result.md` ①). 실물 520문서 5,521자리 중
+        # **2,049(37.1%)** 가 이 모양이고, 표본은 전부 백과사전 머리 문단이었다
+        # (설계 `docs/design_prose-link-boundary.md` 의 가정 절)
+        self.assertEqual(texts("<p>김치찌개는 <a>레시피</a><a>영상</a> 에서 볼 수 있다</p>"),
+                         ["김치찌개는 레시피영상 에서 볼 수 있다"])
+        # 산문이 **블록 앞쪽**에 있으면 뒤에 링크가 몇 개 붙어도 한 문단이다
+        self.assertEqual(texts("<p>본문이다 <a>가</a><a>나</a><a>다</a></p>"),
+                         ["본문이다 가나다"])
+        # 링크 밖 글자가 **공백뿐**이면 여전히 내비다 — 실물 내비는 이 모양이다
+        self.assertEqual(texts("<p>\n  <a>가</a><a>나</a>\n</p>"), ["가", "나"])
+
+    def test_the_prose_flag_is_lowered_at_every_block_boundary(self):
+        # 설계 계약 3 — `_flush()` 가 깃발을 안 내리면 **첫 문단 뒤의 모든 내비가**
+        # 안 끊긴다. 블록마다 새로 판정해야 하고, 이 자가 그 변이를 문다
+        self.assertEqual(texts("<p>본문 문장이다</p><nav><a>가</a><a>나</a></nav>"),
+                         ["본문 문장이다", "가", "나"])
+        # 같은 축을 이름표까지 봐서 한 번 더 — 내비가 본문 **뒤**에 와도 끊긴다
+        self.assertEqual(extract_blocks("<article><p>본문이다</p></article>"
+                                        "<ul><li><a>가</a><a>나</a></li></ul>"),
+                         [("p", "본문이다"), ("li", "가"), ("li", "나")])
+
     def test_links_hidden_from_people_do_not_cut_the_visible_paragraph(self):
         # 리뷰 115 [R115-2] — 경계가 **숨김·스킵 상태를 함께 본다.** 안 보면 숨은 링크
         # 쌍이 그 앞의 **보이는 문단**을 끊고, 남은 다섯 글자 조각이 근거 자리를
