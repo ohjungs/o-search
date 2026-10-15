@@ -143,9 +143,10 @@ class TestExtractBlocks(unittest.TestCase):
         # 쌓인 블록에서 끊으면 **문장 중간부터 시작하는 조각**이 근거로 나간다.
         # 실물에서 쟀다 — `ohse.de/uwe/software/lrzsz.html` 의 근거가 머리 문장
         # 279자(score 2) → 212자 조각(score 1) 으로 나빠졌다
-        # (`docs/e2e/nav-inline-passage/result.md` ①). 실물 520문서 5,521자리 중
-        # **2,049(37.1%)** 가 이 모양이고, 표본은 전부 백과사전 머리 문단이었다
-        # (설계 `docs/design_prose-link-boundary.md` 의 가정 절)
+        # (`docs/e2e/nav-inline-passage/result.md` ①). 실물 520문서를 두 트리로 재니
+        # 끊김 자리 **2,259** 가 사라졌고(블록 223,167 → 220,908) 근거 문단은
+        # 110문서에서 **짧아진 것이 0** 이다
+        # (설계 `docs/design_prose-link-boundary.md` · 결과 `docs/e2e/prose-link-boundary/result.md`)
         self.assertEqual(texts("<p>김치찌개는 <a>레시피</a><a>영상</a> 에서 볼 수 있다</p>"),
                          ["김치찌개는 레시피영상 에서 볼 수 있다"])
         # 산문이 **블록 앞쪽**에 있으면 뒤에 링크가 몇 개 붙어도 한 문단이다
@@ -153,6 +154,34 @@ class TestExtractBlocks(unittest.TestCase):
                          ["본문이다 가나다"])
         # 링크 밖 글자가 **공백뿐**이면 여전히 내비다 — 실물 내비는 이 모양이다
         self.assertEqual(texts("<p>\n  <a>가</a><a>나</a>\n</p>"), ["가", "나"])
+        # **낱말 글자를 요구한다 — 리뷰 116 [R116-1]** 이 실측으로 잡았다:
+        # 불릿 하나가 앞에 있으면 내비가 한 블록으로 뭉쳐 「링크 수의 합」이 본문
+        # 문단을 **8:1 로** 이긴다(`indexer.passages` 의 `key=(score, len(block))`
+        # 로 재서 확인). 계획 115 가 막으려던 모양이 되살아나는 자리다
+        self.assertEqual(texts("<li>· <a>가</a><a>나</a><a>다</a></li>"),
+                         ["· 가", "나", "다"])
+        # 구분자·기호만 있는 머리는 산문이 아니다 — 빵부스러기가 이 모양이다
+        self.assertEqual(texts("<p>» <a>가</a><a>나</a></p>"), ["» 가", "나"])
+        # 반대쪽 못 — 숫자 하나는 낱말 글자다(각주·번호 목록이 이 모양이라
+        # 끊으면 본문 조각이 나온다)
+        self.assertEqual(texts("<p>1. <a>가</a><a>나</a></p>"), ["1. 가나"])
+
+    def test_invisible_characters_do_not_change_where_blocks_split(self):
+        # **리뷰 116 [R116-2]** — 크롤 HTML 은 신뢰 경계 밖이고, 이 파일 머리가
+        # 「ANSI·NUL 을 지운다」고 선언한 그 글자들이다. `_CONTROL` 이 출력에서
+        # 지우므로 **결과 텍스트에 흔적도 없이** 분할만 바뀌면 아무도 못 본다 —
+        # 여덟 글자짜리 입력으로 근거 문단을 바꿀 수 있다는 뜻이다
+        for name, html in [
+            ("NUL", "<p>\x00<a>가</a><a>나</a></p>"),
+            ("ESC", "<p>\x1b<a>가</a><a>나</a></p>"),
+            ("제어문자 묶음", "<p>\x01\x02\x7f<a>가</a><a>나</a></p>"),
+        ]:
+            with self.subTest(name):
+                self.assertEqual(texts(html), ["가", "나"])
+        # **경계를 정확히 적는다** — ANSI 열은 ESC 만 지워지고 `[31m` 은 **화면에
+        # 남는다.** 남은 글자에 낱말 글자가 있으니 산문으로 센다 — 「흔적 없이
+        # 바뀐다」가 아니라 보이는 그대로라 조용한 변화가 아니다
+        self.assertEqual(texts("<p>\x1b[31m<a>가</a><a>나</a></p>"), ["[31m가나"])
 
     def test_the_prose_flag_is_lowered_at_every_block_boundary(self):
         # 설계 계약 3 — `_flush()` 가 깃발을 안 내리면 **첫 문단 뒤의 모든 내비가**
