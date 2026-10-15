@@ -271,7 +271,7 @@ class _BlockParser(_TextParser):
         # 바뀐 문서 166/520 = 31.9%). 내비 모양은 그대로 끊긴다 — 설계 census 에서
         # `section` 끊김 821 중 산문이 **0** 이었다. 근거 문단은 110문서에서
         # **동일 94 · 길어짐 1 · 짧아짐 0 · 자리만 15** 로 **나빠진 것이 없다**
-        # — 설계 `docs/design_prose-link-boundary.md` · 결과
+        # — 설계 `docs/design_history_091.md` · 결과
         # `docs/e2e/prose-link-boundary/result.md`.
         # **천장 ⓑ 는 남아 있다 — 리뷰 115 가 실물에서 쟀다.** 「인접만 끊는다」의
         # 직접 결과라 결함이 아니고, 고치려면 설계가 갈린다(사람 몫 · `digest` 후보 `[6]`):

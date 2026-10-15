@@ -146,7 +146,7 @@ class TestExtractBlocks(unittest.TestCase):
         # (`docs/e2e/nav-inline-passage/result.md` ①). 실물 520문서를 두 트리로 재니
         # 끊김 자리 **2,259** 가 사라졌고(블록 223,167 → 220,908) 근거 문단은
         # 110문서에서 **짧아진 것이 0** 이다
-        # (설계 `docs/design_prose-link-boundary.md` · 결과 `docs/e2e/prose-link-boundary/result.md`)
+        # (설계 `docs/design_history_091.md` · 결과 `docs/e2e/prose-link-boundary/result.md`)
         self.assertEqual(texts("<p>김치찌개는 <a>레시피</a><a>영상</a> 에서 볼 수 있다</p>"),
                          ["김치찌개는 레시피영상 에서 볼 수 있다"])
         # 산문이 **블록 앞쪽**에 있으면 뒤에 링크가 몇 개 붙어도 한 문단이다
