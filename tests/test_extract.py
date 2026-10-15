@@ -164,6 +164,27 @@ class TestExtractBlocks(unittest.TestCase):
                                         "<ul><li><a>가</a><a>나</a></li></ul>"),
                          [("p", "본문이다"), ("li", "가"), ("li", "나")])
 
+    def test_text_that_never_lands_in_the_block_is_not_prose(self):
+        # **테스트 phase 갭** — 설계 계약 5 의 「담기지 않은 글자로 깃발을 세우지
+        # 않는다」를 무는 자가 0개였다(변이 ④ 「`_in_title`·`_skip_depth` 가드를
+        # 뗀다」가 879건에서 **살았다**). 처음엔 등가 변이로 읽었는데 **차분 탐색이
+        # 거짓임을 보였다** — 1,344 모양 중 **192** 가 갈린다.
+        # 이유는 한 줄이다: `_SKIP_TAGS` 는 `_NON_BLOCK_TAGS` **안**이라
+        # `</script>` 가 `_separate(block=False)` 로 가고 **블록을 안 끊는다.**
+        # 그래서 깃발이 거기서 서면 내려갈 자리가 없어 그 뒤 내비가 안 끊긴다.
+        for name, html in [
+            ("script", "<p><script>var x=1</script><a>가</a><a>나</a></p>"),
+            ("style", "<p><style>.a{b:c}</style><a>가</a><a>나</a></p>"),
+            ("noscript", "<p><noscript>스킵글자</noscript><a>가</a><a>나</a></p>"),
+        ]:
+            with self.subTest(name):
+                self.assertEqual(texts(html), ["가", "나"])
+        # **가드의 `_in_title` 반쪽은 오늘 증인이 0이다** — `</title>` 은
+        # `_NON_BLOCK_TAGS` 밖이라 블록을 끊고 거기서 깃발이 내려간다(차분 탐색에서
+        # 제목 모양은 192건에 **안 들었다**). 「담기지 않았으면 산문이 아니다」라는
+        # 뜻을 반쪽만 지키면 다음 사람이 반쪽을 지우므로 조건에 남겨 뒀고,
+        # 증인 없는 가드라는 사실은 `digest` 후보로 등재했다
+
     def test_links_hidden_from_people_do_not_cut_the_visible_paragraph(self):
         # 리뷰 115 [R115-2] — 경계가 **숨김·스킵 상태를 함께 본다.** 안 보면 숨은 링크
         # 쌍이 그 앞의 **보이는 문단**을 끊고, 남은 다섯 글자 조각이 근거 자리를
