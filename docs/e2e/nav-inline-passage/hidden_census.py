@@ -1,5 +1,14 @@
 """숨김/스킵 속 인접 링크가 «보이는» 문단을 끊는가 — 제품 경로와 같은 배선으로 센다.
 
+**이 도구가 재던 축은 닫혔다 — 2026-10-15 리뷰 116 [R116-5].** 계획 115 의 숨김 경계
+수정이 `main` 에 들어가 `Base`(제품)와 `Guarded`(제품+가드)가 **같아졌고**, 그래서 아래
+배선 검사 ① 이 이제 `배선 FAIL` 을 낸다 — 도구가 고장난 것이 아니라 **isolate 하던 차이가
+사라진 것**이다. 그보다 먼저 계획 116 이 `_els` 를 세 칸으로 넓혀 **이 사본이 `IndexError`
+로 죽어 있었다**(전수 880 OK 인 채로 · 이 파일을 돌리는 테스트가 0개다). 죽는 쪽은 고쳤다.
+**은퇴시킬지는 사람 몫이다** — 야간 모드는 파일을 지우지 않는다. 측정 결과는
+`docs/e2e/nav-inline-passage/result.md` 에 남아 있고, 이 축을 지키는 자는 이제
+`tests/test_extract.py` 의 `test_links_hidden_from_people_do_not_cut_the_visible_paragraph` 다.
+
 배선 검사 3단: ① 합성 모양 ② 압축 해제가 실제로 HTML 을 내는가
 ③ 제품과 같은 캡·클립을 타는가. 셋 다 찍은 뒤에만 실물을 센다.
 """
@@ -12,7 +21,10 @@ Base = extract._BlockParser
 
 class Guarded(Base):
     def handle_starttag(self, tag, attrs):
-        if tag == "a" and self._after_link and not self._blind():
+        # 제품의 산문 판정(`_prose`)을 **함께 들고 간다** — 안 들면 이 사본이 재는
+        # 축이 「숨김 경계」가 아니라 「숨김 경계 + 계획 116」이 된다
+        if (tag == "a" and self._after_link and not self._prose
+                and not self._blind()):
             self._flush()
         self._after_link = False
         super(Base, self).handle_starttag(tag, attrs)
@@ -21,8 +33,13 @@ class Guarded(Base):
                 self._open.pop()
             self._els.pop()
         if tag not in extract._VOID_TAGS:
+            # 세 칸이다 — 계획 116 이 `_els` 에 「링크 안인가」를 더했다. 두 칸으로
+            # 두면 제품의 `handle_data` 가 `[2]` 를 읽다 **IndexError** 로 터진다
+            # (리뷰 116 [R116-5] 가 실제로 밟았다 — 전수 880 OK 인 채로 이 도구만
+            # 죽어 있었다). **이 메서드는 제품 사본이라 제품이 바뀌면 함께 고친다**
             self._els.append((tag, (self._els and self._els[-1][1])
-                              or extract._is_hidden(tag, attrs)))
+                              or extract._is_hidden(tag, attrs),
+                              tag == 'a' or bool(self._els and self._els[-1][2])))
         if self._in_title or tag in extract._INLINE_TAGS or tag in extract._NON_BLOCK_TAGS:
             return
         self._open.append(tag)

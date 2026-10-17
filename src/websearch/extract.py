@@ -238,8 +238,11 @@ class _BlockParser(_TextParser):
         super().__init__()
         self.blocks = []
         self._open = []  # 열려 있는 블록 태그 — 꼭대기가 이름표다
-        # 열려 있는 **모든** 비-void 요소 — `(태그, 조상 중 하나라도 숨김인가)`.
-        # 꼭대기의 두 번째 칸이 「지금 숨김 안인가」다(전파해 두므로 O(1)).
+        # 열려 있는 **모든** 비-void 요소 — `(태그, 숨김인가, 링크 안인가)`.
+        # 꼭대기의 두 번째 칸이 「지금 숨김 안인가」, 세 번째가 「지금 `<a>` 안인가」다
+        # (둘 다 전파해 두므로 O(1)). 셋째 칸을 쓰는 곳은 `handle_data` 의 산문 판정
+        # 하나뿐이고, 거기서 `_els` 를 훑으면 **가장 뜨거운 경로가 O(깊이)** 가 된다 —
+        # 리뷰 51 [R51-2] 가 같은 클래스에서 깊이² 비용을 이미 한 번 잡았다.
         # **숨긴 태그만 담으면 안 된다** — 닫을 때 이름으로 찾는데 성긴 스택이면
         # 숨김 컨테이너 안의 **같은 이름 자식**이 바깥 숨김을 함께 풀어 버린다
         # (테스트 51 실측: `<div hidden><div>속</div><p>숨은</p></div>` 가 샜다).
@@ -255,22 +258,39 @@ class _BlockParser(_TextParser):
         # 중첩 링크를 금지해 앞엣것을 닫지만 `html.parser` 는 안 닫는다. 방향이
         # «덜 끊는다» 라 계약을 어기지 않고, 실물에서 세지면 `_els` 에 `a` 가 열려
         # 있는지를 함께 보면 된다
-        # **천장 둘 — 리뷰 115 가 실물에서 재서 적는다.** 둘 다 「인접만 끊는다」의
-        # 직접 결과라 결함이 아니고, 고치려면 설계가 갈린다(사람 몫):
-        # ⓐ **산문 속 인접 링크도 끊는다** — `<p>…는 <a>레시피</a><a>영상</a> 에서…</p>`
-        #   가 문장 중간부터 시작하는 조각을 낸다. `ohse.de/uwe/software/lrzsz.html` 에서
-        #   근거가 279자(score 2) → **212자 조각(score 1)** 으로 나빠진 것이 이 모양이다.
+        # **천장 ⓐ 는 계획 116 이 «반쪽» 닫았다 — 리뷰 116 [R116-3] 이 그 선을 쟀다.**
+        # 깃발은 **앞으로만** 흐르므로 산문이 링크 **뒤** 에 오는 모양
+        # (`<p><a>레시피</a><a>영상</a> 에서 김치찌개를…</p>`)은 **여전히 끊긴다** —
+        # 끊긴 뒤에 올 글자를 스트리밍 파서가 미리 볼 수 없다. 뒤쪽까지 닫으려면
+        # 블록 끝에서 사후 분할하는 쪽(설계의 버린 대안 C)이라 설계가 다시 갈린다 —
+        # `digest` 후보 ⓐ-b 로 등재했다. 닫힌 반쪽은 아래다 —  「산문 속 인접 링크도 끊는다」가
+        # `ohse.de/uwe/software/lrzsz.html` 의 근거를 279자(score 2) → **212자
+        # 조각(score 1)** 으로 떨어뜨렸다. 그래서 경계는 이제 **링크 밖 글자가 아직
+        # 안 쌓인 블록에서만** 선다(아래 `_prose`). **실물 520문서를 두 트리로 재서
+        # 끊김 자리 2,259 가 사라졌다**(블록 223,167 → 220,908 · 1.0% · 블록 수가
+        # 바뀐 문서 166/520 = 31.9%). 내비 모양은 그대로 끊긴다 — 설계 census 에서
+        # `section` 끊김 821 중 산문이 **0** 이었다. 근거 문단은 110문서에서
+        # **동일 94 · 길어짐 1 · 짧아짐 0 · 자리만 15** 로 **나빠진 것이 없다**
+        # — 설계 `docs/design_history_091.md` · 결과
+        # `docs/e2e/prose-link-boundary/result.md`.
+        # **천장 ⓑ 는 남아 있다 — 리뷰 115 가 실물에서 쟀다.** 「인접만 끊는다」의
+        # 직접 결과라 결함이 아니고, 고치려면 설계가 갈린다(사람 몫 · `digest` 후보 `[6]`):
         # ⓑ **구분자가 끼면 안 끊는다** — `<a>가</a> | <a>나</a>` · `<a>가</a><br><a>나</a>`
         #   · `<a>가</a><img><a>나</a>` 는 한 블록으로 남는다(글자·시작 태그가 깃발을
         #   내린다). 빵부스러기·아이콘 내비가 그 모양이라 「링크 수의 합」이 거기 남아
         #   있다 — 실물 110문서에서 블록이 30.9% 움직였는데 근거는 2건만 바뀐 이유다
         self._after_link = False
+        # **이 블록에 링크 «밖» 글자가 쌓였나** — 쌓였으면 산문이라 인접 링크로 안
+        # 끊는다(계획 116 · 천장 ⓐ). **블록마다 새로 판정한다** — `_flush` 에서 안
+        # 내리면 첫 문단 뒤의 모든 내비가 안 끊긴다
+        self._prose = False
 
     def _flush(self):
         block = _normalize(self.text_parts)
         if block:
             self.blocks.append((self._open[-1] if self._open else "", block))
         del self.text_parts[:]
+        self._prose = False
 
     def handle_starttag(self, tag, attrs):
         # 블록에 **자기를 낸 태그**를 붙여 준다. 부모가 먼저 이전 블록을 끊으므로
@@ -278,7 +298,7 @@ class _BlockParser(_TextParser):
         # 문단 안에 끼어드는 태그(`<img>`·`<script>`)는 주인이 아니라 지나간다
         # 인접한 링크 사이는 문단 경계다 — `super()` 가 `<a>` 를 인라인으로 보고
         # early-return 하므로 **그보다 앞에서** 끊어야 앞 링크의 텍스트가 산다
-        if tag == "a" and self._after_link:
+        if tag == "a" and self._after_link and not self._prose:
             self._flush()
         self._after_link = False
         super().handle_starttag(tag, attrs)
@@ -298,7 +318,8 @@ class _BlockParser(_TextParser):
         # 사라진다. 인라인·비블록 태그도 숨길 수 있어 아래 early-return 보다 앞이다
         if tag not in _VOID_TAGS:
             self._els.append((tag, (self._els and self._els[-1][1])
-                              or _is_hidden(tag, attrs)))
+                              or _is_hidden(tag, attrs),
+                              tag == "a" or bool(self._els and self._els[-1][2])))
         # `<title>` 은 부모가 블록을 **안 끊고** 돌아간다 — 안 끊었으면 주인도 안 바뀐다
         # (리뷰 6 [R6-2]: `<p>김치<title>제목</title>` 의 이름표가 `title` 로 샜다)
         if self._in_title or tag in _INLINE_TAGS or tag in _NON_BLOCK_TAGS:
@@ -350,6 +371,22 @@ class _BlockParser(_TextParser):
         # 끊기는 것이 숨은 글자가 아니라 **보이는 문단**이라 거짓이었다 ([R115-2])
         if data.strip():
             self._after_link = False
+            # 링크 **밖** 글자가 이 블록에 담겼으면 산문이다. `_in_title`·`_skip_depth`
+            # 면 부모가 `text_parts` 에 **안 담았으므로** 둘을 함께 본다 — 제목·스크립트
+            # 글자로 깃발이 서면 그 뒤 내비가 안 끊긴다.
+            # **「담겼나」가 아니라 「뜻 있는 글자가 담겼나」다** — 리뷰 116 이 둘을
+            # 실측으로 갈랐다([R116-1]·[R116-2]): ① 불릿 하나(`<li>· <a>…</a>×8`)가
+            # 앞에 있으면 내비가 한 블록으로 뭉쳐 「링크 수의 합」이 본문을 **8:1 로**
+            # 이긴다 — 계획 115 가 막으려던 그 모양이 되살아난다 ② `\x00`·ANSI 같은
+            # 비가시 문자는 `_CONTROL` 이 출력에서 지우므로 **결과 텍스트에 흔적도
+            # 없이** 분할만 바꾼다(크롤 HTML 은 신뢰 경계 밖이다 — 이 파일 머리가
+            # 선언한 그 글자다). 그래서 `str.isalnum()` 으로 **낱말 글자**를 요구한다 —
+            # 유니코드라 한글·한자·키릴이 다 들고, 불릿·`|`·제어문자는 안 든다.
+            # `any` 는 첫 글자에서 끊어 비용이 `data.strip()` 과 같은 자리다
+            if (not self._in_title and not self._skip_depth
+                    and not (self._els and self._els[-1][2])
+                    and any(ch.isalnum() for ch in data)):
+                self._prose = True
 
     def _separate(self, block=True):
         if self._in_title or not block:
@@ -389,7 +426,11 @@ def extract_blocks(html_text):
     색인 본문(`extract_text`)은 그대로라 그 문서는 검색 결과에 계속 나온다.
 
     불변식: `" ".join(t for _tag, t in extract_blocks(h)) == extract_text(h)[1]`
-    # 예외 셋 — 앞의 둘은 **깨진 입력에서만** 갈리고 정상 HTML 에서는 같다.
+    # 예외 **넷** — 앞의 둘은 **깨진 입력에서만** 갈리고 정상 HTML 에서는 같다.
+    # 넷째(인접 링크 경계)는 계획 115 가 만들었고 `test_adjacent_links_are_the
+    # _fourth_exception_to_the_join_invariant` 가 못박는다 — 리뷰 116 [R116-4] 가
+    # 이 수가 셋에 멈춰 있던 것을 잡았다. 계획 116 이 **위반 횟수는 줄였지만**
+    # (산문 앞 케이스는 이제 불변식을 지킨다) 예외 자체는 그대로 있다.
     # ① EOF 에 남은 안 닫힌 마크업: 색인 경로는 그것을 데이터로 흘리고
     #    (색인은 통짜 본문이라 상관없다) 블록 쪽은 버린다. 문단은 사람이 읽는
     #    텍스트여야 하고 소비자가 기계라 마크업 조각을 주면 안 된다.

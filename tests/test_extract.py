@@ -138,6 +138,82 @@ class TestExtractBlocks(unittest.TestCase):
         # 링크 둘 사이에 **블록** 태그가 들면 그쪽이 먼저 끊는다 (경계가 겹쳐도 한 번)
         self.assertEqual(texts("<p><a>가</a></p><p><a>나</a></p>"), ["가", "나"])
 
+    def test_prose_already_in_the_block_keeps_adjacent_links_together(self):
+        # 계획 116 (천장 ⓐ) — 경계는 «내비 모양» 에서만 서야 한다. 링크 밖 글자가 이미
+        # 쌓인 블록에서 끊으면 **문장 중간부터 시작하는 조각**이 근거로 나간다.
+        # 실물에서 쟀다 — `ohse.de/uwe/software/lrzsz.html` 의 근거가 머리 문장
+        # 279자(score 2) → 212자 조각(score 1) 으로 나빠졌다
+        # (`docs/e2e/nav-inline-passage/result.md` ①). 실물 520문서를 두 트리로 재니
+        # 끊김 자리 **2,259** 가 사라졌고(블록 223,167 → 220,908) 근거 문단은
+        # 110문서에서 **짧아진 것이 0** 이다
+        # (설계 `docs/design_history_091.md` · 결과 `docs/e2e/prose-link-boundary/result.md`)
+        self.assertEqual(texts("<p>김치찌개는 <a>레시피</a><a>영상</a> 에서 볼 수 있다</p>"),
+                         ["김치찌개는 레시피영상 에서 볼 수 있다"])
+        # 산문이 **블록 앞쪽**에 있으면 뒤에 링크가 몇 개 붙어도 한 문단이다
+        self.assertEqual(texts("<p>본문이다 <a>가</a><a>나</a><a>다</a></p>"),
+                         ["본문이다 가나다"])
+        # 링크 밖 글자가 **공백뿐**이면 여전히 내비다 — 실물 내비는 이 모양이다
+        self.assertEqual(texts("<p>\n  <a>가</a><a>나</a>\n</p>"), ["가", "나"])
+        # **낱말 글자를 요구한다 — 리뷰 116 [R116-1]** 이 실측으로 잡았다:
+        # 불릿 하나가 앞에 있으면 내비가 한 블록으로 뭉쳐 「링크 수의 합」이 본문
+        # 문단을 **8:1 로** 이긴다(`indexer.passages` 의 `key=(score, len(block))`
+        # 로 재서 확인). 계획 115 가 막으려던 모양이 되살아나는 자리다
+        self.assertEqual(texts("<li>· <a>가</a><a>나</a><a>다</a></li>"),
+                         ["· 가", "나", "다"])
+        # 구분자·기호만 있는 머리는 산문이 아니다 — 빵부스러기가 이 모양이다
+        self.assertEqual(texts("<p>» <a>가</a><a>나</a></p>"), ["» 가", "나"])
+        # 반대쪽 못 — 숫자 하나는 낱말 글자다(각주·번호 목록이 이 모양이라
+        # 끊으면 본문 조각이 나온다)
+        self.assertEqual(texts("<p>1. <a>가</a><a>나</a></p>"), ["1. 가나"])
+
+    def test_invisible_characters_do_not_change_where_blocks_split(self):
+        # **리뷰 116 [R116-2]** — 크롤 HTML 은 신뢰 경계 밖이고, 이 파일 머리가
+        # 「ANSI·NUL 을 지운다」고 선언한 그 글자들이다. `_CONTROL` 이 출력에서
+        # 지우므로 **결과 텍스트에 흔적도 없이** 분할만 바뀌면 아무도 못 본다 —
+        # 여덟 글자짜리 입력으로 근거 문단을 바꿀 수 있다는 뜻이다
+        for name, html in [
+            ("NUL", "<p>\x00<a>가</a><a>나</a></p>"),
+            ("ESC", "<p>\x1b<a>가</a><a>나</a></p>"),
+            ("제어문자 묶음", "<p>\x01\x02\x7f<a>가</a><a>나</a></p>"),
+        ]:
+            with self.subTest(name):
+                self.assertEqual(texts(html), ["가", "나"])
+        # **경계를 정확히 적는다** — ANSI 열은 ESC 만 지워지고 `[31m` 은 **화면에
+        # 남는다.** 남은 글자에 낱말 글자가 있으니 산문으로 센다 — 「흔적 없이
+        # 바뀐다」가 아니라 보이는 그대로라 조용한 변화가 아니다
+        self.assertEqual(texts("<p>\x1b[31m<a>가</a><a>나</a></p>"), ["[31m가나"])
+
+    def test_the_prose_flag_is_lowered_at_every_block_boundary(self):
+        # 설계 계약 3 — `_flush()` 가 깃발을 안 내리면 **첫 문단 뒤의 모든 내비가**
+        # 안 끊긴다. 블록마다 새로 판정해야 하고, 이 자가 그 변이를 문다
+        self.assertEqual(texts("<p>본문 문장이다</p><nav><a>가</a><a>나</a></nav>"),
+                         ["본문 문장이다", "가", "나"])
+        # 같은 축을 이름표까지 봐서 한 번 더 — 내비가 본문 **뒤**에 와도 끊긴다
+        self.assertEqual(extract_blocks("<article><p>본문이다</p></article>"
+                                        "<ul><li><a>가</a><a>나</a></li></ul>"),
+                         [("p", "본문이다"), ("li", "가"), ("li", "나")])
+
+    def test_text_that_never_lands_in_the_block_is_not_prose(self):
+        # **테스트 phase 갭** — 설계 계약 5 의 「담기지 않은 글자로 깃발을 세우지
+        # 않는다」를 무는 자가 0개였다(변이 ④ 「`_in_title`·`_skip_depth` 가드를
+        # 뗀다」가 879건에서 **살았다**). 처음엔 등가 변이로 읽었는데 **차분 탐색이
+        # 거짓임을 보였다** — 1,344 모양 중 **192** 가 갈린다.
+        # 이유는 한 줄이다: `_SKIP_TAGS` 는 `_NON_BLOCK_TAGS` **안**이라
+        # `</script>` 가 `_separate(block=False)` 로 가고 **블록을 안 끊는다.**
+        # 그래서 깃발이 거기서 서면 내려갈 자리가 없어 그 뒤 내비가 안 끊긴다.
+        for name, html in [
+            ("script", "<p><script>var x=1</script><a>가</a><a>나</a></p>"),
+            ("style", "<p><style>.a{b:c}</style><a>가</a><a>나</a></p>"),
+            ("noscript", "<p><noscript>스킵글자</noscript><a>가</a><a>나</a></p>"),
+        ]:
+            with self.subTest(name):
+                self.assertEqual(texts(html), ["가", "나"])
+        # **가드의 `_in_title` 반쪽은 오늘 증인이 0이다** — `</title>` 은
+        # `_NON_BLOCK_TAGS` 밖이라 블록을 끊고 거기서 깃발이 내려간다(차분 탐색에서
+        # 제목 모양은 192건에 **안 들었다**). 「담기지 않았으면 산문이 아니다」라는
+        # 뜻을 반쪽만 지키면 다음 사람이 반쪽을 지우므로 조건에 남겨 뒀고,
+        # 증인 없는 가드라는 사실은 `digest` 후보로 등재했다
+
     def test_links_hidden_from_people_do_not_cut_the_visible_paragraph(self):
         # 리뷰 115 [R115-2] — 경계가 **숨김·스킵 상태를 함께 본다.** 안 보면 숨은 링크
         # 쌍이 그 앞의 **보이는 문단**을 끊고, 남은 다섯 글자 조각이 근거 자리를
