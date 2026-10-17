@@ -171,7 +171,7 @@ class TestExtractBlocks(unittest.TestCase):
         # 깃발은 앞으로만 흐르므로 뒤쪽은 그대로 끊겼고, 실물에서 **46문서(4.6%)** ·
         # 블록 301/307,951 이 그 모양이다(계획 117 측정 `e2e/passage_shapes.py`).
         # 그래서 끊김을 그 자리에서 내지 않고 **블록 끝에서 판정한다**
-        # (설계 `docs/design_trailing-prose-join.md`)
+        # (설계 `docs/design_history_093.md`)
         self.assertEqual(texts("<p><a>레시피</a><a>영상</a> 에서 김치찌개를 볼 수 있다</p>"),
                          ["레시피영상 에서 김치찌개를 볼 수 있다"])
         # **실물 피해를 그대로 재연한다** — `en.wikiquote.org/wiki/John_Buchan` 의 머리
