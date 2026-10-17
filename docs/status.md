@@ -7,7 +7,7 @@ plan: passage-real-sample  # 계획 117 — 근거 문단 축을 실물 마크�
 iteration: 720
 updated: 2026-10-17
 mode: night
-night_iterations: 1  # 이 세션(10-17 11:29 시작) 시작 시 0 리셋 후 +1
+night_iterations: 3  # 이 세션(10-17 11:29 시작) 시작 시 0 리셋 · 반복 718·719·720
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
