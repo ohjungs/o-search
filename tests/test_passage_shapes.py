@@ -188,6 +188,13 @@ class ShapeCountsCase(unittest.TestCase):
         self.assertEqual(1, p.ab)
         self.assertEqual(["레시피", "영상 에서 김치찌개를 끓인다."],
                          [t for _, t in p.blocks])     # 옛 판의 피해 그대로
+        # **끊긴 뒤에 태그가 열려도 센다** — 깃발을 누적하지 않는 변이(`or` → `=`)는
+        # 위 한 줄로는 살아남는다(테스트 phase 변이 M7 실측: 901건 전부 초록). 실물
+        # 산문에는 링크 뒤 인라인이 흔해 그 판은 **과소 보고**한다(1 → 0)
+        q = Probe()
+        q.feed("<p><a>레시피</a><a>영상</a> 에서 <b>김치</b>찌개를 끓인다.</p>")
+        q.close()
+        self.assertEqual(1, q.ab)
 
     def test_nav_and_separate_blocks_are_not_a_b(self):
         """인접 링크로 끊겨도 뒤에 산문이 없으면 내비다. 별개 `<div>` 둘이 소문자로

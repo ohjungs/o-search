@@ -1,19 +1,19 @@
 ---
 signal: GREEN
-phase: 개발
+phase: 테스트
 step: 3/3
 attempt: 1
 plan: trailing-prose-join  # 계획 118 — 산문이 링크 뒤에 와도 근거 문단을 안 끊는다 (천장 ⓐ-b)
-iteration: 729
+iteration: 730
 updated: 2026-10-18
 mode: 무인(night)  # 2026-10-18 `/loop-harness night` — 탐색 모드
-night_iterations: 4  # 이 세션 시작 시 셋 다 0 리셋
+night_iterations: 5  # 이 세션 시작 시 셋 다 0 리셋
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
 ctx: **statusLine 꺼진 것과 동일 취급** — `.context-state.json` 의 `session_id` 가 이 세션 것이 아니다(게이트 ⑦ 의 한 줄 판정: 그 이름의 `.jsonl` 이 없다). 마지막으로 읽힌 값은 5h 13 · 7d 12 (2026-10-17 20:43 · 7시간 묵음). **반복 상한에만 의존한다.**
 rules: 51a6d48   # `git -C ~/.claude log -1 --format=%h -- skills/loop-harness`
-note: **[개발 phase · 반복 729 · 스텝 3/3 — 개발 완료]** 실물 ⓐ-b **0.0%(0)** · 블록 307,951→**307,825**. **측정기가 뜻만 뒤집은 채 같은 수를 냈고 그것을 고쳤다** — 옛 탐침은 끊김 «조건» 을 세어 계획 117 의 301/46 이 실제 피해보다 컸다. 세 판으로 갈랐다: main+옛탐침 301/46 · main+**새탐침 97/43** · 118+새탐침 **0/0**. `passage_eval` 100%(398/398) p95 1.70ms · `quality_eval` 통과. 전수 **901 OK rc=0**. 다음은 테스트 phase.
+note: **[테스트 phase · 반복 730]** 변이 **7판** — 다섯은 바로 죽고 **둘이 살았다**: **M3** 「`_cuts` 를 블록 끝에서 안 비운다」(계약 4 를 무는 자가 0개 — 뒤 블록에 산문이 있으면 산문 가드가 스테일 오프셋을 **가린다**) · **M7** 「탐침이 깃발을 누적하지 않는다」(링크 뒤에 태그가 열리면 **과소 보고** 1→0). 둘 다 단언을 더해 닫았고 **7/7 죽는다**. 갭 탐색 — `close()` 의 미완 마크업·`<br>`(ⓑ) 을 `main` 과 대조해 **의도한 자리 하나만** 다른 것을 확인했다. 전수 **901 OK rc=0**.
 ---
 ## 이 밤 — 계획 118 `trailing-prose-join` (반복 726~)
 
@@ -40,9 +40,12 @@ note: **[개발 phase · 반복 729 · 스텝 3/3 — 개발 완료]** 실물 �
   수 301 을 뜻만 뒤집어** 냈다(피해 → 막은 피해). 「블록이 실제로 갈렸나」를 함께 보게
   고치고 음성 대조를 세웠다. **계획 117 의 301/46 은 실제 피해가 아니라 조건 수였다 —
   정정치는 97블록/43문서**(설계 탐침의 「합쳐진 블록 97 · 바뀐 문서 43」과 일치).
-- **다음 세션이 집을 것**: **테스트 phase** — `rules/test.md`. 변이 검사가 남았다
-  (`PYTHONDONTWRITEBYTECODE=1 PYTHONPYCACHEPREFIX=$(mktemp -d)` 를 함께 준다).
-  `git worktree` `/tmp/w118-main` 이 열려 있다 — 다 쓰면 `git worktree remove` 한다.
+- **이미 한 것 (반복 730 · 테스트 phase)**: 변이 **7판**. 살아남은 둘(**M3** 계약 4 ·
+  **M7** 탐침 깃발 누적)을 단언으로 닫아 **7/7 죽는다**. 갭 탐색에서 `close()` 미완
+  마크업·`<br>` 을 `main` 과 대조 — 의도한 자리 하나만 다르다.
+- **다음 세션이 집을 것**: **리뷰 phase** — `rules/review.md`. 패스 A(코드 diff만) ·
+  패스 B(설계 계약 9항 대조). `git worktree` `/tmp/w118-main` 이 열려 있다 —
+  e2e 의 A/B 에 쓰고 다 쓰면 `git worktree remove /tmp/w118-main` 한다.
 
 ## 앞 밤 (2026-10-17) — 계획 117 `passage-real-sample` **DONE** (반복 718~725)
 
