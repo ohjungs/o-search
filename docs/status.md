@@ -1,19 +1,19 @@
 ---
 signal: GREEN
 phase: 개발
-step: 1/3
+step: 2/3
 attempt: 1
 plan: trailing-prose-join  # 계획 118 — 산문이 링크 뒤에 와도 근거 문단을 안 끊는다 (천장 ⓐ-b)
-iteration: 727
+iteration: 728
 updated: 2026-10-18
 mode: 무인(night)  # 2026-10-18 `/loop-harness night` — 탐색 모드
-night_iterations: 2  # 이 세션 시작 시 셋 다 0 리셋
+night_iterations: 3  # 이 세션 시작 시 셋 다 0 리셋
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
 ctx: **statusLine 꺼진 것과 동일 취급** — `.context-state.json` 의 `session_id` 가 이 세션 것이 아니다(게이트 ⑦ 의 한 줄 판정: 그 이름의 `.jsonl` 이 없다). 마지막으로 읽힌 값은 5h 13 · 7d 12 (2026-10-17 20:43 · 7시간 묵음). **반복 상한에만 의존한다.**
 rules: 51a6d48   # `git -C ~/.claude log -1 --format=%h -- skills/loop-harness`
-note: **[설계 phase · 반복 727 · 스텝 1/3 완료]** 결정 — 끊김을 **블록 끝으로 미룬다**(오프셋 표식 + `_flush` 한 곳에서 판정). **탐침이 대안 B 를 죽였다**: 사후 문자열 재결합은 합쳐질 블록 **97 중 96** 에서 구분 공백 한 칸을 잃는다. 가정 셋 실측 — 이름표 불일치 **0** · 부분집합 위반 **0** · 버린 끊김 **422/3,481** · 블록 307,951→**307,825** · 바뀐 문서 **43/1,000**. 설계 `docs/design_trailing-prose-join.md`. 제품 `src/` **0줄**.
+note: **[개발 phase · 반복 728 · 스텝 2/3]** TDD — 실패를 눈으로 보고(`['레시피', '영상 에서…']`) 고쳤다. 끊는 자리는 `self._cuts` 표식만 남기고 **판정은 `_flush` 한 곳**이다. 전수 **900 OK rc=0** · 제품 논리 약 13줄(야간 한도 40 안) · 장부 `README.md:104` 899→**900**. 다음은 스텝 3 실물 측정·기준선.
 ---
 ## 이 밤 — 계획 118 `trailing-prose-join` (반복 726~)
 
@@ -28,9 +28,14 @@ note: **[설계 phase · 반복 727 · 스텝 1/3 완료]** 결정 — 끊김을
   `loop/trailing-prose-join`(`main` `0596476` 에서 갈라짐). 설계
   `docs/design_trailing-prose-join.md` — 대안 A(끊김을 미룬다) 선택 · B 는 **실측이 죽였다**
   (사후 재결합이 97 중 96 에서 구분 공백을 잃는다) · C(2패스)는 `concept.md` 성능 5 가 막는다.
-- **다음 세션이 집을 것**: 스텝 2 개발 — **TDD**. `tests/` 에 실패 단언 **먼저** 넣어
-  빨간 것을 보고(① 예문이 한 블록 ② 내비는 여전히 끊긴다 ③ 계획 116 의 앞쪽 모양 불변)
-  `src/websearch/extract.py` 의 `_BlockParser` 만 고친다. 계약은 설계서 `## 계약` 9항.
+- **이미 한 것 (반복 728 · 스텝 2/3)**: `tests/test_extract.py` 에 단언 **7건**(실물
+  wikiquote 모양 포함)을 먼저 넣어 빨간 것을 보고 `_BlockParser` 를 고쳤다 —
+  `handle_starttag` 의 `_flush()` 가 `self._cuts.append(len(self.text_parts))` 로,
+  판정은 `_flush` 한 곳. 천장 주석도 사실로 고쳤다(ⓐ 닫힘 · ⓑ 만 남는다).
+  전수 **900 OK rc=0** · 장부 `README.md:104` **900**.
+- **다음 세션이 집을 것**: 스텝 3 — `PYTHONPATH=src python3 e2e/passage_shapes.py` 를
+  이 트리와 `main` 에서 돌려 ⓐ-b 수를 나란히 적고, `passage_eval`·`quality_eval` 이
+  안 나빠졌는지 보고 `docs/baselines.md` 에 등재한다.
 
 ## 앞 밤 (2026-10-17) — 계획 117 `passage-real-sample` **DONE** (반복 718~725)
 

@@ -166,6 +166,34 @@ class TestExtractBlocks(unittest.TestCase):
         # 끊으면 본문 조각이 나온다)
         self.assertEqual(texts("<p>1. <a>가</a><a>나</a></p>"), ["1. 가나"])
 
+    def test_prose_after_the_links_also_keeps_them_together(self):
+        # 계획 118 (천장 **ⓐ-b**) — 계획 116 이 닫은 것은 산문이 링크 **앞** 에 올 때다.
+        # 깃발은 앞으로만 흐르므로 뒤쪽은 그대로 끊겼고, 실물에서 **46문서(4.6%)** ·
+        # 블록 301/307,951 이 그 모양이다(계획 117 측정 `e2e/passage_shapes.py`).
+        # 그래서 끊김을 그 자리에서 내지 않고 **블록 끝에서 판정한다**
+        # (설계 `docs/design_trailing-prose-join.md`)
+        self.assertEqual(texts("<p><a>레시피</a><a>영상</a> 에서 김치찌개를 볼 수 있다</p>"),
+                         ["레시피영상 에서 김치찌개를 볼 수 있다"])
+        # **실물 피해를 그대로 재연한다** — `en.wikiquote.org/wiki/John_Buchan` 의 머리
+        # 문장이 인접 날짜 링크에서 갈려 「(1875 – 11 February」 와 「1940) was a
+        # Scottish novelist」 둘로 나왔다(계획 117 e2e 실측)
+        self.assertEqual(
+            texts("<p>(<a>1875</a> – <a>11 February</a> <a>1940</a>)"
+                  " was a Scottish novelist</p>"),
+            ["(1875 – 11 February 1940) was a Scottish novelist"])
+        # 한 블록에 표식이 **여럿** 서도 전부 버린다 — 「전부 끊거나 전혀 안 끊는다」
+        self.assertEqual(texts("<li>· <a>가</a><a>나</a><a>다</a> 설명이다</li>"),
+                         ["· 가나다 설명이다"])
+        # 이름표는 `_flush` 시점의 것 하나다 (설계 계약 5 · 실물 1,000문서 불일치 0)
+        self.assertEqual(extract_blocks("<ul><li><a>가</a><a>나</a> 설명</li></ul>"),
+                         [("li", "가나 설명")])
+        # **대조군 — 산문이 없으면 오늘과 같다.** 내비는 그대로 끊긴다
+        self.assertEqual(texts("<nav><a>가</a><a>나</a></nav>"), ["가", "나"])
+        # **표식은 블록 경계에서 비워진다** (설계 계약 4) — 안 비우면 다음 블록의
+        # 산문이 앞 블록의 끊김을 되살리거나(여기) 남의 오프셋으로 잘린다
+        self.assertEqual(texts("<nav><a>가</a><a>나</a></nav><p>설명이다</p>"),
+                         ["가", "나", "설명이다"])
+
     def test_invisible_characters_do_not_change_where_blocks_split(self):
         # **리뷰 116 [R116-2]** — 크롤 HTML 은 신뢰 경계 밖이고, 이 파일 머리가
         # 「ANSI·NUL 을 지운다」고 선언한 그 글자들이다. `_CONTROL` 이 출력에서
