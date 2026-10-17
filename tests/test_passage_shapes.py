@@ -212,6 +212,15 @@ class MeasureCase(unittest.TestCase):
         self.assertEqual(SHORTFALL, r.returncode, r.stdout)
         self.assertIn("드리프트", r.stdout)
 
+    def test_broken_sample_line_is_unmeasurable_not_shortfall(self):
+        """깨진 줄·빠진 키가 트레이스백으로 죽으면 rc 1 — «미달» 로 샌다 [리뷰 117 R1]."""
+        for bad in ('{"url": "https://ok.example/0"\n', '{"url": "https://ok.example/0"}\n'):
+            with open(self.fix, "w", encoding="utf-8") as f:
+                f.write(bad)
+            r = self.run_shapes("--sample", self.fix)
+            self.assertEqual(UNMEASURABLE, r.returncode, r.stdout + r.stderr)
+            self.assertIn("측정 불능", r.stdout)
+
     def test_missing_db_or_sample_is_unmeasurable(self):
         r = self.run_shapes("--sample", self.fix, db=os.path.join(self.tmp, "없다.db"))
         self.assertEqual(UNMEASURABLE, r.returncode, r.stdout)

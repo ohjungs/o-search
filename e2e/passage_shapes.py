@@ -154,8 +154,14 @@ def measure(db_path, sample_path):
     if not os.path.exists(db_path):
         return unmeasurable("DB 가 없다: %s — 이 자는 그 DB 가 있는 기계에서만 돈다"
                             % db_path)
-    with open(sample_path, encoding="utf-8") as f:
-        rows = [json.loads(l) for l in f if l.strip()]
+    try:
+        with open(sample_path, encoding="utf-8") as f:
+            rows = [json.loads(l) for l in f if l.strip()]
+        rows = [{"url": r["url"], "sha": r["sha"]} for r in rows]
+        # 코퍼스도 여기서 읽는다 — 트레이스백의 rc 1 은 «미달» 로 샌다
+        corpus = quality_eval._load(os.path.join(quality_eval._QUALITY, "corpus.json"))
+    except (ValueError, KeyError, TypeError) as exc:
+        return unmeasurable("표본·코퍼스를 못 읽는다: %r" % (exc,))
     if not rows:
         return unmeasurable("표본이 비었다: %s" % sample_path)
     db = sqlite3.connect("file:%s?mode=ro" % db_path, uri=True)
@@ -171,7 +177,6 @@ def measure(db_path, sample_path):
             htmls.append(html)
     finally:
         db.close()
-    corpus = quality_eval._load(os.path.join(quality_eval._QUALITY, "corpus.json"))
     synth = ["".join("<p>%s</p>" % passage_eval.html.escape(s)
                      for s in passage_eval.wrap(doc["body"])) for doc in corpus]
     print(_row("실물", shape_counts(htmls)) if htmls else "실물 0문서")

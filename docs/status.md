@@ -1,10 +1,10 @@
 ---
 signal: GREEN
-phase: 리뷰
+phase: e2e
 step: 5/5
 attempt: 1
 plan: passage-real-sample  # 계획 117 — 근거 문단 축을 실물 마크업 분포 위에서 잰다
-iteration: 723
+iteration: 724
 updated: 2026-10-17
 mode: 대화형  # 2026-10-17 19시 사용자 지시 「나머지 스텝 3~5도 진행해」
 night_iterations: 3  # 이 세션(10-17 11:29 시작) 시작 시 0 리셋 · 반복 718·719·720
@@ -13,7 +13,7 @@ night_retries: 0
 night_self_amendments: 0
 ctx: 7% · 5h 13 · 7d 12 (`.context-state.json` 신선 · session_id 가 이 세션 것과 일치)
 rules: 51a6d48   # `git -C ~/.claude log -1 --format=%h -- skills/loop-harness`
-note: **[개발 phase · 반복 723 · 스텝 5/5 완료]** 기준선 등재 — `docs/baselines.md` 「실물 마크업 기준선」 표. 다음은 리뷰·e2e.
+note: **[리뷰 phase · 반복 724]** 머지 가능 — 결함 2 수정: [R117-1] 깨진 표본 줄·코퍼스 읽기 실패가 rc 1(«미달»)로 샜다 → 2. [R117-2] 측정 규칙 ①을 바꿨는데 설계서가 옛 규칙이었다 → 설계 갱신.
 ---
 ## 이 밤 — 계획 117 `passage-real-sample` (반복 718~)
 
@@ -26,8 +26,8 @@ note: **[개발 phase · 반복 723 · 스텝 5/5 완료]** 기준선 등재 —
   **수 셋**(천장 ⓐ-b 빈도 · `pre` 빈도 · 블록 수 분포)이 합성 64건의 숫자와 나란히 나오는 것.
 - **이미 한 것 (반복 718~721)**: 계획 수립 + **스텝 1 설계 · 스텝 2 추출기 · 스텝 3 픽스처 · 스텝 4 측정기 · 스텝 5 기준선 완료**.
   `e2e/shapes/sample.jsonl`(1,000건) · `tests/test_passage_shapes.py` 10건.
-  **리뷰·e2e 미착수.**
-- **다음 세션이 집을 것**: 리뷰 phase → e2e phase(계획서 시나리오 4개).
+  **리뷰 완료 · e2e 미착수.**
+- **다음 세션이 집을 것**: e2e phase(계획서 시나리오 4개) → DONE → main 병합.
 
 ## 앞 밤 (2026-10-15) — 계획 116 `prose-link-boundary` **DONE** (반복 710~715)
 
