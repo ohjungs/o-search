@@ -1,6 +1,6 @@
 """러너 `e2e/passage_shapes.py` 의 **표본 추출**(`--resample`) 계약을 고정한다.
 
-설계는 `docs/design_passage-real-sample.md` 의 `## 못박는 수` 표다 — 시드 **117** ·
+설계는 `docs/design_history_092.md` 의 `## 못박는 수` 표다 — 시드 **117** ·
 모집단 `status=200` **및** `html` 이 비지 않은 행 · 한 줄 한 문서(JSONL).
 
 **이 파일은 실물 `data/crawl.db` 를 안 본다.** 같은 스키마의 작은 DB 를 지어 먹인다 —

@@ -199,7 +199,7 @@
 - **근거 문단 축 — 실물 마크업 분포**: `PYTHONPATH=src python3 e2e/passage_shapes.py` — 동결 표본
   `e2e/shapes/sample.jsonl`(URL+지문 1,000건 · 시드 117 · 본문은 저장소에 없다)을 `data/crawl.db` 에서
   읽어 `extract_blocks()` 만 돌린다. 종료 **0** 통과 · **1** 드리프트 >5% · **2** 측정 불능(DB·표본 없음).
-  설계 `docs/design_passage-real-sample.md` · 계획 117.
+  설계 `docs/design_history_092.md` · 계획 117.
 - **실물 마크업 기준선**: **2026-10-17 / 실물 1,000문서(모집단 239,123행 · 12 도메인) / 드리프트 0/1000 · 약 10s**
   | | 문서 | ⓐ-b 문서 | ⓐ-b 블록 | `pre` 블록 | 블록/문서 최소·중앙·최대 |
   |---|---|---|---|---|---|

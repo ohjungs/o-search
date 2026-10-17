@@ -1,6 +1,6 @@
 # 설계: 실물 표본을 «본문 없이» 동결한다
 
-계획 `docs/plan_passage-real-sample.md` 스텝 1. 전부 2026-10-17 실측이고, 수는 전부
+계획 `docs/plan_history_092.md` 스텝 1. 전부 2026-10-17 실측이고, 수는 전부
 `data/crawl.db` 를 `mode=ro` 로 열어 직접 센 것이다.
 
 ## 결정

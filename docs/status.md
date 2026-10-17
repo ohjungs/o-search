@@ -1,10 +1,10 @@
 ---
-signal: GREEN
-phase: e2e
-step: 5/5
+signal: DONE
+phase: 기록
+step: 0/0
 attempt: 1
-plan: passage-real-sample  # 계획 117 — 근거 문단 축을 실물 마크업 분포 위에서 잰다
-iteration: 724
+plan: null  # 계획 117 `passage-real-sample` DONE (2026-10-17 반복 725)
+iteration: 725
 updated: 2026-10-17
 mode: 대화형  # 2026-10-17 19시 사용자 지시 「나머지 스텝 3~5도 진행해」
 night_iterations: 3  # 이 세션(10-17 11:29 시작) 시작 시 0 리셋 · 반복 718·719·720
@@ -13,21 +13,21 @@ night_retries: 0
 night_self_amendments: 0
 ctx: 7% · 5h 13 · 7d 12 (`.context-state.json` 신선 · session_id 가 이 세션 것과 일치)
 rules: 51a6d48   # `git -C ~/.claude log -1 --format=%h -- skills/loop-harness`
-note: **[리뷰 phase · 반복 724]** 머지 가능 — 결함 2 수정: [R117-1] 깨진 표본 줄·코퍼스 읽기 실패가 rc 1(«미달»)로 샜다 → 2. [R117-2] 측정 규칙 ①을 바꿨는데 설계서가 옛 규칙이었다 → 설계 갱신.
+note: **[e2e phase · 반복 725 · 계획 117 DONE]** 시나리오 4종 통과 — 실물 ⓐ-b 문서 4.6% · `pre` 0.9% · 합성 전부 0%. 후보 `[7]` ⓐ-b **열림**(남은 것은 설계) · `[4]` `pre` 닫힌 채. 결과 `docs/e2e/passage-real-sample/result.md`.
 ---
-## 이 밤 — 계획 117 `passage-real-sample` (반복 718~)
+## 이 밤 — 계획 117 `passage-real-sample` **DONE** (반복 718~725)
 
 - **근거**: 탐색 **6순위** — `digest ## 다음 계획 후보` 의 `[7]` 「근거 문단 축을 재는 자가
   실물을 안 본다 — 그리고 저장소에는 실물 275,482문서가 이미 있다」(2026-10-14 계획 115
   테스트 phase 실측). 1~5순위 0건은 위 `note` 에 수로 적었다.
 - **할 일**: 실물 마크업 분포에서 뜬 **고정 픽스처**와 그 위에서 근거 문단 축을 재는 자를
   세운다. 제품은 안 고친다 — 자를 만드는 계획이다.
-- **완료 기준**: 계획서 `docs/plan_passage-real-sample.md` 의 5스텝 전부. 핵심은 스텝 4 의
+- **완료 기준**: 계획서 `docs/plan_history_092.md` 의 5스텝 전부. 핵심은 스텝 4 의
   **수 셋**(천장 ⓐ-b 빈도 · `pre` 빈도 · 블록 수 분포)이 합성 64건의 숫자와 나란히 나오는 것.
 - **이미 한 것 (반복 718~721)**: 계획 수립 + **스텝 1 설계 · 스텝 2 추출기 · 스텝 3 픽스처 · 스텝 4 측정기 · 스텝 5 기준선 완료**.
   `e2e/shapes/sample.jsonl`(1,000건) · `tests/test_passage_shapes.py` 10건.
-  **리뷰 완료 · e2e 미착수.**
-- **다음 세션이 집을 것**: e2e phase(계획서 시나리오 4개) → DONE → main 병합.
+  **리뷰·e2e 완료 — DONE.** 계획서 `plan_history_092.md` · 설계 `design_history_092.md`.
+- **다음 세션이 집을 것**: 새 계획 탐색. 후보 `[7]` ⓐ-b 가 빈도로 열렸다(설계 필요).
 
 ## 앞 밤 (2026-10-15) — 계획 116 `prose-link-boundary` **DONE** (반복 710~715)
 
