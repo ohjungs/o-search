@@ -42,7 +42,8 @@
 - **측정**: `e2e/perf_crawl.py`(처리량) · `e2e/perf_search.py [문서수] [반복]`(검색 지연) ·
   `e2e/perf_memory.py [작은규모] [큰규모] [반복]`(서버 상주 RSS — 컨셉 경량 2) ·
   `e2e/quality_eval.py` · `e2e/passage_eval.py` ·
-  `e2e/passage_shapes.py --resample`(실물 표본 추출 — 계획 117 · 측정은 스텝 4 에서 붙는다).
+  `e2e/passage_shapes.py [--resample]`(실물 표본 1,000건에서 근거 문단 축 수 셋 — 계획 117 ·
+  `data/crawl.db` 가 있는 기계에서만 · 없으면 2).
   합격선은 아래, 기준선은 `baselines.md`
 
 ## 브랜치·소유자
