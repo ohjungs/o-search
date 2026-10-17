@@ -151,11 +151,79 @@ class FixtureCase(unittest.TestCase):
 class ShapeCountsCase(unittest.TestCase):
     """수 셋의 판정 규칙 — 설계 `## 측정하는 것`. DB 없이 HTML 문자열만 먹인다."""
 
-    def test_prose_after_adjacent_links_is_ceiling_a_b(self):
-        """천장 ⓐ-b 의 모양 그대로 — `extract.py` 주석의 예문이다."""
+    def test_ceiling_a_b_is_zero_because_the_cut_no_longer_survives(self):
+        """천장 ⓐ-b 의 모양 그대로 — `extract.py` 주석의 예문이다. **계획 118 이 닫았다.**
+
+        **이 자가 세는 것은 «살아남은» 끊김이다.** 계획 117 판은 「끊을 조건이 섰나」를
+        셌고, 계획 118 이 끊김을 블록 끝으로 미루자 **같은 수 301 이 뜻만 뒤집힌 채**
+        나왔다(피해 → 막은 피해). 조건이 아니라 **블록이 실제로 갈렸나**를 함께 보게
+        고쳤다 — 아래 음성 대조가 그 이빨이다.
+        """
         c = passage_shapes.shape_counts(
             ["<p><a>레시피</a><a>영상</a> 에서 김치찌개를 끓인다.</p>"])
-        self.assertEqual((1, 1), (c["ab"], c["ab_docs"]))
+        self.assertEqual((0, 0), (c["ab"], c["ab_docs"]))
+
+    def test_restoring_the_pre_118_cut_makes_the_counter_bite(self):
+        """음성 대조 — 계획 118 전 동작(끊는 자리에서 바로 `_flush`)을 되살리면 **1** 이다.
+
+        없으면 이 자는 「언제나 0」 이 되어 아무것도 검증하지 않는다. 되살리는 변이를
+        제품에 심는 대신 하위 클래스로 그 자리만 되돌려 잰다.
+        """
+        # **제품 내부를 베끼지 않는다**(리뷰 118 [A-4]) — 첫 판은 `_els` 튜플 모양과
+        # 호출 순서를 손으로 옮겼고, 그 셋이 제품과 갈라지면 **초록인 채 뜻만**
+        # 잃는다. 대신 표식 리스트를 「담는 순간 끊는」 것으로 바꾼다 — 제품의
+        # `self._cuts.append(...)` 한 줄이 그대로 계획 118 전 동작이 된다.
+        class _CutNow(list):
+            def __init__(self, owner):
+                super().__init__()
+                self.owner = owner
+
+            def append(self, _index):
+                self.owner._flush()
+
+        class PreOneEighteen(passage_shapes._BlockParser):
+            def __init__(self):
+                super().__init__()
+                self._cuts = _CutNow(self)
+
+        class Probe(passage_shapes._Probe, PreOneEighteen):
+            pass
+
+        p = Probe()
+        p.feed("<p><a>레시피</a><a>영상</a> 에서 김치찌개를 끓인다.</p>")
+        p.close()
+        self.assertEqual(1, p.ab)
+        self.assertEqual(["레시피", "영상 에서 김치찌개를 끓인다."],
+                         [t for _, t in p.blocks])     # 옛 판의 피해 그대로
+        # **끊긴 뒤에 태그가 열려도 센다** — 깃발을 누적하지 않는 변이(`or` → `=`)는
+        # 위 한 줄로는 살아남는다(테스트 phase 변이 M7 실측: 901건 전부 초록). 실물
+        # 산문에는 링크 뒤 인라인이 흔해 그 판은 **과소 보고**한다(1 → 0)
+        q = Probe()
+        q.feed("<p><a>레시피</a><a>영상</a> 에서 <b>김치</b>찌개를 끓인다.</p>")
+        q.close()
+        self.assertEqual(1, q.ab)
+
+    def test_a_regression_inside_the_new_flush_is_counted(self):
+        """음성 대조 **둘째** — 끊는 자리가 `_flush` 로 이사했으므로 거기도 봐야 한다.
+
+        **리뷰 118 [A-1] 이 실증한 구멍이다**: 옛 자리(`<a>` 에서 블록이 늘었나)만
+        보던 판은 새 `_flush` 안에서 산문 가드가 사라져도 **0 을 보고했다** —
+        피해는 실재하는데 측정기가 눈을 감는다. 가드만 뺀 제품을 먹여 **1** 을 받는다.
+        """
+        class Regressed(passage_shapes._BlockParser):
+            def _flush(self):
+                self._prose = False            # 산문 가드만 뺀다 — ⓐ-b 피해 재발
+                super()._flush()
+
+        class Probe(passage_shapes._Probe, Regressed):
+            pass
+
+        p = Probe()
+        p.feed("<p><a>레시피</a><a>영상</a> 에서 김치찌개를 끓인다.</p>")
+        p.close()
+        self.assertEqual(["레시피", "영상 에서 김치찌개를 끓인다."],
+                         [t for _, t in p.blocks])    # 피해가 실재한다
+        self.assertEqual(1, p.ab)                     # 그리고 측정기가 그것을 본다
 
     def test_nav_and_separate_blocks_are_not_a_b(self):
         """인접 링크로 끊겨도 뒤에 산문이 없으면 내비다. 별개 `<div>` 둘이 소문자로
@@ -202,7 +270,9 @@ class MeasureCase(unittest.TestCase):
         self.assertEqual(PASS, r.returncode, r.stdout + r.stderr)
         self.assertIn("실물", r.stdout)
         self.assertIn("합성", r.stdout)
-        self.assertIn("ⓐ-b 문서 100.0% (20)", r.stdout)   # 20건 모두 ⓐ-b 하나씩
+        # 계획 118 이 ⓐ-b 를 닫았으므로 **살아남은 끊김은 0** 이다 — 20건 전부
+        # 그 모양인데도 0.0% 다. 되돌리면 100.0% 로 돌아온다(위 음성 대조와 같은 축)
+        self.assertIn("ⓐ-b 문서   0.0% (0)", r.stdout)
 
     def test_drift_over_five_percent_is_shortfall(self):
         s = Store(self.db)

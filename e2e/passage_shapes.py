@@ -17,6 +17,9 @@
 블록이 소문자로 시작」을 셌는데, 실물 1,652건이 거의 MediaWiki 메뉴(「Tools」→「move to
 sidebar hide」, 원래 다른 `<div>` 둘)였다. 그래서 `_Probe` 가 파서 안에서 **인접 링크
 경계가 끊은 자리**를 직접 보고, 그 뒤 블록에 **링크 밖 글자(산문)** 가 쌓였을 때만 센다.
+**2026-10-18 계획 118 이 ⓐ-b 를 닫으면서 이 자를 한 번 고쳤다** — 「끊을 조건이 섰나」만
+보던 판은 끊김이 블록 끝으로 미뤄진 뒤에도 **같은 수를 뜻만 뒤집어** 냈다(피해 → 막은
+피해). 지금은 **블록이 실제로 갈렸는지**를 함께 본다(`_Probe` docstring).
 ponytail: 탐침은 `_BlockParser` 의 사설 이름(`_after_link`·`_prose`·`text_parts`)에 기댄다
 — 파서가 바뀌면 `tests/test_passage_shapes.py` 의 예문 단언이 먼저 빨개진다.
 
@@ -99,7 +102,20 @@ def _sha(html):
 
 
 class _Probe(_BlockParser):
-    """블록은 그대로 내고, 인접 링크 경계가 끊은 뒤 산문이 이어진 블록 수(`ab`)만 센다."""
+    """블록은 그대로 내고, 인접 링크 경계가 **실제로 끊은 뒤** 산문이 이어진 블록 수(`ab`)만 센다.
+
+    **「조건이 섰나」가 아니라 「블록이 갈렸나」를 센다 — 계획 118 이 그 차이를 실물에서
+    한 번 보여 줬다.** 계획 117 판은 끊을 조건만 봤고, 계획 118 이 끊김을 블록 끝으로
+    미루자 **같은 수 301 이 뜻만 뒤집힌 채**(피해 → 막은 피해) 그대로 나왔다 — 이 파일
+    docstring 이 「파서가 바뀌면 단언이 먼저 빨개진다」고 적어 뒀는데 **안 빨개졌다.**
+    그래서 `super()` 호출이 블록을 **늘렸는지**를 함께 본다. `<a>` 는 인라인이라 그
+    호출에서 블록이 느는 길은 끊김뿐이다. **그리고 그것만 보면 다시 죽는다** —
+    계획 118 이 끊는 자리를 `_flush` 로 옮겼으므로 `<a>` 에서는 이제 아무 일도 안
+    일어난다(리뷰 118 [A-1]). 그래서 `_flush` 쪽 갈래를 함께 둔다. 음성 대조 **둘**이
+    그 이빨이다 — `tests/test_passage_shapes.py` 의
+    `test_restoring_the_pre_118_cut_makes_the_counter_bite`(옛 자리)와
+    `test_a_regression_inside_the_new_flush_is_counted`(새 자리).
+    """
 
     def __init__(self):
         self.ab, self._cut = 0, False
@@ -107,14 +123,29 @@ class _Probe(_BlockParser):
 
     def handle_starttag(self, tag, attrs):
         cut = tag == "a" and self._after_link and not self._prose and bool(self.text_parts)
-        super().handle_starttag(tag, attrs)     # 여기서 앞 블록이 `_flush` 된다
-        self._cut = self._cut or cut
+        before = len(self.blocks)
+        super().handle_starttag(tag, attrs)     # 계획 118 전 제품은 여기서 끊는다
+        self._cut = self._cut or (cut and len(self.blocks) > before)
 
     def _flush(self):
-        if self._cut and self._prose:
+        # **두 자리를 다 본다 — 끊는 로직이 이사했기 때문이다.** 계획 118 전에는
+        # 끊김이 `<a>` 시작 태그에서 일어났고(위), 그 뒤로는 `_flush` 안에서 일어난다.
+        # 위만 보면 **새 `_flush` 안의 회귀를 영영 못 본다** — 산문 가드만 뺀 제품에
+        # 먹여 보면 블록은 갈리는데 `ab` 가 0 이다(리뷰 118 [A-1] 실증).
+        # 아래 갈래가 그 자리다: **표식이 섰고 산문이 있는데도 이 flush 가 블록을
+        # 둘 이상 냈다** = 바로 그 피해. `getattr` 인 것은 이 자가 **두 트리에서**
+        # 돌기 때문이다 — 계획 118 전 트리에는 `_cuts` 가 없다(A/B 가 그래서 선다).
+        # `bool()` 이 꼭 필요하다 — 리스트를 그대로 들면 `super()._flush()` 가
+        # **그 같은 객체를 비워** 뒤에서 거짓이 된다(이 줄을 처음 그렇게 썼고
+        # 회귀 제품이 0 을 내 그 자리에서 드러났다)
+        marked, prose = bool(getattr(self, "_cuts", None)), self._prose
+        before = len(self.blocks)
+        if self._cut and prose:
             self.ab += 1
         self._cut = False
         super()._flush()
+        if marked and prose and len(self.blocks) - before > 1:
+            self.ab += 1
 
 
 def _probe(html):
