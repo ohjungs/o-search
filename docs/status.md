@@ -1,10 +1,10 @@
 ---
 signal: GREEN
 phase: 개발
-step: 3/5
+step: 4/5
 attempt: 1
 plan: passage-real-sample  # 계획 117 — 근거 문단 축을 실물 마크업 분포 위에서 잰다
-iteration: 721
+iteration: 722
 updated: 2026-10-17
 mode: 대화형  # 2026-10-17 19시 사용자 지시 「나머지 스텝 3~5도 진행해」
 night_iterations: 3  # 이 세션(10-17 11:29 시작) 시작 시 0 리셋 · 반복 718·719·720
@@ -13,7 +13,7 @@ night_retries: 0
 night_self_amendments: 0
 ctx: 7% · 5h 13 · 7d 12 (`.context-state.json` 신선 · session_id 가 이 세션 것과 일치)
 rules: 51a6d48   # `git -C ~/.claude log -1 --format=%h -- skills/loop-harness`
-note: **[개발 phase · 반복 721 · 스텝 3/5 완료]** 표본 `e2e/shapes/sample.jsonl` 1,000건 · 104,423B(상한 150KB) · 재추출 `cmp` 동일. **설계 천장 4 를 실측으로 정정** — 꼬리 4,162 도메인은 `html` 이 NULL 이라 모집단(239,123행 · 108 도메인) 밖이고 표본은 **12 도메인**에서 나왔다.
+note: **[개발 phase · 반복 722 · 스텝 4/5 완료]** 측정기 — 실물 1,000문서 **ⓐ-b 문서 4.6%(46) · 블록 0.1%(301)** · `pre` 0.9% · 블록/문서 중앙 169 / 합성 64 전부 0%. 소문자 판정은 오탐(MediaWiki 메뉴)이라 버리고 파서 탐침으로 셌다.
 ---
 ## 이 밤 — 계획 117 `passage-real-sample` (반복 718~)
 
@@ -24,11 +24,10 @@ note: **[개발 phase · 반복 721 · 스텝 3/5 완료]** 표본 `e2e/shapes/s
   세운다. 제품은 안 고친다 — 자를 만드는 계획이다.
 - **완료 기준**: 계획서 `docs/plan_passage-real-sample.md` 의 5스텝 전부. 핵심은 스텝 4 의
   **수 셋**(천장 ⓐ-b 빈도 · `pre` 빈도 · 블록 수 분포)이 합성 64건의 숫자와 나란히 나오는 것.
-- **이미 한 것 (반복 718~721)**: 계획 수립 + **스텝 1 설계 · 스텝 2 추출기 · 스텝 3 픽스처 완료**.
+- **이미 한 것 (반복 718~721)**: 계획 수립 + **스텝 1 설계 · 스텝 2 추출기 · 스텝 3 픽스처 · 스텝 4 측정기 완료**.
   `e2e/shapes/sample.jsonl`(1,000건) · `tests/test_passage_shapes.py` 10건.
-  **측정·기준선(스텝 4~5) 미착수.**
-- **다음 세션이 집을 것**: 스텝 4 — `e2e/passage_shapes.py` 기본 실행(측정): 표본을 DB 에서
-  읽어 해시 대조(드리프트 5% 넘으면 1) 후 수 셋을 합성 64건과 나란히 인쇄.
+  **기준선(스텝 5)·e2e 미착수.**
+- **다음 세션이 집을 것**: 스텝 5 — 수 셋을 `docs/baselines.md` 에 날짜와 함께 등재, 그 뒤 리뷰·e2e.
 
 ## 앞 밤 (2026-10-15) — 계획 116 `prose-link-boundary` **DONE** (반복 710~715)
 

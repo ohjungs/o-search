@@ -28,6 +28,9 @@ RUNNER = os.path.join(_ROOT, "e2e", "passage_shapes.py")
 sys.path.insert(0, os.path.join(_ROOT, "src"))
 from websearch.store import Store  # noqa: E402
 
+sys.path.insert(0, os.path.join(_ROOT, "e2e"))
+import passage_shapes  # noqa: E402
+
 PASS, SHORTFALL, UNMEASURABLE = 0, 1, 2
 
 
@@ -143,6 +146,79 @@ class FixtureCase(unittest.TestCase):
             self.assertEqual({"url", "sha"}, set(r))
             self.assertRegex(r["sha"], r"^[0-9a-f]{16}$")
             self.assertRegex(r["url"], r"^https?://[^/@]+/")  # userinfo 없음
+
+
+class ShapeCountsCase(unittest.TestCase):
+    """수 셋의 판정 규칙 — 설계 `## 측정하는 것`. DB 없이 HTML 문자열만 먹인다."""
+
+    def test_prose_after_adjacent_links_is_ceiling_a_b(self):
+        """천장 ⓐ-b 의 모양 그대로 — `extract.py` 주석의 예문이다."""
+        c = passage_shapes.shape_counts(
+            ["<p><a>레시피</a><a>영상</a> 에서 김치찌개를 끓인다.</p>"])
+        self.assertEqual((1, 1), (c["ab"], c["ab_docs"]))
+
+    def test_nav_and_separate_blocks_are_not_a_b(self):
+        """인접 링크로 끊겨도 뒤에 산문이 없으면 내비다. 별개 `<div>` 둘이 소문자로
+        이어지는 것(MediaWiki 「Tools」→「move to sidebar hide」)은 경계가 아니라
+        원래 다른 블록이다 — 소문자 판정이 실물에서 이것을 1,652건 중 대부분으로 셌다."""
+        c = passage_shapes.shape_counts([
+            "<nav><a>홈</a><a>소개</a><a>문의</a></nav>"
+            "<div>Tools</div><div>move to sidebar hide</div>"
+            "<p>산문 <a>링크</a> 다음 글자.</p>"])
+        self.assertEqual(0, c["ab"])
+
+    def test_probe_does_not_change_the_blocks(self):
+        """탐침은 세기만 한다 — 블록이 하나라도 다르면 제품과 다른 것을 잰 것이다."""
+        h = "<p><a>가</a><a>나</a> 다</p><ul><li>x<li>y</ul><pre>z</pre>"
+        self.assertEqual(passage_shapes.extract_blocks(h), passage_shapes._probe(h).blocks)
+
+    def test_pre_share_and_blocks_per_doc(self):
+        c = passage_shapes.shape_counts(
+            ["<p>Run it.</p><pre>x = 1</pre>", "<p>One.</p><p>Two.</p><p>Three.</p>"])
+        self.assertEqual((1, 5), (c["pre"], c["blocks"]))
+        self.assertEqual([2, 3], c["per_doc"])
+
+
+class MeasureCase(unittest.TestCase):
+    """기본 실행(측정)의 종료 코드 — 0 통과 · 1 드리프트 · 2 측정 불능."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.db = os.path.join(self.tmp, "crawl.db")
+        s = Store(self.db)
+        for i in range(20):
+            s.upsert("https://ok.example/%d" % i, "<p><a>See</a><a>the</a> end %d.</p>" % i, 200)
+        self.fix = os.path.join(self.tmp, "sample.jsonl")
+        r = self.run_shapes("--resample", "--out", self.fix, "--count", "20")
+        self.assertEqual(PASS, r.returncode, r.stdout)
+
+    def run_shapes(self, *args, db=None):
+        return subprocess.run(
+            [sys.executable, RUNNER, "--db", db or self.db] + list(args),
+            capture_output=True, text=True)
+
+    def test_measure_prints_real_and_synthetic_side_by_side(self):
+        r = self.run_shapes("--sample", self.fix)
+        self.assertEqual(PASS, r.returncode, r.stdout + r.stderr)
+        self.assertIn("실물", r.stdout)
+        self.assertIn("합성", r.stdout)
+        self.assertIn("ⓐ-b 문서 100.0% (20)", r.stdout)   # 20건 모두 ⓐ-b 하나씩
+
+    def test_drift_over_five_percent_is_shortfall(self):
+        s = Store(self.db)
+        for i in range(2):                    # 20건 중 2건 = 10% > 5%
+            s.upsert("https://ok.example/%d" % i, "<p>recrawled</p>", 200)
+        r = self.run_shapes("--sample", self.fix)
+        self.assertEqual(SHORTFALL, r.returncode, r.stdout)
+        self.assertIn("드리프트", r.stdout)
+
+    def test_missing_db_or_sample_is_unmeasurable(self):
+        r = self.run_shapes("--sample", self.fix, db=os.path.join(self.tmp, "없다.db"))
+        self.assertEqual(UNMEASURABLE, r.returncode, r.stdout)
+        self.assertIn("측정 불능", r.stdout)
+        r = self.run_shapes("--sample", os.path.join(self.tmp, "없다.jsonl"))
+        self.assertEqual(UNMEASURABLE, r.returncode, r.stdout)
+        self.assertIn("측정 불능", r.stdout)
 
 
 if __name__ == "__main__":
