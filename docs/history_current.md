@@ -124,3 +124,8 @@ rc=0** · 제품 `src/` **0줄**.
 
 ### 반복 725 · 2026-10-17 20:2x · e2e · passage-real-sample DONE · 대화형
 시나리오 4종 통과(실물 수 셋 · DB 없으면 rc 2 · digest 후보 셋 판정 · e2e 18종 rc 0 + passage/quality 불변). 계획·설계 → `*_history_092.md`. 결과 `docs/e2e/passage-real-sample/result.md`.
+
+### 반복 726 · 2026-10-18 · 계획 · trailing-prose-join 수립 · 무인(night)
+탐색 1~5순위 **0건**(전수 **899 OK rc=0** 24.1s · 린터·타입체커 없음 · 코드 `TODO` 픽스처 1건 · `candidates.md` 부재 · 보류 셋은 밤이 못 연다) → **6순위** 후보 `[7]` 천장 ⓐ-b.
+**계획 117 이 그 여는 조건이었다** — 빈도 4.6%(46/1,000문서)가 수로 서서 「미측이라 못 연다」가 사라졌다. 계획 118 `docs/plan_trailing-prose-join.md` 3스텝 · 브랜치 `loop/trailing-prose-join`.
+**설계 필요** — 트리거 둘: 대안이 갈린다(사후 분할의 모양 둘 이상 · `design_history_091.md` 가 버린 대안 C) · `text_parts` 의 해석을 바꾸는 것은 되돌리기 어렵다. 코드 **0줄**.
