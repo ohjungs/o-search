@@ -17,6 +17,9 @@
 블록이 소문자로 시작」을 셌는데, 실물 1,652건이 거의 MediaWiki 메뉴(「Tools」→「move to
 sidebar hide」, 원래 다른 `<div>` 둘)였다. 그래서 `_Probe` 가 파서 안에서 **인접 링크
 경계가 끊은 자리**를 직접 보고, 그 뒤 블록에 **링크 밖 글자(산문)** 가 쌓였을 때만 센다.
+**2026-10-18 계획 118 이 ⓐ-b 를 닫으면서 이 자를 한 번 고쳤다** — 「끊을 조건이 섰나」만
+보던 판은 끊김이 블록 끝으로 미뤄진 뒤에도 **같은 수를 뜻만 뒤집어** 냈다(피해 → 막은
+피해). 지금은 **블록이 실제로 갈렸는지**를 함께 본다(`_Probe` docstring).
 ponytail: 탐침은 `_BlockParser` 의 사설 이름(`_after_link`·`_prose`·`text_parts`)에 기댄다
 — 파서가 바뀌면 `tests/test_passage_shapes.py` 의 예문 단언이 먼저 빨개진다.
 
@@ -99,7 +102,16 @@ def _sha(html):
 
 
 class _Probe(_BlockParser):
-    """블록은 그대로 내고, 인접 링크 경계가 끊은 뒤 산문이 이어진 블록 수(`ab`)만 센다."""
+    """블록은 그대로 내고, 인접 링크 경계가 **실제로 끊은 뒤** 산문이 이어진 블록 수(`ab`)만 센다.
+
+    **「조건이 섰나」가 아니라 「블록이 갈렸나」를 센다 — 계획 118 이 그 차이를 실물에서
+    한 번 보여 줬다.** 계획 117 판은 끊을 조건만 봤고, 계획 118 이 끊김을 블록 끝으로
+    미루자 **같은 수 301 이 뜻만 뒤집힌 채**(피해 → 막은 피해) 그대로 나왔다 — 이 파일
+    docstring 이 「파서가 바뀌면 단언이 먼저 빨개진다」고 적어 뒀는데 **안 빨개졌다.**
+    그래서 `super()` 호출이 블록을 **늘렸는지**를 함께 본다. `<a>` 는 인라인이라 그
+    호출에서 블록이 느는 길은 끊김뿐이다. 음성 대조는
+    `tests/test_passage_shapes.py` 의 `test_restoring_the_pre_118_cut_makes_the_counter_bite`.
+    """
 
     def __init__(self):
         self.ab, self._cut = 0, False
@@ -107,8 +119,9 @@ class _Probe(_BlockParser):
 
     def handle_starttag(self, tag, attrs):
         cut = tag == "a" and self._after_link and not self._prose and bool(self.text_parts)
-        super().handle_starttag(tag, attrs)     # 여기서 앞 블록이 `_flush` 된다
-        self._cut = self._cut or cut
+        before = len(self.blocks)
+        super().handle_starttag(tag, attrs)     # 제품이 여기서 끊으면 블록이 늘어난다
+        self._cut = self._cut or (cut and len(self.blocks) > before)
 
     def _flush(self):
         if self._cut and self._prose:

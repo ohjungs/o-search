@@ -1,19 +1,19 @@
 ---
 signal: GREEN
 phase: 개발
-step: 2/3
+step: 3/3
 attempt: 1
 plan: trailing-prose-join  # 계획 118 — 산문이 링크 뒤에 와도 근거 문단을 안 끊는다 (천장 ⓐ-b)
-iteration: 728
+iteration: 729
 updated: 2026-10-18
 mode: 무인(night)  # 2026-10-18 `/loop-harness night` — 탐색 모드
-night_iterations: 3  # 이 세션 시작 시 셋 다 0 리셋
+night_iterations: 4  # 이 세션 시작 시 셋 다 0 리셋
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
 ctx: **statusLine 꺼진 것과 동일 취급** — `.context-state.json` 의 `session_id` 가 이 세션 것이 아니다(게이트 ⑦ 의 한 줄 판정: 그 이름의 `.jsonl` 이 없다). 마지막으로 읽힌 값은 5h 13 · 7d 12 (2026-10-17 20:43 · 7시간 묵음). **반복 상한에만 의존한다.**
 rules: 51a6d48   # `git -C ~/.claude log -1 --format=%h -- skills/loop-harness`
-note: **[개발 phase · 반복 728 · 스텝 2/3]** TDD — 실패를 눈으로 보고(`['레시피', '영상 에서…']`) 고쳤다. 끊는 자리는 `self._cuts` 표식만 남기고 **판정은 `_flush` 한 곳**이다. 전수 **900 OK rc=0** · 제품 논리 약 13줄(야간 한도 40 안) · 장부 `README.md:104` 899→**900**. 다음은 스텝 3 실물 측정·기준선.
+note: **[개발 phase · 반복 729 · 스텝 3/3 — 개발 완료]** 실물 ⓐ-b **0.0%(0)** · 블록 307,951→**307,825**. **측정기가 뜻만 뒤집은 채 같은 수를 냈고 그것을 고쳤다** — 옛 탐침은 끊김 «조건» 을 세어 계획 117 의 301/46 이 실제 피해보다 컸다. 세 판으로 갈랐다: main+옛탐침 301/46 · main+**새탐침 97/43** · 118+새탐침 **0/0**. `passage_eval` 100%(398/398) p95 1.70ms · `quality_eval` 통과. 전수 **901 OK rc=0**. 다음은 테스트 phase.
 ---
 ## 이 밤 — 계획 118 `trailing-prose-join` (반복 726~)
 
@@ -33,9 +33,16 @@ note: **[개발 phase · 반복 728 · 스텝 2/3]** TDD — 실패를 눈으로
   `handle_starttag` 의 `_flush()` 가 `self._cuts.append(len(self.text_parts))` 로,
   판정은 `_flush` 한 곳. 천장 주석도 사실로 고쳤다(ⓐ 닫힘 · ⓑ 만 남는다).
   전수 **900 OK rc=0** · 장부 `README.md:104` **900**.
-- **다음 세션이 집을 것**: 스텝 3 — `PYTHONPATH=src python3 e2e/passage_shapes.py` 를
-  이 트리와 `main` 에서 돌려 ⓐ-b 수를 나란히 적고, `passage_eval`·`quality_eval` 이
-  안 나빠졌는지 보고 `docs/baselines.md` 에 등재한다.
+- **이미 한 것 (반복 729 · 스텝 3/3 — 개발 완료)**: 실물 측정 **ⓐ-b 0.0%(0)** · 블록
+  307,951→**307,825**(−126) · 드리프트 0/1000. `passage_eval` **100%(398/398)** p95 1.70ms ·
+  `quality_eval` 합격. `docs/baselines.md` 에 **세 판 표**로 등재했다.
+  **측정기를 한 번 고쳤다** — 옛 `_Probe` 는 끊김 «조건» 만 봐서 계획 118 뒤에도 **같은
+  수 301 을 뜻만 뒤집어** 냈다(피해 → 막은 피해). 「블록이 실제로 갈렸나」를 함께 보게
+  고치고 음성 대조를 세웠다. **계획 117 의 301/46 은 실제 피해가 아니라 조건 수였다 —
+  정정치는 97블록/43문서**(설계 탐침의 「합쳐진 블록 97 · 바뀐 문서 43」과 일치).
+- **다음 세션이 집을 것**: **테스트 phase** — `rules/test.md`. 변이 검사가 남았다
+  (`PYTHONDONTWRITEBYTECODE=1 PYTHONPYCACHEPREFIX=$(mktemp -d)` 를 함께 준다).
+  `git worktree` `/tmp/w118-main` 이 열려 있다 — 다 쓰면 `git worktree remove` 한다.
 
 ## 앞 밤 (2026-10-17) — 계획 117 `passage-real-sample` **DONE** (반복 718~725)
 
