@@ -1,19 +1,19 @@
 ---
 signal: GREEN
-phase: 계획
-step: 0/3
+phase: 개발
+step: 1/3
 attempt: 1
 plan: trailing-prose-join  # 계획 118 — 산문이 링크 뒤에 와도 근거 문단을 안 끊는다 (천장 ⓐ-b)
-iteration: 726
+iteration: 727
 updated: 2026-10-18
 mode: 무인(night)  # 2026-10-18 `/loop-harness night` — 탐색 모드
-night_iterations: 1  # 이 세션 시작 시 셋 다 0 리셋
+night_iterations: 2  # 이 세션 시작 시 셋 다 0 리셋
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
 ctx: **statusLine 꺼진 것과 동일 취급** — `.context-state.json` 의 `session_id` 가 이 세션 것이 아니다(게이트 ⑦ 의 한 줄 판정: 그 이름의 `.jsonl` 이 없다). 마지막으로 읽힌 값은 5h 13 · 7d 12 (2026-10-17 20:43 · 7시간 묵음). **반복 상한에만 의존한다.**
 rules: 51a6d48   # `git -C ~/.claude log -1 --format=%h -- skills/loop-harness`
-note: **[계획 phase · 반복 726 · 계획 118 수립]** 탐색 1~5순위 **0건**(전수 899 OK rc=0 · 린터 없음 · 코드 TODO 픽스처 1건 · `candidates.md` 부재 · 보류 셋은 밤이 못 연다) → **6순위** 후보 `[7]` ⓐ-b. **설계 필요**(대안 갈림 + `text_parts` 해석 변경) — 다음 반복은 설계 phase.
+note: **[설계 phase · 반복 727 · 스텝 1/3 완료]** 결정 — 끊김을 **블록 끝으로 미룬다**(오프셋 표식 + `_flush` 한 곳에서 판정). **탐침이 대안 B 를 죽였다**: 사후 문자열 재결합은 합쳐질 블록 **97 중 96** 에서 구분 공백 한 칸을 잃는다. 가정 셋 실측 — 이름표 불일치 **0** · 부분집합 위반 **0** · 버린 끊김 **422/3,481** · 블록 307,951→**307,825** · 바뀐 문서 **43/1,000**. 설계 `docs/design_trailing-prose-join.md`. 제품 `src/` **0줄**.
 ---
 ## 이 밤 — 계획 118 `trailing-prose-join` (반복 726~)
 
@@ -24,11 +24,13 @@ note: **[계획 phase · 반복 726 · 계획 118 수립]** 탐색 1~5순위 **0
   해서 링크 **뒤** 산문이 안 끊기게 한다. 끊는 자리는 오늘의 **부분집합**이다.
 - **완료 기준**: 계획서 `docs/plan_trailing-prose-join.md` 의 3스텝. 핵심은 스텝 3 의
   `e2e/passage_shapes.py` ⓐ-b 비율 **4.6% → 0%** 와 `passage_eval` 불변 이상.
-- **이미 한 것 (반복 726)**: 계획 수립뿐. 코드 0줄. 브랜치 `loop/trailing-prose-join`
-  (`main` `0596476` 에서 갈라짐).
-- **다음 세션이 집을 것**: 스텝 1 설계 — `docs/design_trailing-prose-join`. 대안 둘 이상
-  (경계 오프셋 목록 + `_flush` 재결합 · 링크 구간을 따로 모아 끝에서 조립)을 세우고
-  `concept.md` 우선순위와 「새로 끊는 자리 0」으로 고른다.
+- **이미 한 것 (반복 726~727)**: 계획 수립 + **스텝 1 설계 완료**. 코드 **0줄**. 브랜치
+  `loop/trailing-prose-join`(`main` `0596476` 에서 갈라짐). 설계
+  `docs/design_trailing-prose-join.md` — 대안 A(끊김을 미룬다) 선택 · B 는 **실측이 죽였다**
+  (사후 재결합이 97 중 96 에서 구분 공백을 잃는다) · C(2패스)는 `concept.md` 성능 5 가 막는다.
+- **다음 세션이 집을 것**: 스텝 2 개발 — **TDD**. `tests/` 에 실패 단언 **먼저** 넣어
+  빨간 것을 보고(① 예문이 한 블록 ② 내비는 여전히 끊긴다 ③ 계획 116 의 앞쪽 모양 불변)
+  `src/websearch/extract.py` 의 `_BlockParser` 만 고친다. 계약은 설계서 `## 계약` 9항.
 
 ## 앞 밤 (2026-10-17) — 계획 117 `passage-real-sample` **DONE** (반복 718~725)
 
