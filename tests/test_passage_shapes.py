@@ -117,5 +117,33 @@ class ResampleCase(unittest.TestCase):
         self.assertIn("측정 불능", r.stdout)   # 인터프리터가 낸 2 와 구별한다
 
 
+FIXTURE = os.path.join(_ROOT, "e2e", "shapes", "sample.jsonl")
+
+
+class FixtureCase(unittest.TestCase):
+    """저장소에 동결된 표본 — 설계 `## 못박는 수` 의 상한·건수·형식을 문다.
+
+    DB 없이 돈다. 픽스처는 URL 과 지문뿐이라 이 셋은 어느 기계에서나 잴 수 있다.
+    """
+
+    def test_fixture_is_within_the_byte_ceiling(self):
+        self.assertLessEqual(os.path.getsize(FIXTURE), 150 * 1024)
+
+    def test_fixture_has_exactly_the_sample_count(self):
+        with open(FIXTURE, encoding="utf-8") as f:
+            self.assertEqual(1000, sum(1 for l in f if l.strip()))
+
+    def test_fixture_lines_are_url_and_sha_only(self):
+        """본문이 한 바이트라도 실리면 설계의 결정(A)이 깨진다 — 키는 둘뿐이다."""
+        with open(FIXTURE, encoding="utf-8") as f:
+            rows = [json.loads(l) for l in f if l.strip()]
+        urls = [r["url"] for r in rows]
+        self.assertEqual(sorted(set(urls)), urls)          # 정렬 · 중복 없음
+        for r in rows:
+            self.assertEqual({"url", "sha"}, set(r))
+            self.assertRegex(r["sha"], r"^[0-9a-f]{16}$")
+            self.assertRegex(r["url"], r"^https?://[^/@]+/")  # userinfo 없음
+
+
 if __name__ == "__main__":
     unittest.main()

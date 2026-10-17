@@ -1,19 +1,19 @@
 ---
 signal: GREEN
 phase: 개발
-step: 2/5
+step: 3/5
 attempt: 1
 plan: passage-real-sample  # 계획 117 — 근거 문단 축을 실물 마크업 분포 위에서 잰다
-iteration: 720
+iteration: 721
 updated: 2026-10-17
-mode: night
+mode: 대화형  # 2026-10-17 19시 사용자 지시 「나머지 스텝 3~5도 진행해」
 night_iterations: 3  # 이 세션(10-17 11:29 시작) 시작 시 0 리셋 · 반복 718·719·720
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
-ctx: **모른다 — 게이트 ⑦ 쉰 번째. 이번엔 «남의 것» 쪽이다.** `.context-state.json` 은 **0분 전 신선**인데(`updated_unix` 1792204137 · 지금 1792204177) `session_id` 가 `122b87c2` 이고 `~/.claude/projects/-Users-t2025-m0191-work-websearch/122b87c2-*.jsonl` 이 **없다** — 563 이 세운 한 줄 판정으로 **남의 것**이라 적힌 `context_used 86` 은 쓰지 않았다. statusLine 이 꺼진 것과 동일 취급해 **반복 상한에만 의존**한다. **5h 13 · 7d 12 는 계정 범위라 참이고 둘 다 85 밑**이다. 처방 자리는 `SKILL.md` 3절이라 밤이 안 연다.
+ctx: 7% · 5h 13 · 7d 12 (`.context-state.json` 신선 · session_id 가 이 세션 것과 일치)
 rules: 51a6d48   # `git -C ~/.claude log -1 --format=%h -- skills/loop-harness`
-note: **[개발 phase · 반복 720 · 스텝 2/5 완료]** `e2e/passage_shapes.py --resample` 과 `tests/test_passage_shapes.py` 7건. **TDD 2번이 값을 했다** — 7건을 먼저 돌리니 **셋이 초록**이었고, 이유가 「러너 파일이 없어 인터프리터가 rc=2 를 냈는데 그게 내 `UNMEASURABLE` 과 같은 수」라서였다. 즉 **아무것도 안 돌고 통과하는 테스트 셋**을 구현 전에 잡았다 — 판정 문구 「측정 불능」을 함께 요구하고, 「DB 에 안 썼다」 쪽에는 rc=0 을 요구해 조였다. **자 둘이 착수 후에 파일을 더 물렸다**: `E2eRosterTest`(`docs/project.md` 측정 명부)와 `ReadmeCommandsTest`(`README.md` 단위 881→888 · e2e 23→24종). **계획서가 `README.md` 를 빠뜨린 것은 다섯 번째다**(`[R76-2]`·`[R90-7]`·`[R98-4]`·`[R114-4]`) — 계획서 「건드릴 파일」에 되먹였다. 전수 **888 OK rc=0** · 제품 `src/` **0줄**.
+note: **[개발 phase · 반복 721 · 스텝 3/5 완료]** 표본 `e2e/shapes/sample.jsonl` 1,000건 · 104,423B(상한 150KB) · 재추출 `cmp` 동일. **설계 천장 4 를 실측으로 정정** — 꼬리 4,162 도메인은 `html` 이 NULL 이라 모집단(239,123행 · 108 도메인) 밖이고 표본은 **12 도메인**에서 나왔다.
 ---
 ## 이 밤 — 계획 117 `passage-real-sample` (반복 718~)
 
@@ -24,14 +24,11 @@ note: **[개발 phase · 반복 720 · 스텝 2/5 완료]** `e2e/passage_shapes.
   세운다. 제품은 안 고친다 — 자를 만드는 계획이다.
 - **완료 기준**: 계획서 `docs/plan_passage-real-sample.md` 의 5스텝 전부. 핵심은 스텝 4 의
   **수 셋**(천장 ⓐ-b 빈도 · `pre` 빈도 · 블록 수 분포)이 합성 64건의 숫자와 나란히 나오는 것.
-- **이미 한 것 (반복 718~720)**: 계획 수립 + **스텝 1 설계 · 스텝 2 추출기 완료**. 브랜치
-  `loop/passage-real-sample` · 계획서 1개 · 설계서 1개 · 코드 **0줄**.
-  `e2e/passage_shapes.py`(추출기) · `tests/test_passage_shapes.py` 7건.
-  **픽스처·측정·기준선(스텝 3~5) 미착수** — 실물 DB 로 표본을 아직 안 떴다.
-- **다음 세션이 집을 것**: 스텝 3 — 실물 `data/crawl.db` 에 `--resample` 을 돌려
-  `e2e/shapes/sample.jsonl` 을 뜨고, 그 픽스처를 무는 단언 셋(150KB 상한 · 건수
-  1,000 · 줄 형식)을 `tests/test_passage_shapes.py` 에 더한다. 추출기는 이미 선다.
-
+- **이미 한 것 (반복 718~721)**: 계획 수립 + **스텝 1 설계 · 스텝 2 추출기 · 스텝 3 픽스처 완료**.
+  `e2e/shapes/sample.jsonl`(1,000건) · `tests/test_passage_shapes.py` 10건.
+  **측정·기준선(스텝 4~5) 미착수.**
+- **다음 세션이 집을 것**: 스텝 4 — `e2e/passage_shapes.py` 기본 실행(측정): 표본을 DB 에서
+  읽어 해시 대조(드리프트 5% 넘으면 1) 후 수 셋을 합성 64건과 나란히 인쇄.
 
 ## 앞 밤 (2026-10-15) — 계획 116 `prose-link-boundary` **DONE** (반복 710~715)
 
