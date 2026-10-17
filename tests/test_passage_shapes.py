@@ -169,15 +169,22 @@ class ShapeCountsCase(unittest.TestCase):
         없으면 이 자는 「언제나 0」 이 되어 아무것도 검증하지 않는다. 되살리는 변이를
         제품에 심는 대신 하위 클래스로 그 자리만 되돌려 잰다.
         """
+        # **제품 내부를 베끼지 않는다**(리뷰 118 [A-4]) — 첫 판은 `_els` 튜플 모양과
+        # 호출 순서를 손으로 옮겼고, 그 셋이 제품과 갈라지면 **초록인 채 뜻만**
+        # 잃는다. 대신 표식 리스트를 「담는 순간 끊는」 것으로 바꾼다 — 제품의
+        # `self._cuts.append(...)` 한 줄이 그대로 계획 118 전 동작이 된다.
+        class _CutNow(list):
+            def __init__(self, owner):
+                super().__init__()
+                self.owner = owner
+
+            def append(self, _index):
+                self.owner._flush()
+
         class PreOneEighteen(passage_shapes._BlockParser):
-            def handle_starttag(self, tag, attrs):
-                if tag == "a" and self._after_link and not self._prose:
-                    self._flush()                  # 계획 118 이 표식으로 바꾼 그 줄
-                    self._after_link = False
-                    super(passage_shapes._BlockParser, self).handle_starttag(tag, attrs)
-                    self._els.append((tag, bool(self._els and self._els[-1][1]), True))
-                    return
-                super().handle_starttag(tag, attrs)
+            def __init__(self):
+                super().__init__()
+                self._cuts = _CutNow(self)
 
         class Probe(passage_shapes._Probe, PreOneEighteen):
             pass
@@ -195,6 +202,28 @@ class ShapeCountsCase(unittest.TestCase):
         q.feed("<p><a>레시피</a><a>영상</a> 에서 <b>김치</b>찌개를 끓인다.</p>")
         q.close()
         self.assertEqual(1, q.ab)
+
+    def test_a_regression_inside_the_new_flush_is_counted(self):
+        """음성 대조 **둘째** — 끊는 자리가 `_flush` 로 이사했으므로 거기도 봐야 한다.
+
+        **리뷰 118 [A-1] 이 실증한 구멍이다**: 옛 자리(`<a>` 에서 블록이 늘었나)만
+        보던 판은 새 `_flush` 안에서 산문 가드가 사라져도 **0 을 보고했다** —
+        피해는 실재하는데 측정기가 눈을 감는다. 가드만 뺀 제품을 먹여 **1** 을 받는다.
+        """
+        class Regressed(passage_shapes._BlockParser):
+            def _flush(self):
+                self._prose = False            # 산문 가드만 뺀다 — ⓐ-b 피해 재발
+                super()._flush()
+
+        class Probe(passage_shapes._Probe, Regressed):
+            pass
+
+        p = Probe()
+        p.feed("<p><a>레시피</a><a>영상</a> 에서 김치찌개를 끓인다.</p>")
+        p.close()
+        self.assertEqual(["레시피", "영상 에서 김치찌개를 끓인다."],
+                         [t for _, t in p.blocks])    # 피해가 실재한다
+        self.assertEqual(1, p.ab)                     # 그리고 측정기가 그것을 본다
 
     def test_nav_and_separate_blocks_are_not_a_b(self):
         """인접 링크로 끊겨도 뒤에 산문이 없으면 내비다. 별개 `<div>` 둘이 소문자로
