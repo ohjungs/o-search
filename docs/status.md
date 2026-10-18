@@ -4,16 +4,16 @@ phase: 개발
 step: 1/6
 attempt: 1
 plan: nested-anchor-prose  # 계획 119 — 중첩 `<a>` 뒤 산문 (천장 ⓐ 의 남은 모양)
-iteration: 733
+iteration: 734
 updated: 2026-10-19
 mode: 무인(night)  # 2026-10-19 `/loop-harness night` — 탐색 모드
-night_iterations: 1  # 이 세션 시작 시 셋 다 0 리셋
+night_iterations: 2  # 이 세션 시작 시 셋 다 0 리셋
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
 ctx: **statusLine 꺼진 것과 동일 취급** — `.context-state.json` 의 `session_id`(`8601ae25`)가 이 세션(`948869aa`) 것이 아니고 `updated_unix` 도 **6.8시간 묵었다**. 마지막으로 읽힌 값은 ctx 17 · 5h 13 · 7d 12. **반복 상한(60)에만 의존한다.**
 rules: 34cae75   # `git -C ~/.claude log -1 --format=%h -- skills/loop-harness` (지난 밤 51a6d48 에서 움직였다)
-note: **[계획 phase · 반복 733 · 계획 119 착수]** 탐색 **6순위** — `digest` `## 다음 계획 후보 (테스트 phase 갭, 8점 미만)` 의 `[4]` 「천장 ⓐ 는 `<a>` 가 제대로 닫힌 모양에서만 닫혔다」. **1~5순위 실측 0건**(전수 **902 OK rc=0** 23.6s · 린터·타입체커 없음 · 코드 `TODO` 는 픽스처 1건 · `candidates.md` 부재 · 보류 셋은 전부 밤이 못 여는 것). **점수가 더 높은 6순위 후보들은 여는 조건이 안 섰다**(`[7]` ⓐ-실물은 계획 117 이 닫음 · `[7]` `deadline_e2e` 못은 **사람 몫** · `[6]` `docs/e2e/**` 는 census 가 닫음 · `[6]` ⓑ 와 `[4]` `pre` 는 빈도·소비 미측). **착수 탐침이 셋을 갈랐다**: 중첩은 끊기고(버그) · 제대로 닫힌 것은 붙고(계획 118) · 미닫힘은 브라우저도 링크다(범위 밖). **스텝 1 이 여는 조건 자체다** — 실물 1,000문서 빈도가 **0 이면 안 고치고 수만 적고 닫는다**. 계획서 `docs/plan_nested-anchor-prose.md`.
+note: **[개발 1/6 · 반복 734]** 측정 축을 더했다 — `_NestedRef`(브라우저처럼 열린 `a` 안의 `<a>` 에서 앞엣것을 닫는다 · HTML5) 와 제품을 블록으로 대 본다. TDD RED 둘(`KeyError: nested` · `AttributeError: _nested_ref`)을 눈으로 보고 갔다. **실물 동결 표본 1,000문서: 더끊음 0 · 덜끊음 0**(드리프트 0/1000) · 합성 64 도 0. **그런데 20,000문서 one-off census 는 6문서가 갈렸고 부호 있는 합이 −53 이었다** — 「피해 0」이 아니라 **반대 방향이 더 컸다**는 뜻이라 두 방향을 합치지 않게 고쳤다(`nested` 더끊음 = 후보 [A-3] · `nested_less` 덜끊음 = 내비를 못 가른 쪽 · 천장 ⓑ 계열). **부호 있는 합이 0 을 거짓으로 만드는 자리**를 테스트로 박았다. 그 6문서의 방향별 내역은 재census 중이다. 전수 **906 OK rc=0** · README 단위 수 갱신 · 제품 `src/` **0줄**.
 ---
 ## 이 밤 (2026-10-19) — 계획 119 `nested-anchor-prose` 착수 (반복 733~)
 
