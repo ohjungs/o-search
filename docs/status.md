@@ -111,6 +111,11 @@ gh issue list --state open --limit 20     # 트리 밖 — 항상 돌린다
 
 근거·재현·처방은 갖춰졌고 막는 것은 판단뿐이다. **서술은 닫혔다 — 상세는 괄호 안 반복 번호에 있다.**
 
+- **⑮ `loop/nested-anchor-prose` 병합** (2026-10-19 계획 119) — **제품 `src/` 0줄**이다.
+  측정기 축 하나(`e2e/passage_shapes.py` 의 `_NestedRef`) · 테스트 4건 · 문서뿐이라
+  계획 115~118 의 병합 게이트보다 가볍다. 전수 906 OK · e2e 18종 rc=0 ·
+  `passage_eval` 100% p95 1.75ms. `scripts/merge-to-main.sh` 로 민다.
+
 - **① 동시 색인이 만드는 중복 `docs` 행** — 반복 550 리뷰 보류. 고치는 자리는 `index_pages`
   의 트랜잭션 경계(`BEGIN IMMEDIATE`)이고 재구축 갈래의 `BEGIN`(`indexer.py:217`)과 중첩을
   함께 풀어야 한다. **자기 계획 크기**이고 레이스 컨디션이라 밤이 안 연다. 승인하면 바로 계획.
