@@ -148,6 +148,33 @@ class _Probe(_BlockParser):
             self.ab += 1
 
 
+class _NestedRef(_BlockParser):
+    """브라우저처럼 **중첩 `<a>` 를 금지한다** — 열린 `a` 안에서 새 `<a>` 를 만나면
+    앞엣것을 먼저 닫는다(HTML5 파싱 명세). `html.parser` 는 안 닫아서 바깥 `a` 가
+    `_els` 에 남고, `_els[-1][2]`(「지금 링크 안인가」)가 계속 참이라 **뒤따르는 산문이
+    산문으로 안 잡힌다** — 계획 118 이 닫은 자리가 이 모양에서만 다시 열린다.
+
+    **제품을 베낀 대조군이 아니다.** 여기 적힌 것은 브라우저 답이고, 그 답 자체를
+    `test_the_reference_gives_the_browser_answer` 가 따로 못박는다 — 베꼈다면 제품과
+    함께 틀린 채 조용할 자리다(계획 118 [A-4] 와 같은 이유).
+
+    꼭대기 칸만 본다 — `_els` 를 훑으면 **가장 뜨거운 경로가 O(깊이)** 가 된다
+    (리뷰 51 [R51-2]). 셋째 칸은 이미 전파돼 있어 O(1) 이다.
+    """
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "a" and self._els and self._els[-1][2]:
+            self.handle_endtag("a")
+        super().handle_starttag(tag, attrs)
+
+
+def _nested_ref(html):
+    r = _NestedRef()
+    r.feed(html)
+    r.close()
+    return r
+
+
 def _probe(html):
     p = _Probe()
     p.feed(html)
@@ -157,9 +184,22 @@ def _probe(html):
 
 def shape_counts(htmls):
     """HTML 묶음에서 수 셋의 재료를 센다 — 색인도 질의도 안 한다."""
-    c = {"ab": 0, "ab_docs": 0, "pre": 0, "blocks": 0, "per_doc": []}
+    c = {"ab": 0, "ab_docs": 0, "pre": 0, "blocks": 0,
+         "nested": 0, "nested_less": 0, "nested_docs": 0, "per_doc": []}
     for html in htmls:
         p = _probe(html)
+        # 중첩 `<a>` 축 — 브라우저 답과 몇 블록이 갈리나. **두 방향을 합치지 않는다.**
+        # 20,000문서 census 에서 부호 있는 합이 **−53** 이었는데, 그것은 「피해 0」이
+        # 아니라 **반대 방향이 더 컸다**는 뜻이다(실측: 더 끊은 쪽과 덜 끊은 쪽이
+        # 같은 수에 섞였다). 후보 [A-3] 이 말하는 피해는 **제품이 더 끊는 쪽**(`nested`)
+        # 하나뿐이다 — 덜 끊는 쪽(`nested_less`)은 내비를 못 가른 것이라 천장 ⓑ 계열이다.
+        # 문서 수는 길이가 같은 채 글자만 갈리는 모양까지 받으려고 따로 센다.
+        # 한 번 더 파싱하는 값은 계획 117·118 이 A/B 를 **워크트리 둘**로 돌던 것보다 싸다.
+        ref = _nested_ref(html)
+        delta = len(p.blocks) - len(ref.blocks)
+        c["nested"] += max(0, delta)
+        c["nested_less"] += max(0, -delta)
+        c["nested_docs"] += p.blocks != ref.blocks
         c["per_doc"].append(len(p.blocks))
         c["blocks"] += len(p.blocks)
         c["pre"] += sum(tag == "pre" for tag, _ in p.blocks)
@@ -172,10 +212,12 @@ def _row(name, c):
     pct = lambda a, b: "%.1f%%" % (100.0 * a / b) if b else "—"
     d = c["per_doc"]
     return ("%-4s %5d문서 | ⓐ-b 문서 %6s (%d) · 블록 %6s (%d) | pre %6s (%d/%d) | "
-            "블록/문서 최소 %d · 중앙 %g · 최대 %d"
+            "중첩a 문서 %6s (%d) · 더끊음 %d · 덜끊음 %d | 블록/문서 최소 %d · 중앙 %g · 최대 %d"
             % (name, len(d), pct(c["ab_docs"], len(d)), c["ab_docs"],
                pct(c["ab"], c["blocks"]), c["ab"],
                pct(c["pre"], c["blocks"]), c["pre"], c["blocks"],
+               pct(c["nested_docs"], len(d)), c["nested_docs"],
+               c["nested"], c["nested_less"],
                min(d), statistics.median(d), max(d)))
 
 

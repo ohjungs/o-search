@@ -240,6 +240,42 @@ class ShapeCountsCase(unittest.TestCase):
         h = "<p><a>가</a><a>나</a> 다</p><ul><li>x<li>y</ul><pre>z</pre>"
         self.assertEqual(passage_shapes.extract_blocks(h), passage_shapes._probe(h).blocks)
 
+    def test_nested_anchor_keeps_a_cut_the_browser_would_not(self):
+        """중첩 `<a>` 는 바깥 `a` 를 `_els` 에 남겨 **뒤따르는 산문이 산문으로 안 잡힌다**
+        — 그래서 계획 118 이 닫은 자리가 이 모양에서만 다시 열린다(리뷰 118 [A-3])."""
+        c = passage_shapes.shape_counts(
+            ["<p><a>가</a><a>나<a>다</a> 에서 김치찌개를 본다</p>"])
+        self.assertEqual((1, 0, 1),
+                         (c["nested"], c["nested_less"], c["nested_docs"]))
+
+    def test_the_reference_gives_the_browser_answer(self):
+        """대조군은 **제품을 베낀 것이 아니라 브라우저 답을 적은 것**이다 — HTML5 파싱
+        명세가 열린 `a` 안의 `<a>` 시작 태그에서 앞엣것을 닫는다. 그 답을 여기 못박는다:
+        베꼈다면 제품과 함께 틀리고 이 단언이 안 빨개진다(계획 118 [A-4] 와 같은 자리)."""
+        ref = passage_shapes._nested_ref(
+            "<p><a>가</a><a>나<a>다</a> 에서 김치찌개를 본다</p>")
+        self.assertEqual([("p", "가나다 에서 김치찌개를 본다")], ref.blocks)
+
+    def test_closed_and_unclosed_anchors_are_not_nested(self):
+        """중첩이 **아닌** 이웃 둘은 0 이다 — 제대로 닫힌 것은 계획 118 이 이미 붙였고,
+        미닫힘은 브라우저에서도 그 글자가 링크 텍스트라 끊는 쪽이 계약과 안 어긋난다."""
+        c = passage_shapes.shape_counts([
+            "<p><a>가</a><a>나</a> 에서 김치찌개를 본다</p>",
+            "<p><a>가</a><a>나 에서 김치찌개를 본다</p>",
+            "<nav><a>홈</a><a>소개</a></nav><p>본문이다.</p>"])
+        self.assertEqual((0, 0, 0),
+                         (c["nested"], c["nested_less"], c["nested_docs"]))
+
+    def test_the_two_directions_are_not_summed(self):
+        """**부호 있는 합은 0 을 거짓으로 만든다** — 20,000문서 census 가 `−53` 을 냈는데
+        그것은 「피해 0」이 아니라 반대 방향이 더 컸다는 뜻이었다. 더 끊은 쪽(후보 [A-3])과
+        덜 끊은 쪽(내비를 못 가른 쪽 · 천장 ⓑ 계열)을 **따로** 센다."""
+        c = passage_shapes.shape_counts([
+            "<p><a>가</a><a>나<a>다</a> 에서 김치찌개를 본다</p>",
+            "<nav><a>홈<a>소개<a>문의</nav>"])
+        self.assertEqual(1, c["nested"])
+        self.assertGreater(c["nested_less"], 0)
+
     def test_pre_share_and_blocks_per_doc(self):
         c = passage_shapes.shape_counts(
             ["<p>Run it.</p><pre>x = 1</pre>", "<p>One.</p><p>Two.</p><p>Three.</p>"])
