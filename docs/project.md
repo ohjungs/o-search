@@ -43,7 +43,10 @@
   `e2e/perf_memory.py [작은규모] [큰규모] [반복]`(서버 상주 RSS — 컨셉 경량 2) ·
   `e2e/quality_eval.py` · `e2e/passage_eval.py` ·
   `e2e/passage_shapes.py [--resample]`(실물 표본 1,000건에서 근거 문단 축 수 셋 — 계획 117 ·
-  `data/crawl.db` 가 있는 기계에서만 · 없으면 2).
+  `data/crawl.db` 가 있는 기계에서만 · 없으면 2) ·
+  `e2e/passage_consume.py [--census]`(근거 문단 «소비» 축 — 모양 블록이 질의에 대해 근거로
+  나가 본문을 이기나 · 계획 120 · 질의를 모양 블록 자신에서 뽑으므로 수가 **상한**이다 ·
+  **0** 쟀다 / **1** 분자가 0 이 아니다 / **2** 재지 못했다(DB·픽스처 부재·분모 0·정렬 깨짐)).
   합격선은 아래, 기준선은 `baselines.md`
 
 ## 브랜치·소유자
