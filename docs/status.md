@@ -1,19 +1,19 @@
 ---
 signal: GREEN
 phase: 개발
-step: 0/3
+step: 1/3
 attempt: 1
 plan: passage-consume-census  # 계획 120 — 근거 문단 «소비» 축을 재는 자
-iteration: 737
+iteration: 738
 updated: 2026-10-20
 mode: 무인(night)  # 2026-10-20 `/loop-harness night` — 탐색 모드
-night_iterations: 2  # 이 세션 시작 시 셋 다 0 리셋
+night_iterations: 3  # 이 세션 시작 시 셋 다 0 리셋
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
 ctx: **statusLine 꺼진 것과 동일 취급**(게이트 ⑦ 판정을 그대로 돌렸다) — `.context-state.json` 의 `session_id`(`8601ae25`)에 해당하는 `~/.claude/projects/-Users-t2025-m0191-work-websearch/<id>.jsonl` 이 **없다**(= 남의 것) 그리고 `updated_unix` 가 **112분** 묵었다. 마지막으로 읽힌 값은 ctx 19 · 5h 13 · 7d 12. **반복 상한(60)에만 의존한다.**
 rules: 34cae75   # `git -C ~/.claude log -1 --format=%h -- skills/loop-harness`
-note: **[설계 · 반복 737 · 계획 120 설계 완료]** 갈림 **둘**을 닫았다. **① 질의 출처 = 모양 블록 자신** — 질의를 그 블록에 가장 유리하게 주므로 수가 **상한**이고 0 이면 후보가 닫힌다(라벨 0 · 사람 안 부른다). 실물 정답 질의는 야간 금지(사람 판단)고, DB 빈출 토큰은 분모가 사실상 0 이라 「안 이긴다」와 「안 만났다」가 안 갈린다. **② 자리 = 새 파일 `e2e/passage_consume.py`** — 결정적인 수는 **동결 표본 1,000건에 중첩 `<a>` 문서가 0건**이라는 것이다(`baselines.md` 계획 119 표). `passage_shapes.py` 에 축을 더하는 쪽이 코드는 적지만 **그 적음이 못 재는 자를 낳는다**. **가정 넷을 탐침으로 깼고 전부 참이다**(커밋 없음): `passages()` 가 실물 DB 에서 돈다 · **DB 파일 mtime·size 무변경** · 모양 문서가 자기 블록 글자로는 hit 된다(`Health` 로는 상위 10 에 **안 들고** `Fontutils Gama Gawk` 로는 **든다** → **분모를 설계에 넣었다**) · 그리고 **그 두 질의의 근거는 position 30·122 로 둘 다 본문이었다** — 수는 0 쪽으로 기울었지만 판정은 스텝 1 이 한다. **설계가 범위를 깎았다**: ⓑ 는 census 가 없어 **「재지 않았다」로 적는다**(「닫혔다」로 적지 않는다) · `pre` 는 여유가 있을 때만 더한다. 설계 → `docs/design_passage-consume-census.md`.
+note: **[개발 1/3 · 반복 738 · 후보 `[5]` 가 열렸다]** `e2e/passage_consume.py` + `e2e/shapes/consume.jsonl` + 테스트 **10건**(916 OK rc=0) · **제품 `src/` 0줄**. **수: 모양 블록 49 · 분모 27 · 분자 12 → 상한 44.4%** · `rc=1`(= 후보가 열린다). 나가는 근거는 TOC 한 줄이다 — `software Cflow cflow` 에 `Cflow (http://www.gnu.org/software/cflow)`. **자가 한 번 죽었고 수가 그것을 잡았다**: census 첫 판이 `if pos:` 로 정렬 깨짐(`None`)까지 먹어 **3문서를 조용히 버리면서도 초록**이었는데, 계획 119 의 **6문서**와 안 맞는 것이 그 자리에서 드러났다. 계수기를 넣으니 **모양 3 + 정렬 깨짐 3 = 6** 으로 정확히 맞았다. **모집단은 3문서라 상한이 그만큼 넓다 — 그것을 자가 스스로 찍는다.** 측정 5.2초 · census 약 11분. **내가 `| tail` 을 붙여 `rc` 를 한 번 잘랐고**(`project.md` 가 금지한 그것) 맨몸으로 다시 돌려 `rc=1` 을 확인했다. 다음(스텝 2): 임시 DB 로 **음성 대조** — 모양이 이기는 예문에서 1, 본문이 이기는 예문에서 0.
 ---
 ## 이 밤 (2026-10-20) — 계획 120 `passage-consume-census` **착수** (반복 736~)
 
