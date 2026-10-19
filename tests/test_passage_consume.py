@@ -8,8 +8,10 @@
 2026-10-19 가 `nested` 두 방향을 가른 이유가 같은 자리다.
 """
 
+import io
 import json
 import os
+import sqlite3
 import sys
 import tempfile
 import unittest
@@ -81,9 +83,6 @@ class ExitCodeTest(unittest.TestCase):
              passage_consume.UNMEASURABLE), (0, 1, 2))
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 
 class _Seeded(unittest.TestCase):
     """합성 예문으로 **색인된** 임시 DB 를 세운다 — 실물 DB 는 안 본다(설계 계약 5)."""
@@ -115,6 +114,11 @@ class _Seeded(unittest.TestCase):
 _SHAPE = '<ul><li><a name=t href=#H>Health (<a href=/x>software</a>)</a></li></ul>'
 _WEAK_BODY = "<p>" + "kimchi stew is delicious " * 6 + "</p>"
 _STRONG_BODY = "<p>" + "Health software everywhere " * 6 + "</p>"
+# 모양 블록이 **둘**인 문서 — 앞엣것의 글자로 질의하면 뒤엣것이 이긴다(백지 패스 [D])
+_TWO_SHAPES = (
+    '<ul><li><a name=a href=#A>Health (<a href=/x>software</a>)</a></li>'
+    '<li><a name=b href=#B>Health software extended '
+    '(<a href=/y>software health</a>)</a></li></ul>')
 
 
 class NegativeControlTest(_Seeded):
@@ -268,3 +272,106 @@ class DesyncVerdictTest(_Seeded):
         self.assertEqual((c["desync"], c["docs"]), (1, 0), c)
         self.assertEqual(passage_consume.measure(self.db_path, self.fixture),
                          passage_consume.UNMEASURABLE)
+
+
+# ── 아래는 백지 패스(별도 세션)가 낸 지적을 못으로 박은 것들 ──────────────
+# 받은 여섯 건 중 코드에서 실증된 것만 남겼다. A(이 파일의 `__main__` 블록이
+# 중간에 있어 직접 실행하면 16건이 조용히 빠진다)는 테스트가 아니라 배치 문제라
+# 블록을 파일 끝으로 옮겨 닫았고, 아래 자가 **그 배치를 다시 못으로 박는다.**
+
+
+class ThisFileRunsWholeTest(unittest.TestCase):
+    """**직접 실행 경로에서도 전부 돈다** — 백지 패스 [A] 가 실증한 자리다.
+
+`__main__` 가드(`unittest.main()` 을 부르는 그 두 줄)가 파일 **중간**에 있으면
+    `python3 tests/test_passage_consume.py` 가 거기서 `sys.exit` 해 뒤쪽 클래스가
+    **정의조차 안 된다**(실측: 26건 중 10건만 돌았고 빠진 16건이 전부 음성 대조였다).
+    머지 게이트는 `unittest discover` 라 안전했으므로 **초록인 채로** 그랬다 —
+    이 파일이 설교하는 「재는 자가 죽었는데 초록이다」의 재연이다.
+    """
+
+    def test_the_main_guard_is_the_last_statement(self):
+        # 바늘을 **런타임에 조립한다** — 한 리터럴로 적으면 이 줄 자신이 세어져
+        # 자가 자기 문자열을 센다(첫 판이 그래서 거짓 빨강을 냈다). 같은 처방이
+        # `docs/design_history_083.md` 계약에 적혀 있다
+        needle = 'if __name__ == "__' + 'main__":'
+        src = io.open(__file__, encoding="utf-8").read()
+        self.assertEqual(src.count(needle), 1, "가드가 하나가 아니다")
+        tail = src[src.index(needle):].strip().splitlines()
+        self.assertEqual([l.strip() for l in tail], [needle, "unittest.main()"])
+
+
+class CrashIsNotAVerdictTest(_Seeded):
+    """**백지 패스 [B]** — `rc=1` 이 「후보가 열린다」인데 크래시도 1 로 나갔다.
+
+    제품이 「못 쟀다」를 알리려고 전용 예외까지 둔 조건(`StaleIndexError`)이 하필
+    「쟀고 후보가 열린다」 코드로 떨어졌다. 트레이스백은 stderr 라 `rc` 만 보는
+    눈에는 **수로 보인다.**
+    """
+
+    def test_a_db_without_a_pages_table_is_unmeasurable(self):
+        junk = os.path.join(self.dir.name, "junk.db")
+        sqlite3.connect(junk).execute("CREATE TABLE junk(x)")
+        with io.open(self.fixture, "w", encoding="utf-8") as f:
+            f.write('{"url":"http://x/","sha":"%s","positions":[0]}\n' % ("0" * 16))
+        self.assertEqual(passage_consume.measure(junk, self.fixture),
+                         passage_consume.UNMEASURABLE)
+
+    def test_census_into_a_bare_filename_does_not_crash(self):
+        """`os.makedirs("")` 가 터져 `rc=1` 이던 자리 — 디렉터리 없는 이름이다."""
+        Store(self.db_path).upsert("http://x/plain", _WEAK_BODY, 200)
+        cwd = os.getcwd()
+        os.chdir(self.dir.name)
+        self.addCleanup(os.chdir, cwd)
+        self.assertEqual(
+            passage_consume.census(self.db_path, "out.jsonl", limit=10, offset=0),
+            passage_consume.MEASURED)
+
+
+class LooseCountTest(_Seeded):
+    """**백지 패스 [D]** — 라벨은 「모양 블록이 이기나」인데 센 것은 「**이** 모양
+    블록이 이기나」였다.
+
+    같은 문서의 **다른** 모양 블록이 근거로 뽑힌 쌍을 0 으로 센다 — 즉 새는 방향이
+    **「닫는다」 쪽**이라 「이 수는 상한이다」라는 주장이 약해진다. 둘을 함께 찍는다.
+    """
+
+    def test_another_shape_block_winning_is_counted_as_loose_not_strict(self):
+        pos = self._seed("http://x/two", _TWO_SHAPES + _WEAK_BODY)
+        self.assertEqual(len(pos), 2, pos)
+        c = self._counts()
+        self.assertGreater(c["any"], c["numer"], c)
+        self.assertEqual(c["any"], c["denom"], c)
+
+    def test_loose_equals_strict_when_there_is_one_shape_block(self):
+        """음성 대조 — 모양 블록이 하나면 둘이 같다. 아니면 `any` 가 늘 분모다."""
+        self._seed("http://x/shape", _SHAPE + _WEAK_BODY)
+        c = self._counts()
+        self.assertEqual((c["numer"], c["any"]), (1, 1), c)
+
+
+class ArgGuardTest(_Seeded):
+    """**백지 패스 [E]·[F]** — sqlite 의 `LIMIT -1` 은 **무제한**이다."""
+
+    def test_a_negative_hits_is_refused(self):
+        self._seed("http://x/shape", _SHAPE + _WEAK_BODY)
+        self.assertEqual(
+            passage_consume.main(["--db", self.db_path, "--fixture", self.fixture,
+                                  "--hits", "-1"]),
+            passage_consume.UNMEASURABLE)
+
+    def test_a_census_window_other_than_the_frozen_one_refuses_the_default_path(self):
+        """창을 바꿔 돌리면 **동결 픽스처를 덮지 않는다** — 수가 안 이어진다.
+
+        DB 를 **실제로 만든다** — 첫 판은 안 만들어서 「DB 가 없다」로 `rc=2` 가
+        나왔고, 그러면 창 가드를 안 밟고도 통과한다(거짓 초록).
+        """
+        Store(self.db_path).upsert("http://x/plain", _WEAK_BODY, 200)
+        self.assertEqual(
+            passage_consume.main(["--census", "--db", self.db_path,
+                                  "--limit", "10", "--offset", "0"]),
+            passage_consume.UNMEASURABLE)
+
+
+if __name__ == "__main__":
+    unittest.main()

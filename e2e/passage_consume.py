@@ -130,6 +130,14 @@ def census(db_path, out_path, limit=CENSUS_LIMIT, offset=CENSUS_OFFSET):
     """
     if not os.path.exists(db_path):
         return unmeasurable("DB 가 없다: %s" % db_path)
+    if out_path == FIX and (limit, offset) != (CENSUS_LIMIT, CENSUS_OFFSET):
+        # 동결 픽스처는 **한 창**의 것이다. 창을 바꿔 뜬 것을 같은 이름으로 덮으면
+        # 옛 수와 새 수가 조용히 이어진 것처럼 보인다 — 쓴 창은 stdout 에만 남고
+        # 파일엔 안 남기 때문이다 (백지 패스 [F]). 다른 창은 다른 이름으로 뜬다.
+        return unmeasurable(
+            "창이 동결된 것과 다르다(LIMIT %d OFFSET %d ≠ %d/%d) — 동결 픽스처 %s 를 "
+            "덮지 않는다. `--fixture <다른 이름>` 으로 뜬다"
+            % (limit, offset, CENSUS_LIMIT, CENSUS_OFFSET, out_path))
     db = sqlite3.connect("file:%s?mode=ro" % db_path, uri=True)
     rows, seen, desync = [], 0, 0
     try:
@@ -153,7 +161,8 @@ def census(db_path, out_path, limit=CENSUS_LIMIT, offset=CENSUS_OFFSET):
                              "positions": pos})
     finally:
         db.close()
-    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    if os.path.dirname(out_path):      # `os.makedirs("")` 는 터진다 (백지 패스 [B])
+        os.makedirs(os.path.dirname(out_path), exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as f:
         for row in sorted(rows, key=lambda r: r["url"]):
             f.write(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n")
@@ -177,7 +186,7 @@ def consume_counts(db_path, fixture, hits=HITS):
     (`tests/test_passage_consume.py` `NegativeControlTest`).
     """
     c = {"docs": 0, "rows": 0, "drifted": 0, "desync": 0, "moved": 0,
-         "blocks": 0, "asked": 0, "denom": 0, "numer": 0}
+         "blocks": 0, "asked": 0, "denom": 0, "numer": 0, "any": 0}
     rows = _rows(fixture)
     c["rows"] = len(rows)
     db = sqlite3.connect("file:%s?mode=ro" % db_path, uri=True)
@@ -219,7 +228,14 @@ def consume_counts(db_path, fixture, hits=HITS):
             if not got:
                 continue       # 상위 hits 에 못 들었다 — 근거가 될 기회가 없다
             c["denom"] += 1
+            # **둘을 함께 센다 — 라벨은 「모양 블록이 이기나」인데 `== p` 는
+            # 「«이» 모양 블록이 이기나」다.** 같은 문서의 **다른** 모양 블록이
+            # 근거로 뽑힌 쌍을 `numer` 는 0 으로 세고, 그 새는 방향이 하필
+            # **「닫는다」 쪽**이라 「이 수는 상한이다」라는 주장을 약하게 만든다
+            # (백지 패스 [D] · 합성에서 strict 50% 대 loose 100% 로 벌어졌다).
+            # 실물 27쌍에서는 둘이 **12 로 같다** — 그래서 오늘 수는 안 바뀐다.
             c["numer"] += got[0] == p
+            c["any"] += got[0] in pos
     return c
 
 
@@ -229,10 +245,20 @@ def measure(db_path, fixture, hits=HITS):
     if not os.path.exists(db_path):
         return unmeasurable("DB 가 없다: %s — 이 자는 그 DB 가 있는 기계에서만 돈다"
                             % db_path)
+    if hits < 1:
+        # sqlite 의 `LIMIT -1` 은 **무제한**이다 — 음수를 받으면 「상위 hits 에
+        # 들었나」가 아닌 다른 양을 재고도 판정 코드를 낸다 (백지 패스 [E])
+        return unmeasurable("--hits 가 %d 다 — 1 이상이어야 한다" % hits)
     try:
         c = consume_counts(db_path, fixture, hits)
-    except ValueError as exc:
-        return unmeasurable("픽스처를 못 읽는다: %r" % (exc,))
+    except Exception as exc:
+        # **`except Exception` 이다.** 첫 판은 `ValueError` 만 잡아 나머지가 올라가
+        # 파이썬이 `exit 1` 을 냈는데, 이 자의 계약에서 **1 은 「후보가 열린다」**다
+        # — 즉 크래시가 수로 위장했다(백지 패스 [B] 실증: `pages` 없는 DB 가
+        # `OperationalError` → `rc=1`, 옛 색인이 `StaleIndexError` → `rc=1`).
+        # 제품이 「못 쟀다」를 알리려고 전용 예외까지 둔 조건이 하필 그쪽으로
+        # 떨어졌다. **측정 중 터진 것은 전부 「재지 못했다」다.**
+        return unmeasurable("측정 중 터졌다: %s: %s" % (type(exc).__name__, exc))
     if not c["rows"]:
         return unmeasurable("픽스처가 비었다: %s" % fixture)
 
@@ -251,10 +277,21 @@ def measure(db_path, fixture, hits=HITS):
     if c["desync"]:
         return unmeasurable("정렬이 깨진 문서가 %d건 있다 — 모르는 모양이다" % c["desync"])
     if not c["denom"]:
+        # **원인을 섞지 않는다** — `moved`·`desync` 는 위에서 전용 문장을 받는데
+        # `drifted` 만 없어서, 표본이 재크롤로 갈린 밤에도 「상위에 못 들었다」가
+        # 찍혔다(백지 패스 [C]). rc 는 어차피 2 지만 **적힌 이유가 틀리면 사람이
+        # 엉뚱한 것을 고치러 간다.**
+        if not c["docs"]:
+            return unmeasurable(
+                "모양 문서가 0 이다 — 픽스처 %d행 중 %d행이 드리프트로 빠졌다. "
+                "재크롤이 표본을 갈았으니 `--census` 로 다시 뜨고 기준선을 새로 잇는다"
+                % (c["rows"], c["drifted"]))
         return unmeasurable("분모가 0 이다 — 모양 문서가 상위 %d 에 한 번도 못 들었다. "
                             "이 0 은 「안 이긴다」가 아니라 「안 만났다」다" % hits)
-    print("상한 %.1f%% (%d/%d)" % (100.0 * c["numer"] / c["denom"],
-                                   c["numer"], c["denom"]))
+    print("상한 %.1f%% (%d/%d) · 느슨한 축(모양 블록 «중 하나» 가 이긴 쌍) "
+          "%.1f%% (%d/%d)"
+          % (100.0 * c["numer"] / c["denom"], c["numer"], c["denom"],
+             100.0 * c["any"] / c["denom"], c["any"], c["denom"]))
     if c["numer"]:
         print("후보가 열린다 — 모양 블록이 본문을 이긴 쌍이 %d 건이다" % c["numer"])
         return SHAPE_WINS
