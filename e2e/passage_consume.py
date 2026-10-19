@@ -165,6 +165,56 @@ def census(db_path, out_path):
     return MEASURED
 
 
+def consume_counts(db_path, fixture, hits=HITS):
+    """픽스처의 모양 블록마다 질의를 한 번 날려 **분모와 분자를 센다.**
+
+    **합치지 않는다** — `denom` 은 모양 문서가 상위 `hits` 에 든 (문서, 질의) 쌍 수고
+    `numer` 는 그중 근거 position 이 모양 블록 position 인 수다. 분모가 0 인 0 은
+    「안 이긴다」가 아니라 「안 만났다」라서, 둘을 합치면 그 둘이 한 수에 섞인다.
+
+    셈을 `measure()` 에서 가른 이유는 **음성 대조**다 — 「언제나 0 을 내는 자」도
+    종료 코드만 보면 초록이라, 테스트가 수를 직접 봐야 그 자를 문다
+    (`tests/test_passage_consume.py` `NegativeControlTest`).
+    """
+    c = {"docs": 0, "rows": 0, "drifted": 0, "desync": 0,
+         "blocks": 0, "asked": 0, "denom": 0, "numer": 0}
+    rows = _rows(fixture)
+    c["rows"] = len(rows)
+    db = sqlite3.connect("file:%s?mode=ro" % db_path, uri=True)
+    try:
+        docs = []
+        for row in rows:
+            html = _html_of(db, row["url"])
+            if not html or passage_shapes._sha(html) != row["sha"]:
+                c["drifted"] += 1
+                continue
+            clipped = _clipped(html)
+            pos = shape_positions(clipped)
+            if pos is None:
+                c["desync"] += 1
+                continue
+            docs.append((row["url"], clipped, pos))
+    finally:
+        db.close()
+    c["docs"] = len(docs)
+
+    for url, clipped, pos in docs:
+        texts = [b for _tag, b in extract.extract_blocks(clipped)]
+        for p in pos:
+            c["blocks"] += 1
+            q = " ".join(query_terms(texts[p]))
+            if not q:
+                continue       # 질의어가 안 나오는 블록 — 분모에도 안 넣는다
+            c["asked"] += 1
+            got = [pp for u, _t, pp, _x in indexer.passages(db_path, q, limit=hits)
+                   if u == url]
+            if not got:
+                continue       # 상위 hits 에 못 들었다 — 근거가 될 기회가 없다
+            c["denom"] += 1
+            c["numer"] += got[0] == p
+    return c
+
+
 def measure(db_path, fixture, hits=HITS):
     if not os.path.exists(fixture):
         return unmeasurable("픽스처가 없다: %s — `--census` 로 한 번 뜬다" % fixture)
@@ -172,57 +222,25 @@ def measure(db_path, fixture, hits=HITS):
         return unmeasurable("DB 가 없다: %s — 이 자는 그 DB 가 있는 기계에서만 돈다"
                             % db_path)
     try:
-        rows = _rows(fixture)
+        c = consume_counts(db_path, fixture, hits)
     except ValueError as exc:
         return unmeasurable("픽스처를 못 읽는다: %r" % (exc,))
-    if not rows:
+    if not c["rows"]:
         return unmeasurable("픽스처가 비었다: %s" % fixture)
 
-    db = sqlite3.connect("file:%s?mode=ro" % db_path, uri=True)
-    try:
-        docs, drifted, desync = [], 0, 0
-        for row in rows:
-            html = _html_of(db, row["url"])
-            if not html or passage_shapes._sha(html) != row["sha"]:
-                drifted += 1
-                continue
-            clipped = _clipped(html)
-            pos = shape_positions(clipped)
-            if pos is None:
-                desync += 1
-                continue
-            docs.append((row["url"], clipped, pos))
-    finally:
-        db.close()
-
-    blocks = denom = numer = asked = 0
-    for url, clipped, pos in docs:
-        texts = [b for _tag, b in extract.extract_blocks(clipped)]
-        for p in pos:
-            blocks += 1
-            q = " ".join(query_terms(texts[p]))
-            if not q:
-                continue       # 질의어가 안 나오는 블록 — 분모에도 안 넣는다
-            asked += 1
-            got = [pp for u, _t, pp, _x in indexer.passages(db_path, q, limit=hits)
-                   if u == url]
-            if not got:
-                continue       # 상위 %d 에 못 들었다 — 근거가 될 기회가 없다
-            denom += 1
-            numer += got[0] == p
-
     print("모양 문서 %d/%d (드리프트 %d · 정렬 깨짐 %d) · 모양 블록 %d · 질의 %d"
-          % (len(docs), len(rows), drifted, desync, blocks, asked))
+          % (c["docs"], c["rows"], c["drifted"], c["desync"], c["blocks"], c["asked"]))
     print("분모(상위 %d 에 든 쌍) %d · **분자(모양 블록이 근거로 나간 쌍) %d**"
-          % (hits, denom, numer))
-    if desync:
-        return unmeasurable("정렬이 깨진 문서가 %d건 있다 — 모르는 모양이다" % desync)
-    if not denom:
+          % (hits, c["denom"], c["numer"]))
+    if c["desync"]:
+        return unmeasurable("정렬이 깨진 문서가 %d건 있다 — 모르는 모양이다" % c["desync"])
+    if not c["denom"]:
         return unmeasurable("분모가 0 이다 — 모양 문서가 상위 %d 에 한 번도 못 들었다. "
                             "이 0 은 「안 이긴다」가 아니라 「안 만났다」다" % hits)
-    print("상한 %.1f%% (%d/%d)" % (100.0 * numer / denom, numer, denom))
-    if numer:
-        print("후보가 열린다 — 모양 블록이 본문을 이긴 쌍이 %d 건이다" % numer)
+    print("상한 %.1f%% (%d/%d)" % (100.0 * c["numer"] / c["denom"],
+                                   c["numer"], c["denom"]))
+    if c["numer"]:
+        print("후보가 열린다 — 모양 블록이 본문을 이긴 쌍이 %d 건이다" % c["numer"])
         return SHAPE_WINS
     print("분자 0 — 질의를 모양 블록에 가장 유리하게 줘도 본문이 이긴다")
     return MEASURED
