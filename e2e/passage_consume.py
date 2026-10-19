@@ -122,7 +122,7 @@ def _clipped(html):
     return indexer._clip_by_tags(html[:indexer.MAX_PASSAGE_HTML])
 
 
-def census(db_path, out_path):
+def census(db_path, out_path, limit=CENSUS_LIMIT, offset=CENSUS_OFFSET):
     """census 창을 훑어 **중첩 `<a>` 로 덜 끊긴** 문서의 `{url, sha}` 를 동결한다.
 
     본문은 한 바이트도 안 쓴다 — `e2e/shapes/sample.jsonl` 과 같은 이유다
@@ -136,7 +136,7 @@ def census(db_path, out_path):
         for url, blob in db.execute(
                 "SELECT url, html FROM pages WHERE status=200 AND html IS NOT NULL "
                 "AND length(html)>0 LIMIT ? OFFSET ?",
-                (CENSUS_LIMIT, CENSUS_OFFSET)):
+                (limit, offset)):
             seen += 1
             html = store.page_html(blob)
             if not html:
@@ -158,7 +158,7 @@ def census(db_path, out_path):
         for row in sorted(rows, key=lambda r: r["url"]):
             f.write(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n")
     print("census %d문서 훑어 모양 문서 %d건 · 정렬 깨짐 %d건 → %s (창 LIMIT %d OFFSET %d)"
-          % (seen, len(rows), desync, out_path, CENSUS_LIMIT, CENSUS_OFFSET))
+          % (seen, len(rows), desync, out_path, limit, offset))
     if desync:
         print("정렬이 깨진 문서가 있다 — 제품이 브라우저 블록을 «합치기만» 한다는 전제가 "
               "그 문서에서 거짓이다. 모집단에서 빠졌으니 상한이 그만큼 넓다")
@@ -176,7 +176,7 @@ def consume_counts(db_path, fixture, hits=HITS):
     종료 코드만 보면 초록이라, 테스트가 수를 직접 봐야 그 자를 문다
     (`tests/test_passage_consume.py` `NegativeControlTest`).
     """
-    c = {"docs": 0, "rows": 0, "drifted": 0, "desync": 0,
+    c = {"docs": 0, "rows": 0, "drifted": 0, "desync": 0, "moved": 0,
          "blocks": 0, "asked": 0, "denom": 0, "numer": 0}
     rows = _rows(fixture)
     c["rows"] = len(rows)
@@ -192,6 +192,14 @@ def consume_counts(db_path, fixture, hits=HITS):
             pos = shape_positions(clipped)
             if pos is None:
                 c["desync"] += 1
+                continue
+            # **지문은 HTML 이 같은 것만 보증한다.** 같은 HTML 에서 제품이 다른 블록
+            # 경계를 내면 `sha` 는 그대로고 position 만 움직인다 — 그때 이 자는
+            # 모양 블록을 못 찾아 분모 0 을 내고, 그 0 은 「모양 문서가 상위에 못
+            # 들었다」로 읽힌다. 즉 **제품이 바뀐 것이 측정 불능으로 위장한다.**
+            # 그래서 census 가 적어 둔 position 과 오늘 수를 댄다.
+            if row.get("positions") is not None and row["positions"] != pos:
+                c["moved"] += 1
                 continue
             docs.append((row["url"], clipped, pos))
     finally:
@@ -228,10 +236,18 @@ def measure(db_path, fixture, hits=HITS):
     if not c["rows"]:
         return unmeasurable("픽스처가 비었다: %s" % fixture)
 
-    print("모양 문서 %d/%d (드리프트 %d · 정렬 깨짐 %d) · 모양 블록 %d · 질의 %d"
-          % (c["docs"], c["rows"], c["drifted"], c["desync"], c["blocks"], c["asked"]))
+    print("모양 문서 %d/%d (드리프트 %d · 정렬 깨짐 %d · position 이동 %d) · "
+          "모양 블록 %d · 질의 %d"
+          % (c["docs"], c["rows"], c["drifted"], c["desync"], c["moved"],
+             c["blocks"], c["asked"]))
     print("분모(상위 %d 에 든 쌍) %d · **분자(모양 블록이 근거로 나간 쌍) %d**"
           % (hits, c["denom"], c["numer"]))
+    if c["moved"]:
+        return unmeasurable(
+            "픽스처가 적어 둔 모양 position 이 %d건 움직였다 — 지문이 같은데 블록 "
+            "경계가 달라졌으니 **제품 파서가 바뀌었다.** 바뀐 제품 위에서 옛 수를 "
+            "이으면 안 된다: `--census` 로 모집단을 다시 뜨고 기준선을 새로 잇는다"
+            % c["moved"])
     if c["desync"]:
         return unmeasurable("정렬이 깨진 문서가 %d건 있다 — 모르는 모양이다" % c["desync"])
     if not c["denom"]:
@@ -249,13 +265,15 @@ def measure(db_path, fixture, hits=HITS):
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--census", action="store_true",
-                   help="모집단을 다시 뜬다 (약 8분 30초)")
+                   help="모집단을 다시 뜬다 (약 11분)")
+    p.add_argument("--limit", type=int, default=CENSUS_LIMIT)
+    p.add_argument("--offset", type=int, default=CENSUS_OFFSET)
     p.add_argument("--db", default=DB)
     p.add_argument("--fixture", default=FIX)
     p.add_argument("--hits", type=int, default=HITS)
     a = p.parse_args(argv)
     if a.census:
-        return census(a.db, a.fixture)
+        return census(a.db, a.fixture, a.limit, a.offset)
     return measure(a.db, a.fixture, a.hits)
 
 

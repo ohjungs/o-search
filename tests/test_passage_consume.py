@@ -25,7 +25,10 @@ import passage_shapes  # noqa: E402
 
 
 _BODY = "<p>" + "kimchi stew is delicious " * 4 + "</p>"
-# 브라우저는 바깥 `a` 를 닫아 `li` 를 둘로 보는데 제품은 한 블록으로 둔다 — 후보 `[5]`
+# 브라우저는 바깥 `a` 를 닫아 `li` 를 둘로 보는데 제품은 한 블록으로 둔다 — 후보 `[5]`.
+# **실물에서 뽑은 모양이다**(갭 ⑧) — `http://www.gnu.org/bulletins/gnustatus-2011-10.html`
+# 의 `<li><a name=toc_Health href=#Health>Health (<a href=…>…</a>)</a>` 가 원본이고,
+# 2026-10-20 census 가 집은 3문서 중 둘이 이 꼴이다(나머지는 MDN 프랑스어판 TOC).
 _NESTED = '<ul><li><a name=t href=#H>Health (<a href=/x>software</a>)</a></li></ul>'
 
 
@@ -107,7 +110,8 @@ class _Seeded(unittest.TestCase):
         return passage_consume.consume_counts(self.db_path, self.fixture)
 
 
-# 모양 블록은 둘 다 같다 — 다른 것은 **본문**이고, 그래서 이 둘이 한 쌍이다
+# 모양 블록은 둘 다 같다 — 다른 것은 **본문**이고, 그래서 이 둘이 한 쌍이다.
+# `_NESTED` 와 같은 실물 출처다(위 주석).
 _SHAPE = '<ul><li><a name=t href=#H>Health (<a href=/x>software</a>)</a></li></ul>'
 _WEAK_BODY = "<p>" + "kimchi stew is delicious " * 6 + "</p>"
 _STRONG_BODY = "<p>" + "Health software everywhere " * 6 + "</p>"
@@ -161,3 +165,106 @@ class VerdictTest(_Seeded):
         self.assertEqual(
             passage_consume.measure(self.db_path, self.fixture, hits=0),
             passage_consume.UNMEASURABLE)
+
+
+class FtsSafetyTest(unittest.TestCase):
+    """질의어가 **FTS5 문법 문자를 안 흘린다** — 흘리면 측정이 터져 수를 아예 못 낸다.
+
+    신뢰 경계다. 블록 글자는 남의 HTML 에서 그대로 온 것이고, 그것이 `search()` 의
+    MATCH 식으로 들어간다. 사다리로 타협하지 않는 자리다(`CLAUDE.md` ponytail 단서).
+    """
+
+    def test_fts_operators_never_reach_the_query(self):
+        poisoned = '"NEAR" AND OR NOT * : ^ ( ) - 김치찌개 recipe'
+        for term in passage_consume.query_terms(poisoned, limit=10):
+            self.assertRegex(term, r"^[^\W_]+$", term)
+
+    def test_a_block_of_only_punctuation_gives_no_query(self):
+        self.assertEqual(passage_consume.query_terms('*"():^-- '), [])
+
+    def test_hangul_blocks_still_give_terms(self):
+        """`[^\\W_]` 는 한글을 받는다 — 안 받으면 한국어 문서가 조용히 분모에서 빠진다."""
+        self.assertEqual(passage_consume.query_terms("김치찌개 레시피", limit=2),
+                         ["김치찌개", "레시피"])
+
+
+class CensusTest(_Seeded):
+    """`census()` — 새 public 함수고 테스트가 0 이었다(갭 ⑥)."""
+
+    def test_it_freezes_the_shape_document_with_its_positions(self):
+        Store(self.db_path).upsert("http://x/shape", _SHAPE + _WEAK_BODY, 200)
+        out = os.path.join(self.dir.name, "out.jsonl")
+        self.assertEqual(passage_consume.census(self.db_path, out, limit=10, offset=0),
+                         passage_consume.MEASURED)
+        with open(out, encoding="utf-8") as f:
+            rows = [json.loads(l) for l in f if l.strip()]
+        self.assertEqual([r["url"] for r in rows], ["http://x/shape"])
+        self.assertEqual(rows[0]["positions"], [0])
+
+    def test_a_document_without_the_shape_is_not_frozen(self):
+        """음성 대조 — 모양이 없으면 모집단에 안 든다."""
+        Store(self.db_path).upsert("http://x/plain", _WEAK_BODY, 200)
+        out = os.path.join(self.dir.name, "out.jsonl")
+        self.assertEqual(passage_consume.census(self.db_path, out, limit=10, offset=0),
+                         passage_consume.MEASURED)
+        with open(out, encoding="utf-8") as f:
+            self.assertEqual(f.read().strip(), "")
+
+    def test_a_missing_db_is_unmeasurable(self):
+        self.assertEqual(
+            passage_consume.census(os.path.join(self.dir.name, "없다.db"),
+                                   os.path.join(self.dir.name, "out.jsonl")),
+            passage_consume.UNMEASURABLE)
+
+
+class FixtureDriftTest(_Seeded):
+    """**픽스처가 적어 둔 position 을 아무도 안 보면, 제품 파서가 바뀐 것을
+    「모양 문서가 상위에 못 들었다」로 읽는다.**
+
+    지문(`sha`)은 HTML 이 같은 것만 보증한다 — 같은 HTML 에서 제품이 다른 블록 경계를
+    내면 지문은 그대로고 position 만 움직인다. 그 자리를 `moved` 가 센다. 이것이
+    이 저장소 최다 재발 계열(「절차를 적고 재는 자를 안 만든다」)의 이 파일 판이다.
+    """
+
+    def test_a_moved_position_is_counted_not_swallowed(self):
+        self._seed("http://x/shape", _SHAPE + _WEAK_BODY)
+        with open(self.fixture, encoding="utf-8") as f:
+            row = json.loads(f.read())
+        row["positions"] = [99]          # 제품 파서가 바뀐 꼴을 흉내낸다
+        with open(self.fixture, "w", encoding="utf-8") as f:
+            f.write(json.dumps(row) + "\n")
+        c = self._counts()
+        self.assertEqual(c["moved"], 1, c)
+
+    def test_a_moved_position_makes_the_runner_unmeasurable(self):
+        """`rc` 가 **2** 다 — 0 이나 1 로 내면 바뀐 제품 위에서 수를 계속 잇는다."""
+        self._seed("http://x/shape", _SHAPE + _WEAK_BODY)
+        with open(self.fixture, encoding="utf-8") as f:
+            row = json.loads(f.read())
+        row["positions"] = [99]
+        with open(self.fixture, "w", encoding="utf-8") as f:
+            f.write(json.dumps(row) + "\n")
+        self.assertEqual(passage_consume.measure(self.db_path, self.fixture),
+                         passage_consume.UNMEASURABLE)
+
+    def test_matching_positions_do_not_trip_it(self):
+        """음성 대조 — 맞으면 0 이다. 이것이 없으면 「언제나 문다」도 통과한다."""
+        self._seed("http://x/shape", _SHAPE + _WEAK_BODY)
+        self.assertEqual(self._counts()["moved"], 0)
+
+
+class DesyncVerdictTest(_Seeded):
+    """정렬 깨짐은 **`rc=2`** 다 — 실물 census 에서 실제로 3건 났던 축이다."""
+
+    def test_a_desynced_document_is_unmeasurable(self):
+        # 모양이 **없는** 문서를 모양 문서라고 적어 두면 position 이 안 맞는다 —
+        # `moved` 가 먼저 물므로, 정렬 깨짐 자체는 `shape_positions` 가 `None` 을
+        # 내는 길로 잰다(단위 `ShapePositionsTest` 가 그 함수를 직접 문다).
+        self._seed("http://x/shape", _SHAPE + _WEAK_BODY)
+        real = passage_consume.shape_positions
+        passage_consume.shape_positions = lambda _h, _ref=None: None
+        self.addCleanup(setattr, passage_consume, "shape_positions", real)
+        c = self._counts()
+        self.assertEqual((c["desync"], c["docs"]), (1, 0), c)
+        self.assertEqual(passage_consume.measure(self.db_path, self.fixture),
+                         passage_consume.UNMEASURABLE)
