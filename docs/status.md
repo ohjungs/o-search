@@ -1,19 +1,19 @@
 ---
 signal: GREEN
-phase: 설계
+phase: 개발
 step: 0/3
 attempt: 1
 plan: passage-consume-census  # 계획 120 — 근거 문단 «소비» 축을 재는 자
-iteration: 736
+iteration: 737
 updated: 2026-10-20
 mode: 무인(night)  # 2026-10-20 `/loop-harness night` — 탐색 모드
-night_iterations: 1  # 이 세션 시작 시 셋 다 0 리셋
+night_iterations: 2  # 이 세션 시작 시 셋 다 0 리셋
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
 ctx: **statusLine 꺼진 것과 동일 취급**(게이트 ⑦ 판정을 그대로 돌렸다) — `.context-state.json` 의 `session_id`(`8601ae25`)에 해당하는 `~/.claude/projects/-Users-t2025-m0191-work-websearch/<id>.jsonl` 이 **없다**(= 남의 것) 그리고 `updated_unix` 가 **112분** 묵었다. 마지막으로 읽힌 값은 ctx 19 · 5h 13 · 7d 12. **반복 상한(60)에만 의존한다.**
 rules: 34cae75   # `git -C ~/.claude log -1 --format=%h -- skills/loop-harness`
-note: **[계획 · 반복 736 · 계획 120 `passage-consume-census` 착수]** 탐색 1~5순위 **0건**(전수 **906 OK rc=0** · 코드 `TODO` 0 — 잡힌 1건은 fixture HTML 안의 문자열 · 4순위 `scripts/candidates-scan.js` **부재**(후보 `[6]` 에 등재된 그 상태) · 보류 승인 0). 6순위에서 집은 것은 **후보 셋의 «공통» 여는 조건**이다 — `[4]`(`pre`)·`[5]`(중첩 `<a>`)·`[6]` 의 ⓑ 가 전부 「**소비** 측정이 나오는 날」에 묶여 있고, 그 소비를 재는 자가 **저장소에 0개**다(후보 `[7]` 이 계획 117 을 닫으며 천장으로 적어 뒀다 — `passage_shapes.py` 는 「**공급만** 센다」). **제품 `src/` 0줄로 간다** — 실물 DB 에 색인이 산다(`pages` **275,482** · `docs` **222,569** · 2026-10-20 탐침)라 `indexer.passages()` 를 **그대로 부른다**. 고르는 규칙을 함수로 빼내는 안은 **야간 금지 목록의 리팩터링**이라 버렸고, 사본을 드는 안은 후보 `[6]` 이 적어 둔 사고라 안 쓴다. **설계 필요** — 질의가 어디서 오나가 갈린다(실물 표본에 정답 질의가 없다). 다음: `docs/design_passage-consume-census`(설계 phase 가 만든다).
+note: **[설계 · 반복 737 · 계획 120 설계 완료]** 갈림 **둘**을 닫았다. **① 질의 출처 = 모양 블록 자신** — 질의를 그 블록에 가장 유리하게 주므로 수가 **상한**이고 0 이면 후보가 닫힌다(라벨 0 · 사람 안 부른다). 실물 정답 질의는 야간 금지(사람 판단)고, DB 빈출 토큰은 분모가 사실상 0 이라 「안 이긴다」와 「안 만났다」가 안 갈린다. **② 자리 = 새 파일 `e2e/passage_consume.py`** — 결정적인 수는 **동결 표본 1,000건에 중첩 `<a>` 문서가 0건**이라는 것이다(`baselines.md` 계획 119 표). `passage_shapes.py` 에 축을 더하는 쪽이 코드는 적지만 **그 적음이 못 재는 자를 낳는다**. **가정 넷을 탐침으로 깼고 전부 참이다**(커밋 없음): `passages()` 가 실물 DB 에서 돈다 · **DB 파일 mtime·size 무변경** · 모양 문서가 자기 블록 글자로는 hit 된다(`Health` 로는 상위 10 에 **안 들고** `Fontutils Gama Gawk` 로는 **든다** → **분모를 설계에 넣었다**) · 그리고 **그 두 질의의 근거는 position 30·122 로 둘 다 본문이었다** — 수는 0 쪽으로 기울었지만 판정은 스텝 1 이 한다. **설계가 범위를 깎았다**: ⓑ 는 census 가 없어 **「재지 않았다」로 적는다**(「닫혔다」로 적지 않는다) · `pre` 는 여유가 있을 때만 더한다. 설계 → `docs/design_passage-consume-census.md`.
 ---
 ## 이 밤 (2026-10-20) — 계획 120 `passage-consume-census` **착수** (반복 736~)
 
