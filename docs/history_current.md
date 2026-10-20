@@ -200,3 +200,30 @@ table: pages` · rc=2). `census` 의 `os.makedirs("")` 도 같은 계열이라 �
 건드리지 않은 공급 축이다.
 **두 실행 경로가 모두 33건**이다(백지 패스 [A] 가 찾은 자리). 계획 →
 `plan_history_095.md` · 사람 몫은 **병합**뿐이다(게이트 ⑯).
+
+### 반복 744 · 2026-10-21 · 계획 · nested-anchor-cut · 무인(night)
+탐색 1~5순위 **0건**(전수 939 OK rc=0 · 린트·타입체크 없음 · 코드 `TODO` 0 · 4순위 큐 부재 ·
+보류 둘은 사람 몫). 6순위에서 **열린 후보는 `digest.md` 후보 `[6]`「중첩 `<a>`」 `[6]` 하나**라 계획 121 로 집었다 —
+8·7점은 전부 여는 조건 미달·닫힘·낡은 수다. 7순위 `digest.md` `## 반복 실패` 의 `[7]`「`&&` 가 읽는 `rc`」 의 여는 조건을 실측해 **「밤이
+안 연다」로 판정**했다(`.git/hooks/pre-commit` 은 하네스 `guard.cjs` 를 `exec` 하는 shim 이고
+`.git/hooks` 는 버전 관리 밖이라, 마커를 쓰는 쪽만 저장소에 남는 반쪽 기제가 된다).
+게이트 ⑮·⑯ 는 `git branch --contains` 로 **병합 확인 후 해소**했다. 설계 트리거에 걸려 `phase: 설계`.
+
+### 반복 745 · 2026-10-21 · 설계 · nested-anchor-cut · 무인(night)
+안 셋을 출발점 셋에서 내고 **측정으로 갈랐다**. 고른 것은 **A** — `_NestedRef` 의 2줄을 제품
+`_BlockParser.handle_starttag` 맨 앞으로 옮긴다. **B(`_IMPLIED_END` 한 줄)는 실측으로 탈락**:
+그 루프는 `_els` 를 직접 pop 해 `handle_endtag` 를 안 거치므로 `_after_link` 가 안 서고 TOC 꼴이
+1 블록 그대로다. C(랭킹 벌점)는 공급 0.0008% 에 모든 문서의 랭킹을 걸어 버렸다. 가정은 탐침
+2회로 깼다(커밋 0 · 저장소 무변경): 다섯 모양 중 TOC·안닫힌인접이 갈리고 숨김·비중첩은 무변경이며,
+덤으로 A 가 후보 `[4]`「천장 ⓐ 와 미닫힘」까지 닫는다. 남은 위험(ref 가 제품의 하위 클래스라
+delta 가 회귀를 못 잡는다)은 계약 5 로 **리터럴 기대 블록**에 이를 옮겼다. 설계 `design_nested-anchor-cut.md`.
+
+### 반복 746 · 2026-10-21 · 개발 1/2 → **보류** · nested-anchor-cut · 무인(night)
+TDD 로 갔다 — 실패를 눈으로 보고(`['Health (cflow)'] != ['Health (', 'cflow)']`) 3줄을 넣고 통과를 봤다.
+**제품 쪽은 전부 초록**(`test_extract` 64 · `test_indexer` 128 · `test_serve` 129 OK · `passage_eval`
+100% p95 1.71ms · `quality_eval` 통과 · 실물 1,000표본 블록 307,825 **무변경**). **그런데 전수 940 중 19
+빨강이 전부 측정기 계층이다** — `test_passage_consume` 16/33 · `test_passage_shapes` 2/24 · `test_readme` 1.
+`shape_positions` 가 제품과 `_NestedRef` 를 실행 시점에 맞춰 보고 `_NestedRef` 가 `_BlockParser` 의
+하위 클래스라, 갈림을 고치면 **모양의 정의역이 빈다**(측정기가 스스로 `rc=2` 를 냈다). `plan.md` 6절로
+YELLOW → 보류. 빨간 트리 커밋 0 · 패치 0 · 제품 3줄은 `stash@{0}`. 되돌린 트리 **939 OK rc=0**.
+후보 `[7]` 등재(여는 조건이 지금 섰다) · 사람이 고를 ㉠㉡ 은 `digest.md` `## 보류` 줄.
