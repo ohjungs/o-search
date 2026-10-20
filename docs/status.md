@@ -1,71 +1,49 @@
 ---
-signal: DONE
-phase: 기록
-step: 0/0
+signal: GREEN
+phase: 설계
+step: 0/2
 attempt: 1
-plan: null  # 계획 120 `passage-consume-census` DONE (2026-10-20 반복 743) · 병합은 사람 몫
-iteration: 743
-updated: 2026-10-20
-mode: 무인(night)  # 2026-10-20 `/loop-harness night` — 탐색 모드
-night_iterations: 8  # 이 세션 시작 시 셋 다 0 리셋
+plan: nested-anchor-cut  # 계획 121 — 계획서 `docs/plan_nested-anchor-cut.md`
+iteration: 744
+updated: 2026-10-21
+mode: 무인(night)  # 2026-10-21 `/loop-harness night` — 탐색 모드
+night_iterations: 1  # 이 세션 시작 시 셋 다 0 리셋
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
-ctx: **statusLine 꺼진 것과 동일 취급**(게이트 ⑦ 판정을 그대로 돌렸다) — `.context-state.json` 의 `session_id`(`8601ae25`)에 해당하는 `~/.claude/projects/-Users-t2025-m0191-work-websearch/<id>.jsonl` 이 **없다**(= 남의 것) 그리고 `updated_unix` 가 **112분** 묵었다. 마지막으로 읽힌 값은 ctx 19 · 5h 13 · 7d 12. **반복 상한(60)에만 의존한다.**
+ctx: **statusLine 꺼진 것과 동일 취급 — 게이트 ⑦ 의 «열두 번째» 비용.** `.context-state.json` 의 `session_id`(`8601ae25`)에 해당하는 `~/.claude/projects/-Users-t2025-m0191-work-websearch/<id>.jsonl` 이 **없다**(= 남의 세션 것이다 · 내 것은 `425ac5c1`) 그리고 `updated_unix` 가 **5.8시간** 묵었다. 거기 남은 마지막 값은 ctx 19 · 5h 13 · 7d 12 인데 **내 세션의 수가 아니다.** **반복 상한(60)에만 의존한다.**
 rules: 34cae75   # `git -C ~/.claude log -1 --format=%h -- skills/loop-harness`
-note: **[마감 · 반복 743 · 계획 120 DONE · 후보 `[5]` 를 열었다]** **소비를 재는 자가 섰다** — `e2e/passage_consume.py`(+ 동결 모집단 · 테스트 33건). **상한 44.4%**(분자 12 / 분모 27 · 모양 블록 49 · 3문서)이고 나가는 근거가 TOC 한 줄이다(`software Cflow cflow` → `Cflow (http://www.gnu.org/software/cflow)`). **후보 셋이 같은 하나의 여는 조건에 묶여 있던 것을 풀었다**: `[5]` **열렸다**(점수 5 → 6) · `[4]` `pre` 와 `[6]` ⓑ 는 **「재지 않았다」**(「닫혔다」로 적지 않았다 — `pre` 는 「한 번 돌리면 된다」로 바뀌었고 ⓑ 는 census 부터다) · `[7]` 의 천장도 닫혔다. **제품 `src/` 0줄** · 전수 **939 OK rc=0** · e2e 세 시나리오 통과(③ 은 `data/` 를 옮긴 채 전수를 돌려 격리를 **동적으로** 쟀다) · e2e 18종 실패 0 · `passage_eval` **100% p95 1.71ms** · `quality_eval` 통과 · 계획 → `plan_history_095.md`. **이 밤이 두 번 꺼낸 것은 같은 것이다 — 「자가 죽었는데 초록이다」**: ① census 첫 판이 정렬 깨짐을 조용히 버려 6문서를 3으로 셌고(계획 119 의 수와 안 맞는 것이 단서였다) ② 테스트 파일의 `__main__` 가드가 중간에 있어 직접 실행이 **26건 중 10건**만 돌렸다(음성 대조 16건이 전부 빠졌는데 머지 게이트는 `discover` 라 초록이었다). 둘 다 자를 세워 닫았다. **그리고 내가 같은 사고를 세 번 냈다 — 파이프가 판정을 가린다**(`digest` 재발 `high` · 세 번째는 빨간 트리를 커밋했다 · 구조적 처방을 후보 `[7]` 로 등재했다). **밤 종료 — 정지 사유는 「헤드룸 판단」(컨텍스트)**이고 반복 **8/60** · 5h **13** · 7d **12** 는 전부 미달이다. `ctx` 는 못 읽었다(`.context-state.json` 이 남의 세션 것이고 3.6시간 묵었다 — 게이트 ⑦ 의 **열한 번째** 비용). **둘째 계획을 열면 스텝 중간에서 끊길 위험이 커 계획 하나를 깨끗이 닫은 지점에서 멈췄다.** 보고서 `docs/reports/night_2026-10-20.md`(231줄 · `.gitignore` 대상) · 지표는 `metrics.jsonl` 마지막 줄. **아침에 볼 것 하나 — 게이트 ⑯**(`loop/passage-consume-census` 병합). 이어서 돌리려면 같은 명령(`/loop-harness night`).
+note: **[계획 · 반복 744 · 계획 121 `nested-anchor-cut` 착수 · phase 설계]** **탐색 1~5순위가 전부 0건이고, 6순위에서 «열린» 후보는 하나였다.** 전수 **939 OK rc=0** · 린트·타입체크 없음 · 코드 `TODO` 0건(유일한 문자열은 `tests/test_indexer.py:1051` 의 픽스처다) · 4순위 큐는 파일도 스캐너도 없다(후보 `[6]` 이 「구조적으로 0건」으로 이미 적어 둔 자리) · 5순위 보류 둘은 사람 몫(보안 패치 · ㉠ 승인분은 아래 ⑮·⑯ 과 함께 끝났다). **6순위 8·7점은 전부 여는 조건 미달이거나 닫혔다** — `[8]` 넷 중 셋은 일반화(교훈)고 `perf_crawl` 기준선은 사람이 셋 중 하나를 골라야 하며, `[8]` 토크나이저 항목은 수가 낡았다(미포함 5/40 → 오늘 ko 20/20 en 19/20 이고 남은 하나가 후보 `[6]` `loaves` 다). **열린 것은 `digest.md` 후보 `[6]`「중첩 `<a>`」 후보 `[6]`(중첩 `<a>` TOC·내비) 하나**이고, 그것을 연 것이 어젯밤 계획 120 이다 — 그래서 그것을 집었다. **7순위도 한 번 쟀다**: `digest.md` `## 반복 실패` 의 `[7]`「`&&` 가 읽는 `rc`」 의 여는 조건(「ⓑ 기제가 `~/.claude/hooks` 가 아니라 이 저장소 안에서 닫히는지」)을 실측했고 **답은 「안 닫힌다」** — `.git/hooks/pre-commit` 은 하네스 `guard.cjs` 를 `exec` 하는 3줄 shim 이고 `.git/hooks` 는 버전 관리 밖이다. 즉 마커를 «쓰는» 쪽(`scripts/verdict.sh`)만 저장소에 있고 «막는» 쪽은 밖이라, 밤이 열면 반쪽짜리 기제가 된다 → **밤이 안 연다**(게이트 ⑤·⑦ 와 같은 이유). **계획 121 은 설계가 필요하다** — 후보 등재문이 갈림 둘을 명시했고(`_BlockParser` 전용 술어 대 `indexer.passages` 내비 벌점) `design.md` 1절 「대안이 2개 이상」에 걸린다. **제품은 아직 0줄이다.** 읽기 예산을 맞추려 `status.md` 를 접었다(⑮·⑯ 해소 + 2026-10-18·10-15 두 절 → 접은 밤들 표) — 합계는 아래 그 표 끝줄에 적었다.
 ---
-## 이 밤 (2026-10-20) — 계획 120 `passage-consume-census` **DONE** (반복 736~743)
+## 이 밤 (2026-10-21) — 계획 121 `nested-anchor-cut` 착수 (반복 744~)
 
-- **근거**: 탐색 **6순위** — `digest` 후보 **셋이 같은 하나의 여는 조건**에 묶여 있었다.
-  `[4]`(`pre`) · `[5]`(중첩 `<a>` TOC·내비) · `[6]` 의 ⓑ 가 전부 「소비 측정이 나오는
-  날」을 조건으로 적었고, **그 소비를 재는 자가 0개**였다(후보 `[7]` 이 계획 117 을
-  닫으며 천장으로 적어 둔 그것 — `passage_shapes.py` 는 「공급만 센다」). 1~5순위 0건.
-- **수: 상한 44.4%** (분자 12 / 분모 27 · 모양 블록 49 · 3문서). 질의를 **모양 블록
-  자신의 글자**에서 뽑으므로 가장 유리한 경우이고, 그래서 0 이면 닫혔을 수다. 나가는
-  근거가 TOC 한 줄이다 — `software Cflow cflow` → `Cflow (http://www.gnu.org/software/cflow)`.
-  **후보 `[5]` 를 열었다**(점수 5 → 6 · 공급이 여전히 0.0008% 라 6 까지만).
-- **제품 `src/` 0줄.** 실물 DB 에 색인이 살아(`pages` 275,482 · `docs` 222,569)
-  `indexer.passages()` 를 **그대로 불렀다**. 버린 안 둘: 고르는 규칙을 함수로 빼내기
-  (**야간 금지 목록의 리팩터링**) · 측정기가 규칙을 복사하기(후보 `[6]` 이 적어 둔 사고).
-- **이 밤이 두 번 꺼낸 것은 같은 것이다 — 「재는 자가 죽었는데 초록이다」.**
-  ① census 첫 판이 정렬 깨짐(`None`)을 조용히 버려 **6문서를 3으로** 셌다 — 알아챈
-  단서는 계획 119 의 6 과 안 맞는 것이었고, 덮지 않고 계수기를 넣어 **3+3=6** 으로
-  맞췄다 ② 테스트 파일의 `__main__` 가드가 **중간**에 있어 직접 실행이 **26건 중 10건**
-  만 돌렸다 — 빠진 16건이 **전부 음성 대조**였는데 머지 게이트는 `discover` 라 초록이었다
-  (백지 패스가 잡았다). 둘 다 **그 자리를 무는 자**를 세워 닫았다.
-- **백지 패스를 별도 세션에 넘겼고 6건 전부 참이었다** — 그중 `rc=1` 이 **판정과 크래시를
-  공유하던 것**이 가장 아팠다(`pages` 없는 DB·옛 색인이 「후보가 열린다」로 나갔다).
-- **사람 몫**: **병합**(`scripts/merge-to-main.sh` · 브랜치 `loop/passage-consume-census`).
-- 남긴 것: `e2e/passage_consume.py` · `e2e/shapes/consume.jsonl` · 테스트 **33건** ·
-  `baselines.md` 의 수와 census 재현 · 결과서 `docs/e2e/passage-consume-census/result.md` ·
-  계획 → `plan_history_095.md`.
+- **지금 어디인가**: `phase: 설계` · 스텝 0/2 · 브랜치 `loop/nested-anchor-cut` ·
+  계획서 `docs/plan_nested-anchor-cut.md`. **제품 코드는 아직 한 줄도 안 건드렸다.**
+- **다음 반복이 할 일**: 설계 문서(`docs/` 아래 `design_` + 슬러그 `nested-anchor-cut`)를 쓴다. 계획서
+  「설계」 절의 **물음 셋**이 입력이고, 첫째가 결정적이다 — `e2e/passage_shapes.py:151`
+  `_NestedRef` 가 TOC 꼴에서 경계를 **어디에** 세우는지 읽고, 계획 119 census 의
+  「덜 끊음 53블록」이 어느 전제에서 나온 수인지 확인한다. (읽어 보니 바깥 `a` 를 닫으면
+  끝의 `)` 가 링크 밖 글자라 `_prose` 가 서고, 그러면 계획 118 규칙대로 **안 끊길** 수도
+  있다 — 그 모순을 설계가 풀어야 한다. 풀리지 않으면 계획을 다시 쓴다.)
+- **근거 사슬**: 후보 `[6]`(`digest.md` 후보 `[6]`「중첩 `<a>`」) ← 계획 120 소비 상한 **44.4%**(분자 12/
+  분모 27 · `rc=1`) ← 계획 119 공급 census **6문서·53블록**(블록 698만의 0.0008%).
+- **범위 고정**: 천장 ⓑ(구분자가 낀 연접)는 **안 건드린다** — `extract.py:291` 이
+  사람 몫으로 못박은 축이다. 등재문의 「한 계획으로 묶으면 싸다」를 **따르지 않았고**
+  이유를 계획서 「하지 않을 것」에 적었다.
 
-## 앞 밤 (2026-10-19) — 계획 119 `nested-anchor-prose` **DONE · 안 열었다** (반복 733~735)
+## 앞 밤 (2026-10-20) — 계획 120 `passage-consume-census` **DONE** (반복 736~743)
 
-**접었다(2026-10-20 반복 741 · 읽기 예산 606 > 600 이 불렀다) — 원본이
-`history_current.md` 반복 733~735 와 `index.md` `plan_nested-anchor-prose` 행에 있다.**
-요지: 스텝 1 이 여는 조건이었고 **그 조건이 안 섰다**(실물 1,000 표본 0 · census
-20,000문서에서도 「더끊음」 0 · 95% 상한 약 0.015%). 계획서가 **미리** 못박은 「0 이면
-안 고치고 수만 적고 닫는다」를 그대로 따랐다. **죽은 측정기의 0 이 아니다** — 같은 판이
-반대 방향 **6문서·53블록**(TOC·내비)을 집어 새 후보로 등재했고, **그 후보를 2026-10-20
-계획 120 이 열었다**(소비 상한 44.4%). 제품 `src/` 0줄.
-
-## 앞 밤 (2026-10-18) — 계획 118 `trailing-prose-join` **DONE** (반복 726~732)
-
-**접었다(2026-10-20 반복 736) — 원본이 `history_current.md` 반복 726~732 와 `index.md`
-`plan_trailing-prose-join` 행에 있다.** 요지: 천장 ⓐ-b(「산문이 링크 뒤에 오면 끊긴다」)를
-`_flush` 한 곳에서 판정하게 바꿔 닫았다(제품 약 13줄 · 설계 `design_history_093.md`) —
-실물 1,000문서 **97블록/43문서 → 0/0** · 새로 끊은 자리 0 · 전수 902 OK. 이 밤이 두 번
-꺼낸 교훈은 같은 것이다 — **「재는 자가 죽었는데 초록이다」**(측정기가 같은 수를 뜻만
-뒤집어 냈고, 그것을 고친 판도 끊는 자리가 `_flush` 로 이사한 것을 몰랐다). **사람 몫**:
-병합(`scripts/merge-to-main.sh` · 브랜치 `loop/trailing-prose-join`).
-
-## 앞 밤 (2026-10-15) — 계획 116 `prose-link-boundary` **DONE** (반복 710~715)
-
-**접었다(2026-10-17 반복 720) — 원본이 `history_current.md` 반복 710~715 와 `index.md`
-`plan_prose-link-boundary` 행에 있다.** 요지: 산문이 링크 **앞** 에 오는 천장 ⓐ 를 닫았고
-제품 논리 약 8줄 · 실물 110문서에서 짧아진 근거 0건 · 전수 881 OK · 2026-10-17 11:01 병합.
+**접었다(2026-10-21 반복 744 · 읽기 예산이 불렀다) — 원본이 `history_current.md`
+반복 736~743 과 `index.md` `plan_passage-consume-census` 행에 있다.** 요지: 근거 문단
+**소비** 축을 재는 자를 세웠다(`e2e/passage_consume.py` · 동결 모집단
+`e2e/shapes/consume.jsonl` · 테스트 33건 · **제품 `src/` 0줄**) — 상한 **44.4%**
+(분자 12/분모 27 · 모양 블록 49 · 3문서)이고 나가는 근거가 TOC 한 줄이다. 후보 셋이
+묶여 있던 하나의 여는 조건을 풀어 `[5]`→`[6]` 을 **열었다**. 교훈 둘이 같은 것이다 —
+**「재는 자가 죽었는데 초록이다」**(① census 첫 판이 정렬 깨짐을 조용히 버려 6문서를
+3으로 셌다 ② 테스트 파일의 `__main__` 가드가 중간에 있어 26건 중 10건만 돌았고 빠진
+16건이 전부 음성 대조였다). 전수 939 OK rc=0 · `passage_eval` 100% p95 1.71ms ·
+결과서 `docs/e2e/passage-consume-census/result.md` · 계획 → `plan_history_095.md`.
+**병합까지 끝났다** — 아래 ⑮·⑯ 해소 줄.
 
 ## 접은 밤들 — 원본이 `history_current.md`·`index.md` 에 있다 (2026-10-06 반복 679 접음)
 
@@ -74,6 +52,9 @@ note: **[마감 · 반복 743 · 계획 120 DONE · 후보 `[5]` 를 열었다]*
 
 | 접은 것 | 원본 |
 |---|---|
+| 2026-10-19 반복 733~735 · 계획 119 `nested-anchor-prose` (**안 열었다** — 스텝 1 이 여는 조건이었고 안 섰다: 실물 1,000 표본 0 · census 20,000문서 「더끊음」 0 · 95% 상한 약 0.015%. **죽은 측정기의 0 이 아니다** — 같은 판이 반대 방향 6문서·53블록을 집어 후보 `[6]` 으로 등재했고 계획 120 이 그것을 열었다. 제품 0줄 · 병합) | `history_current.md` 반복 733~735 · `index.md` `plan_nested-anchor-prose` 행 |
+| 2026-10-18 반복 726~732 · 계획 118 `trailing-prose-join` (천장 ⓐ-b 를 `_flush` 한 곳 판정으로 닫았다 · 실물 97블록/43문서 → 0/0 · 병합) | `history_current.md` 반복 726~732 · `index.md` `plan_trailing-prose-join` 행 · 설계 `docs/design_history_093.md` |
+| 2026-10-15 반복 710~715 · 계획 116 `prose-link-boundary` (산문이 링크 **앞** 에 오는 천장 ⓐ · 짧아진 근거 0건 · 병합) | `history_current.md` 반복 710~715 · `index.md` `plan_prose-link-boundary` 행 |
 | 2026-10-17 반복 718~725 · 계획 117 `passage-real-sample` (동결 표본·측정기 · 제품 0줄 · `0596476` 병합) | `history_103.md` 반복 718~725 · `index.md` `plan_passage-real-sample` 행 |
 | 2026-10-12 반복 697~701 · 계획 114 `opened-title-drop` | `history_current.md` 반복 697~701 · `index.md` `plan_opened-title-drop` 행 |
 | 2026-10-06 반복 679 `gap-nail-census` | `history_current.md` 반복 679 · `index.md` `(짧은 경로) gap-nail-census` |
@@ -91,7 +72,7 @@ note: **[마감 · 반복 743 · 계획 120 DONE · 후보 `[5]` 를 열었다]*
 | 2026-09-14 반복 586·592 경고 축 측정(`-W always` 값표) | 아래 **사람 결정 ⑫** 본문이 값표까지 들고 있다 · `digest.md` 후보 `[7]` |
 | 게이트 ⑨ 네 번째 피해 서술 + 반복 563 `loop/seed-tier2` 사고 | 아래 **사람 결정 ⑨** 본문(㉯·㉰ 닫힘 · ㉮ 만 사람 몫) |
 
-접은 뒤 `status.md` **383 → 253 → 157줄** · 필수 읽기 합계 **651 → 521 → 522 → 523/600**(계획이 살아 있는 값).
+접은 뒤 `status.md` **383 → 253 → 157 → 193줄** · 필수 읽기 합계 **651 → 521 → 523 → 592/600**(계획이 살아 있는 값 · 2026-10-21 반복 744 실측). **여유가 8줄이다** — 다음에 접을 칸은 이 절 위의 「앞 밤 (2026-10-20)」이고, 원본은 `history_current.md` 반복 736~743 과 `index.md` 해당 행이다.
 
 ## 빈손 대조 핀 — 기준 트리 `064fe56`
 
@@ -115,16 +96,11 @@ gh issue list --state open --limit 20     # 트리 밖 — 항상 돌린다
 
 근거·재현·처방은 갖춰졌고 막는 것은 판단뿐이다. **서술은 닫혔다 — 상세는 괄호 안 반복 번호에 있다.**
 
-- **⑯ `loop/passage-consume-census` 병합** (2026-10-20 계획 120) — **제품 `src/` 0줄**이다.
-  새 측정기 하나(`e2e/passage_consume.py`) · 동결 모집단(`e2e/shapes/consume.jsonl` ·
-  본문 0바이트) · 테스트 **33건** · 문서뿐이라 계획 115~118 의 병합 게이트보다 가볍고
-  계획 119 와 같은 무게다. 전수 **939 OK rc=0** · e2e 18종 실패 0 · `passage_eval`
-  100% p95 1.71ms · `quality_eval` 통과. `scripts/merge-to-main.sh` 로 민다.
-
-- **⑮ `loop/nested-anchor-prose` 병합** (2026-10-19 계획 119) — **제품 `src/` 0줄**이다.
-  측정기 축 하나(`e2e/passage_shapes.py` 의 `_NestedRef`) · 테스트 4건 · 문서뿐이라
-  계획 115~118 의 병합 게이트보다 가볍다. 전수 906 OK · e2e 18종 rc=0 ·
-  `passage_eval` 100% p95 1.75ms. `scripts/merge-to-main.sh` 로 민다.
+- ~~**⑮·⑯ `loop/nested-anchor-prose`·`loop/passage-consume-census` 병합**~~ — **해소
+  (2026-10-21 반복 744 실측).** 둘 다 `main` 에 들어 있다(`git branch --contains` ·
+  `main..<브랜치>` ahead=0 · `git ls-tree main` 에 `e2e/passage_consume.py`·
+  `e2e/shapes/consume.jsonl` 있음). 병합 커밋은 `996b5fd`(2026-10-20 05:06). 같은 자리의
+  `## 보류` 항목 `plan_nav-inline-passage`(㉠ 병합 승인)도 브랜치가 남아 있지 않아 끝났다.
 
 - **① 동시 색인이 만드는 중복 `docs` 행** — 반복 550 리뷰 보류. 고치는 자리는 `index_pages`
   의 트랜잭션 경계(`BEGIN IMMEDIATE`)이고 재구축 갈래의 `BEGIN`(`indexer.py:217`)과 중첩을
