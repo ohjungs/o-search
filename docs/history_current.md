@@ -217,3 +217,13 @@ table: pages` · rc=2). `census` 의 `os.makedirs("")` 도 같은 계열이라 �
 2회로 깼다(커밋 0 · 저장소 무변경): 다섯 모양 중 TOC·안닫힌인접이 갈리고 숨김·비중첩은 무변경이며,
 덤으로 A 가 후보 `[4]`「천장 ⓐ 와 미닫힘」까지 닫는다. 남은 위험(ref 가 제품의 하위 클래스라
 delta 가 회귀를 못 잡는다)은 계약 5 로 **리터럴 기대 블록**에 이를 옮겼다. 설계 `design_nested-anchor-cut.md`.
+
+### 반복 746 · 2026-10-21 · 개발 1/2 → **보류** · nested-anchor-cut · 무인(night)
+TDD 로 갔다 — 실패를 눈으로 보고(`['Health (cflow)'] != ['Health (', 'cflow)']`) 3줄을 넣고 통과를 봤다.
+**제품 쪽은 전부 초록**(`test_extract` 64 · `test_indexer` 128 · `test_serve` 129 OK · `passage_eval`
+100% p95 1.71ms · `quality_eval` 통과 · 실물 1,000표본 블록 307,825 **무변경**). **그런데 전수 940 중 19
+빨강이 전부 측정기 계층이다** — `test_passage_consume` 16/33 · `test_passage_shapes` 2/24 · `test_readme` 1.
+`shape_positions` 가 제품과 `_NestedRef` 를 실행 시점에 맞춰 보고 `_NestedRef` 가 `_BlockParser` 의
+하위 클래스라, 갈림을 고치면 **모양의 정의역이 빈다**(측정기가 스스로 `rc=2` 를 냈다). `plan.md` 6절로
+YELLOW → 보류. 빨간 트리 커밋 0 · 패치 0 · 제품 3줄은 `stash@{0}`. 되돌린 트리 **939 OK rc=0**.
+후보 `[7]` 등재(여는 조건이 지금 섰다) · 사람이 고를 ㉠㉡ 은 `digest.md` `## 보류` 줄.
