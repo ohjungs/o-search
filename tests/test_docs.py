@@ -763,7 +763,17 @@ PIN_LINE = re.compile(
 # 야간 보고서의 **표 줄**에서만 종합 신호를 읽는다. 문서 전체에서 이모지를 찾는 안은
 # 범례 줄(`night_2026-10-08.md` 의 「🔴 실패 · 🟡 판단 · 🟢 완료 · ⚪ 빈손」)에
 # 거짓 양성을 낸다 — 실측으로 확인했다.
-REPORT_SIGNAL = re.compile(r"^\| \*\*신호\*\* \| *(\S)", re.M)
+#
+# **칸 안에서 알려진 신호 넷을 찾는다 — 첫 글자를 집지 않는다.** 백지 패스 리뷰가
+# 재현했다: `| **신호** | *(\S)` 꼴은 `| **신호** | **⚪ 빈손** |` 에서 `*` 를,
+# 백틱을 두르면 `` ` `` 를 집어 그 밤이 **빈손으로 세어지지 않고** 꼴 가드도 조용했다.
+# 즉 「값을 굵게 감싼다」는 평범한 편집 하나로 재는 자가 죽었다. 라벨 쪽 공백도 함께 푼다
+# (정렬 패딩 `| **신호**  |` 가 `None` 이었다). 알려진 넷 밖의 글자는 **신호가 아니다** —
+# 꼴 가드가 그 보고서를 빨강으로 받는 쪽이 조용히 세지 않는 쪽보다 낫다.
+#
+# **첫 매치가 이긴다**(`search`). 관용구가 「**맨 위** 종합 신호」이므로 이것이 규약과
+# 같은 방향이다 — 실물 `night_2026-08-29.md` 가 이미 신호 줄을 둘 들고 있다(둘 다 🟢).
+REPORT_SIGNAL = re.compile(r"^\| *\*\*신호\*\* *\|[^|]*?(🔴|🟡|🟢|⚪)", re.M)
 # 보고서 날짜는 **파일명**에서 읽는다. 같은 날 두 벌이 있는 날이 넷이라
 # (`09-09` 2 · `09-10` 2 · `09-12` 3 · `09-14` 2) 접미사를 허용해야 한다.
 REPORT_NAME = re.compile(r"^night_(\d{4}-\d{2}-\d{2})")
@@ -800,12 +810,24 @@ def signal_row_gap(reports):
     """
     if not reports:
         return None
-    name, text = reports[-1]
-    if report_signal(text) is not None:
+    latest = REPORT_NAME.match(reports[-1][0])
+    if not latest:
+        return ("최신 야간 보고서 %s 의 이름에서 날짜를 못 읽었다 —"
+                " `night_YYYY-MM-DD…` 꼴이어야 하고, 0 패딩이 빠지면"
+                " `pin_rot_gap` 의 ⚪ 집계에서 **조용히 빠진다**" % reports[-1][0])
+    day = latest.group(1)
+    # **그 날짜의 보고서를 전부 본다** — 파일 하나가 아니다. 같은 날 두 벌 이상인 날이
+    # 넷이고(`09-09` 2 · `09-10` 2 · `09-12` 3 · `09-14` 2), 한 밤에 둘이 들어가면
+    # 사전순 마지막 하나만 보는 축은 앞것을 영구히 검사하지 않는다(백지 패스 지적).
+    missing = [name for name, text in reports
+               if (REPORT_NAME.match(name) or None)
+               and REPORT_NAME.match(name).group(1) == day
+               and report_signal(text) is None]
+    if not missing:
         return None
-    return ("최신 야간 보고서 %s 에 `| **신호** | <이모지> …` 줄이 없다 —"
+    return ("최신 날짜(%s)의 야간 보고서에 `| **신호** | <이모지> …` 줄이 없다 — %s."
             " `pin_rot_gap` 이 이 줄을 읽는다. 없으면 그 밤이 빈손이었는지"
-            " 셀 수 없고 핀 가드가 조용히 죽는다" % name)
+            " 셀 수 없고 핀 가드가 조용히 죽는다" % (day, " · ".join(missing)))
 
 
 def pin_rot_gap(status_text, reports):
@@ -822,6 +844,17 @@ def pin_rot_gap(status_text, reports):
 
     **핀 줄을 못 찾으면 빨강이다.** 「재지 못했다」로 비키는 길을 일부러 안 뒀다 —
     꼴이 드리프트하면 이 자가 조용히 죽고, 그것이 이 저장소 최다 재발 계열이다.
+
+    **천장 둘을 백지 패스가 쟀다. 이 자가 못 보는 것이다:**
+
+    ① **해시를 안 본다.** 판정 입력이 날짜 문자열뿐이라, 해시를 묵은 채로 두고 괄호
+    안 날짜만 미래로 고치면 초록이다(재현했다). 이 자가 막는 것은 **잊음**이고
+    **거짓말이 아니다.** 닫으려면 핀 커밋의 날짜를 `git` 으로 읽어 대조해야 하는데
+    그것은 이 계획의 축 밖이다 → `digest.md` 후보로 등재했다.
+
+    ② **해상도가 하루다.** 밤 D 에 핀을 옮긴 뒤 같은 D 안에 변경이 들어오고 D 가
+    빈손으로 끝나면 조용하다. 경계를 초과로 바꾸면 그 밤이 제 손으로 옮긴 핀을
+    그 밤이 무는 거짓 RED 가 상시가 되므로, **이쪽을 고르고 천장을 적는 것**이 답이다.
     """
     pin = PIN_LINE.search(status_text)
     if not pin:
@@ -2921,11 +2954,46 @@ class NightReportSignalTest(unittest.TestCase):
             [("night_2026-10-08.md", "본문만 있다"),
              ("night_2026-10-22.md", "| **신호** | ⚪ **빈손** |")]))
 
-    def test_a_report_without_the_row_is_caught(self):
+    def test_a_report_without_the_row_has_no_signal(self):
         self.assertIsNone(report_signal("# 야간 보고\n## 🟢 종합 — 머리만 있다"))
 
     def test_the_signal_is_read_from_the_row(self):
         self.assertEqual("⚪", report_signal("| **신호** | ⚪ **빈손** 탐색 0건 |"))
+
+    def test_the_signal_survives_ordinary_editing_of_the_cell(self):
+        """**값을 감싸는 편집**이 재는 자를 죽이지 않는다.
+
+        백지 패스가 재현한 자리다 — 첫 글자를 집는 축은 아래 셋에서 `*`·`` ` ``·`None`
+        을 돌려줬고, 그러면 그 밤이 빈손으로 세어지지 않은 채 꼴 가드도 조용했다.
+        """
+        for cell in ("| **신호** | **⚪ 빈손** |",
+                     "| **신호** | `⚪` 빈손 |",
+                     "| **신호**  | ⚪ **빈손** |",
+                     "|**신호**| ⚪ 빈손 |"):
+            with self.subTest(cell=cell):
+                self.assertEqual("⚪", report_signal(cell))
+
+    def test_an_unknown_mark_is_not_a_signal(self):
+        """알려진 넷 밖은 신호가 아니다 — 조용히 세지 않는 것보다 빨강이 낫다."""
+        self.assertIsNone(report_signal("| **신호** | ❓ 모르는 표기 |"))
+
+    def test_every_report_of_the_latest_day_is_read(self):
+        """같은 날 두 벌이면 **둘 다** 본다 (백지 패스 지적).
+
+        같은 날 두 벌 이상인 날이 넷이다 — 사전순 마지막만 보는 축은 앞것을 영구히
+        검사하지 않고, 그 밤이 ⚪ 였으면 집계에서도 빠진다.
+        """
+        rows = [("night_2026-10-22.md", "본문만 있다"),
+                ("night_2026-10-22_x.md", "| **신호** | 🟢 완료 |")]
+        gap = signal_row_gap(rows)
+        self.assertIsNotNone(gap, "같은 날 앞것의 결손을 놓쳤다")
+        self.assertIn("night_2026-10-22.md", gap)
+
+    def test_an_unpadded_latest_name_is_red(self):
+        """0 패딩이 빠진 이름은 ⚪ 집계에서 조용히 빠지므로 빨강이다."""
+        gap = signal_row_gap([("night_2026-9-5.md", "| **신호** | ⚪ 빈손 |")])
+        self.assertIsNotNone(gap, "날짜를 못 읽는 이름을 통과시켰다")
+        self.assertIn("night_2026-9-5.md", gap)
 
 
 if __name__ == "__main__":
