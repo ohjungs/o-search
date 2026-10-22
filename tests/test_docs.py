@@ -750,6 +750,94 @@ def cap_gap(text):
             " (`rules/docs.md` 3절)" % " · ".join(over))
 
 
+# `status.md` 의 빈손 대조 핀. **줄을 새로 만들지 않고 지금 꼴을 그대로 읽는다** —
+# 해시와 날짜가 이미 한 줄에 같이 있다(실측 `('26f1393', '2026-10-22')`).
+# 못 찾으면 조용해지는 것이 아니라 **빨강이다** (`pin_rot_gap` 주석).
+PIN_LINE = re.compile(
+    r"^## 빈손 대조 핀 — 기준 트리 `([0-9a-f]{7,40})` \((\d{4}-\d{2}-\d{2})", re.M)
+# 야간 보고서의 **표 줄**에서만 종합 신호를 읽는다. 문서 전체에서 이모지를 찾는 안은
+# 범례 줄(`night_2026-10-08.md` 의 「🔴 실패 · 🟡 판단 · 🟢 완료 · ⚪ 빈손」)에
+# 거짓 양성을 낸다 — 실측으로 확인했다.
+REPORT_SIGNAL = re.compile(r"^\| \*\*신호\*\* \| *(\S)", re.M)
+# 보고서 날짜는 **파일명**에서 읽는다. 같은 날 두 벌이 있는 날이 넷이라
+# (`09-09` 2 · `09-10` 2 · `09-12` 3 · `09-14` 2) 접미사를 허용해야 한다.
+REPORT_NAME = re.compile(r"^night_(\d{4}-\d{2}-\d{2})")
+EMPTY_SIGNAL = "⚪"
+
+
+def night_reports(docs=DOCS):
+    """`docs/reports/` 의 야간 보고서를 `(파일명, 본문)` 으로, **날짜순**으로 돌려준다.
+
+    ISO 날짜가 파일명 앞머리에 박혀 있어 사전순이 곧 날짜순이다 — `datetime` 이
+    필요 없다. 디렉터리가 없으면 빈 목록이고, **그 길은 `NightReportSignalTest` 가
+    하한으로 문다**(0건 위에서 조용히 통과하는 것을 막는다).
+    """
+    folder = docs / "reports"
+    return [(path.name, path.read_text(encoding="utf-8"))
+            for path in sorted(folder.glob("night_*.md"))]
+
+
+def report_signal(text):
+    """야간 보고서의 종합 신호 이모지. 표 줄이 없으면 `None`."""
+    found = REPORT_SIGNAL.search(text)
+    return found.group(1) if found else None
+
+
+def signal_row_gap(reports):
+    """**가장 최신** 보고서가 신호 줄을 안 들었으면 한 줄로 돌려준다.
+
+    **과거는 일부러 안 본다** — 결손 8개가 전부 2026-10-08 이하고, 못 세는 ⚪ 는 전부
+    핀 날짜보다 과거라 판정에 영향이 0 이다. 각 보고서는 **쓰인 날 최신**이므로 이 축
+    하나로 앞으로의 보고서가 전부 지켜진다.
+
+    **선택이 여기 있는 이유는 변이가 살았기 때문이다** — 축을 테스트 안에 두면
+    「최신 대신 최초를 본다」로 바꿔도 가장 오래된 보고서가 줄을 들고 있어 초록이었다.
+    """
+    if not reports:
+        return None
+    name, text = reports[-1]
+    if report_signal(text) is not None:
+        return None
+    return ("최신 야간 보고서 %s 에 `| **신호** | <이모지> …` 줄이 없다 —"
+            " `pin_rot_gap` 이 이 줄을 읽는다. 없으면 그 밤이 빈손이었는지"
+            " 셀 수 없고 핀 가드가 조용히 죽는다" % name)
+
+
+def pin_rot_gap(status_text, reports):
+    """핀이 마지막 빈손 밤보다 묵었으면 한 줄로 돌려준다. 안 묵었으면 `None`.
+
+    `reports` 는 `(파일명, 본문)` 의 순서열이다 — 재는 일과 판정을 갈라 놔야
+    픽스처로 경계를 고정할 수 있다 (`read_budget_gap` 이 `sizes` 를 받는 것과 같다).
+
+    **경계는 초과가 아니다** — 마지막 빈손 밤과 핀이 **같은 날**이면 조용하다. 그 밤이
+    제 손으로 옮긴 핀을 그 밤이 무는 것은 거짓 RED 다 (`cap_gap` 과 같은 판단).
+
+    **빈손 밤이 0건이면 조용하다.** 아직 빈손으로 끝난 밤이 없는 저장소에서 무는 것은
+    핀과 무관한 사고다.
+
+    **핀 줄을 못 찾으면 빨강이다.** 「재지 못했다」로 비키는 길을 일부러 안 뒀다 —
+    꼴이 드리프트하면 이 자가 조용히 죽고, 그것이 이 저장소 최다 재발 계열이다.
+    """
+    pin = PIN_LINE.search(status_text)
+    if not pin:
+        return ("핀 줄을 못 찾았다 — `status.md` 의 `## 빈손 대조 핀 — 기준 트리"
+                " `<해시>` (<YYYY-MM-DD> …` 꼴이 드리프트했다. 꼴을 되돌리거나"
+                " `PIN_LINE` 을 같이 고친다 (`docs/design_pin-rot-nail.md` 결정)")
+    pin_hash, pin_date = pin.group(1), pin.group(2)
+    empty = [REPORT_NAME.match(name).group(1) for name, text in reports
+             if REPORT_NAME.match(name) and report_signal(text) == EMPTY_SIGNAL]
+    if not empty:
+        return None
+    last = max(empty)
+    if last <= pin_date:
+        return None
+    return ("빈손 대조 핀이 마지막 빈손 밤보다 묵었다 — 핀 `%s` (%s) 인데 빈손 밤이"
+            " %s 에 있었다. 그 밤 이후 들어간 것을 핀이 구별하지 못하므로 다음 빈손"
+            " 밤의 대조가 아무것도 판정하지 못한다(실측 58파일 `+5,149/-143`)."
+            " 핀을 그 밤의 `main` 으로 옮기고 날짜를 그 밤으로 적는다"
+            % (pin_hash, pin_date, last))
+
+
 class DocHeadTest(unittest.TestCase):
     def test_append_targets_start_with_h1(self):
         for name in APPEND_TARGETS:
@@ -2709,6 +2797,106 @@ class DocCitationAliveTest(unittest.TestCase):
             " 것이니 수를 다시 재서 고친다)" % (len(sites), DOC_CITATION_FLOOR))
         gap = citation_alive_gap(sites, DOCS)
         self.assertIsNone(gap, gap)
+
+
+class PinRotTest(unittest.TestCase):
+    """빈손 대조 핀이 **마지막 빈손 밤보다 묵었나**.
+
+    핀(`status.md` 의 `## 빈손 대조 핀` 줄)의 값은 「**지난 빈손 밤** 이후 코드 트리가
+    안 변했다」는 것이다. 그래서 핀은 빈손 밤이 끝날 때 옮겨야 하고, 안 옮기면 다음
+    빈손 밤이 받는 대조가 쓸 수 없게 된다 — 실측으로 **39일·22계획** 묵어 58파일
+    `+5,149/-143` 을 내고 있었다(2026-10-22 반복 747).
+
+    **왜 「해시 ≠ `main`」으로 안 재나** — 계획이 도는 날에는 항상 다르고 그게 정상이라
+    거짓 RED 가 상시다. 「핀 날짜가 K일 묵었나」·「변경 파일 수가 임계를 넘었나」도
+    버렸다: 둘 다 핀을 아무 날에나 갈아끼우는 **공허한 손**을 부르고, 그러면 핀이 제
+    용도를 잃은 채로 초록이 된다. 유도는 `docs/design_pin-rot-nail.md`.
+    """
+
+    def test_the_pin_is_not_older_than_the_last_empty_night(self):
+        gap = pin_rot_gap((DOCS / "status.md").read_text(encoding="utf-8"),
+                          night_reports(DOCS))
+        self.assertIsNone(gap, gap)
+
+    def test_the_rot_that_actually_happened_is_red(self):
+        """2026-09-30 사건 — 핀이 2026-09-13 인 채로 빈손 밤이 지나갔다."""
+        gap = pin_rot_gap("## 빈손 대조 핀 — 기준 트리 `064fe56` (2026-09-13 반복 592 에 옮겼다)",
+                          [("night_2026-09-30.md", "| **신호** | ⚪ **빈손** 근거 0건 |")])
+        self.assertIsNotNone(gap, "묵은 핀을 놓쳤다")
+        self.assertIn("2026-09-30", gap, "마지막 빈손 밤의 날짜를 안 인쇄한다")
+        self.assertIn("2026-09-13", gap, "핀의 날짜를 안 인쇄한다")
+
+    def test_no_empty_night_is_quiet(self):
+        """빈손 밤이 아직 없던 저장소에서 거짓 RED 를 내지 않는다."""
+        self.assertIsNone(pin_rot_gap(
+            "## 빈손 대조 핀 — 기준 트리 `064fe56` (2026-09-13 반복 592 에 옮겼다)",
+            [("night_2026-10-20.md", "| **신호** | 🟢 **GREEN** 계획 1개 완료 |")]))
+
+    def test_the_same_day_is_not_rot(self):
+        """경계는 초과가 아니다 — 그 밤이 옮긴 핀을 같은 밤이 물면 거짓 RED 다."""
+        self.assertIsNone(pin_rot_gap(
+            "## 빈손 대조 핀 — 기준 트리 `26f1393` (2026-10-22 반복 747 에 옮겼다)",
+            [("night_2026-10-22.md", "| **신호** | ⚪ **빈손** 탐색 0건 |")]))
+
+    def test_a_missing_pin_line_is_red_not_silence(self):
+        """꼴이 드리프트하면 **그것이 실패다.**
+
+        「재지 못했다」로 조용해지는 길을 두지 않는다 — 계획 120 이 그 자리에서
+        죽은 측정기를 초록으로 봤다.
+        """
+        gap = pin_rot_gap("## 빈손 대조 핀 — 기준 트리는 지난 밤의 것",
+                          [("night_2026-10-22.md", "| **신호** | ⚪ **빈손** |")])
+        self.assertIsNotNone(gap, "핀 줄을 못 찾았는데 조용하다")
+        self.assertIn("핀 줄", gap)
+
+    def test_the_legend_line_is_not_a_signal(self):
+        """범례가 거짓 양성을 만들지 않는다 — 표 줄만 센다.
+
+        실측 근거: `night_2026-10-08.md` 가 「🔴 실패 · 🟡 판단 · 🟢 완료 · ⚪ 빈손」을
+        본문에 들고 있다. 문서 전체에서 `⚪` 를 찾는 안이 여기서 죽는다.
+        """
+        self.assertIsNone(pin_rot_gap(
+            "## 빈손 대조 핀 — 기준 트리 `26f1393` (2026-10-22 반복 747 에 옮겼다)",
+            [("night_2026-10-25.md",
+              "## 🟢 종합\n| **신호** | 🟢 완료 |\n맨 위 종합 신호는 🔴 실패 · 🟡 판단 · ⚪ 빈손")]))
+
+
+class NightReportSignalTest(unittest.TestCase):
+    """**가장 최신** 야간 보고서가 신호 줄을 들고 있나.
+
+    `PinRotTest` 의 입력이 이 꼴이다 — 아무도 안 지키면 재는 자가 조용히 죽는다
+    (`grep -rn 'reports' tests/` 가 0건이었다).
+
+    **과거는 안 본다.** 40개 중 8개에 줄이 없고 그것이 전부 2026-10-08 이하다.
+    고치는 것은 직교 편집이고, 못 세는 ⚪ 는 전부 핀 날짜보다 과거라 **판정에 영향이
+    0 이다**(과소 계수가 거짓 초록을 못 만든다). 각 보고서는 **쓰인 날 최신**이므로
+    이 축 하나로 앞으로의 보고서가 전부 지켜진다 — 날짜 상수를 박지 않는 이유다.
+    """
+
+    def test_the_latest_report_carries_a_signal_row(self):
+        reports = night_reports(DOCS)
+        self.assertTrue(reports, "야간 보고서를 못 찾았다 — 순회가 죽으면 0건 초록이 된다")
+        gap = signal_row_gap(reports)
+        self.assertIsNone(gap, gap)
+
+    def test_the_latest_is_the_one_that_is_read(self):
+        """축이 **최신**이라는 것 자체를 못박는다 (변이 ⑤ 가 여기서 죽는다)."""
+        rows = [("night_2026-10-20.md", "| **신호** | 🟢 완료 |"),
+                ("night_2026-10-22.md", "## ⚪ 종합 — 표 줄이 없다")]
+        self.assertIsNotNone(signal_row_gap(rows), "최신의 결손을 놓쳤다")
+        self.assertIn("night_2026-10-22.md", signal_row_gap(rows))
+
+    def test_an_old_gap_is_left_alone(self):
+        """과거 8개를 안 문다 — 고치면 직교 편집이고 판정에 영향이 0 이다."""
+        self.assertIsNone(signal_row_gap(
+            [("night_2026-10-08.md", "본문만 있다"),
+             ("night_2026-10-22.md", "| **신호** | ⚪ **빈손** |")]))
+
+    def test_a_report_without_the_row_is_caught(self):
+        self.assertIsNone(report_signal("# 야간 보고\n## 🟢 종합 — 머리만 있다"))
+
+    def test_the_signal_is_read_from_the_row(self):
+        self.assertEqual("⚪", report_signal("| **신호** | ⚪ **빈손** 탐색 0건 |"))
 
 
 if __name__ == "__main__":
