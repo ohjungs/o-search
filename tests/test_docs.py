@@ -751,7 +751,12 @@ def cap_gap(text):
 
 
 # `status.md` 의 빈손 대조 핀. **줄을 새로 만들지 않고 지금 꼴을 그대로 읽는다** —
-# 해시와 날짜가 이미 한 줄에 같이 있다(실측 `('26f1393', '2026-10-22')`).
+# 해시와 날짜가 이미 한 줄에 같이 있다. 실물 한 줄을 그대로 박아 둔다(`test.md` 3절 ⑧):
+#   ## 빈손 대조 핀 — 기준 트리 `26f1393` (2026-10-22 반복 747 에 옮겼다)
+# **날짜 괄호는 하룻밤짜리 꼴이다** — 2026-09-13~10-22 의 실물은 날짜가 없는
+# `## 빈손 대조 핀 — 기준 트리 `064fe56`` 였다(`git show 3d83072:docs/status.md`).
+# 그 꼴은 **빨강으로 받는다**(아래 `test_the_dateless_old_form_is_red`) — 날짜가 없으면
+# 묵었는지를 셀 수 없고, 조용히 통과시키면 이 자가 처음부터 죽은 채로 초록이 된다.
 # 못 찾으면 조용해지는 것이 아니라 **빨강이다** (`pin_rot_gap` 주석).
 PIN_LINE = re.compile(
     r"^## 빈손 대조 핀 — 기준 트리 `([0-9a-f]{7,40})` \((\d{4}-\d{2}-\d{2})", re.M)
@@ -2849,6 +2854,28 @@ class PinRotTest(unittest.TestCase):
         self.assertIsNotNone(gap, "핀 줄을 못 찾았는데 조용하다")
         self.assertIn("핀 줄", gap)
 
+    def test_the_dateless_old_form_is_red(self):
+        """2026-09-13~10-22 의 **실물** 꼴 — 날짜가 없다.
+
+        `git show 3d83072:docs/status.md` 가 `## 빈손 대조 핀 — 기준 트리 \`064fe56\``
+        한 줄을 낸다. 날짜가 없으면 묵음을 셀 수 없으니 **빨강이다** — 그 꼴을 조용히
+        통과시키면 이 자가 제 역사의 대부분에서 죽은 채로 초록이었을 것이다.
+        """
+        gap = pin_rot_gap("## 빈손 대조 핀 — 기준 트리 `064fe56`",
+                          [("night_2026-09-30.md", "| **신호** | ⚪ **빈손** 근거 0건 |")])
+        self.assertIsNotNone(gap, "날짜 없는 옛 꼴을 조용히 통과시켰다")
+        self.assertIn("핀 줄", gap)
+
+    def test_no_reports_at_all_is_quiet(self):
+        """보고서가 0건이면 조용하다 — 그러나 **살아 있는 축은 하한으로 문다.**
+
+        0건 위에서 조용히 통과하는 것이 이 저장소 최다 재발이라, 순수 계층은
+        조용해도 `NightReportSignalTest` 가 `assertTrue(reports)` 로 막는다.
+        """
+        self.assertIsNone(pin_rot_gap(
+            "## 빈손 대조 핀 — 기준 트리 `26f1393` (2026-10-22 반복 747 에 옮겼다)", []))
+        self.assertIsNone(signal_row_gap([]))
+
     def test_the_legend_line_is_not_a_signal(self):
         """범례가 거짓 양성을 만들지 않는다 — 표 줄만 센다.
 
@@ -2858,7 +2885,9 @@ class PinRotTest(unittest.TestCase):
         self.assertIsNone(pin_rot_gap(
             "## 빈손 대조 핀 — 기준 트리 `26f1393` (2026-10-22 반복 747 에 옮겼다)",
             [("night_2026-10-25.md",
-              "## 🟢 종합\n| **신호** | 🟢 완료 |\n맨 위 종합 신호는 🔴 실패 · 🟡 판단 · ⚪ 빈손")]))
+              "## 🟢 종합\n| **신호** | 🟢 완료 |\n"
+              # 실물 `night_2026-10-08.md:4` 를 그대로 가져왔다 (`test.md` 3절 ⑧).
+              "🔴 실패 · 🟡 판단·패치 · 🟢 완료 · ⚪ 빈손.")]))
 
 
 class NightReportSignalTest(unittest.TestCase):
