@@ -284,6 +284,56 @@ def live_gap(status_text, index_text):
                 % (" · ".join(left), p.group(1)))
     return None
 
+# **frontmatter 의 `signal:` 이 쓸 수 있는 낱말 넷** — 하네스 `SKILL.md` 2절 신호등 표다.
+# 어휘가 저장소 **밖**에 정의되고 사본이 여기 사는 구조라 **다섯째 신호가 생기는 날**
+# **거짓 RED 다.** 피할 길이 없다 — `REPORT_SIGNAL` 의 이모지 넷이 이미 같은 천장 위에
+# 살고, 저장소가 그 꼴을 받아들였다. 완화는 **메시지로만** 한다(넷을 전부 인쇄한다).
+KNOWN_SIGNALS = ("GREEN", "YELLOW", "RED", "DONE")
+SIGNAL_LINE = re.compile(r"^signal:[ \t]*(\S*)", re.M)
+
+
+def signal_gap(status_text):
+    """frontmatter 의 `signal:` 이 아는 넷이 아니면 한 줄로 돌려준다. 맞으면 `None`.
+
+    **이 값은 2026-10-26 부터 하중을 받는다.** 자동 루프의 병합 게이트가
+    `~/.local/bin/o-search-autoloop.sh` 에서 이 줄을 읽어 병합 여부를 가른다(게이트 ⑲ ㉠).
+    그 전까지는 **아무도 안 보는 값**이었고, 그래서 저장소에 읽는 자가 0개인 채로 하중을
+    받게 됐다 — 오타·새 낱말·한글 표기가 든 밤에도 전수는 초록이고 게이트는 **조용히**
+    **영구히 병합을 안 한다.** 그 침묵의 유일한 기록은 저장소 밖 로그다(게이트 ⑲ⓑ).
+
+    **게이트의 조건은 복사하지 않는다.** 「DONE 이거나 GREEN+`plan: null` 이면 병합」을
+    여기 적으면 저장소 밖 로직의 사본이 되고, 사람이 스크립트를 고치는 날 **거짓말하는**
+    **가드**가 된다(`digest` 후보 `[6]` 의 「측정기가 규칙을 복사하는 사고」). 무는 것은
+    **어휘뿐**이다 — 넷 중 하나인가. 게이트가 그 넷으로 무엇을 하는지는 안 본다.
+    그래서 `signal: GREEN` 인데 **실제로 빨간** 밤은 이 자가 못 잡는다 — 그쪽은 게이트가
+    병합 전에 전수를 직접 돌려서 막는다.
+
+    **frontmatter 만 본다 — 닫는 `---` 앞까지다.** 이 문서의 산문은 게이트를 인용하느라
+    `signal: DONE` 같은 낱말을 백틱 안에 수십 번 들고 있고, 줄 머리로 올라온 인용이 한
+    번이라도 생기면 **본문이 판정을 가져간다.** `live_gap` 이 `PLAN_SLUG` 로 전문을 훑는
+    것과 **일부러 다르다**: 슬러그는 산문에 줄 머리로 설 일이 없지만 신호 인용은 일상이다.
+
+    **없는 것과 틀린 것을 안 섞는다** — 줄이 아예 없으면 어휘 위반이 아니라 「재지
+    못했다」로 돌려준다(`live_gap` 이 `plan:` 에 쓰는 그 꼴).
+    """
+    head = status_text.split("\n---", 1)[0]
+    found = SIGNAL_LINE.search(head)
+    if found is None:
+        return ("status.md frontmatter 에서 `signal: <값>` 줄을 못 찾았다 — 닫는 `---`"
+                " **앞**에 있어야 한다. 판정이 아니라 「재지 못했다」지만, 자동 루프의"
+                " 병합 게이트가 바로 이 줄을 읽으므로 없으면 그 게이트는 병합을 영구히"
+                " 안 한다 (`~/.local/bin/o-search-autoloop.sh` · 게이트 ⑲ ㉠)")
+    value = found.group(1)
+    if value in KNOWN_SIGNALS:
+        return None
+    return ("status.md frontmatter 의 `signal:` 이 아는 낱말이 아니다 — 읽은 것은 `%s`"
+            " 다. 쓸 수 있는 것은 **GREEN · YELLOW · RED · DONE** 넷뿐이다(하네스"
+            " `SKILL.md` 2절). 이 값을 자동 루프의 병합 게이트가 읽어 병합 여부를"
+            " 가르므로(`~/.local/bin/o-search-autoloop.sh` · 게이트 ⑲ ㉠), 모르는"
+            " 낱말이면 게이트는 **조용히 영구히 병합을 안 하고** 그 침묵은 저장소 밖"
+            " 로그에만 남는다" % value)
+
+
 def candidate_heads(digest_text):
     """후보 절의 머리 줄. `candidate_pointers` 의 절 자르기와 **같은 술어**를 쓴다."""
     return [l for l in digest_text.split("\n") if l.startswith(CANDIDATE_HEAD)]
@@ -1400,6 +1450,84 @@ class LiveGapTest(unittest.TestCase):
         # 머리 형식이 바뀌면 `None` 위에서 조용히 통과하는 것이 유일한 눈먼 자리다.
         self.assertIsNotNone(live_gap("step: 1/2\n", self.INDEX),
                              "`plan:` 줄이 없는데 통과시켰다")
+
+
+class StatusSignalTest(unittest.TestCase):
+    """살아 있는 `docs/status.md` 의 `signal:` 이 아는 낱말인지 판정한다.
+
+    **이 값은 2026-10-26 부터 하중을 받는다** — 자동 루프의 병합 게이트가
+    `~/.local/bin/o-search-autoloop.sh` 에서 그것을 읽어 병합 여부를 가른다(게이트 ⑲ ㉠).
+    그 전까지는 아무도 안 보는 값이었고, 그래서 **저장소에 읽는 자가 0개인 채로 하중을**
+    **받게 됐다**: 오타·새 낱말·한글 표기가 들어간 밤에도 전수는 초록이고 게이트는
+    조용히 영구히 병합을 안 한다. 그 침묵의 유일한 기록은 저장소 밖 로그다(⑲ⓑ).
+
+    **게이트의 조건은 복사하지 않는다** — 「DONE 이거나 GREEN+`plan: null` 이면 병합」을
+    여기 적으면 저장소 밖 로직의 사본이 되고, 사람이 스크립트를 고치는 날 **거짓말하는**
+    **가드**가 된다(`digest` 후보 `[6]` 의 「측정기가 규칙을 복사하는 사고」). 무는 것은
+    **어휘뿐**이다 — 넷 중 하나인가. 게이트가 그 넷으로 무엇을 하는지는 안 본다.
+
+    갈래를 밟는 것은 `SignalGapTest` 다 — 실물은 늘 맞춰져 있어 판정에만 붙여 두면
+    무력화 변이가 조용히 산다(`LivePlanTest`·`IterGapTest` 가 같은 자리에서 배웠다).
+    """
+
+    def test_the_live_status_carries_a_known_signal(self):
+        gap = signal_gap((DOCS / "status.md").read_text(encoding="utf-8"))
+        self.assertIsNone(gap, gap)
+
+
+class SignalGapTest(unittest.TestCase):
+    """`signal_gap` 의 갈래를 합성 문자열로 전부 밟는다.
+
+    **frontmatter 만 본다.** 이 문서의 산문은 게이트를 인용하느라 `signal: DONE` 같은
+    낱말을 백틱 안에 수십 번 들고 있고(이 반복이 적은 게이트 ⑲ 본문이 그렇다), 줄
+    머리로 올라온 인용이 한 번이라도 생기면 **본문이 판정을 가져간다.** `live_gap` 이
+    `PLAN_SLUG` 로 전문을 훑는 것과 **일부러 다르다** — 그쪽은 슬러그가 산문에 줄
+    머리로 설 일이 없지만 이쪽은 인용이 일상이다.
+    """
+
+    HEAD = "---\nsignal: %s\nphase: 개발\nplan: x\n---\n"
+
+    def test_each_known_signal_is_quiet(self):
+        for word in ("GREEN", "YELLOW", "RED", "DONE"):
+            with self.subTest(word):
+                self.assertIsNone(signal_gap(self.HEAD % word),
+                                  "아는 신호를 신고했다 — 매 반복이 빨개진다")
+
+    def test_a_korean_word_is_reported(self):
+        gap = signal_gap(self.HEAD % "초록")
+        self.assertIsNotNone(gap, "모르는 낱말을 통과시켰다")
+        self.assertIn("초록", gap, "실제 값을 안 인쇄하면 고칠 자리를 모른다")
+        for word in ("GREEN", "YELLOW", "RED", "DONE"):
+            self.assertIn(word, gap, "아는 넷을 안 인쇄했다")
+
+    def test_the_vocabulary_is_case_sensitive(self):
+        # 게이트는 `grep -q '^signal: GREEN'` 이라 `Green` 을 **안 본다**.
+        self.assertIsNotNone(signal_gap(self.HEAD % "Green"),
+                             "대소문자가 다른 값을 통과시켰다")
+
+    def test_an_empty_value_is_reported(self):
+        self.assertIsNotNone(signal_gap("---\nsignal:\nphase: 개발\n---\n"),
+                             "값이 빈 줄을 통과시켰다")
+
+    def test_a_missing_line_is_unmeasured_not_a_verdict(self):
+        # 「재지 못했다」와 「빨강」을 안 섞는다 — `live_gap` 이 `plan:` 에 쓰는 그 꼴이다.
+        gap = signal_gap("---\nphase: 개발\nplan: x\n---\n")
+        self.assertIsNotNone(gap, "`signal:` 줄이 없는데 통과시켰다")
+        self.assertIn("못 찾았다", gap, "어휘 위반과 구별되는 사유를 안 냈다")
+
+    def test_prose_quoting_the_gate_does_not_decide(self):
+        # 실물이 늘 하는 꼴 — 산문이 게이트 조건을 줄 머리로 인용한다.
+        # frontmatter 를 안 보고 전문을 훑으면 이 `DONE` 이 판정을 가져간다.
+        doc = self.HEAD % "초록" + "\n## 이 밤\n\nsignal: DONE 이면 병합한다고 적혀 있다\n"
+        gap = signal_gap(doc)
+        self.assertIsNotNone(gap, "산문의 인용이 판정을 가져갔다")
+        self.assertIn("초록", gap, "frontmatter 가 아닌 줄을 읽었다")
+
+    def test_the_closing_fence_bounds_the_frontmatter(self):
+        # frontmatter 에 `signal:` 이 **없을** 때 본문의 인용으로 내려가면 조용해진다.
+        doc = "---\nphase: 개발\n---\n\nsignal: GREEN\n"
+        self.assertIn("못 찾았다", signal_gap(doc) or "",
+                      "닫는 울타리를 안 보고 본문까지 내려갔다")
 
 
 class ArchiveIndexTest(unittest.TestCase):
