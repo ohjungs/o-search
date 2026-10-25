@@ -289,48 +289,81 @@ def live_gap(status_text, index_text):
 # **거짓 RED 다.** 피할 길이 없다 — `REPORT_SIGNAL` 의 이모지 넷이 이미 같은 천장 위에
 # 살고, 저장소가 그 꼴을 받아들였다. 완화는 **메시지로만** 한다(넷을 전부 인쇄한다).
 KNOWN_SIGNALS = ("GREEN", "YELLOW", "RED", "DONE")
-SIGNAL_LINE = re.compile(r"^signal:[ \t]*(\S*)", re.M)
+# **게이트가 쓰는 리터럴 접두 그대로다** — `grep -q '^signal: GREEN'`. 공백이 하나가
+# 아니면(`signal:GREEN`·`signal:  GREEN`·탭) **게이트는 그 줄을 못 읽는다**(실측).
+# 그래서 이 꼴 판정이 어휘 판정보다 먼저 온다 — 꼴이 틀리면 값이 맞아도 무의미하다.
+SIGNAL_PREFIX = "signal: "
+FENCE = "---"
 
 
 def signal_gap(status_text):
-    """frontmatter 의 `signal:` 이 아는 넷이 아니면 한 줄로 돌려준다. 맞으면 `None`.
+    """`signal:` 이 게이트가 읽을 수 있는 꼴로 **하나만** 있고 값이 아는 넷인지 본다.
 
     **이 값은 2026-10-26 부터 하중을 받는다.** 자동 루프의 병합 게이트가
     `~/.local/bin/o-search-autoloop.sh` 에서 이 줄을 읽어 병합 여부를 가른다(게이트 ⑲ ㉠).
     그 전까지는 **아무도 안 보는 값**이었고, 그래서 저장소에 읽는 자가 0개인 채로 하중을
-    받게 됐다 — 오타·새 낱말·한글 표기가 든 밤에도 전수는 초록이고 게이트는 **조용히**
-    **영구히 병합을 안 한다.** 그 침묵의 유일한 기록은 저장소 밖 로그다(게이트 ⑲ⓑ).
+    받게 됐다 — 틀린 밤에도 전수는 초록이고 게이트는 **조용히 영구히 병합을 안 한다.**
+    그 침묵의 유일한 기록은 저장소 밖 로그다(게이트 ⑲ⓑ).
 
-    **게이트의 조건은 복사하지 않는다.** 「DONE 이거나 GREEN+`plan: null` 이면 병합」을
+    **게이트의 «조건» 은 복사하지 않는다.** 「DONE 이거나 GREEN+`plan: null` 이면 병합」을
     여기 적으면 저장소 밖 로직의 사본이 되고, 사람이 스크립트를 고치는 날 **거짓말하는**
-    **가드**가 된다(`digest` 후보 `[6]` 의 「측정기가 규칙을 복사하는 사고」). 무는 것은
-    **어휘뿐**이다 — 넷 중 하나인가. 게이트가 그 넷으로 무엇을 하는지는 안 본다.
-    그래서 `signal: GREEN` 인데 **실제로 빨간** 밤은 이 자가 못 잡는다 — 그쪽은 게이트가
-    병합 전에 전수를 직접 돌려서 막는다.
+    **가드**가 된다(`digest` 후보의 「측정기가 규칙을 복사하는 사고」). 무는 것은 **그 줄을**
+    **게이트가 읽을 수 있나**와 **값이 넷 중 하나인가** 둘뿐이다. 그래서 `signal: GREEN` 인데
+    실제로 빨간 밤은 이 자가 못 잡는다 — 그쪽은 게이트가 병합 전에 전수를 직접 돌려 막는다.
 
-    **frontmatter 만 본다 — 닫는 `---` 앞까지다.** 이 문서의 산문은 게이트를 인용하느라
-    `signal: DONE` 같은 낱말을 백틱 안에 수십 번 들고 있고, 줄 머리로 올라온 인용이 한
-    번이라도 생기면 **본문이 판정을 가져간다.** `live_gap` 이 `PLAN_SLUG` 로 전문을 훑는
-    것과 **일부러 다르다**: 슬러그는 산문에 줄 머리로 설 일이 없지만 신호 인용은 일상이다.
+    **세 가지를 순서대로 본다. 순서가 곧 「재지 못했다」와 「빨강」의 구별이다.**
 
-    **없는 것과 틀린 것을 안 섞는다** — 줄이 아예 없으면 어휘 위반이 아니라 「재지
-    못했다」로 돌려준다(`live_gap` 이 `plan:` 에 쓰는 그 꼴).
+    1. **울타리** — 여는 `---` 과 닫는 `---` 이 둘 다 있고 그 사이에 **빈 줄이 없어야** 한다.
+       셋 다 2026-10-26 리뷰·테스트 phase 가 **실물로 찍은 구멍**이고 전부 같은 계열(「조용한
+       초록」)이다: 울타리 전무 → 전문이 head · 여는 것만 있음 → 같은 구멍의 둘째 입구 ·
+       `---\n---`(빈 frontmatter) → `fenced` 와 `head` 의 오프셋 비대칭이 만든 **세 번째 입구**
+       · 닫는 울타리를 잃은 문서에서 **본문의 수평선**이 그 역할을 하는 네 번째. 빈 줄을
+       금한 것이 마지막을 가른다 — frontmatter 는 `key: value` 만 쌓이고 실물이 그렇다.
+    2. **유일성과 자리** — `^signal:` 로 시작하는 줄이 **파일 전체에 정확히 하나**고 그것이
+       frontmatter **안**이어야 한다. 가드는 frontmatter 만 보는데 **게이트는 전문을 grep**
+       **한다**([R123-6]) — 본문에 백틱 없이 줄 머리로 `signal: DONE` 이 들어오면 가드는
+       조용하고 게이트는 **보류 브랜치를 병합한다.** 그 비대칭을 여기서 닫는다.
+    3. **꼴과 값** — 접두가 `signal: `(공백 **정확히 하나**)여야 하고, 꼬리 공백과 `#` 주석을
+       떼고 남은 것이 넷 중 하나여야 한다. 꼬리·주석을 봐 주는 것은 게이트가 **접두로**
+       읽기 때문이고(`grep` 에 꼬리 앵커가 없다) 이 문서의 다른 frontmatter 줄들이 `#`
+       주석을 일상으로 달기 때문이다(`plan:`·`mode:`).
     """
-    # **울타리로 경계를 못 그으면 판정하지 않는다.** 여는 `---` 과 닫는 `---` 이 둘 다
-    # 있어야 frontmatter 다 — 없는 채로 `split` 에 맡기면 **전문이 head 가 되고 산문의**
-    # **인용 한 줄이 판정을 가져간다**(2026-10-26 테스트 phase 가 제 구현에서 실측한
-    # 조용한 초록이다. 이 저장소 최다 재발 계열을 막으려던 자가 그 계열을 재현했다).
-    fenced = (status_text.startswith("---\n")
-              and "\n---" in status_text[3:])
-    head = status_text[4:].split("\n---", 1)[0] if fenced else ""
-    found = SIGNAL_LINE.search(head)
-    if found is None:
-        return ("status.md frontmatter 에서 `signal: <값>` 줄을 못 찾았다 — 여는 `---`"
-                " 과 닫는 `---` **사이**에 있어야 한다(울타리 자체가 없으면 그것도 이"
-                " 사유다 — 산문은 안 읽는다). 판정이 아니라 「재지 못했다」지만, 자동 루프의"
-                " 병합 게이트가 바로 이 줄을 읽으므로 없으면 그 게이트는 병합을 영구히"
-                " 안 한다 (`~/.local/bin/o-search-autoloop.sh` · 게이트 ⑲ ㉠)")
-    value = found.group(1)
+    lines = status_text.split("\n")
+    if not lines or lines[0] != FENCE:
+        return ("status.md 가 여는 `---` 으로 시작하지 않는다 — frontmatter 경계를 그을 수"
+                " 없어 **재지 못했다**. 산문은 안 읽는다: 본문의 `signal:` 인용 한 줄이"
+                " 판정을 가져가는 것이 이 자가 막는 사고다")
+    try:
+        close = lines.index(FENCE, 1)
+    except ValueError:
+        return ("status.md frontmatter 에 닫는 `---` 이 없다 — 경계를 그을 수 없어 **재지"
+                " 못했다**. 본문의 수평선을 울타리로 읽으면 산문이 head 에 들어온다")
+    front = lines[1:close]
+    if "" in front:
+        return ("status.md frontmatter 안에 빈 줄이 있다 — 닫는 `---` 이 진짜 울타리인지"
+                " 본문의 수평선인지 가를 수 없어 **재지 못했다**. frontmatter 는"
+                " `key: value` 줄만 쌓는다")
+    everywhere = [l for l in lines if l.startswith("signal:")]
+    inside = [l for l in front if l.startswith("signal:")]
+    if not inside:
+        return ("status.md frontmatter 에서 `signal: <값>` 줄을 못 찾았다 — 여는 `---` 과"
+                " 닫는 `---` **사이**에 있어야 한다. 자동 루프의 병합 게이트가 바로 이"
+                " 줄을 읽으므로 없으면 그 게이트는 병합을 영구히 안 한다"
+                " (`~/.local/bin/o-search-autoloop.sh` · 게이트 ⑲ ㉠)")
+    if len(everywhere) != 1:
+        return ("status.md 에 `signal:` 로 시작하는 줄이 %d 개다 — **정확히 하나**여야 한다."
+                " 가드는 frontmatter 만 보지만 **게이트는 `grep` 으로 전문을 본다** —"
+                " 본문에 줄 머리로 하나가 더 서면 게이트가 그것을 읽어 **보류 브랜치를"
+                " 병합할 수 있다**. 인용은 백틱 안에 두거나 들여쓴다: %s"
+                % (len(everywhere), " · ".join("`%s`" % l[:40] for l in everywhere)))
+    line = inside[0]
+    if not line.startswith(SIGNAL_PREFIX):
+        return ("status.md 의 `signal:` 줄이 게이트가 읽을 수 없는 꼴이다 — `%s`."
+                " 게이트는 리터럴 접두 `grep -q '^signal: GREEN'` 으로 읽으므로 콜론 뒤"
+                " 공백이 **정확히 하나**여야 한다(`signal:GREEN`·`signal:  GREEN`·탭은"
+                " 전부 못 읽는다 — 실측). 값이 맞아도 게이트는 병합을 영구히 안 한다"
+                % line[:40])
+    value = line[len(SIGNAL_PREFIX):].split("#", 1)[0].rstrip()
     if value in KNOWN_SIGNALS:
         return None
     return ("status.md frontmatter 의 `signal:` 이 아는 낱말이 아니다 — 읽은 것은 `%s`"
@@ -1530,6 +1563,45 @@ class SignalGapTest(unittest.TestCase):
         self.assertIsNotNone(gap, "산문의 인용이 판정을 가져갔다")
         self.assertIn("초록", gap, "frontmatter 가 아닌 줄을 읽었다")
 
+    def test_a_shape_the_gate_cannot_read_is_reported(self):
+        # **[R123-4] 백지 패스가 잡은 가장 심한 것** — 공백이 하나가 아니면 게이트의
+        # 리터럴 `grep -q '^signal: GREEN'` 이 **못 읽는다**(실측: `signal:GREEN`·
+        # `signal:  GREEN` 둘 다 못 읽음). 그런데 앞 판은 셋 다 **초록**이었다 —
+        # 즉 이 자가 막으려던 바로 그 실패(전수 초록 + 게이트 영구 미병합) 위에서
+        # 자신이 조용했다. 어휘를 대소문자까지 엄격히 받는 근거와도 모순이었다.
+        for bad in ("signal:GREEN", "signal:  GREEN", "signal:\tGREEN"):
+            with self.subTest(bad):
+                gap = signal_gap("---\n%s\nphase: x\n---\n" % bad)
+                self.assertIsNotNone(gap, "게이트가 못 읽는 꼴을 통과시켰다")
+
+    def test_the_gate_readable_shape_is_quiet(self):
+        # 꼬리 공백과 `#` 주석은 게이트가 접두로 읽으므로 **통과해야 한다** —
+        # 이 문서의 다른 frontmatter 줄들이 `#` 주석을 일상으로 단다(`plan:`·`mode:`).
+        for ok in ("signal: GREEN", "signal: GREEN   ", "signal: GREEN  # 사유"):
+            with self.subTest(ok):
+                self.assertIsNone(signal_gap("---\n%s\nphase: x\n---\n" % ok),
+                                  "게이트가 읽는 꼴을 신고했다 — 매 반복이 빨개진다")
+
+    def test_an_empty_frontmatter_does_not_let_prose_decide(self):
+        # **[R123-1]** `---\n---` 이면 앞 판의 `fenced`(`[3:]`)와 `head`(`[4:]`) 가
+        # 비대칭이라 **본문 전체가 head** 가 됐다 — 「조용한 초록」의 **세 번째 입구**다.
+        gap = signal_gap("---\n---\nsignal: DONE 이면 병합한다\n")
+        self.assertIsNotNone(gap, "빈 frontmatter 에서 산문이 판정을 가져갔다")
+
+    def test_a_body_rule_is_not_a_closing_fence(self):
+        # **[R123-3]** 닫는 울타리를 잃은 문서에서 **본문의 수평선**이 그 역할을 해
+        # 산문이 head 에 들어왔다. frontmatter 는 빈 줄을 품지 않는다는 것으로 가른다.
+        doc = "---\nphase: x\n\n## 본문\n\nsignal: DONE\n\n---\n"
+        self.assertIsNotNone(signal_gap(doc), "본문 수평선을 울타리로 읽었다")
+
+    def test_a_stray_signal_line_in_the_body_is_reported(self):
+        # **[R123-6]** 가드는 frontmatter 만 보는데 **게이트는 전문을 grep 한다.**
+        # 본문에 백틱 없이 줄 머리로 `signal: DONE` 이 들어오면 가드는 조용하고
+        # 게이트는 보류 브랜치를 병합한다 — 그 비대칭을 여기서 닫는다.
+        doc = "---\nsignal: YELLOW\nphase: x\n---\n\nsignal: DONE 이라고 적혀 있다\n"
+        gap = signal_gap(doc)
+        self.assertIsNotNone(gap, "본문의 줄머리 `signal:` 을 통과시켰다 — 게이트는 그것을 읽는다")
+
     def test_a_document_without_frontmatter_is_unmeasured(self):
         # **2026-10-26 테스트 phase 가 제 구현에서 잡은 조용한 초록이다.**
         # 울타리가 전무하면 `split` 이 전문을 head 로 돌려주고, 산문의 인용 한 줄이
@@ -1537,14 +1609,23 @@ class SignalGapTest(unittest.TestCase):
         # 그 계열을 막으려고 만든 자 안에서 재현된 꼴이다.
         gap = signal_gap("# 보고\n\nsignal: DONE 이면 병합한다고 적혀 있다\n")
         self.assertIsNotNone(gap, "울타리 없는 문서에서 산문이 판정을 가져갔다")
-        self.assertIn("못 찾았다", gap, "어휘 위반이 아니라 「재지 못했다」여야 한다")
+        self.assertIn("재지 못했다", gap, "어휘 위반이 아니라 「재지 못했다」여야 한다")
+
+    def test_a_body_signal_before_a_rule_needs_the_opening_fence(self):
+        # **변이 ⓟ 가 살아서 드러난 형제 구멍이다** — 여는 울타리 검사를 지워도
+        # 나머지 테스트가 전부 통과했다(다른 갈래가 먼저 물어서다). 이 꼴만
+        # **그 검사 하나에 매달려 있다**: 제목 다음에 `signal:` 이 서고 그 뒤에
+        # 수평선이 오면 `lines[1:close]` 가 그 줄을 frontmatter 로 삼아 **초록**이다
+        # (실측: 변이 하에서 초록 · 지금 구현에서 빨강).
+        self.assertIsNotNone(signal_gap("# 제목\nsignal: GREEN\n---\n"),
+                             "여는 울타리가 없는데 본문의 `signal:` 을 판정했다")
 
     def test_an_unclosed_frontmatter_is_unmeasured(self):
         # 여는 울타리만 있는 꼴. 닫는 것이 없으면 **경계를 그을 수 없다** —
         # 전문을 head 로 삼으면 위와 같은 구멍이 다른 입구로 열린다.
         gap = signal_gap("---\nsignal: GREEN\n")
         self.assertIsNotNone(gap, "닫히지 않은 frontmatter 를 판정했다")
-        self.assertIn("못 찾았다", gap, "어휘 위반이 아니라 「재지 못했다」여야 한다")
+        self.assertIn("재지 못했다", gap, "어휘 위반이 아니라 「재지 못했다」여야 한다")
 
     def test_the_closing_fence_bounds_the_frontmatter(self):
         # frontmatter 에 `signal:` 이 **없을** 때 본문의 인용으로 내려가면 조용해진다.
