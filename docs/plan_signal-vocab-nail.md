@@ -8,36 +8,13 @@
 
 ## 근거 — 무엇이 어젯밤과 달라졌나
 
-사람이 게이트 ⑲ 를 **저장소 밖에서 닫았다.** `~/.local/bin/o-search-autoloop.sh` 가 바뀌었고,
-그 변경을 **오늘 밤이 읽어서 확인했다**(이 저장소 최다 재발 계열 둘째 —
-「원격을 바꾸는 동작을 기록만 하고 **다시 안 읽는다**」 — 의 반대 방향 사례다):
+**접었다 (2026-10-26 반복 760 · `ReadBudgetTest` 가 604 > 600 으로 물었다).** 원본 넷 다 실재 확인:
+`status.md` **게이트 ⑲**(해소 본문) · `history_current.md` 반복 **756** ·
+`docs/reports/night_2026-10-26.md` `## 🟢 완료` · `digest.md` 후보 `[8]`.
 
-1. **승인 조건에 `signal:` 이 들어갔다** (`o-search-autoloop.sh:95-96` 실측):
-   ```sh
-   if ! { grep -q '^signal: DONE' docs/status.md ||
-          { grep -q '^signal: GREEN' docs/status.md && grep -q '^plan: null' docs/status.md; }; }; then
-   ```
-   어젯밤 게이트 ⑲ 가 적은 **㉠ 그대로**다. 주석도 10-22·10-24 사건을 이름으로 적고 있다.
-2. **병합이 분리된 워크트리에서 돈다** — `git worktree add -q --detach "$WT" origin/main`.
-   ⑲ⓐ(「전수가 빨개 푸시를 안 해도 병합 커밋이 로컬 `main` 에 남는다」)가 **기제로** 닫혔다.
-   주석이 `1adc146` 을 이름으로 대고 「사람이 손으로 되돌렸다」고 적는다.
-3. **푸시 경로가 되살아났다** — `main` reflog `main@{0}: branch: Reset to origin/main`.
-   `git rev-list --count origin/main..main` = **0**. 어젯밤 status 가 적은
-   「로컬 `main` 이 9커밋 앞선 채 빨갛다」는 **더 이상 참이 아니다.**
-   `main` 을 분리 워크트리에서 돌려 **939 OK rc=0** 로 초록을 확인했다.
-
-**그래서 새로 열린 자리가 있다.** 어젯밤까지 게이트 ⑲ 의 핵은 「`signal: YELLOW` 는
-**아무도 안 본다**」였다. 오늘부터 **병합 게이트가 그것을 본다** — `signal:` 이 장식에서
-**하중을 받는 값**으로 바뀌었다. 그런데 **이 저장소에는 그 값을 읽는 자가 0개다**:
-
-```
-grep -n 'GREEN\|YELLOW\|"RED"' tests/test_docs.py   → frontmatter 어휘를 읽는 줄 0
-```
-
-`live_gap` 은 같은 frontmatter 에서 **`plan:` 만** 읽는다(`tests/test_docs.py:276` ·
-`PLAN_SLUG`). `report_signal` 은 **야간 보고서의 이모지**(🔴🟡🟢⚪)를 읽는데 그것은
-**다른 어휘**다 — 어젯밤 status 가 스스로 적었다: 「보고서 종합은 🔴 (루프 신호 YELLOW 와
-축이 다르다)」.
+**한 줄로**: 사람이 `o-search-autoloop.sh` 에 ㉠ 을 넣어 게이트 ⑲ 를 닫았고(승인 조건 `:95-96` 에
+`signal:` · 병합은 분리 워크트리 · 푸시 복구 `origin/main..main` **0** · `main` 전수 **939 OK**),
+그 수리가 `signal:` 을 **장식에서 하중 받는 값**으로 바꿨다 — 그런데 **저장소에 읽는 자가 0개다.**
 
 ## 목표
 
