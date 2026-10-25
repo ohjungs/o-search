@@ -316,11 +316,18 @@ def signal_gap(status_text):
     **없는 것과 틀린 것을 안 섞는다** — 줄이 아예 없으면 어휘 위반이 아니라 「재지
     못했다」로 돌려준다(`live_gap` 이 `plan:` 에 쓰는 그 꼴).
     """
-    head = status_text.split("\n---", 1)[0]
+    # **울타리로 경계를 못 그으면 판정하지 않는다.** 여는 `---` 과 닫는 `---` 이 둘 다
+    # 있어야 frontmatter 다 — 없는 채로 `split` 에 맡기면 **전문이 head 가 되고 산문의**
+    # **인용 한 줄이 판정을 가져간다**(2026-10-26 테스트 phase 가 제 구현에서 실측한
+    # 조용한 초록이다. 이 저장소 최다 재발 계열을 막으려던 자가 그 계열을 재현했다).
+    fenced = (status_text.startswith("---\n")
+              and "\n---" in status_text[3:])
+    head = status_text[4:].split("\n---", 1)[0] if fenced else ""
     found = SIGNAL_LINE.search(head)
     if found is None:
-        return ("status.md frontmatter 에서 `signal: <값>` 줄을 못 찾았다 — 닫는 `---`"
-                " **앞**에 있어야 한다. 판정이 아니라 「재지 못했다」지만, 자동 루프의"
+        return ("status.md frontmatter 에서 `signal: <값>` 줄을 못 찾았다 — 여는 `---`"
+                " 과 닫는 `---` **사이**에 있어야 한다(울타리 자체가 없으면 그것도 이"
+                " 사유다 — 산문은 안 읽는다). 판정이 아니라 「재지 못했다」지만, 자동 루프의"
                 " 병합 게이트가 바로 이 줄을 읽으므로 없으면 그 게이트는 병합을 영구히"
                 " 안 한다 (`~/.local/bin/o-search-autoloop.sh` · 게이트 ⑲ ㉠)")
     value = found.group(1)
@@ -1522,6 +1529,22 @@ class SignalGapTest(unittest.TestCase):
         gap = signal_gap(doc)
         self.assertIsNotNone(gap, "산문의 인용이 판정을 가져갔다")
         self.assertIn("초록", gap, "frontmatter 가 아닌 줄을 읽었다")
+
+    def test_a_document_without_frontmatter_is_unmeasured(self):
+        # **2026-10-26 테스트 phase 가 제 구현에서 잡은 조용한 초록이다.**
+        # 울타리가 전무하면 `split` 이 전문을 head 로 돌려주고, 산문의 인용 한 줄이
+        # 판정을 가져가 **초록**이었다 — 이 저장소 최다 재발 계열(「조용한 초록」)이
+        # 그 계열을 막으려고 만든 자 안에서 재현된 꼴이다.
+        gap = signal_gap("# 보고\n\nsignal: DONE 이면 병합한다고 적혀 있다\n")
+        self.assertIsNotNone(gap, "울타리 없는 문서에서 산문이 판정을 가져갔다")
+        self.assertIn("못 찾았다", gap, "어휘 위반이 아니라 「재지 못했다」여야 한다")
+
+    def test_an_unclosed_frontmatter_is_unmeasured(self):
+        # 여는 울타리만 있는 꼴. 닫는 것이 없으면 **경계를 그을 수 없다** —
+        # 전문을 head 로 삼으면 위와 같은 구멍이 다른 입구로 열린다.
+        gap = signal_gap("---\nsignal: GREEN\n")
+        self.assertIsNotNone(gap, "닫히지 않은 frontmatter 를 판정했다")
+        self.assertIn("못 찾았다", gap, "어휘 위반이 아니라 「재지 못했다」여야 한다")
 
     def test_the_closing_fence_bounds_the_frontmatter(self):
         # frontmatter 에 `signal:` 이 **없을** 때 본문의 인용으로 내려가면 조용해진다.
