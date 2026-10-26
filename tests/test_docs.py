@@ -2373,11 +2373,15 @@ class ArchiveGapTest(unittest.TestCase):
             {"plan_%s.md" % "waiting-design", "design_%s.md" % "waiting-design"}))
 
     def test_both_living_docs_are_named(self):
-        # 계획서와 설계가 **둘 다** 남은 꼴. 한 번에 둘을 알려 주지 않으면 밤이 두 반복을 쓴다.
+        # 계획서와 설계가 **둘 다** 남은 꼴. **자는 먼저 걸린 하나만 돌려준다** — 치우고
+        # 다시 돌리면 다음 것이 걸린다(이 계획이 실제로 그렇게 두 반복을 썼다). 여기서
+        # 고정하는 것은 「둘 다 남아도 조용하지 않다」이고, 둘을 한 번에 인쇄하라는
+        # 요구는 안 한다 — `digest` 후보 `[4]` 로 등재했다.
         gap = archive_gap(self.index(self.DONE % "both-one"),
                           {"plan_%s.md" % "both-one", "design_%s.md" % "both-one"})
         self.assertIsNotNone(gap)
         self.assertIn("both-one", gap)
+        self.assertIn("plan", gap, "계획서가 설계보다 먼저 걸리는 순서를 고정한다")
 
     def test_prefix_sharing_slug_is_not_bitten(self):
         # 이름 대조는 **완전 일치**다. `startswith` 로 넓히는 변이는 `plan_seed` 행이
