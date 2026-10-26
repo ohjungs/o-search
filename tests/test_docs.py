@@ -3168,6 +3168,10 @@ class NightReportSignalTest(unittest.TestCase):
     """
 
     def test_the_latest_report_carries_a_signal_row(self):
+        # 게이트 ⑱ ㉢ — `docs/reports/` 는 추적 밖이라 다른 체크아웃(자동 병합 워크트리)엔 없다.
+        # 폴더가 «있는데» 0건인 것은 여전히 문다.
+        if not (DOCS / "reports").is_dir():
+            self.skipTest("docs/reports/ 없음 — 기계 로컬 가드")
         reports = night_reports(DOCS)
         self.assertTrue(reports, "야간 보고서를 못 찾았다 — 순회가 죽으면 0건 초록이 된다")
         gap = signal_row_gap(reports)
