@@ -1,25 +1,25 @@
 ---
-signal: GREEN
-phase: 리뷰
+signal: DONE
+phase: e2e
 step: 2/2
 attempt: 1
-plan: done-annot-archive-gap  # 계획 **124 수립**(이 반복) · 기점 `e656d9c` = `main` — 122·123 이 병합돼 **물려받는 차단이 없다**
-iteration: 765
+plan: done-annot-archive-gap  # 계획 **124 완료** · 아카이브 `plan_history_098.md` · 기점 `e656d9c` = `main` 이라 **물려받는 차단이 없다**
+iteration: 766
 updated: 2026-10-27
 mode: 무인(night)  # 2026-10-27 `/loop-harness night` — 탐색 모드
-night_iterations: 5  # 이 세션 시작 시 셋 다 0 리셋
+night_iterations: 6  # 이 세션 시작 시 셋 다 0 리셋
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
 ctx: **엿새 연속 같은 자리다 (게이트 ⑦).** `.context-state.json` 의 `session_id`(`8601ae25`)로 된 `.jsonl` 이 이 프로젝트 디렉터리에 **없다**(33개를 직접 세어 확인) · `updated_unix` 가 **14.1시간** 묵었다. 거기 적힌 ctx 8·5h 13·7d 12 는 **남의 세션 수**라 85 판정의 근거가 못 된다. **반복 상한(60)에만 의존한다.**
 rules: 34cae75   # `git -C ~/.claude log -1 --format=%h -- skills/loop-harness`
-note: **[🟢 GREEN · 리뷰 통과 — 백지 패스가 「내 수정이 형제 넷을 깨뜨린 채 뒀다」를 잡았다]** 별도 세션 패스 A 가 6건을 줬고 **전부 직접 재현**한 뒤 넷을 고치고 하나를 등재했다. **가장 심했던 것(심각도 6)**: 같은 상태 칸을 읽는 자가 다섯인데 계획 124 는 `archive_gap` 하나만 넓혀, `verdict_gap` 이 실물 `완료(…)` 2행에서 **꺼져 있었다**(e2e 칸 검사 침묵) · `false_strike` 는 분기가 거꾸로라 **거짓 양성** 자리였다. 술어 `is_done` 하나로 모아 다섯을 함께 고쳤다(ponytail 근본 원인). **둘째(5)**: 접두만으로는 `완료 예정`·`완료 대기`·`완료 안 됨` 이 완료로 읽혀 **안 끝난 계획을 치우라고 요구**했다(실측 넷 다 GAP) — 낱말 뒤 구분자를 요구해 닫았다. **셋째(4)**: 내가 테스트 phase 에 넣은 `assertIn("plan", gap)` 이 **공허**했다(설계 메시지도 그 낱말을 품는다) — 변이로 증명되어 문구로 고정했다. 테스트 **+18**(972 → **990 OK rc=0**) · 제품 `src/` **0줄** · 누적 변이 **16판 중 14 죽음 · 2 등가**.
+note: **[🟢 DONE · 계획 124 완료 · 시나리오 4/4]** 아카이브 가드가 `완료(…)`·굵게를 완료로 읽고 **계획서와 설계 문서**를 둘 다 세며, `완료 예정` 류는 거절한다. 어휘 판정은 **다섯 자가 공유하는** `is_done` 이 한다 — 리뷰가 「계획 124 가 `archive_gap` 만 고쳐 `verdict_gap` 이 실물 2행에서 꺼져 있었다」를 잡은 결과다. **③ 이 계획 122 가 죽은 자리를 먼저 쟀다**: 가드 입력이 전부 `git ls-files` **1건**이라 깨끗한 사본에서 **990 OK (skipped=1)** — 122 처럼 트리 밖 입력이 없어 **병합을 막는 것이 없다**. 전수 **990 OK rc=0** · e2e **18종 rc=0** · 제품 `src/` **0줄** · 변이 **16판 중 14 죽음 · 2 등가** · 아카이브 백로그 **3건 → 0건**(「활성 계획」 셈이 4 → 2 로 참값).
 ---
 
 ## 이 밤 (2026-10-27) — 🟢 GREEN (반복 761)
 
 - **지금 어디인가**: 계획 **124 `done-annot-archive-gap` 수립** · 브랜치
-  `loop/done-annot-archive-gap` (기점 `e656d9c` = `main`) · phase **리뷰**(통과) · 스텝 **2/2** ·
+  `loop/done-annot-archive-gap` (기점 `e656d9c` = `main`) · phase **e2e**(통과 · 🟢 DONE) · 스텝 **2/2** ·
   전수 **972 OK rc=0**. **물려받는 병합 차단이 없다** — 어제 사람이 게이트 ⑱ 을 ㉢ 으로 닫고
   122·123 을 병합했다(`e656d9c` · `origin/main..main` **0**).
 - **근거는 아카이브 백로그 실물 3건이고 전수는 그 셋에 조용하다.** `index.md` 의
