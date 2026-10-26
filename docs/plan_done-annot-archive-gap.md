@@ -18,7 +18,7 @@
 |---|---|
 | `index.md` 의 `plan_pin-rot-nail` 상태 | `완료(2026-10-26 게이트 ⑱ ㉢ 으로 해제 · 병합)` |
 | `index.md` 의 `plan_signal-vocab-nail` 상태 | 같은 꼴 |
-| `docs/plan_pin-rot-nail.md` · `docs/plan_signal-vocab-nail.md` | **둘 다 살아 있다** |
+| `docs/plan_history_096.md` · `docs/plan_history_097.md` | **둘 다 살아 있다** |
 | 전수 | **972 OK rc=0** — 조용하다 |
 | `docs/design_passage-consume-census.md` | **살아 있다** (`plan_passage-consume-census` 는 `완료` · 계획서는 `plan_history_095.md` 로 치워졌다) |
 
@@ -88,9 +88,9 @@
   2. **살아 있는 트리에 대고 빨강** — 고친 직후 `ArchiveBacklogTest.test_done_plans_are_archived`
      가 `plan_pin-rot-nail` 을 **이름으로 대며** 빨개진다. **이 빨강을 기록에 남긴다**:
      픽스처가 아니라 실물에서 이빨을 확인하는 유일한 창이고, 치우면 영구히 닫힌다.
-  3. **그 다음에 치운다** — `git mv docs/plan_pin-rot-nail.md docs/plan_history_<NNN>.md` (**NNN = 096**) ·
-     `docs/plan_signal-vocab-nail.md` → `plan_history_097` ·
-     `docs/design_pin-rot-nail.md` → `design_history_096` (쌍 번호 규약).
+  3. **그 다음에 치운다** — `git mv docs/plan_history_096.md docs/plan_history_<NNN>.md` (**NNN = 096**) ·
+     `docs/plan_history_097.md` → `plan_history_097` ·
+     `docs/design_history_096.md` → `design_history_096` (쌍 번호 규약).
      **`index.md` 의 두 행에 아카이브 번호를 적는다.**
   4. 전수가 **OK rc=0** (기준선 **972** → 늘어난 건수를 실측해 적는다).
   5. `README.md` 단위 수 장부 갱신(`tests/test_readme.py` 가 틀린 수를 문다).

@@ -1,25 +1,25 @@
 ---
 signal: GREEN
-phase: 계획
-step: 0/2
+phase: 개발
+step: 1/2
 attempt: 1
 plan: done-annot-archive-gap  # 계획 **124 수립**(이 반복) · 기점 `e656d9c` = `main` — 122·123 이 병합돼 **물려받는 차단이 없다**
-iteration: 761
+iteration: 762
 updated: 2026-10-27
 mode: 무인(night)  # 2026-10-27 `/loop-harness night` — 탐색 모드
-night_iterations: 1  # 이 세션 시작 시 셋 다 0 리셋
+night_iterations: 2  # 이 세션 시작 시 셋 다 0 리셋
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
 ctx: **엿새 연속 같은 자리다 (게이트 ⑦).** `.context-state.json` 의 `session_id`(`8601ae25`)로 된 `.jsonl` 이 이 프로젝트 디렉터리에 **없다**(33개를 직접 세어 확인) · `updated_unix` 가 **14.1시간** 묵었다. 거기 적힌 ctx 8·5h 13·7d 12 는 **남의 세션 수**라 85 판정의 근거가 못 된다. **반복 상한(60)에만 의존한다.**
 rules: 34cae75   # `git -C ~/.claude log -1 --format=%h -- skills/loop-harness`
-note: **[🟢 GREEN · 계획 124 수립]** 아카이브 가드(`archive_gap`)가 `if status.strip() != "완료"` 로 **리터럴 동일성**을 봐서, 어제 사람이 게이트 ⑱ 을 ㉢ 으로 닫으며 처음 쓴 `완료(2026-10-26 …)` 꼴 **2건에서 조용하다** — 완료 계획서 둘이 `docs/` 에 살아 있는데 전수 **972 OK rc=0**. 둘째 구멍은 정의역: 설계 문서 축은 **재는 자가 0개**(`design_passage-consume-census.md` 가 실물). 「조용한 초록」의 재발이고 `digest.md` `## 반복 실패` 의 「절차를 문서에만 적고 재는 자를 안 만든다」 항목 이 적은 2회에 **세 번째**다.
+note: **[🟢 GREEN · 스텝 1/2 완료]** `archive_gap` 이 **접두 판정**으로 `완료(…)` 를 완료로 읽는다(굵게도 먼저 벗긴다 — `**보류**` 가 실물이라 `**완료**` 는 내일 쓰일 꼴이다). **실물에서 이빨을 확인한 뒤 치웠다** — 고친 직후 `ArchiveBacklogTest` 가 `plan_pin-rot-nail` 을 이름으로 대며 빨개졌고, 그 다음 `plan_history_096.md`·`design_history_096.md`·`plan_history_097.md` 로 옮겼다. 테스트 **+6**(972 → **978 OK rc=0**) · 제품 `src/` **0줄** · 변이 **6판 중 4 죽음 · 2 등가**.
 ---
 
 ## 이 밤 (2026-10-27) — 🟢 GREEN (반복 761)
 
 - **지금 어디인가**: 계획 **124 `done-annot-archive-gap` 수립** · 브랜치
-  `loop/done-annot-archive-gap` (기점 `e656d9c` = `main`) · phase **계획** · 스텝 **0/2**(착수 전) ·
+  `loop/done-annot-archive-gap` (기점 `e656d9c` = `main`) · phase **개발** · 스텝 **1/2** ·
   전수 **972 OK rc=0**. **물려받는 병합 차단이 없다** — 어제 사람이 게이트 ⑱ 을 ㉢ 으로 닫고
   122·123 을 병합했다(`e656d9c` · `origin/main..main` **0**).
 - **근거는 아카이브 백로그 실물 3건이고 전수는 그 셋에 조용하다.** `index.md` 의
@@ -47,12 +47,12 @@ note: **[🟢 GREEN · 계획 124 수립]** 아카이브 가드(`archive_gap`)�
 
 | 접은 것 | 원본 |
 |---|---|
-| 2026-10-26 반복 756~760 · 계획 123 `signal-vocab-nail` (**`signal:` 어휘를 전수가 센다** — `signal_gap` · `tests/test_docs.py` **+16건** · **제품 0줄** · 956 → **972 OK rc=0** · 변이 **20판 중 19 죽음 · 1 등가**. 갭 분석이 **어제 만든 자 안에서 「조용한 초록」을 잡았고**(산문의 `signal:` 인용이 head 로 들어왔다) 리뷰 백지 패스가 6건을 더 줬다 — 콜론 뒤 공백이 하나가 아니면 게이트가 못 읽는데 자는 초록이던 [R123-4] 가 가장 심했다. **게이트 ⑲ 가 ㉠ 으로 닫힌 것을 읽어서 확인한 밤**이다) | `history_current.md` 반복 756~760 · `index.md` `plan_signal-vocab-nail` 행 · `docs/reports/night_2026-10-26.md`(🟡) · 계획 `docs/plan_signal-vocab-nail.md`(**아직 `docs/` 에 산다** — 계획 124 스텝 1 이 치운다) |
-| 게이트 **⑱** 의 원문 (2026-10-23 반복 753 ~ 2026-10-26) — **사람이 2026-10-26 에 ㉢ 을 골라 닫았다**: `NightReportSignalTest` 가 `docs/reports/` 가 «없으면» 건너뛴다(폴더가 있는데 0건이면 여전히 문다 · `85bc13d`). 122·123 이 함께 병합됐고 푸시 경로도 열렸다 | `digest.md` `## 보류` 의 `plan_pin-rot-nail` 줄 · `index.md` 두 완료 행 · 설계 `docs/design_pin-rot-nail.md`(**아직 `docs/` 에 산다** — 계획 124 스텝 1 이 치운다) · `history_current.md` 반복 748~760 |
+| 2026-10-26 반복 756~760 · 계획 123 `signal-vocab-nail` (**`signal:` 어휘를 전수가 센다** — `signal_gap` · `tests/test_docs.py` **+16건** · **제품 0줄** · 956 → **972 OK rc=0** · 변이 **20판 중 19 죽음 · 1 등가**. 갭 분석이 **어제 만든 자 안에서 「조용한 초록」을 잡았고**(산문의 `signal:` 인용이 head 로 들어왔다) 리뷰 백지 패스가 6건을 더 줬다 — 콜론 뒤 공백이 하나가 아니면 게이트가 못 읽는데 자는 초록이던 [R123-4] 가 가장 심했다. **게이트 ⑲ 가 ㉠ 으로 닫힌 것을 읽어서 확인한 밤**이다) | `history_current.md` 반복 756~760 · `index.md` `plan_signal-vocab-nail` 행 · `docs/reports/night_2026-10-26.md`(🟡) · 계획 `docs/plan_history_097.md`(**아직 `docs/` 에 산다** — 계획 124 스텝 1 이 치운다) |
+| 게이트 **⑱** 의 원문 (2026-10-23 반복 753 ~ 2026-10-26) — **사람이 2026-10-26 에 ㉢ 을 골라 닫았다**: `NightReportSignalTest` 가 `docs/reports/` 가 «없으면» 건너뛴다(폴더가 있는데 0건이면 여전히 문다 · `85bc13d`). 122·123 이 함께 병합됐고 푸시 경로도 열렸다 | `digest.md` `## 보류` 의 `plan_pin-rot-nail` 줄 · `index.md` 두 완료 행 · 설계 `docs/design_history_096.md`(**아직 `docs/` 에 산다** — 계획 124 스텝 1 이 치운다) · `history_current.md` 반복 748~760 |
 | 게이트 **⑲** 해소 서술 12줄 (2026-10-26 반복 756 — 사람이 `o-search-autoloop.sh` 에서 ㉠ 을 골랐다: 승인 조건에 `signal:` 이 들어가고 병합이 분리 워크트리에서 돈다. 남은 것은 ⓑ 뿐 — 병합·푸시 실패가 저장소 밖 로그에만 적힌다) | `history_current.md` 반복 755·756 · `docs/reports/night_2026-10-25.md`(🔴)·`night_2026-10-26.md` · `digest.md` 후보 `[8]` |
 | 게이트 **⑮·⑯** 병합 해소 5줄 (2026-10-21 반복 744 실측 — 둘 다 `main` 에 들어 있다 · 병합 커밋 `996b5fd`) | `history_current.md` 반복 744 · `index.md` 두 슬러그 행 |
 | 게이트 **⑤**(0건 판정 줄의 `OK`) 해소 2줄 · 게이트 **⑨**(launchd 에이전트 둘) 해소 11줄 · 게이트 **⑪**(`loop/e2e-roster` 갈림) 해소 1줄 — 셋 다 닫혔고 서술만 길었다 | `history_current.md` 반복 640(⑤)·575(⑪) · `docs/digest.md` · ⑨ 는 `~/.local/bin/o-search-autoloop.sh` 주석과 `launchctl list` 가 실물 |
-| 2026-10-23 반복 748~753 · 계획 122 `pin-rot-nail` (**빈손 대조 핀이 썩는 것을 재는 자**를 세웠다 — `pin_rot_gap`+`signal_row_gap` · `tests/test_docs.py` **+17건** · **제품 0줄** · 전수 956 OK · 변이 16판 전부 죽음. 리뷰 백지 패스가 **조용한 죽음 하나**를 잡았다(값을 굵게 감싸면 그 밤이 빈손으로 안 세어졌다). **e2e 가 보류로 물었다** — 시나리오 4/4 통과인데 `git archive HEAD` 사본에 `docs/reports/` 가 없어 **가드의 입력이 트리 밖**이고 다른 체크아웃에선 거짓 RED 다. 갈림 ㉠/㉡/㉢ 은 **게이트 ⑱**. **2026-10-24 에 이 가드가 처음 실전에서 물었다** — 위 「빈손 대조 핀」 절) | `history_current.md` 반복 748~753 · `digest.md` `## 보류` 의 `plan_pin-rot-nail` 줄 · 계획 `docs/plan_pin-rot-nail.md` · 설계 `docs/design_pin-rot-nail.md` · 결과서 `docs/e2e/pin-rot-nail/result.md` |
+| 2026-10-23 반복 748~753 · 계획 122 `pin-rot-nail` (**빈손 대조 핀이 썩는 것을 재는 자**를 세웠다 — `pin_rot_gap`+`signal_row_gap` · `tests/test_docs.py` **+17건** · **제품 0줄** · 전수 956 OK · 변이 16판 전부 죽음. 리뷰 백지 패스가 **조용한 죽음 하나**를 잡았다(값을 굵게 감싸면 그 밤이 빈손으로 안 세어졌다). **e2e 가 보류로 물었다** — 시나리오 4/4 통과인데 `git archive HEAD` 사본에 `docs/reports/` 가 없어 **가드의 입력이 트리 밖**이고 다른 체크아웃에선 거짓 RED 다. 갈림 ㉠/㉡/㉢ 은 **게이트 ⑱**. **2026-10-24 에 이 가드가 처음 실전에서 물었다** — 위 「빈손 대조 핀」 절) | `history_current.md` 반복 748~753 · `digest.md` `## 보류` 의 `plan_pin-rot-nail` 줄 · 계획 `docs/plan_history_096.md` · 설계 `docs/design_history_096.md` · 결과서 `docs/e2e/pin-rot-nail/result.md` |
 | 2026-10-20 반복 736~743 · 계획 120 `passage-consume-census` (근거 문단 **소비** 축을 재는 자를 세웠다 — `e2e/passage_consume.py` · 동결 모집단 · 테스트 33건 · **제품 0줄**. 상한 **44.4%**(분자 12/분모 27)이고 나가는 근거가 TOC 한 줄이라 후보 `[5]`→`[6]` 을 **열었다**. 교훈 둘이 같은 것 — 「재는 자가 죽었는데 초록이다」: census 첫 판이 정렬 깨짐을 버려 6문서를 3으로 셌고, 테스트 파일 `__main__` 가드가 중간에 있어 26건 중 10건만 돌았다(빠진 16건이 전부 음성 대조). 병합 끝) | `history_105.md` 반복 736~743 · `index.md` `plan_passage-consume-census` 행 · 결과서 `docs/e2e/passage-consume-census/result.md` · 계획 `docs/plan_history_095.md` |
 | 2026-10-19 반복 733~735 · 계획 119 `nested-anchor-prose` (**안 열었다** — 스텝 1 이 여는 조건이었고 안 섰다: 실물 1,000 표본 0 · census 20,000문서 「더끊음」 0 · 95% 상한 약 0.015%. **죽은 측정기의 0 이 아니다** — 같은 판이 반대 방향 6문서·53블록을 집어 후보 `[6]` 으로 등재했고 계획 120 이 그것을 열었다. 제품 0줄 · 병합) | `history_105.md` 반복 733~735 · `index.md` `plan_nested-anchor-prose` 행 |
 | 2026-10-18 반복 726~732 · 계획 118 `trailing-prose-join` (천장 ⓐ-b 를 `_flush` 한 곳 판정으로 닫았다 · 실물 97블록/43문서 → 0/0 · 병합) | `history_current.md` 반복 726~732 · `index.md` `plan_trailing-prose-join` 행 · 설계 `docs/design_history_093.md` |

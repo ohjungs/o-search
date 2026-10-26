@@ -568,7 +568,20 @@ def archive_gap(index_text, live_names):
     중복 방지가 `docs/plan_*.md` 중 보류인 것을 읽으므로 치우면 그 눈이 멀어진다.
     """
     for slug, status, _ in VERDICT_ROW.findall(index_text):
-        if status.strip() != "완료":
+        # **동일성이 아니라 접두다.** 리터럴 `!= "완료"` 로 보던 자는 2026-10-26 에 사람이
+        # 게이트 ⑱ 을 ㉢ 으로 닫으며 처음 쓴 `완료(2026-10-26 … 해제 · 병합)` 꼴에서
+        # **조용했다** — 그 꼴 2건에서 완료 계획서 둘이 살아 있는데 전수가 초록이었다
+        # (실측 2026-10-27 반복 761). 자가 틀린 날이 아니라 **문서의 어휘가 자보다
+        # 넓어진 날**이라, 넓히는 쪽이 뿌리다(`index.md` 를 자에 맞춰 깎는 쪽이 아니다).
+        #
+        # **굵게를 먼저 벗긴다** — 살아 있는 `index.md` 상태 칸에 `**보류**` 가 실재하므로
+        # `**완료**` 는 내일 쓰일 수 있는 꼴이다. 「값을 굵게 감싸니 재는 자가 죽었다」는
+        # 이 저장소가 계획 122 리뷰에서 이미 한 번 밟았다(`signal_row_gap`).
+        #
+        # **포함이 아니라 접두인 것이 오탐을 막는다** — `in` 으로 넓히면
+        # `보류(2026-10-23 · 승인 나면 완료 처리)` 같은 산문 한 줄이 승인 대기 계획서를
+        # 치우라고 요구하고, 그러면 중복 방지(`discover.md` 5절)의 눈이 먼다.
+        if not status.strip().strip("*").startswith("완료"):
             continue
         name = "plan_%s.md" % slug
         if name in live_names:
@@ -950,7 +963,7 @@ def pin_rot_gap(status_text, reports):
     if not pin:
         return ("핀 줄을 못 찾았다 — `status.md` 의 `## 빈손 대조 핀 — 기준 트리"
                 " `<해시>` (<YYYY-MM-DD> …` 꼴이 드리프트했다. 꼴을 되돌리거나"
-                " `PIN_LINE` 을 같이 고친다 (`docs/design_pin-rot-nail.md` 결정)")
+                " `PIN_LINE` 을 같이 고친다 (`docs/design_history_096.md` 결정)")
     pin_hash, pin_date = pin.group(1), pin.group(2)
     empty = [REPORT_NAME.match(name).group(1) for name, text in reports
              if REPORT_NAME.match(name) and report_signal(text) == EMPTY_SIGNAL]
@@ -2302,6 +2315,54 @@ class ArchiveGapTest(unittest.TestCase):
         self.assertIsNone(archive_gap(self.index(self.DONE % "seed"),
                                       {"plan_%s.md" % "seed-tier1"}))
 
+    # 주석·날짜가 붙은 완료. **실물에서 조용했던 꼴이다** — 2026-10-26 에 사람이 게이트 ⑱ 을
+    # ㉢ 으로 닫으면서 `index.md` 에 처음 썼고(`완료(2026-10-26 … 해제 · 병합)`), 자가
+    # `!= "완료"` 로 리터럴 동일성을 봐서 **완료 계획서 둘이 살아 있는데 전수가 초록이었다.**
+    ANNOTATED = "| plan_%s | 완료(2026-10-26 게이트 ⑱ ㉢ 으로 해제 · 병합) | loop/x | 1/1 | 통과 | 설명 |"
+
+    def test_annotated_done_is_still_done(self):
+        gap = archive_gap(self.index(self.ANNOTATED % "noted-one"),
+                          {"plan_%s.md" % "noted-one"})
+        self.assertIsNotNone(gap, "주석 달린 완료를 완료로 안 읽었다")
+        self.assertIn("noted-one", gap, "어느 계획인지 안 댔다")
+
+    def test_annotated_done_that_is_archived_is_quiet(self):
+        self.assertIsNone(archive_gap(self.index(self.ANNOTATED % "noted-gone"), set()))
+
+    def test_held_with_an_annotation_still_stays_put(self):
+        # **오탐 축이 접두 판정의 대가다.** `보류(패치)` 는 이미 위에서 보지만, 접두로
+        # 넓히면 「`완료` 를 **포함**하면」으로 미끄러지기 쉽고 그때 이 행이 물린다 —
+        # 승인 대기 계획서를 치우면 중복 방지(`discover.md` 5절)의 눈이 먼다.
+        rows = (self.HELD % "waiting-two",
+                "| plan_%s | 보류(2026-10-23 · 승인 나면 완료 처리) | loop/x | 1/2 | (미개설) | 설명 |"
+                % "waiting-three")
+        live = {"plan_%s.md" % "waiting-two", "plan_%s.md" % "waiting-three"}
+        self.assertIsNone(archive_gap(self.index(*rows), live),
+                          "보류 행을 완료로 읽었다 — 산문에 `완료` 가 있어도 상태는 보류다")
+
+    def test_bold_wrapped_done_is_still_done(self):
+        # **굵게 감싸는 습관이 이 파일에 실재한다** — 살아 있는 `index.md` 의 상태 칸에
+        # `**보류**` 가 있다(실측). 그래서 `**완료**` 는 내일 쓰일 수 있는 꼴이고,
+        # 「값을 굵게 감싸니 재는 자가 죽었다」는 이 저장소가 이미 한 번 밟은 사고다
+        # (계획 122 리뷰의 `signal_row_gap` — 빈손 밤이 안 세어졌다).
+        gap = archive_gap(self.index("| plan_%s | **완료** | loop/x | 1/1 | 통과 | 설명 |"
+                                     % "bold-one"), {"plan_%s.md" % "bold-one"})
+        self.assertIsNotNone(gap, "굵게 감싼 완료를 완료로 안 읽었다")
+        self.assertIn("bold-one", gap)
+
+    def test_bold_wrapped_held_still_stays_put(self):
+        # 굵게 풀기의 오탐 축 — 실물에 있는 바로 그 꼴이다.
+        self.assertIsNone(archive_gap(
+            self.index("| plan_%s | **보류** | loop/x | 1/2 | (미개설) | 설명 |" % "bold-held"),
+            {"plan_%s.md" % "bold-held"}))
+
+    def test_abandoned_is_not_read_as_done(self):
+        # `index.md` 머리가 고정한 어휘 넷 중 `폐기`. 4절이 폐기본의 처분을 안 적었으므로
+        # **지어내지 않는다** — 오늘 실물 0건이고, 완료로 읽으면 없는 일을 시킨다.
+        self.assertIsNone(archive_gap(
+            self.index("| plan_%s | 폐기 | loop/x | 1/1 | 없음 | 설명 |" % "dropped-one"),
+            {"plan_%s.md" % "dropped-one"}))
+
 
 class ConstGapTest(unittest.TestCase):
     """`const_gap` 의 갈래. 실물은 `ProjectConstTest` 가 부른다.
@@ -3080,7 +3141,7 @@ class PinRotTest(unittest.TestCase):
     **왜 「해시 ≠ `main`」으로 안 재나** — 계획이 도는 날에는 항상 다르고 그게 정상이라
     거짓 RED 가 상시다. 「핀 날짜가 K일 묵었나」·「변경 파일 수가 임계를 넘었나」도
     버렸다: 둘 다 핀을 아무 날에나 갈아끼우는 **공허한 손**을 부르고, 그러면 핀이 제
-    용도를 잃은 채로 초록이 된다. 유도는 `docs/design_pin-rot-nail.md`.
+    용도를 잃은 채로 초록이 된다. 유도는 `docs/design_history_096.md`.
     """
 
     def test_the_pin_is_not_older_than_the_last_empty_night(self):
