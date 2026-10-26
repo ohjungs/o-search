@@ -583,11 +583,23 @@ def archive_gap(index_text, live_names):
         # 치우라고 요구하고, 그러면 중복 방지(`discover.md` 5절)의 눈이 먼다.
         if not status.strip().strip("*").startswith("완료"):
             continue
-        name = "plan_%s.md" % slug
-        if name in live_names:
-            return ("완료한 계획서가 안 치워졌다 — index.md `plan_%s` 는 `완료` 인데"
-                    " docs/%s 가 살아 있다. `plan_history_<NNN>.md` 로 옮긴다"
-                    " (docs.md 4절)" % (slug, name))
+        # **계획서와 설계 문서를 둘 다 본다.** 설계 축은 2026-10-27 까지 **재는 자가 0개**
+        # 였다 — 4절이 같은 숨에 요구하는데 자는 `plan_` 접두만 봤고,
+        # `design_history_095.md` 가 계획서(2026-10-20 아카이브)보다 이레를
+        # 더 살아 있었다. `digest ## 반복 실패` 의 「절차를 문서에만 적고 재는 자를 안
+        # 만든다」가 센 2회 중 **한 번이 설계 문서**였다(계획 80 `design_recrawl`).
+        #
+        # **없으면 조용한 것이 설계다** — 4절이 「설계를 건너뛰면 없다」를 명시하고
+        # 실물에서 설계 없는 완료 계획이 다수다. `in live_names` 가 그 음성 대조를
+        # 공짜로 준다(존재하는 것만 모집단에 든다).
+        for kind, archive in (("plan", "plan_history_<NNN>.md"),
+                              ("design", "design_history_<NNN>.md")):
+            name = "%s_%s.md" % (kind, slug)
+            if name in live_names:
+                return ("완료한 %s 문서가 안 치워졌다 — index.md `plan_%s` 는 `완료` 인데"
+                        " docs/%s 가 살아 있다. `%s` 로 옮긴다 (docs.md 4절 ·"
+                        " 번호는 계획서와 같은 `NNN` 을 쓴다)"
+                        % (kind, slug, name, archive))
     return None
 
 
@@ -2253,9 +2265,19 @@ class VerdictGapTest(unittest.TestCase):
         self.assertIn("열", gap)
 
 
-def live_plan_names():
-    """아카이브가 아닌 `plan_*.md` 의 이름. `archive_gap` 이 무는 모집단이다."""
-    return {p.name for p in DOCS.glob("plan_*.md") if not ARCHIVE.match(p.name)}
+def live_doc_names(docs=DOCS):
+    """아카이브가 아닌 `plan_*.md`·`design_*.md` 의 이름. `archive_gap` 의 모집단이다.
+
+    **설계 문서를 함께 담는 것이 2026-10-27 반복 763 의 수정이다** — 전에는 계획서만
+    담아서 `archive_gap` 이 4절의 절반만 셌다(경위는 그 함수 주석).
+
+    **`docs` 를 인자로 받는 것은 `read_budget_sizes`·`doc_citation_sites` 와 같은 이유다** —
+    픽스처가 **순회를 밟아야** 한다. 실물은 치우고 나면 초록이라 모집단을 좁히는 변이가
+    조용히 산다: 이 자를 세운 반복에서 **변이 ⓘ(설계 glob 삭제)가 실제로 살아남았다**
+    (`archive_gap` 의 갈래는 집합을 직접 받으므로 이 함수를 안 밟는다).
+    """
+    return {p.name for p in docs.glob("plan_*.md") if not ARCHIVE.match(p.name)} | {
+        p.name for p in docs.glob("design_*.md") if not ARCHIVE.match(p.name)}
 
 
 class ArchiveBacklogTest(unittest.TestCase):
@@ -2266,8 +2288,24 @@ class ArchiveBacklogTest(unittest.TestCase):
 
     def test_done_plans_are_archived(self):
         gap = archive_gap((DOCS / "index.md").read_text(encoding="utf-8"),
-                          live_plan_names())
+                          live_doc_names())
         self.assertIsNone(gap, gap)
+
+    def test_the_population_carries_both_kinds(self):
+        """모집단이 계획서와 설계를 **둘 다** 담고 아카이브는 뺀다.
+
+        **실물로는 못 재는 축이다** — 치운 트리에서는 설계 glob 을 지워도 초록이라
+        변이 ⓘ 가 살아남았다(실측). 합성 트리로 순회를 직접 밟는다.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            docs = pathlib.Path(tmp)
+            for name in ("plan_%s.md" % "alive-plan", "design_%s.md" % "alive-design",
+                         "plan_history_001.md", "design_history_001.md", "note.md"):
+                (docs / name).write_text("x", encoding="utf-8")
+            self.assertEqual(
+                {"plan_%s.md" % "alive-plan", "design_%s.md" % "alive-design"},
+                live_doc_names(docs),
+                "모집단이 틀렸다 — 설계를 빠뜨렸거나 아카이브를 담았다")
 
     def test_the_scan_still_reaches_docs(self):
         # 살아 있는 계획서는 **0개가 정상**이라(전부 치운 밤) 그쪽에 하한을 박으면
@@ -2308,6 +2346,38 @@ class ArchiveGapTest(unittest.TestCase):
         # 오탐 축 — `보류` 는 승인에 막힌 것이라 제자리가 맞다.
         self.assertIsNone(archive_gap(self.index(self.HELD % "waiting-one"),
                                       {"plan_%s.md" % "waiting-one"}))
+
+    def test_live_done_design_is_a_gap(self):
+        # **설계 축은 2026-10-27 까지 재는 자가 0개였다.** `docs.md` 4절은 계획서와 같은 숨에
+        # `design_<slug>.md` → `design_history_<NNN>.md` 를 요구하는데 자는 계획서만 봤고,
+        # `design_history_095.md` 가 그 침묵의 실물이었다(계획서는 2026-10-20 에
+        # 치워졌는데 설계 문서만 이레를 남았다). `digest ## 반복 실패` 의 「절차를 문서에만
+        # 적고 재는 자를 안 만든다」가 센 2회 중 **한 번이 바로 설계 문서**였다(계획 80).
+        gap = archive_gap(self.index(self.DONE % "designed-one"),
+                          {"design_%s.md" % "designed-one"})
+        self.assertIsNotNone(gap, "완료 계획의 설계 문서가 살아 있는데 조용하다")
+        self.assertIn("designed-one", gap)
+        self.assertIn("design", gap, "계획서가 아니라 설계 문서라는 것을 안 댔다")
+
+    def test_a_plan_without_a_design_doc_is_quiet(self):
+        # **오탐 축 — 이것이 없으면 설계를 생략한 계획 전부가 거짓 RED 다.**
+        # `docs.md` 4절이 「설계를 건너뛰면 없다」를 명시하고, 이 저장소 실물에서 설계
+        # 문서가 없는 완료 계획이 다수다(계획 123 이 바로 그 꼴이다 — 트리거에 안 걸렸다).
+        self.assertIsNone(archive_gap(self.index(self.DONE % "no-design-one"), set()))
+
+    def test_held_plan_keeps_its_design_doc(self):
+        # 보류는 계획서도 설계도 제자리가 맞다 — 승인 대기 중에 설계를 치우면 재개할 때
+        # 「왜 이렇게 만들었나」의 유일한 기록이 아카이브로 흩어진다(4절).
+        self.assertIsNone(archive_gap(
+            self.index(self.HELD % "waiting-design"),
+            {"plan_%s.md" % "waiting-design", "design_%s.md" % "waiting-design"}))
+
+    def test_both_living_docs_are_named(self):
+        # 계획서와 설계가 **둘 다** 남은 꼴. 한 번에 둘을 알려 주지 않으면 밤이 두 반복을 쓴다.
+        gap = archive_gap(self.index(self.DONE % "both-one"),
+                          {"plan_%s.md" % "both-one", "design_%s.md" % "both-one"})
+        self.assertIsNotNone(gap)
+        self.assertIn("both-one", gap)
 
     def test_prefix_sharing_slug_is_not_bitten(self):
         # 이름 대조는 **완전 일치**다. `startswith` 로 넓히는 변이는 `plan_seed` 행이

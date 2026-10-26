@@ -20,7 +20,7 @@
 | `index.md` 의 `plan_signal-vocab-nail` 상태 | 같은 꼴 |
 | `docs/plan_history_096.md` · `docs/plan_history_097.md` | **둘 다 살아 있다** |
 | 전수 | **972 OK rc=0** — 조용하다 |
-| `docs/design_passage-consume-census.md` | **살아 있다** (`plan_passage-consume-census` 는 `완료` · 계획서는 `plan_history_095.md` 로 치워졌다) |
+| `docs/design_history_095.md` | **살아 있다** (`plan_passage-consume-census` 는 `완료` · 계획서는 `plan_history_095.md` 로 치워졌다) |
 
 **뿌리는 한 줄이다** — `archive_gap`(`tests/test_docs.py:570`)이
 `if status.strip() != "완료": continue` 로 **리터럴 동일성**을 본다. `index.md` 의
@@ -35,7 +35,7 @@
 
 **둘째 구멍은 자의 정의역이다** — `archive_gap` 은 `plan_%s.md` **하나만** 본다.
 `docs.md` 4절은 `design_<slug>.md` → `design_history_<NNN>.md` 도 같은 숨에 요구하는데
-**그 축은 재는 자가 0개**다. `design_passage-consume-census.md` 가 그 침묵의 실물이고,
+**그 축은 재는 자가 0개**다. `design_history_095.md` 가 그 침묵의 실물이고,
 `digest.md` `## 반복 실패` 의 「절차를 문서에만 적고 재는 자를 안 만든다」 항목 이 적은 2회 중 **한 번이 바로 설계 문서**였다(계획 80 의 `design_recrawl`).
 같은 조항이 같은 자리에서 **세 번째로** 미끄러졌다.
 
@@ -109,7 +109,7 @@
      설계를 건너뛴 계획(설계 문서 없음)은 **조용**하다(4절이 「건너뛰면 없다」를 명시 — 이 음성
      대조가 없으면 설계 생략 계획 **전부**가 거짓 RED 다).
   2. **살아 있는 트리에 대고 빨강** — `design_passage-consume-census` 를 이름으로 댄다. 기록에 남긴다.
-  3. **그 다음에 치운다** — `git mv docs/design_passage-consume-census.md docs/design_history_<NNN>.md` (**NNN = 095**)
+  3. **그 다음에 치운다** — `git mv docs/design_history_095.md docs/design_history_<NNN>.md` (**NNN = 095**)
      (쌍 번호: 계획서가 `plan_history_095.md`).
   4. 전수 **OK rc=0** · `README.md` 장부 갱신 · `tests.test_deps` 초록.
 - **변이 검사**: 최소 셋 — ⓔ 설계 축 검사를 지워도 조용한가 ⓕ 설계 문서 **부재**를 빨강으로

@@ -1,6 +1,6 @@
 """실물에서 근거 문단 «소비» 축을 잰다 — 모양 블록이 근거로 나가 본문을 이기나.
 
-설계는 `docs/design_passage-consume-census.md`. 요지 넷만 여기 다시 적는다.
+설계는 `docs/design_history_095.md`. 요지 넷만 여기 다시 적는다.
 
 **① 공급이 아니라 소비다.** `e2e/passage_shapes.py` 는 모양이 **몇 개 있나**를 세고
 `e2e/passage_eval.py` 는 합성 64건에서 **정확도**를 잰다. 그 사이가 비어 있었다 —
