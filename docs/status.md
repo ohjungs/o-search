@@ -1,19 +1,19 @@
 ---
 signal: GREEN
-phase: 계획
-step: 0/1
+phase: 개발
+step: 1/1
 attempt: 1
-plan: report-name-pad-gap  # 계획 **125 수립** · 기점 `9bc1463` = `main` 이라 **물려받는 차단이 없다**
-iteration: 767
+plan: report-name-pad-gap  # 계획 **125 개발 1/1** · 기점 `9bc1463` = `main` 이라 **물려받는 차단이 없다**
+iteration: 768
 updated: 2026-10-28
 mode: 무인(night)  # 2026-10-28 `/loop-harness night` — 탐색 모드
-night_iterations: 1  # 이 세션 시작 시 셋 다 0 리셋
+night_iterations: 2  # 이 세션 시작 시 셋 다 0 리셋
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
 ctx: **이레 연속 같은 자리다 (게이트 ⑦).** `.context-state.json` 의 `session_id`(`8601ae25`)로 된 `.jsonl` 이 이 프로젝트 디렉터리에 **없다**(직접 `ls` 로 확인) · `updated_unix` 가 **37.9시간** 묵었다(어제 수와 **같은 파일**이다 — statusLine 이 안 돈다). 거기 적힌 ctx 8·5h 13·7d 12 는 **남의 세션 수**라 85 판정의 근거가 못 된다. **반복 상한(60)에만 의존한다.**
 rules: 34cae75   # `git -C ~/.claude log -1 --format=%h -- skills/loop-harness`
-note: **[🟢 계획 125 수립 · 탐색 6순위]** 0 패딩이 빠진 `night_*.md` 이름이 `pin_rot_gap` 의 ⚪ 집계와 `signal_row_gap` 의 꼴 검사 **둘 다에서 조용히 빠진다** — 재현했다(핀 `2026-09-13` + ⚪ `night_2026-10-5.md` + `night_2026-11-01.md` → 둘 다 `None`, 이름만 `10-05` 로 고치면 즉시 빨강). 후보 `[7]` 의 **여는 조건이 충족됐다**(게이트 ⑱ 이 ㉢ 으로 닫혀 계획 122 가 `main` 에 있다). 1~5순위는 0건(전수 **990 OK rc=0** · 린트 없음 · 코드 `TODO` 0 · `candidates.md` 부재 · 보류는 전부 사람 승인 대기). **천장을 미리 적었다** — 살아 있는 축은 `docs/reports/` 가 `.gitignore:2` 라 깨끗한 사본에서 조용하다(계획 122 가 죽은 그 자리 · 사람이 ㉢ 으로 고른 꼴을 물려받는다).
+note: **[🟢 개발 1/1 · 계획 125]** `report_name_gap` 하나를 세웠다 — 날짜를 못 읽는 `night_*.md` 이름을 **전부 모아** 신고한다(`citation_alive_gap` 선례 · 먼저 걸린 하나가 아니다). TDD: 테스트 7건을 먼저 쓰고 **NameError 7건으로 빨강을 확인**한 뒤 술어를 넣었다. 축 넷 — ① 살아 있는 보고서 45건 ② 패딩 빠짐·날짜 없음 ③ **사전순 중간에 숨은 것**(`signal_row_gap` 이 구조적으로 못 보는 자리 · 그 침묵을 같은 테스트가 `assertIsNone` 으로 못박았다) ④ 음성 대조 — 같은 날 두 벌인 실물 접미사 꼴은 조용하다. 전수 990 → **997 OK rc=0** · 제품 `src/` **0줄** · 변이 **4판 중 3 죽음 · 1 등가**(`match`→`search` 는 `^` 앵커가 있어 진짜 등가다). `README.md` 단위 수 가드가 990 → 997 을 강제했다.
 ---
 
 ## 이 밤 (2026-10-28) — 🟢 GREEN (반복 767)

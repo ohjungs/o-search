@@ -1000,6 +1000,34 @@ def signal_row_gap(reports):
             " 셀 수 없고 핀 가드가 조용히 죽는다" % (day, " · ".join(missing)))
 
 
+def report_name_gap(reports):
+    """이름에서 **날짜를 못 읽는** 보고서를 전부 모아 한 줄로 돌려준다. 없으면 `None`.
+
+    `pin_rot_gap`·`signal_row_gap` 의 **정의역이 비는 것을 입구에서** 막는다. 둘은
+    `REPORT_NAME` 으로 날짜를 읽는데 그 정규식이 0 패딩을 요구하므로, 패딩이 빠진
+    이름은 ⚪ 집계에서 `if REPORT_NAME.match(name)` 에 **걸러지고** 사전순 마지막이
+    아니면 꼴 가드도 못 본다 — 그 조합이 핀 썩음 판정을 조용히 죽인다
+    (`digest.md` `## 다음 계획 후보` 의 `[7]`).
+
+    **전 자리를 모은다** — `citation_alive_gap` 과 같다. 먼저 걸린 하나만 주면
+    고치는 쪽이 전수를 한 번 더 돌려야 다음 것이 보인다.
+
+    **판정은 접두까지다.** 접미사는 허용한다 — 같은 날 두 벌인 날이 넷이라
+    (`09-09` 2 · `09-10` 2 · `09-12` 3 · `09-14` 2) 좁히면 실물이 거짓 RED 다.
+    날짜의 **값**(`13-45` 류)은 안 본다: 실물 0건이고, `datetime` 을 들이면
+    `night_reports` 의 「사전순이 곧 날짜순」 설계가 함께 흔들린다.
+
+    **0건이면 조용하다** — 하한은 `ReportNameTest` 의 살아 있는 축이 `assertTrue` 로
+    문다(`NightReportSignalTest` 와 같은 꼴).
+    """
+    bad = [name for name, _ in reports if not REPORT_NAME.match(name)]
+    if not bad:
+        return None
+    return ("야간 보고서 이름에서 날짜를 못 읽었다 — %s. `night_YYYY-MM-DD…` 꼴이어야"
+            " 하고, 0 패딩이 빠지면 `pin_rot_gap` 의 ⚪ 집계에서 **조용히 빠진다**"
+            " (사전순 마지막이 아니면 `signal_row_gap` 도 못 본다)" % " · ".join(bad))
+
+
 def pin_rot_gap(status_text, reports):
     """핀이 마지막 빈손 밤보다 묵었으면 한 줄로 돌려준다. 안 묵었으면 `None`.
 
@@ -3492,6 +3520,81 @@ class NightReportSignalTest(unittest.TestCase):
         gap = signal_row_gap([("night_2026-9-5.md", "| **신호** | ⚪ 빈손 |")])
         self.assertIsNotNone(gap, "날짜를 못 읽는 이름을 통과시켰다")
         self.assertIn("night_2026-9-5.md", gap)
+
+
+class ReportNameTest(unittest.TestCase):
+    """**날짜를 못 읽는** 야간 보고서 이름이 하나라도 있나.
+
+    `pin_rot_gap` 의 ⚪ 집계와 `signal_row_gap` 의 꼴 검사가 둘 다 `REPORT_NAME` 으로
+    날짜를 읽는데, 그 정규식은 0 패딩을 **요구**한다. 그래서 패딩이 빠진 이름은
+    집계에서 `if REPORT_NAME.match(name)` 에 **걸러지고**, 사전순 마지막이 아니면
+    꼴 가드도 못 본다 — 핀 썩음 판정이 조용히 죽는다.
+
+    재현(계획 125 탐색): 핀 `2026-09-13` + ⚪ `night_2026-10-5.md` +
+    `night_2026-11-01.md` → **둘 다 `None`**, 이름만 `10-05` 로 고치면 즉시 빨강.
+
+    **관용하지 않고 신고한다.** `10-5` 를 `10-05` 로 읽어 주는 안은 틀린 이름 위에서
+    자가 초록으로 돌아 사람이 그 꼴을 계속 쓰게 한다(`digest.md` 후보 `[7]` 의 처방).
+    """
+
+    def test_every_live_report_name_carries_a_date(self):
+        # 게이트 ⑱ ㉢ — `docs/reports/` 는 추적 밖이라 다른 체크아웃엔 없다.
+        if not (DOCS / "reports").is_dir():
+            self.skipTest("docs/reports/ 없음 — 기계 로컬 가드")
+        reports = night_reports(DOCS)
+        self.assertTrue(reports, "야간 보고서를 못 찾았다 — 순회가 죽으면 0건 초록이 된다")
+        gap = report_name_gap(reports)
+        self.assertIsNone(gap, gap)
+
+    def test_an_unpadded_name_is_named(self):
+        gap = report_name_gap([("night_2026-10-5.md", "| **신호** | ⚪ 빈손 |")])
+        self.assertIsNotNone(gap, "패딩 빠진 이름을 통과시켰다")
+        self.assertIn("night_2026-10-5.md", gap)
+
+    def test_a_dateless_name_is_named(self):
+        """날짜가 아예 없는 이름 — `night_reports` 의 glob 이 그것도 집어 온다."""
+        gap = report_name_gap([("night_report.md", "| **신호** | 🟢 완료 |")])
+        self.assertIsNotNone(gap, "날짜 없는 이름을 통과시켰다")
+        self.assertIn("night_report.md", gap)
+
+    def test_a_name_hidden_in_the_middle_is_named(self):
+        """**사전순 중간**에 숨은 것 — `signal_row_gap` 이 구조적으로 못 보는 자리다.
+
+        `night_2026-10-5` < `night_2026-11-01` 이라 최신-하나 축은 조용하다.
+        그 침묵이 이 계획의 근거이므로 **두 자의 차이를 여기서 못박는다.**
+        """
+        rows = [("night_2026-10-5.md", "| **신호** | ⚪ 빈손 |"),
+                ("night_2026-11-01.md", "| **신호** | 🟢 완료 |")]
+        self.assertIsNone(signal_row_gap(rows), "전제가 바뀌었다 — 최신 축이 이미 문다")
+        gap = report_name_gap(rows)
+        self.assertIsNotNone(gap, "중간에 숨은 이름을 놓쳤다")
+        self.assertIn("night_2026-10-5.md", gap)
+
+    def test_all_of_them_are_named_not_just_the_first(self):
+        """**전 자리를 모은다** — `citation_alive_gap` 선례(먼저 걸린 하나가 아니다).
+
+        하나씩 돌려주면 고치는 쪽이 전수를 한 번 더 돌려야 다음 것이 보인다 —
+        `digest.md` 후보 `[4]` 가 `archive_gap` 에서 등재한 그 비용이다.
+        """
+        gap = report_name_gap([("night_2026-10-5.md", "본문"),
+                               ("night_report.md", "본문")])
+        self.assertIn("night_2026-10-5.md", gap)
+        self.assertIn("night_report.md", gap)
+
+    def test_the_real_suffixed_forms_stay_quiet(self):
+        """음성 대조 — 같은 날 두 벌인 실물 꼴은 **접두**만 맞으면 조용하다.
+
+        같은 날 두 벌 이상인 날이 넷이다(`09-09` 2 · `09-10` 2 · `09-12` 3 · `09-14` 2).
+        접미사를 무는 쪽으로 좁히면 실물 넷이 거짓 RED 가 된다.
+        """
+        self.assertIsNone(report_name_gap(
+            [("night_2026-09-09.md", "본문"),
+             ("night_2026-09-09b.md", "본문"),
+             ("night_2026-09-12_3.md", "본문")]))
+
+    def test_no_reports_at_all_is_quiet(self):
+        """0건이면 조용하다 — 하한은 위 살아 있는 축이 `assertTrue` 로 문다."""
+        self.assertIsNone(report_name_gap([]))
 
 
 if __name__ == "__main__":
