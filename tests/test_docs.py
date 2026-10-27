@@ -946,7 +946,13 @@ PIN_LINE = re.compile(
 REPORT_SIGNAL = re.compile(r"^\| *\*\*신호\*\* *\|[^|]*?(🔴|🟡|🟢|⚪)", re.M)
 # 보고서 날짜는 **파일명**에서 읽는다. 같은 날 두 벌이 있는 날이 넷이라
 # (`09-09` 2 · `09-10` 2 · `09-12` 3 · `09-14` 2) 접미사를 허용해야 한다.
-REPORT_NAME = re.compile(r"^night_(\d{4}-\d{2}-\d{2})")
+#
+# **날짜 뒤에 구분자를 요구한다**(`(?=[_.])`) — 백지 패스가 실측한 자리다(계획 125 [R125-2]):
+# 접두만 보면 `night_2026-10-055.md` 가 **맞고** `group(1)` 이 `2026-10-05` 라 세 자가 전부
+# 날짜를 **잘못 읽는다**(`…05extra.md` 도 같다). 접미사 허용은 그대로다 — 실물 다섯은
+# `_<슬러그>` 꼴이고 나머지는 `.md` 로 끝나 둘 다 통과한다. 계획 124 가 `is_done` 에서
+# 낱말 뒤 구분자를 요구해 닫은 것과 **같은 계열**이다.
+REPORT_NAME = re.compile(r"^night_(\d{4}-\d{2}-\d{2})(?=[_.])")
 EMPTY_SIGNAL = "⚪"
 
 
@@ -998,6 +1004,39 @@ def signal_row_gap(reports):
     return ("최신 날짜(%s)의 야간 보고서에 `| **신호** | <이모지> …` 줄이 없다 — %s."
             " `pin_rot_gap` 이 이 줄을 읽는다. 없으면 그 밤이 빈손이었는지"
             " 셀 수 없고 핀 가드가 조용히 죽는다" % (day, " · ".join(missing)))
+
+
+def report_name_gap(reports):
+    """이름에서 **날짜를 못 읽는** 보고서를 전부 모아 한 줄로 돌려준다. 없으면 `None`.
+
+    `pin_rot_gap`·`signal_row_gap` 이 **정의역이 비는 것을 모르는 채 조용한 자리**를
+    같은 스위트에서 **병행 신고**한다. 둘은 `REPORT_NAME` 으로 날짜를 읽는데 그 정규식이
+    0 패딩을 요구하므로, 패딩이 빠진 이름은 ⚪ 집계에서 `if REPORT_NAME.match(name)` 에
+    **걸러지고** 사전순 마지막이 아니면 꼴 가드도 못 본다 — 그 조합이 핀 썩음 판정을
+    조용히 죽인다 (`digest.md` `## 다음 계획 후보` 의 `[7]`).
+
+    **「입구에서 막는다」가 아니다** — 백지 패스가 기제를 재서 정정했다(계획 125 [R125-1]).
+    이 자의 호출자는 `ReportNameTest` **일곱 곳뿐**이고 형제 둘은 한 줄도 안 바뀌었다.
+    그래서 `PinRotTest` 만 따로 돌리면 거짓 초록이 유지되고, **전수를 돌릴 때** 이 자가
+    옆에서 빨개진다. 전수가 이 저장소의 관문이라 값은 그대로지만 기제는 병행이다.
+
+    **전 자리를 모은다** — `citation_alive_gap` 과 같다. 먼저 걸린 하나만 주면
+    고치는 쪽이 전수를 한 번 더 돌려야 다음 것이 보인다.
+
+    **판정은 접두까지다.** 접미사는 허용한다 — 같은 날 두 벌인 날이 넷이라
+    (`09-09` 2 · `09-10` 2 · `09-12` 3 · `09-14` 2) 좁히면 실물이 거짓 RED 다.
+    날짜의 **값**(`13-45` 류)은 안 본다: 실물 0건이고, `datetime` 을 들이면
+    `night_reports` 의 「사전순이 곧 날짜순」 설계가 함께 흔들린다.
+
+    **0건이면 조용하다** — 하한은 `ReportNameTest` 의 살아 있는 축이 `assertTrue` 로
+    문다(`NightReportSignalTest` 와 같은 꼴).
+    """
+    bad = [name for name, _ in reports if not REPORT_NAME.match(name)]
+    if not bad:
+        return None
+    return ("야간 보고서 이름에서 날짜를 못 읽었다 — %s. `night_YYYY-MM-DD…` 꼴이어야"
+            " 하고, 0 패딩이 빠지면 `pin_rot_gap` 의 ⚪ 집계에서 **조용히 빠진다**"
+            " (사전순 마지막이 아니면 `signal_row_gap` 도 못 본다)" % " · ".join(bad))
 
 
 def pin_rot_gap(status_text, reports):
@@ -3492,6 +3531,99 @@ class NightReportSignalTest(unittest.TestCase):
         gap = signal_row_gap([("night_2026-9-5.md", "| **신호** | ⚪ 빈손 |")])
         self.assertIsNotNone(gap, "날짜를 못 읽는 이름을 통과시켰다")
         self.assertIn("night_2026-9-5.md", gap)
+
+
+class ReportNameTest(unittest.TestCase):
+    """**날짜를 못 읽는** 야간 보고서 이름이 하나라도 있나.
+
+    `pin_rot_gap` 의 ⚪ 집계와 `signal_row_gap` 의 꼴 검사가 둘 다 `REPORT_NAME` 으로
+    날짜를 읽는데, 그 정규식은 0 패딩을 **요구**한다. 그래서 패딩이 빠진 이름은
+    집계에서 `if REPORT_NAME.match(name)` 에 **걸러지고**, 사전순 마지막이 아니면
+    꼴 가드도 못 본다 — 핀 썩음 판정이 조용히 죽는다.
+
+    재현(계획 125 탐색): 핀 `2026-09-13` + ⚪ `night_2026-10-5.md` +
+    `night_2026-11-01.md` → **둘 다 `None`**, 이름만 `10-05` 로 고치면 즉시 빨강.
+
+    **관용하지 않고 신고한다.** `10-5` 를 `10-05` 로 읽어 주는 안은 틀린 이름 위에서
+    자가 초록으로 돌아 사람이 그 꼴을 계속 쓰게 한다(`digest.md` 후보 `[7]` 의 처방).
+    """
+
+    def test_every_live_report_name_carries_a_date(self):
+        # 게이트 ⑱ ㉢ — `docs/reports/` 는 추적 밖이라 다른 체크아웃엔 없다.
+        if not (DOCS / "reports").is_dir():
+            self.skipTest("docs/reports/ 없음 — 기계 로컬 가드")
+        reports = night_reports(DOCS)
+        self.assertTrue(reports, "야간 보고서를 못 찾았다 — 순회가 죽으면 0건 초록이 된다")
+        gap = report_name_gap(reports)
+        self.assertIsNone(gap, gap)
+
+    def test_an_unpadded_name_is_named(self):
+        gap = report_name_gap([("night_2026-10-5.md", "| **신호** | ⚪ 빈손 |")])
+        self.assertIsNotNone(gap, "패딩 빠진 이름을 통과시켰다")
+        self.assertIn("night_2026-10-5.md", gap)
+
+    def test_a_dateless_name_is_named(self):
+        """날짜가 아예 없는 이름 — `night_reports` 의 glob 이 그것도 집어 온다."""
+        gap = report_name_gap([("night_report.md", "| **신호** | 🟢 완료 |")])
+        self.assertIsNotNone(gap, "날짜 없는 이름을 통과시켰다")
+        self.assertIn("night_report.md", gap)
+
+    def test_a_name_hidden_in_the_middle_is_named(self):
+        """**사전순 중간**에 숨은 것 — `signal_row_gap` 이 구조적으로 못 보는 자리다.
+
+        `night_2026-10-5` < `night_2026-11-01` 이라 최신-하나 축은 조용하다.
+        그 침묵이 이 계획의 근거이므로 **두 자의 차이를 여기서 못박는다.**
+        """
+        rows = [("night_2026-10-5.md", "| **신호** | ⚪ 빈손 |"),
+                ("night_2026-11-01.md", "| **신호** | 🟢 완료 |")]
+        self.assertIsNone(signal_row_gap(rows), "전제가 바뀌었다 — 최신 축이 이미 문다")
+        gap = report_name_gap(rows)
+        self.assertIsNotNone(gap, "중간에 숨은 이름을 놓쳤다")
+        self.assertIn("night_2026-10-5.md", gap)
+
+    def test_all_of_them_are_named_not_just_the_first(self):
+        """**전 자리를 모은다** — `citation_alive_gap` 선례(먼저 걸린 하나가 아니다).
+
+        하나씩 돌려주면 고치는 쪽이 전수를 한 번 더 돌려야 다음 것이 보인다 —
+        `digest.md` 후보 `[4]` 가 `archive_gap` 에서 등재한 그 비용이다.
+        """
+        gap = report_name_gap([("night_2026-10-5.md", "본문"),
+                               ("night_report.md", "본문")])
+        self.assertIn("night_2026-10-5.md", gap)
+        self.assertIn("night_report.md", gap)
+
+    def test_the_real_suffixed_forms_stay_quiet(self):
+        """음성 대조 — 같은 날 두 벌인 실물 꼴은 **접두**만 맞으면 조용하다.
+
+        **이름을 상상하지 않고 실물에서 떴다** (`test.md` 3절 ⑧). 같은 날 두 벌
+        이상인 날이 넷이고 접미사 꼴은 전부 `_<슬러그>` 다 — `ls docs/reports/` 실측:
+        `night_2026-09-09_iter-third-witness.md` · `night_2026-09-10_verdict-head.md` ·
+        `night_2026-09-12_empty-sweep.md` · `night_2026-09-12_pin-coverage.md` ·
+        `night_2026-09-14_order-probe.md`. 접미사를 무는 쪽으로 좁히면 이 다섯이
+        거짓 RED 가 된다.
+        """
+        self.assertIsNone(report_name_gap(
+            [("night_2026-09-09.md", "본문"),
+             ("night_2026-09-09_iter-third-witness.md", "본문"),
+             ("night_2026-09-12_pin-coverage.md", "본문")]))
+
+    def test_a_date_that_runs_into_more_characters_is_named(self):
+        """**날짜 뒤에 바로 붙은 글자** — 백지 패스가 실측한 자리다 ([R125-2]).
+
+        구분자를 요구하기 전에는 `night_2026-10-055.md` 가 `match` 되고 `group(1)` 이
+        `2026-10-05` 라, 새 가드는 **조용히 통과시키고** `pin_rot_gap` 은 그 밤을
+        10-05 로 **잘못 읽었다**(재현했다). 날짜의 「값」이 아니라 「꼴」 문제라
+        docstring 이 면제한 범위 밖이었다.
+        """
+        for name in ("night_2026-10-055.md", "night_2026-10-05extra.md"):
+            with self.subTest(name=name):
+                gap = report_name_gap([(name, "본문")])
+                self.assertIsNotNone(gap, "날짜 뒤로 흘러넘친 이름을 통과시켰다")
+                self.assertIn(name, gap)
+
+    def test_no_reports_at_all_is_quiet(self):
+        """0건이면 조용하다 — 하한은 위 살아 있는 축이 `assertTrue` 로 문다."""
+        self.assertIsNone(report_name_gap([]))
 
 
 if __name__ == "__main__":
