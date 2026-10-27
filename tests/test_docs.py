@@ -946,7 +946,13 @@ PIN_LINE = re.compile(
 REPORT_SIGNAL = re.compile(r"^\| *\*\*신호\*\* *\|[^|]*?(🔴|🟡|🟢|⚪)", re.M)
 # 보고서 날짜는 **파일명**에서 읽는다. 같은 날 두 벌이 있는 날이 넷이라
 # (`09-09` 2 · `09-10` 2 · `09-12` 3 · `09-14` 2) 접미사를 허용해야 한다.
-REPORT_NAME = re.compile(r"^night_(\d{4}-\d{2}-\d{2})")
+#
+# **날짜 뒤에 구분자를 요구한다**(`(?=[_.])`) — 백지 패스가 실측한 자리다(계획 125 [R125-2]):
+# 접두만 보면 `night_2026-10-055.md` 가 **맞고** `group(1)` 이 `2026-10-05` 라 세 자가 전부
+# 날짜를 **잘못 읽는다**(`…05extra.md` 도 같다). 접미사 허용은 그대로다 — 실물 다섯은
+# `_<슬러그>` 꼴이고 나머지는 `.md` 로 끝나 둘 다 통과한다. 계획 124 가 `is_done` 에서
+# 낱말 뒤 구분자를 요구해 닫은 것과 **같은 계열**이다.
+REPORT_NAME = re.compile(r"^night_(\d{4}-\d{2}-\d{2})(?=[_.])")
 EMPTY_SIGNAL = "⚪"
 
 
@@ -1003,11 +1009,16 @@ def signal_row_gap(reports):
 def report_name_gap(reports):
     """이름에서 **날짜를 못 읽는** 보고서를 전부 모아 한 줄로 돌려준다. 없으면 `None`.
 
-    `pin_rot_gap`·`signal_row_gap` 의 **정의역이 비는 것을 입구에서** 막는다. 둘은
-    `REPORT_NAME` 으로 날짜를 읽는데 그 정규식이 0 패딩을 요구하므로, 패딩이 빠진
-    이름은 ⚪ 집계에서 `if REPORT_NAME.match(name)` 에 **걸러지고** 사전순 마지막이
-    아니면 꼴 가드도 못 본다 — 그 조합이 핀 썩음 판정을 조용히 죽인다
-    (`digest.md` `## 다음 계획 후보` 의 `[7]`).
+    `pin_rot_gap`·`signal_row_gap` 이 **정의역이 비는 것을 모르는 채 조용한 자리**를
+    같은 스위트에서 **병행 신고**한다. 둘은 `REPORT_NAME` 으로 날짜를 읽는데 그 정규식이
+    0 패딩을 요구하므로, 패딩이 빠진 이름은 ⚪ 집계에서 `if REPORT_NAME.match(name)` 에
+    **걸러지고** 사전순 마지막이 아니면 꼴 가드도 못 본다 — 그 조합이 핀 썩음 판정을
+    조용히 죽인다 (`digest.md` `## 다음 계획 후보` 의 `[7]`).
+
+    **「입구에서 막는다」가 아니다** — 백지 패스가 기제를 재서 정정했다(계획 125 [R125-1]).
+    이 자의 호출자는 `ReportNameTest` **일곱 곳뿐**이고 형제 둘은 한 줄도 안 바뀌었다.
+    그래서 `PinRotTest` 만 따로 돌리면 거짓 초록이 유지되고, **전수를 돌릴 때** 이 자가
+    옆에서 빨개진다. 전수가 이 저장소의 관문이라 값은 그대로지만 기제는 병행이다.
 
     **전 자리를 모은다** — `citation_alive_gap` 과 같다. 먼저 걸린 하나만 주면
     고치는 쪽이 전수를 한 번 더 돌려야 다음 것이 보인다.
@@ -3595,6 +3606,20 @@ class ReportNameTest(unittest.TestCase):
             [("night_2026-09-09.md", "본문"),
              ("night_2026-09-09_iter-third-witness.md", "본문"),
              ("night_2026-09-12_pin-coverage.md", "본문")]))
+
+    def test_a_date_that_runs_into_more_characters_is_named(self):
+        """**날짜 뒤에 바로 붙은 글자** — 백지 패스가 실측한 자리다 ([R125-2]).
+
+        구분자를 요구하기 전에는 `night_2026-10-055.md` 가 `match` 되고 `group(1)` 이
+        `2026-10-05` 라, 새 가드는 **조용히 통과시키고** `pin_rot_gap` 은 그 밤을
+        10-05 로 **잘못 읽었다**(재현했다). 날짜의 「값」이 아니라 「꼴」 문제라
+        docstring 이 면제한 범위 밖이었다.
+        """
+        for name in ("night_2026-10-055.md", "night_2026-10-05extra.md"):
+            with self.subTest(name=name):
+                gap = report_name_gap([(name, "본문")])
+                self.assertIsNotNone(gap, "날짜 뒤로 흘러넘친 이름을 통과시켰다")
+                self.assertIn(name, gap)
 
     def test_no_reports_at_all_is_quiet(self):
         """0건이면 조용하다 — 하한은 위 살아 있는 축이 `assertTrue` 로 문다."""
