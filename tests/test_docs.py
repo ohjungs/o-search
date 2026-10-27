@@ -3584,13 +3584,17 @@ class ReportNameTest(unittest.TestCase):
     def test_the_real_suffixed_forms_stay_quiet(self):
         """음성 대조 — 같은 날 두 벌인 실물 꼴은 **접두**만 맞으면 조용하다.
 
-        같은 날 두 벌 이상인 날이 넷이다(`09-09` 2 · `09-10` 2 · `09-12` 3 · `09-14` 2).
-        접미사를 무는 쪽으로 좁히면 실물 넷이 거짓 RED 가 된다.
+        **이름을 상상하지 않고 실물에서 떴다** (`test.md` 3절 ⑧). 같은 날 두 벌
+        이상인 날이 넷이고 접미사 꼴은 전부 `_<슬러그>` 다 — `ls docs/reports/` 실측:
+        `night_2026-09-09_iter-third-witness.md` · `night_2026-09-10_verdict-head.md` ·
+        `night_2026-09-12_empty-sweep.md` · `night_2026-09-12_pin-coverage.md` ·
+        `night_2026-09-14_order-probe.md`. 접미사를 무는 쪽으로 좁히면 이 다섯이
+        거짓 RED 가 된다.
         """
         self.assertIsNone(report_name_gap(
             [("night_2026-09-09.md", "본문"),
-             ("night_2026-09-09b.md", "본문"),
-             ("night_2026-09-12_3.md", "본문")]))
+             ("night_2026-09-09_iter-third-witness.md", "본문"),
+             ("night_2026-09-12_pin-coverage.md", "본문")]))
 
     def test_no_reports_at_all_is_quiet(self):
         """0건이면 조용하다 — 하한은 위 살아 있는 축이 `assertTrue` 로 문다."""
