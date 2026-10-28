@@ -1069,9 +1069,12 @@ def pin_rot_gap(status_text, reports):
 def python_sources(root=ROOT):
     """훑을 `.py` 를 이름순으로. 이름순이라 실패 목록이 안 흔들린다.
 
-    **없는 디렉터리는 건너뛴다** — 모듈 최상위가 아니라 호출 시점에 도는데도 그렇게
-    하는 이유는 얕은 체크아웃 하나가 전수를 흔들지 않게 하기 위해서다. 진짜로 한
-    덩이가 사라진 판은 `SOURCE_FLOOR` 가 문다 (`test_deps.py` 와 같은 분담).
+    **`is_dir()` 가드는 짐을 안 진다 — 실측했다.** 이 파이썬(3.9.6)의 `rglob` 은 없는
+    경로와 **파일인 경로**에 둘 다 `[]` 를 주고 터지지 않는다. 변이 ⓛ(가드 제거)이
+    **생존**해서 알았고 탐침으로 확인했다 — `test_deps.py` 의 같은 자리 주석이 말하는
+    `FileNotFoundError` 는 **모듈 최상위의 `iterdir()`** 이야기고 이 함수와 다르다.
+    그래서 가드는 의도를 적는 것이고 버전 차이에 대한 보험이지, 오늘 무언가를 막고
+    있는 것이 아니다. **진짜로 한 덩이가 사라진 판을 무는 것은 `SOURCE_FLOOR` 다.**
     """
     return sorted(p for d in (root / name for name in SOURCE_DIRS) if d.is_dir()
                   for p in d.rglob("*.py"))
@@ -3722,6 +3725,27 @@ class DupDefGapTest(unittest.TestCase):
             "def a():\n    def inner():\n        pass\n\n\n"
             "def b():\n    def inner():\n        pass\n")]))
 
+    def test_an_async_duplicate_is_named(self):
+        """**`async def` 도 함수 정의다** — 변이 ⓕ·ⓗ 가 생존한 자리.
+
+        이 저장소에 `async` 코드는 **오늘 0건**이라(`grep 'async def'` 실측) 실물 축이
+        이 가지를 영원히 안 밟는다. 그래서 `ast.AsyncFunctionDef` 를 둘 중 어디서든
+        빼도 전수가 초록이었다 — **내가 이 스텝에서 쓴 가지가 안 재지고 있었다**
+        (`test.md` 3절 ⑥ 「초록불인데 새 분기는 아무도 안 밟는 함정」).
+        """
+        gap = dup_def_gap([("m.py",
+            "async def f():\n    pass\n\n\nasync def f():\n    pass\n")])
+        self.assertIsNotNone(gap, "가려진 async 정의를 통과시켰다")
+        self.assertIn("`f`", gap)
+
+    def test_an_async_body_hides_a_duplicate_too(self):
+        """`async def` 가 **스코프**로도 센다 — 변이 ⓕ 를 무는 쪽."""
+        gap = dup_def_gap([("m.py",
+            "async def outer():\n    def inner():\n        pass\n"
+            "    def inner():\n        pass\n")])
+        self.assertIsNotNone(gap, "async 함수 안의 중복을 놓쳤다")
+        self.assertIn("`inner`", gap)
+
     def test_a_duplicate_nested_in_one_function_is_named(self):
         gap = dup_def_gap([("m.py",
             "def a():\n    def inner():\n        pass\n    def inner():\n        pass\n")])
@@ -3782,16 +3806,34 @@ class DupDefTest(unittest.TestCase):
         **실물로는 못 재는 축이다** — `scripts/` 는 오늘 `.py` 가 0개라 빼도 수가 안
         변하고, `src/` 를 빼도 남은 셋이 하한을 넘겨 조용하다. 합성 트리로 순회를
         직접 밟는다 (`ArchiveBacklogTest` 의 모집단 축과 같은 분담).
+
+        **기대값을 리터럴로 적는다.** 처음엔 `SOURCE_DIRS` 로 조립했는데 그러면 양변이
+        같이 줄어 **변이 ⓜ(`scripts` 제외)이 생존했다** — 자가 제 입력을 줄여 초록이
+        되는 꼴이고 `ReadBudgetRosterTest` 가 같은 이유로 명부를 손으로 적는다.
         """
         with tempfile.TemporaryDirectory() as tmp:
             root = pathlib.Path(tmp)
-            for name in SOURCE_DIRS:
+            for name in ("src", "tests", "e2e", "scripts"):
                 (root / name).mkdir()
                 (root / name / ("%s_mod.py" % name)).write_text("x = 1\n", encoding="utf-8")
             (root / "docs").mkdir()
             (root / "docs" / "not_source.py").write_text("x = 1\n", encoding="utf-8")
-            self.assertEqual([p.name for p in python_sources(root)],
-                             sorted("%s_mod.py" % name for name in SOURCE_DIRS))
+            self.assertEqual(
+                [p.name for p in python_sources(root)],
+                ["e2e_mod.py", "scripts_mod.py", "src_mod.py", "tests_mod.py"])
+
+    def test_the_roster_and_the_floor_are_the_values_the_plan_fixed(self):
+        """명부와 하한을 **손으로 못박는다** — 자가 제 입력을 줄이는 길을 막는다.
+
+        **변이 ⓞ(`SOURCE_FLOOR` 를 0 으로)가 생존했다.** 하한이 0 이면 순회가 죽어
+        0건을 훑어도 「위반 0」이 초록으로 나가는데, 그것이 바로 이 하한을 둔 이유다 —
+        값이 안 박혀 있으면 방벽 자신이 조용히 사라진다(`ReadBudgetRosterTest` 와
+        `CONST_CITATION_FLOOR` 가 같은 자리를 같은 이유로 못박는다).
+
+        하한 50 의 근거: 오늘 실측 **62파일**(src 12 · tests 25 · e2e 25 · scripts 0).
+        """
+        self.assertEqual(SOURCE_DIRS, ("src", "tests", "e2e", "scripts"))
+        self.assertEqual(SOURCE_FLOOR, 50)
 
     def test_a_missing_directory_is_skipped_not_fatal(self):
         """얕은 체크아웃 하나가 전수를 통째로 흔들지 않는다."""
