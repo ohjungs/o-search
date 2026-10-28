@@ -20,12 +20,22 @@
 `docs/` 의 구조와 상호참조를 함께 보는 자리다.
 """
 
+import ast
 import pathlib
 import re
 import tempfile
 import unittest
 
-DOCS = pathlib.Path(__file__).resolve().parent.parent / "docs"
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+DOCS = ROOT / "docs"
+# `dup_def_gap` 의 모집단. `scripts/` 는 오늘 `.py` 가 0개지만(`merge-to-main.sh` 뿐)
+# `rglob` 이라 생기면 저절로 들어온다.
+SOURCE_DIRS = ("src", "tests", "e2e", "scripts")
+# 오늘 실측은 62파일이다(src 12 · tests 25 · e2e 25 · scripts 0). 하한을 두는 이유는
+# **0 을 세면서 통과하지 않기** 위해서다 — 경로 오타나 `rglob` 실패로 아무것도 안 훑고
+# 「위반 0」을 외치는 것이 이 저장소의 재발 항목이고(계획 101 이 `\bHTTPServer\(` 로
+# 겪었다), `test_deps.py` 의 `FILE_FLOOR` 가 같은 자리를 같은 이유로 막는다.
+SOURCE_FLOOR = 50
 # append 편집이 머리를 삼킬 수 있는 기록 문서 — 셋 다 H1 로 시작한다.
 APPEND_TARGETS = ("digest.md", "index.md", "history_current.md")
 # 그 셋을 줄번호로 가리킨 인용 — append 한 번에 다른 항목을 가리키게 된다.
@@ -594,35 +604,6 @@ def archive_gap(index_text, live_names):
     중복 방지가 `docs/plan_*.md` 중 보류인 것을 읽으므로 치우면 그 눈이 멀어진다.
     """
     for slug, status, _ in VERDICT_ROW.findall(index_text):
-        # 어휘 판정은 `is_done` 이 한다 — **다섯 자가 같은 칸을 읽어서** 술어를 한
-        # 자리에 뒀다(경위·거절하는 꼴은 그 주석). 이 자가 무는 것은 그 다음부터다.
-        if not is_done(status):
-            continue
-        cell = verdict.strip()
-        if VERDICT_DATE.fullmatch(cell):
-            return ("e2e 칸에 판정이 아니라 날짜가 있다 — index.md `plan_%s` 의 다섯째"
-                    " 칸이 `%s` 다. 판정은 docs/e2e/<슬러그>/result.md 에 있다"
-                    % (slug, cell))
-    return None
-
-
-def archive_gap(index_text, live_names):
-    """`완료` 인데 계획서가 아직 `docs/` 에 살아 있는 자리. 없으면 `None`.
-
-    **몸통을 함수로 뺀 이유는 `step_gap`·`strike_gap`·`verdict_gap` 과 같다** — 실물은
-    치우고 나면 맞아서, 검사가 문서에만 붙어 있으면 판정을 무력화하는 변이가 조용히 산다.
-    실물은 `ArchiveBacklogTest` 가, 갈래는 `ArchiveGapTest` 가 부른다.
-
-    **`docs.md` 4절이 오늘까지 재는 자가 0개였다.** 계획을 마치면 `plan_<slug>.md` 를
-    `plan_history_<NNN>.md` 로 옮기라고 적혀 있는데 강제하는 것이 없어 **두 번 미끄러졌다**
-    (2026-09-09 실측: 계획 80 의 `design_recrawl` · 계획 81 의 `plan_ethics-floor`).
-    값은 다음 반복이 문다 — 루프는 「활성 계획은 동시에 1개」를 `docs/plan_*.md` 로 세고
-    (`discover.md` 5절), 치우지 않은 완료본이 그 셈에 그대로 낀다.
-
-    **`완료` 행만 본다** — `보류(패치)` 는 승인에 막혀 멈춘 것이라 제자리가 맞다.
-    중복 방지가 `docs/plan_*.md` 중 보류인 것을 읽으므로 치우면 그 눈이 멀어진다.
-    """
-    for slug, status, _ in VERDICT_ROW.findall(index_text):
         # **동일성이 아니라 접두다.** 리터럴 `!= "완료"` 로 보던 자는 2026-10-26 에 사람이
         # 게이트 ⑱ 을 ㉢ 으로 닫으며 처음 쓴 `완료(2026-10-26 … 해제 · 병합)` 꼴에서
         # **조용했다** — 그 꼴 2건에서 완료 계획서 둘이 살아 있는데 전수가 초록이었다
@@ -1083,6 +1064,81 @@ def pin_rot_gap(status_text, reports):
             " 밤의 대조가 아무것도 판정하지 못한다(실측 58파일 `+5,149/-143`)."
             " 핀을 그 밤의 `main` 으로 옮기고 날짜를 그 밤으로 적는다"
             % (pin_hash, pin_date, last))
+
+
+def python_sources(root=ROOT):
+    """훑을 `.py` 를 이름순으로. 이름순이라 실패 목록이 안 흔들린다.
+
+    **없는 디렉터리는 건너뛴다** — 모듈 최상위가 아니라 호출 시점에 도는데도 그렇게
+    하는 이유는 얕은 체크아웃 하나가 전수를 흔들지 않게 하기 위해서다. 진짜로 한
+    덩이가 사라진 판은 `SOURCE_FLOOR` 가 문다 (`test_deps.py` 와 같은 분담).
+    """
+    return sorted(p for d in (root / name for name in SOURCE_DIRS) if d.is_dir()
+                  for p in d.rglob("*.py"))
+
+
+def _scope_dups(scope):
+    """한 스코프의 `body` 에서 같은 이름 함수 정의가 둘 이상인 자리를 흘린다.
+
+    **`body` 를 직접 보고 `ast.walk` 로 내려가지 않는다** — 부르는 쪽이 스코프마다
+    한 번씩 부르므로, 여기서 또 내려가면 안쪽 정의가 바깥 스코프 것으로 센다.
+
+    **`if`·`try` 안의 둘째 정의는 안 본다**(그 `body` 는 다른 리스트다). 조건부 재정의
+    (`try: from _x import f / except ImportError: def f()`)는 **의도된 꼴**이라
+    그것이 맞다 — 천장은 `dup_def_gap` 의 docstring 에 적었다.
+    """
+    seen = {}
+    for node in scope.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            if node.name in seen:
+                yield node.name, seen[node.name], node.lineno
+            seen[node.name] = node.lineno
+
+
+def dup_def_gap(sources):
+    """같은 스코프에 같은 이름 함수 정의가 둘인 자리를 한 줄로. 없으면 `None`.
+
+    **파이썬은 뒤엣것만 남기므로 앞엣것은 도달 불가능한 죽은 코드다.** 실측 근거
+    (계획 126 · `digest.md` 후보 `[7]`): `tests/test_docs.py` 에 `def archive_gap` 이
+    `:580`·`:609` 둘이었고 죽은 `:580` 의 몸통은 `verdict_gap` 의 복사본이라
+    `cell = verdict.strip()` 의 `verdict` 가 **정의되지 않은 이름**이었다. 살아남는
+    쪽이 옳은 몸통이어서 **전수 998 이 조용했다** — 피해 경로는 다음 사람이 위에 있어
+    먼저 읽히는 죽은 쪽을 고치는 것이고, 그러면 **전수가 초록인 채로 아무 일도
+    안 일어난다.** 이 저장소 최다 재발(「재는 자가 죽었는데 초록이다」)이고 이번엔
+    재는 자 자신의 파일 안에서 났다.
+
+    **스코프를 안다 — 그래서 `^def ` 를 세지 않는다.** 등재문의 처방은 regex 수집
+    이었는데 그 꼴은 서로 다른 클래스의 `setUp`·`index`·`status`·`test_*` 를
+    **오탐 7건**으로 잡는다(계획 126 실측). `ast` 는 같은 일을 더 적은 코드로 하고
+    오탐이 0 이다 (ponytail 사다리 3번).
+
+    **모든 자리를 모은다** — `report_name_gap`·`citation_alive_gap` 선례. 하나씩
+    돌려주면 고치는 쪽이 전수를 한 번 더 돌려야 다음 것이 보인다.
+
+    **천장 둘.** ① `@property`/`@x.setter` 쌍은 같은 이름을 **합법적으로** 다시
+    정의하는데 이 저장소에 오늘 0건이라 **면제를 안 만들었다**(ponytail 1번). 들어오면
+    이 자가 거짓 RED 를 낸다 — 그 방향이 의도다. 거짓 RED 는 시끄러워 그날 고쳐지고,
+    조용한 누락은 이 자가 막으려는 바로 그 병이다.
+    ② 문법이 깨진 파일은 `SyntaxError` 로 터진다 — **삼키지 않는다.** 그것도 알려야
+    하는 사실이고, 삼키면 안 읽힌 파일이 「위반 0」에 조용히 섞인다.
+    """
+    # ponytail: 데코레이터를 안 본다 — `@x.setter` 가 들어오면 거짓 RED 다.
+    # 그때 둘째 정의의 `decorator_list` 가 `<이름>.setter` 인 것을 면제한다.
+    sites = []
+    for label, text in sources:
+        tree = ast.parse(text, filename=str(label))
+        scopes = [tree] + [node for node in ast.walk(tree)
+                           if isinstance(node, (ast.ClassDef, ast.FunctionDef,
+                                                ast.AsyncFunctionDef))]
+        for scope in scopes:
+            for name, first, second in _scope_dups(scope):
+                sites.append("%s 의 `%s` (:%d 와 :%d)" % (label, name, first, second))
+    if not sites:
+        return None
+    return ("같은 스코프에 같은 이름 함수 정의가 둘이다 — 파이썬은 뒤엣것만 남기므로"
+            " 앞엣것은 도달 불가능한 죽은 코드다. 앞엣것을 지운다(고칠 때 위에 있는"
+            " 쪽을 고치면 전수가 초록인 채로 아무 일도 안 일어난다): %s"
+            % " · ".join(sorted(sites)))
 
 
 class DocHeadTest(unittest.TestCase):
@@ -3624,6 +3680,126 @@ class ReportNameTest(unittest.TestCase):
     def test_no_reports_at_all_is_quiet(self):
         """0건이면 조용하다 — 하한은 위 살아 있는 축이 `assertTrue` 로 문다."""
         self.assertIsNone(report_name_gap([]))
+
+
+class DupDefGapTest(unittest.TestCase):
+    """`dup_def_gap` 의 갈래. 실물은 `DupDefTest` 가 부른다.
+
+    실물은 지우고 나면 초록이라 갈래가 한 번씩만 지나간다. 특히 **오탐 축**(서로 다른
+    클래스의 같은 이름)은 등재문이 적은 regex 처방이 실제로 틀리던 자리고, 그 꼴로
+    `src/ tests/ e2e/ scripts/` 를 세면 `setUp`·`index`·`status`·`test_*` 가 **7건**
+    잡힌다(계획 126 실측). 자가 스코프를 보는 한 조용해야 한다.
+    """
+
+    def test_a_module_level_duplicate_is_named_with_both_line_numbers(self):
+        gap = dup_def_gap([("m.py", "def f():\n    pass\n\n\ndef f():\n    pass\n")])
+        self.assertIsNotNone(gap, "가려진 모듈 레벨 정의를 통과시켰다")
+        self.assertIn("`f`", gap)
+        # **두 줄 번호를 둘 다 댄다** — 하나만 대면 고치는 쪽이 어느 것이 죽은 것인지
+        # 모른다. 이 단언이 없으면 줄 번호를 빼는 변이가 살아남는다.
+        self.assertIn(":1", gap)
+        self.assertIn(":5", gap)
+
+    def test_the_same_name_in_different_classes_is_quiet(self):
+        """**오탐 축** — 등재문의 regex 처방이 틀리던 바로 그 자리다."""
+        self.assertIsNone(dup_def_gap([("m.py",
+            "class A:\n    def setUp(self):\n        pass\n\n\n"
+            "class B:\n    def setUp(self):\n        pass\n")]))
+
+    def test_a_duplicate_inside_one_class_is_named(self):
+        """같은 클래스 안의 중복은 **진짜 결함**이다 — 모듈 레벨과 같은 병이다.
+
+        `^def ` 수집 꼴은 이 축과 위 오탐 축을 **구별하지 못한다**. 둘을 나란히 두는
+        것이 「스코프를 본다」의 값이다.
+        """
+        gap = dup_def_gap([("m.py",
+            "class A:\n    def go(self):\n        pass\n\n    def go(self):\n        pass\n")])
+        self.assertIsNotNone(gap, "클래스 안의 중복을 놓쳤다")
+        self.assertIn("`go`", gap)
+
+    def test_the_same_name_nested_in_different_functions_is_quiet(self):
+        self.assertIsNone(dup_def_gap([("m.py",
+            "def a():\n    def inner():\n        pass\n\n\n"
+            "def b():\n    def inner():\n        pass\n")]))
+
+    def test_a_duplicate_nested_in_one_function_is_named(self):
+        gap = dup_def_gap([("m.py",
+            "def a():\n    def inner():\n        pass\n    def inner():\n        pass\n")])
+        self.assertIsNotNone(gap, "함수 안의 중복을 놓쳤다")
+        self.assertIn("`inner`", gap)
+
+    def test_a_conditional_second_definition_is_quiet(self):
+        """**천장을 못박는다** — `try`/`except` 재정의는 의도된 꼴이라 안 문다.
+
+        면제가 아니라 `_scope_dups` 가 `body` 를 직접 보는 데서 **공짜로** 나온다.
+        여기 못을 안 박으면 나중에 `ast.walk` 로 바꾸는 변이가 이 꼴을 거짓 RED 로
+        만들면서도 조용히 산다.
+        """
+        self.assertIsNone(dup_def_gap([("m.py",
+            "try:\n    from _fast import f\nexcept ImportError:\n"
+            "    def f():\n        pass\n")]))
+
+    def test_all_of_them_are_named_not_just_the_first(self):
+        """**전 자리를 모은다** — `report_name_gap` 선례(먼저 걸린 하나가 아니다)."""
+        gap = dup_def_gap([("a.py", "def f():\n    pass\ndef f():\n    pass\n"),
+                           ("b.py", "def g():\n    pass\ndef g():\n    pass\n")])
+        self.assertIn("a.py", gap)
+        self.assertIn("b.py", gap)
+
+    def test_a_clean_source_is_quiet(self):
+        self.assertIsNone(dup_def_gap([("m.py", "def f():\n    pass\n")]))
+
+    def test_no_sources_at_all_is_quiet(self):
+        """0건이면 조용하다 — 하한은 실물 축이 `assertTrue` 로 문다."""
+        self.assertIsNone(dup_def_gap([]))
+
+    def test_a_broken_file_is_not_swallowed(self):
+        """문법이 깨진 파일은 **터진다** — 삼키면 「위반 0」에 조용히 섞인다."""
+        with self.assertRaises(SyntaxError):
+            dup_def_gap([("m.py", "def f(\n")])
+
+
+class DupDefTest(unittest.TestCase):
+    """살아 있는 `.py` 중에 가려진 함수 정의가 있나 — 계획 126 의 자.
+
+    **판정은 `dup_def_gap` 이 한다** — 갈래를 실물 없이 밟는 것은 `DupDefGapTest` 다.
+    """
+
+    def test_no_live_source_has_a_shadowed_definition(self):
+        paths = python_sources()
+        # **하한** — `rglob` 이 죽어 0건을 훑고 「위반 0」을 외치는 것을 막는다.
+        self.assertGreaterEqual(
+            len(paths), SOURCE_FLOOR,
+            "모집단이 %d개다 — 하한 %d 아래면 순회가 죽은 것이지 깨끗한 것이 아니다"
+            % (len(paths), SOURCE_FLOOR))
+        gap = dup_def_gap(
+            (path.relative_to(ROOT), path.read_text(encoding="utf-8")) for path in paths)
+        self.assertIsNone(gap, gap)
+
+    def test_the_population_carries_every_directory_that_exists(self):
+        """모집단이 네 디렉터리를 **전부** 담는다 — 하나를 빼는 변이를 막는다.
+
+        **실물로는 못 재는 축이다** — `scripts/` 는 오늘 `.py` 가 0개라 빼도 수가 안
+        변하고, `src/` 를 빼도 남은 셋이 하한을 넘겨 조용하다. 합성 트리로 순회를
+        직접 밟는다 (`ArchiveBacklogTest` 의 모집단 축과 같은 분담).
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            for name in SOURCE_DIRS:
+                (root / name).mkdir()
+                (root / name / ("%s_mod.py" % name)).write_text("x = 1\n", encoding="utf-8")
+            (root / "docs").mkdir()
+            (root / "docs" / "not_source.py").write_text("x = 1\n", encoding="utf-8")
+            self.assertEqual([p.name for p in python_sources(root)],
+                             sorted("%s_mod.py" % name for name in SOURCE_DIRS))
+
+    def test_a_missing_directory_is_skipped_not_fatal(self):
+        """얕은 체크아웃 하나가 전수를 통째로 흔들지 않는다."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            (root / "src").mkdir()
+            (root / "src" / "only.py").write_text("x = 1\n", encoding="utf-8")
+            self.assertEqual([p.name for p in python_sources(root)], ["only.py"])
 
 
 if __name__ == "__main__":

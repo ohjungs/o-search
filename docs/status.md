@@ -1,19 +1,19 @@
 ---
 signal: GREEN
-phase: 계획
-step: 0/1
+phase: 개발
+step: 1/1
 attempt: 1
-plan: dup-def-dead-twin  # 계획 **126 수립** · 기점 `cca98ce` = `main` 이라 **물려받는 차단이 없다**
-iteration: 773
+plan: dup-def-dead-twin  # 계획 **126 개발 끝** · 기점 `cca98ce` = `main` 이라 **물려받는 차단이 없다**
+iteration: 774
 updated: 2026-10-29
 mode: 무인(night)  # 2026-10-29 `/loop-harness night` — 탐색 모드 · 이 밤 시작 시 `night_*` 셋 리셋
-night_iterations: 1
+night_iterations: 2
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
 ctx: **여드레 연속 같은 자리다 (게이트 ⑦).** `.context-state.json` 의 `updated_unix` 가 **61.9시간** 묵었고(어제·그제와 **같은 파일**) `session_id` `8601ae25` 는 이 프로젝트 것이 아니다 — statusLine 이 안 돈다. 거기 적힌 ctx 8·5h 13·7d 12 는 **남의 세션 수**라 85 판정의 근거가 못 된다. **반복 상한(60)에만 의존한다.**
 rules: 34cae75   # `git -C ~/.claude log -1 --format=%h -- skills/loop-harness`
-note: **[🟢 GREEN · 계획 126 수립]** 탐색 **6순위** 후보 `[7]`(점수 7 · 열린 것 중 최고)을 열었다 — `tests/test_docs.py` 에 모듈 레벨 `def archive_gap` 이 **둘**(`:580`·`:609`)이고 앞엣것은 **도달 불가능한 죽은 코드**다. 그 몸통이 `verdict_gap` 의 사본이라 `verdict` 가 **정의되지 않은 이름**이고, 살아남는 `:609` 가 옳은 몸통이라 **998 이 조용하다**. 피해 경로는 실재한다 — 다음 사람이 **위에 있어 먼저 읽히는 `:580`** 을 고치면 전수가 초록인 채로 아무 일도 안 일어난다. **이 부류를 재는 자가 0개**(`grep 'duplicate|중복 정의|같은 이름|redefin'` 0건). **1~5순위 전부 0건**: 전수 998 OK rc=0 · 린트·타입체커 없음 · 코드 `TODO` 0 · `candidates.md` 부재 · 보류 4건 전부 사람 승인 대기. **설계는 생략**(트리거 전부 음성 · 파일 2개 · 제품 0줄) — 다만 **후보 등재문의 처방을 실측으로 뒤집었다**: 「`^def ` 수집」 regex 꼴은 서로 다른 클래스의 `setUp`·`test_*` 를 **오탐 7건**으로 잡고, 표준 라이브러리 `ast` 는 스코프를 알아 **적중 1 · 오탐 0** 이다(ponytail 3번). **등재된 처방은 근거지 설계가 아니다**(`digest` 의 그 조항을 이 밤이 또 한 번 썼다). 예산이 궁해 계획서를 **138 → 98줄**로 깎아 썼다(합계 **596/600** · 여유 4줄).
+note: **[🟢 GREEN · 계획 126 스텝 1/1 개발 끝]** `dup_def_gap` 을 세우고 죽은 쌍둥이를 지웠다 — **전수 998 → 1011 OK rc=0**(+13건) · 제품 `src/` **0줄**(diff 빈 출력) · e2e **18종 전부 rc=0**. **TDD 순서를 지켜 실패를 눈으로 봤다**: 쌍둥이를 지우기 **전에** 실물 축이 빨갛고 「`tests/test_docs.py` 의 `archive_gap` (:590 와 :619)」를 **두 줄 번호와 함께** 인쇄했다(갈래 12건은 그때 이미 초록). 지운 뒤 `grep -c '^def archive_gap'` **1** · `ArchiveGapTest`·`ArchiveBacklogTest`·`VerdictGapTest` **25건 회귀 0**. **사다리 2번으로 자를 줄였다** — `test_deps.py` 가 이미 `ast` 와 모집단 순회를 쓰지만 **tests 상호 import 가 0건**이라(계획 107 이 기대는 성질) 가져오지 않고 `python_sources` 3줄을 뒀다. **하한 `SOURCE_FLOOR` 50 을 같이 뒀다**(오늘 62파일) — 순회가 죽어 0건을 훑고 「위반 0」을 외치는 것이 이 저장소 재발 항목이다. **README 장부가 제 차례로 물었다** — 998 → 1011 로 고치랬고, 천단위 쉼표(`1,011건`)를 쓰니 `UNIT_COUNT` 의 `\d+` 가 **숫자를 못 뽑아** 한 번 더 빨개졌다(`1011건` 으로 적어 닫았다 · 장부가 처음 네 자리가 된 날이다). **직교 편집 하나를 안 하고 등재만 했다** — `tests/test_docs.py:3509` docstring 의 `\`` 가 `DeprecationWarning: invalid escape sequence` 다. **커밋판에서도 난다**(확인함) — 내가 만든 것이 아니다.
 ---
 
 ## 이 밤 (2026-10-29) — 🟢 GREEN (반복 773)
@@ -33,6 +33,10 @@ note: **[🟢 GREEN · 계획 126 수립]** 탐색 **6순위** 후보 `[7]`(점�
 - **예산이 궁해 계획서를 깎았다** — 138줄이면 합계 **634 > 600** 으로 `ReadBudgetTest` 가
   문다. 98줄로 줄여 **596/600**(여유 4줄). **status.md 를 더 접는 것은 게이트 ⑬ 이라
   밤이 안 연다** — 다음 반복은 기록을 규격 5줄 안에 넣고, 넘치면 계획서를 더 깎는다.
+- **스텝 1/1 개발 끝 (반복 774)** — `dup_def_gap` + `python_sources` + `_scope_dups` 를 세우고
+  죽은 `archive_gap` 29줄을 지웠다. 전수 **998 → 1011 OK rc=0** · 제품 **0줄** · e2e **18종 rc=0**.
+  **지우기 전에 실물 축이 빨간 것을 봤다**(`archive_gap` · `:590` 와 `:619` 를 둘 다 인쇄) —
+  갈래 12건은 그때 이미 초록이라 TDD 2번이 실물 축 하나로 섰다.
 - **핀은 안 옮겼다** — 이 밤이 🟢 라 `pin_rot_gap` 이 조용한 것이 맞다(빈손 밤이 아니다).
 
 ## 접은 밤들 — 원본이 `history_current.md`·`index.md` 에 있다 (2026-10-06 반복 679 접음)
