@@ -30,12 +30,27 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 DOCS = ROOT / "docs"
 # `dup_def_gap` 의 모집단. `scripts/` 는 오늘 `.py` 가 0개지만(`merge-to-main.sh` 뿐)
 # `rglob` 이라 생기면 저절로 들어온다.
+#
+# **`docs/` 는 일부러 밖이다 — 백지 패스가 비대칭으로 지적한 자리라 근거를 적는다.**
+# 거기에 오늘 `.py` 3파일 237줄이 **실재한다**(`docs/e2e/<슬러그>/` 의 census·scenario).
+# 그것들은 그 계획의 측정을 한 번 하고 결과서 옆에 **박제된 기록**이라 유지 대상이
+# 아니다 — 고쳐 돌릴 일이 없으니 가려진 정의가 생겨도 피해 경로가 없다. 실측도
+# 했다: 세 파일 **중복 0건**. 이 경계는 내가 새로 그은 것이 아니라 이 파일의
+# `ALIVE_DIRS` 가 이미 같은 네 디렉터리로 그어 둔 것과 **같다**(그쪽도 `docs/` 를
+# 축 밖으로 둔다). 값이 같은 것은 우연이 아니라 같은 관례고, **합치지는 않는다** —
+# `ALIVE_DIRS` 는 `.py`·`.sh`·`.js` 인용 순회라 확장자 축이 다르고, 한쪽을 넓히는 날
+# 다른 쪽이 조용히 따라 넓어지면 안 된다.
 SOURCE_DIRS = ("src", "tests", "e2e", "scripts")
 # 오늘 실측은 62파일이다(src 12 · tests 25 · e2e 25 · scripts 0). 하한을 두는 이유는
 # **0 을 세면서 통과하지 않기** 위해서다 — 경로 오타나 `rglob` 실패로 아무것도 안 훑고
 # 「위반 0」을 외치는 것이 이 저장소의 재발 항목이고(계획 101 이 `\bHTTPServer\(` 로
 # 겪었다), `test_deps.py` 의 `FILE_FLOOR` 가 같은 자리를 같은 이유로 막는다.
-SOURCE_FLOOR = 50
+#
+# **50 이 아니라 55 다 — 백지 패스가 산술로 잡았다.** 50 이면 `src` 한 덩이(12)가
+# 사라진 62 → **50** 이 하한을 **그대로 통과**한다(실측). 55 면 그 판이 물리고,
+# 가장 작은 덩이(`scripts` 0)가 사라지는 판은 어차피 수가 안 변해 무는 것이 없다.
+# 오늘 명부 리터럴 테스트가 그 변이를 따로 잡아 주지만 **하한 단독으로도 막는 쪽**이 맞다.
+SOURCE_FLOOR = 55
 # append 편집이 머리를 삼킬 수 있는 기록 문서 — 셋 다 H1 로 시작한다.
 APPEND_TARGETS = ("digest.md", "index.md", "history_current.md")
 # 그 셋을 줄번호로 가리킨 인용 — append 한 번에 다른 항목을 가리키게 된다.
@@ -1111,19 +1126,33 @@ def dup_def_gap(sources):
     재는 자 자신의 파일 안에서 났다.
 
     **스코프를 안다 — 그래서 `^def ` 를 세지 않는다.** 등재문의 처방은 regex 수집
-    이었는데 그 꼴은 서로 다른 클래스의 `setUp`·`index`·`status`·`test_*` 를
-    **오탐 7건**으로 잡는다(계획 126 실측). `ast` 는 같은 일을 더 적은 코드로 하고
-    오탐이 0 이다 (ponytail 사다리 3번).
+    이었는데 그 꼴은 서로 다른 클래스의 `setUp`·`index`·`status`·`test_*` 를 중복으로
+    잡는다. 모집단 네 디렉터리 전체에 걸면 **적중 43건 중 진짜는 1건** — 즉 **오탐 42**
+    다(계획 126 실측 · 리뷰가 「7」을 정정했다. 7 은 `tests/test_docs.py` **한 파일**
+    값이었고 기록이 그것을 전체 측정으로 적고 있었다). `ast` 는 같은 일을 더 적은
+    코드로 하고 오탐이 **0** 이다 (ponytail 사다리 3번).
 
     **모든 자리를 모은다** — `report_name_gap`·`citation_alive_gap` 선례. 하나씩
     돌려주면 고치는 쪽이 전수를 한 번 더 돌려야 다음 것이 보인다.
 
-    **천장 둘.** ① `@property`/`@x.setter` 쌍은 같은 이름을 **합법적으로** 다시
-    정의하는데 이 저장소에 오늘 0건이라 **면제를 안 만들었다**(ponytail 1번). 들어오면
-    이 자가 거짓 RED 를 낸다 — 그 방향이 의도다. 거짓 RED 는 시끄러워 그날 고쳐지고,
-    조용한 누락은 이 자가 막으려는 바로 그 병이다.
+    **천장 — 닫힌 수치로 적지 않는다.** 처음 「둘」이라고 적었는데 백지 패스가 더
+    찾았다. **「둘」이 틀렸다는 것 자체가 이 자의 천장이다** — 아래는 「오늘 아는 것」이지
+    전부가 아니다.
+
+    ① `@property`/`@x.setter` 쌍은 같은 이름을 **합법적으로** 다시 정의하는데 이
+    저장소에 오늘 0건이라 **면제를 안 만들었다**(ponytail 1번). 들어오면 이 자가 거짓
+    RED 를 낸다 — 그 방향이 의도다. 거짓 RED 는 시끄러워 그날 고쳐지고, 조용한 누락은
+    이 자가 막으려는 바로 그 병이다.
     ② 문법이 깨진 파일은 `SyntaxError` 로 터진다 — **삼키지 않는다.** 그것도 알려야
-    하는 사실이고, 삼키면 안 읽힌 파일이 「위반 0」에 조용히 섞인다.
+    하는 사실이고, 삼키면 안 읽힌 파일이 「위반 0」에 조용히 섞인다. 대가는 이 모집단의
+    어떤 `.py` 든 **실행 인터프리터로** 파싱 안 되면(더 새 문법 등) 문서 전수가 통째로
+    ERROR 가 되는 것이다 — 오늘 3.9.6 에서 62파일 전부 파싱된다.
+    ③ **`class` 중복과 `f = lambda` 재바인딩은 안 본다.** 둘 다 「뒤엣것만 남는 죽은
+    코드」로 같은 병인데 이 자는 `def` 만 센다(백지 패스가 실측 — 둘 다 `None`).
+    실물 0건이라 안 지었고 `digest.md` 후보 `[4]` 로 등재했다.
+    ④ 같은 이름이 **셋** 이면 보고 쌍이 `(1,2)·(2,3)` 이다(마지막 자리를 기준으로 민다).
+    `setdefault` 로 바꾸면 `(1,2)·(1,3)` 이 되는데 **탐지력은 같다** — 변이가 생존하는
+    자리고, 어느 쪽이 더 읽히나의 문제라 못을 박지 않았다.
     """
     # ponytail: 데코레이터를 안 본다 — `@x.setter` 가 들어오면 거짓 RED 다.
     # 그때 둘째 정의의 `decorator_list` 가 `<이름>.setter` 인 것을 면제한다.
@@ -3756,8 +3785,13 @@ class DupDefGapTest(unittest.TestCase):
         """**천장을 못박는다** — `try`/`except` 재정의는 의도된 꼴이라 안 문다.
 
         면제가 아니라 `_scope_dups` 가 `body` 를 직접 보는 데서 **공짜로** 나온다.
-        여기 못을 안 박으면 나중에 `ast.walk` 로 바꾸는 변이가 이 꼴을 거짓 RED 로
-        만들면서도 조용히 산다.
+
+        **이 테스트가 `ast.walk` 변이를 죽인다고 적었던 것은 틀렸다 — 리뷰가 쟀다.**
+        이 꼴은 `FunctionDef` 가 **애초에 하나**라(둘째는 `import` 다) `walk` 로 바꿔도
+        중복이 안 생겨 **어느 쪽이든 조용하다.** 그 변이를 죽이는 것은 「서로 다른
+        스코프의 같은 이름은 조용」 둘과 실물 축이다. 이 테스트의 값은 **천장을
+        못박는 것**이고 그것만으로 남길 이유가 된다 — 주석을 기록으로 삼는 파일이라
+        이빨을 과장해 적으면 다음 사람이 변이 이빨을 잘못 센다.
         """
         self.assertIsNone(dup_def_gap([("m.py",
             "try:\n    from _fast import f\nexcept ImportError:\n"
@@ -3796,8 +3830,13 @@ class DupDefTest(unittest.TestCase):
             len(paths), SOURCE_FLOOR,
             "모집단이 %d개다 — 하한 %d 아래면 순회가 죽은 것이지 깨끗한 것이 아니다"
             % (len(paths), SOURCE_FLOOR))
+        # **리스트로 넘긴다 — 제너레이터면 거짓 초록 채널이 열린다.** 백지 패스가
+        # 잡고 재현했다: 제너레이터는 한 번만 소비되므로 장래에 `dup_def_gap` 이
+        # `sources` 를 먼저 세거나 걸러내면 본 루프가 **0파일**을 훑고, 하한은
+        # `paths` 를 세므로 그 0 을 **못 본다**(갈래는 전부 리스트를 넘겨 조용하다).
+        # 「먼저 세는」 변이를 심으니 실제로 **생존**했고 괄호 한 쌍으로 닫혔다.
         gap = dup_def_gap(
-            (path.relative_to(ROOT), path.read_text(encoding="utf-8")) for path in paths)
+            [(path.relative_to(ROOT), path.read_text(encoding="utf-8")) for path in paths])
         self.assertIsNone(gap, gap)
 
     def test_the_population_carries_every_directory_that_exists(self):
@@ -3830,10 +3869,12 @@ class DupDefTest(unittest.TestCase):
         값이 안 박혀 있으면 방벽 자신이 조용히 사라진다(`ReadBudgetRosterTest` 와
         `CONST_CITATION_FLOOR` 가 같은 자리를 같은 이유로 못박는다).
 
-        하한 50 의 근거: 오늘 실측 **62파일**(src 12 · tests 25 · e2e 25 · scripts 0).
+        하한 **55** 의 근거: 오늘 실측 **62파일**(src 12 · tests 25 · e2e 25 · scripts 0).
+        처음 50 으로 뒀는데 **리뷰가 산술로 잡았다** — 50 이면 `src` 한 덩이가 사라진
+        62 → **50** 이 하한을 **그대로 통과**한다. 55 면 그 판이 물린다.
         """
         self.assertEqual(SOURCE_DIRS, ("src", "tests", "e2e", "scripts"))
-        self.assertEqual(SOURCE_FLOOR, 50)
+        self.assertEqual(SOURCE_FLOOR, 55)
 
     def test_a_missing_directory_is_skipped_not_fatal(self):
         """얕은 체크아웃 하나가 전수를 통째로 흔들지 않는다."""
