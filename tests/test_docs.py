@@ -25,6 +25,7 @@ import pathlib
 import re
 import tempfile
 import unittest
+import warnings
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 DOCS = ROOT / "docs"
@@ -1171,6 +1172,65 @@ def dup_def_gap(sources):
             " 앞엣것은 도달 불가능한 죽은 코드다. 앞엣것을 지운다(고칠 때 위에 있는"
             " 쪽을 고치면 전수가 초록인 채로 아무 일도 안 일어난다): %s"
             % " · ".join(sorted(sites)))
+
+
+def compile_warn_gap(sources):
+    """컴파일이 경고를 내는 자리를 한 줄로. 없으면 `None`.
+
+    **실측 근거** (계획 127 · `digest.md` 후보 `[6]`): `tests/test_docs.py` 의 한
+    docstring 이 역따옴표 앞에 백슬래시를 둬 `invalid escape sequence \\`` 를 냈고,
+    `src/ tests/ e2e/ scripts/` **62파일 전수**에서 그것 **딱 1건**이었다. 오늘 피해는
+    0 이다 — 경고일 뿐이고 전수 명령의 `-b` 가 삼킨다. **그런데 파이썬이 이 부류를
+    `SyntaxError` 로 올리기로 예고했다**(CPython 문서의 예고고 이 기계에서 잰 것이
+    아니다) — 그날 `project.md` 의 「3.9~3.14 확인」 축이
+    통째로 빨개지고, 그때 고치는 것은 이 저장소가 **아무도 안 읽는 경고를 몇 년
+    쌓아 둔 뒤**가 된다. 세는 자가 0개였다.
+
+    **범주로 안 거른다 — 범주가 버전마다 다르다.** 이 기계에서 **실측**: 3.9.6 과
+    3.11.16 둘 다 `DeprecationWarning` 이다(계획 127 · 두 인터프리터로 쟀다).
+    **3.12+ 가 같은 결함을 `SyntaxWarning` 으로 바꾼 것은 실측이 아니라 CPython 의
+    문서화된 변경이다** — 이 기계에 3.12 가 없어 못 쟀고, 그래서 「쟀다」고 적지
+    않는다. 어느 쪽이든 범주를 적어 두면 이 자가 **인터프리터를 올리는 날
+    조용해진다** — 이 저장소 최다 재발(「재는 자가 죽었는데 초록이다」)이 들어오는
+    바로 그 문이고, 그 위험은 3.12 를 못 재는 것과 무관하게 성립한다. 그래서 `compile()` 이 내는 경고를 **전부**
+    모은다. 메시지로도 안 거른다: 필터를 안 쓰는 쪽이 코드가 더 짧고(ponytail),
+    `compile()` 이 낼 다른 경고(`is` 리터럴 비교·튜플 `assert`)도 전부 진짜 결함이다.
+
+    **모든 자리를 모은다** — `dup_def_gap`·`report_name_gap` 선례. 하나씩 돌려주면
+    고치는 쪽이 전수를 한 번 더 돌려야 다음 것이 보인다.
+
+    **천장 — 닫힌 수치로 적지 않는다.**
+
+    ① **문법이 깨진 파일은 `SyntaxError` 로 터진다 — 삼키지 않는다** (`dup_def_gap` ②
+    와 같은 판단). 삼키면 안 읽힌 파일이 「위반 0」에 조용히 섞인다. **그리고 이 자에는
+    갈래가 하나 더 있다**: 파이썬이 예고대로 이 경고를 `SyntaxError` 로 올리면 같은
+    결함이 경고가 아니라 **예외**로 온다 — 그때 이 자는 한 줄을 돌려주는 대신 터진다.
+    시끄러운 쪽이라 그대로 둔다.
+    ② **「경고 0」은 이 인터프리터의 수다.** 범주를 안 걸러도 **무엇이 경고인지는**
+    버전이 정한다 — 3.9.6 에서 0 건인 트리가 더 새 파이썬에서 빨개질 수 있고, 그것이
+    이 자를 둔 목적이다.
+    ③ **`compile()` 시점의 경고만 본다** — 실행 중에 나는 경고(`DeprecationWarning`
+    을 내는 호출 등)는 모집단 밖이다. 전수가 그쪽을 `-b` 로 삼키는 것은 그대로다.
+    """
+    sites = []
+    for label, text in sources:
+        with warnings.catch_warnings(record=True) as caught:
+            # 같은 자리를 한 번만 보고하는 기본 필터를 끈다 — `__warningregistry__`
+            # 가 살아 있으면 두 번째 파일부터 조용해진다.
+            warnings.simplefilter("always")
+            compile(text, str(label), "exec")
+        for item in caught:
+            sites.append("%s:%s %s: %s"
+                         % (label, item.lineno, item.category.__name__, item.message))
+    if not sites:
+        return None
+    # 처방을 한 부류에 맞춰 적지 않는다 — 이 자는 `compile()` 의 경고를 **전부**
+    # 모으므로 이스케이프 전용 안내를 달면 `is` 리터럴 비교 같은 다른 부류에
+    # **틀린 방향**을 알려준다. 메시지가 들고 있는 경고 원문이 처방을 말한다.
+    return ("컴파일이 경고를 내는 자리가 있다 — 경고마다 원문이 처방을 말한다"
+            " (이스케이프 부류면 문자열을 raw 로 바꾸거나 백슬래시를 둘로 적는다)."
+            " 파이썬이 이 부류를 `SyntaxError` 로 올리는 날 전수가 통째로 터진다:"
+            " %s" % " · ".join(sorted(sites)))
 
 
 class DocHeadTest(unittest.TestCase):
@@ -3509,7 +3569,7 @@ class PinRotTest(unittest.TestCase):
         self.assertIn("핀 줄", gap)
 
     def test_the_dateless_old_form_is_red(self):
-        """2026-09-13~10-22 의 **실물** 꼴 — 날짜가 없다.
+        r"""2026-09-13~10-22 의 **실물** 꼴 — 날짜가 없다.
 
         `git show 3d83072:docs/status.md` 가 `## 빈손 대조 핀 — 기준 트리 \`064fe56\``
         한 줄을 낸다. 날짜가 없으면 묵음을 셀 수 없으니 **빨강이다** — 그 꼴을 조용히
@@ -3883,6 +3943,131 @@ class DupDefTest(unittest.TestCase):
             (root / "src").mkdir()
             (root / "src" / "only.py").write_text("x = 1\n", encoding="utf-8")
             self.assertEqual([p.name for p in python_sources(root)], ["only.py"])
+
+
+class CompileWarnGapTest(unittest.TestCase):
+    """`compile_warn_gap` 이 무는 것과 안 무는 것을 픽스처로 고정한다.
+
+    **픽스처를 리터럴로 못 적는다** — 적으면 *이 파일이* 그 경고를 내고, 실물 축이
+    제 픽스처를 잡아 영구히 빨개진다. 자가 무는 결함을 자기 소스에 심을 수 없는
+    자리라 `chr(92)` 로 백슬래시를 조립한다. (같은 이유로 이 클래스의 docstring 에도
+    그 꼴을 못 적는다 — 「역따옴표 앞 백슬래시」라고 말로 적는다.)
+    """
+
+    BAD = 'x = "%s`"\n' % chr(92)      # invalid escape sequence
+    GOOD = 'x = r"%s`"\n' % chr(92)    # raw 라 경고가 없다
+
+    def test_a_clean_source_is_quiet(self):
+        self.assertIsNone(compile_warn_gap([("a.py", "x = 1\n")]))
+
+    def test_a_raw_string_is_quiet(self):
+        """처방이 실제로 통하는지 — 이 단언이 없으면 고치는 법을 아무도 안 잰다."""
+        self.assertIsNone(compile_warn_gap([("a.py", self.GOOD)]))
+
+    def test_an_invalid_escape_bites(self):
+        gap = compile_warn_gap([("a.py", self.BAD)])
+        self.assertIsNotNone(gap, "역따옴표 앞 백슬래시를 조용히 통과시켰다")
+        self.assertIn("invalid escape sequence", gap)
+
+    def test_the_message_names_the_file_and_the_line(self):
+        """**자리를 못 대면 고칠 수 없다.** 파일명·줄·범주를 빼는 변이가 여기서 죽는다."""
+        gap = compile_warn_gap([("pkg/mod.py", "y = 1\n" + self.BAD)])
+        self.assertIn("pkg/mod.py:2", gap)
+        self.assertIn("Warning", gap)
+
+    def test_every_site_is_reported_not_just_the_first(self):
+        """하나씩 돌려주면 고치는 쪽이 전수를 한 번 더 돌려야 다음 것이 보인다."""
+        gap = compile_warn_gap([("a.py", self.BAD), ("b.py", self.BAD)])
+        self.assertIn("a.py", gap)
+        self.assertIn("b.py", gap)
+
+    def test_it_bites_even_when_the_ambient_filter_ignores_warnings(self):
+        """**`simplefilter("always")` 를 빼는 변이가 여기서 죽는다 — 실측으로 바꿔 쓴 자리다.**
+
+        처음엔 「같은 내용을 두 파일에 심어 둘 다 나오나」로 썼는데 **변이가 생존했다.**
+        탐침으로 재니 이유가 달랐다: `DeprecationWarning` 은 기본 필터에서 **ignore** 라
+        필터를 안 끄면 둘째가 조용해지는 것이 아니라 **처음부터 0건**이다(같은 이름 2회
+        0 · 다른 이름 2회 0 · 필터를 켜면 2). 즉 그 줄은 중복 제거를 끄는 장식이 아니라
+        **이 자가 무언가를 보기 위한 조건 전부**다.
+
+        그런데도 변이가 살았던 것은 **`unittest` 가 제 실행에서 경고 필터를 켜 주기
+        때문**이다 — 그 앰비언트에 기대면 이 자는 전수 밖(스크립트 호출·`-W ignore`)에서
+        **조용히 눈이 없다.** 그래서 앰비언트를 `ignore` 로 깔고 **그래도 무는지**를 본다:
+        함수가 제 필터를 스스로 세우는 것을 단언하므로 `unittest` 의 호의와 무관하다.
+        """
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            gap = compile_warn_gap([("a.py", self.BAD)])
+        self.assertIsNotNone(
+            gap, "앰비언트 필터가 ignore 면 조용하다 — 자가 제 필터를 안 세운다")
+
+    def test_two_warnings_in_one_file_are_both_reported(self):
+        """**한 파일 안의 둘째 경고를 버리는 변이(`caught[:1]`)가 여기서 죽는다.**
+
+        앞 테스트가 파일 **둘**을 쓰는데 `caught` 는 파일마다 새로 담기므로 그 축으로는
+        `caught[:1]` 이 **생존**한다(실측). 한 파일에 둘을 심어야 무는 자리다.
+        """
+        two = self.BAD + 'y = "%s`"\n' % chr(92)
+        gap = compile_warn_gap([("a.py", two)])
+        self.assertEqual(gap.count("invalid escape sequence"), 2, gap)
+
+    def test_a_second_warning_category_is_caught_too(self):
+        """**범주로 거르는 변이가 여기서 죽는다 — 범주가 버전마다 다르기 때문이다.**
+
+        이 결함(`is` 리터럴 비교)은 3.9.6 에서 `SyntaxWarning` 이고, 오늘 실물 1건인
+        이스케이프 결함은 `DeprecationWarning` 이다(둘 다 실측). **같은 자가 둘을 다
+        봐야 한다** — 한 범주만 세면 나머지가 조용히 빠진다. 이스케이프 결함 자체의
+        범주도 3.12+ 에서 바뀐다고 **문서화돼 있다**(이 기계에 3.12 가 없어 못 쟀다).
+
+        이 테스트가 없으면 「`DeprecationWarning` 만 센다」 변이가 **생존한다**(실측) —
+        오늘 모집단의 경고가 전부 그 범주 하나라서다. 둘째 범주를 손으로 들고 와야
+        무는 자리고, 그래서 이 자는 범주로도 메시지로도 거르지 않는다.
+        """
+        gap = compile_warn_gap([("a.py", "x = 1 is 1\n")])
+        self.assertIsNotNone(gap, "다른 범주의 컴파일 경고를 조용히 통과시켰다")
+        self.assertIn("SyntaxWarning", gap)
+
+    def test_a_broken_file_raises_instead_of_passing(self):
+        """문법이 깨진 파일을 **삼키지 않는다** (`dup_def_gap` 과 같은 판단).
+
+        삼키면 안 읽힌 파일이 「위반 0」에 조용히 섞인다.
+        """
+        with self.assertRaises(SyntaxError):
+            compile_warn_gap([("a.py", "def (\n")])
+
+
+class CompileWarnTest(unittest.TestCase):
+    """살아 있는 `.py` 가 컴파일 경고를 내나 — 계획 127 의 자.
+
+    **판정은 `compile_warn_gap` 이 한다** — 갈래는 `CompileWarnGapTest` 가 밟는다.
+
+    **변이 10판 중 8 죽음 · 2 등가** (계획 127 실측). 산 둘을 적어 둔다 — 등가라고
+    판정한 **근거**가 있어야 다음 사람이 다시 안 센다:
+
+    ⓐ **이 호출의 리스트를 제너레이터로 바꾸는 변이가 산다.** `compile_warn_gap` 은
+    `sources` 를 **정확히 한 번** 순회하므로 오늘 둘은 같은 값을 낸다. 거짓 초록
+    채널이 되는 것은 장래에 그 함수가 `sources` 를 **두 번** 보는 날(먼저 세거나
+    걸러내는 코드가 들어오는 날)이고, 그때는 본 루프가 0파일을 훑고 하한은 `paths` 를
+    세므로 그 0 을 못 본다. 계획 126 이 `dup_def_gap` 에서 **실제로 그 변이의 생존을
+    봤고** 괄호 한 쌍으로 닫았다 — 같은 보험을 같은 꼴로 둔다.
+    ⓑ **아래 하한 단언을 지우는 변이가 산다.** 같은 모집단을 `DupDefTest` 가 같은
+    하한으로 이미 물기 때문이다(`rglob` 이 죽으면 그쪽이 빨개진다). 즉 오늘 이
+    단언은 **둘째 증인**이고, 그 자가 사라지는 날을 위한 보험이라 남긴다.
+    """
+
+    def test_no_live_source_compiles_with_a_warning(self):
+        paths = python_sources()
+        # **하한** — `rglob` 이 죽어 0건을 훑고 「위반 0」을 외치는 것을 막는다.
+        self.assertGreaterEqual(
+            len(paths), SOURCE_FLOOR,
+            "모집단이 %d개다 — 하한 %d 아래면 순회가 죽은 것이지 깨끗한 것이 아니다"
+            % (len(paths), SOURCE_FLOOR))
+        # **리스트로 넘긴다 — 제너레이터면 거짓 초록 채널이 열린다** (계획 126 의
+        # 백지 패스가 `dup_def_gap` 의 같은 자리에서 실측했다: 장래에 `sources` 를
+        # 먼저 세는 코드가 들어오면 본 루프가 0파일을 훑고 하한은 그 0 을 못 본다).
+        gap = compile_warn_gap(
+            [(path.relative_to(ROOT), path.read_text(encoding="utf-8")) for path in paths])
+        self.assertIsNone(gap, gap)
 
 
 if __name__ == "__main__":
