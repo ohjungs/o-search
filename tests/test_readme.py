@@ -34,7 +34,11 @@ MODULE = re.compile(r"-m\s+(websearch(?:\.\w+)*)")
 # 인터프리터 이름. 저장소의 usage 문자열은 전부 `python3` 이다.
 INTERPRETER = re.compile(r"^\s*(?:\w+=\S+\s+)*(python3?)\s+-m\s", re.MULTILINE)
 # `## 검증` 이 자랑하는 두 숫자. 손으로 적는 값이라 스위트가 자라면 조용히 낡는다.
-UNIT_COUNT = re.compile(r"단위\s*(\d+)\s*건")
+# **쉼표를 받는다** — 이 저장소의 다른 수 표기 관례(「규모 축」의 `52,172`)를 따라
+# `단위 1,024건` 으로 적으면 `(\d+)` 는 「숫자를 못 뽑았다」로 빨개졌다(계획 126 이 실제로
+# 맞았다). **숫자로 끝나기를 요구하는** 꼴이라 쉼표 하나는 매치되지 않는다 — `[\d,]+` 면
+# `int("")` 가 `ValueError` 로 터져 판정이 사고가 된다 (`CountFormatTest` 가 셋을 못박는다).
+UNIT_COUNT = re.compile(r"단위\s*([\d,]*\d)\s*건")
 E2E_COUNT = re.compile(r"e2e\s*시나리오\s*(\d+)\s*종")
 # 저장소가 «이걸 치라»고 적어 둔 러너 명령 줄. README 와 project.md 두 곳에 있다.
 RUNNER_LINE = re.compile(r"^.*python3? -m unittest discover.*$", re.MULTILINE)
@@ -123,7 +127,8 @@ class ReadmeCommandsTest(unittest.TestCase):
         actual_unit = unittest.TestLoader().discover(str(TESTS_DIR)).countTestCases()
         actual_e2e = len(list(README.parent.glob("e2e/*.py")))
         self.assertEqual(
-            (int(unit.group(1)), int(e2e.group(1))), (actual_unit, actual_e2e),
+            (int(unit.group(1).replace(",", "")), int(e2e.group(1))),
+            (actual_unit, actual_e2e),
             "README 의 (단위, e2e) 숫자가 실제와 다르다 — 실제는 (%d, %d)"
             % (actual_unit, actual_e2e))
 
@@ -198,6 +203,38 @@ class BandTableShapeTest(unittest.TestCase):
                 self.assertTrue(
                     (README.parent / path).is_file(),
                     "표가 가리키는 측정기가 없다: %s (행: %s)" % (path, row))
+
+
+class CountFormatTest(unittest.TestCase):
+    r"""장부 수의 **표기 꼴**을 고정한다 — 쉼표를 찍어도 읽어야 한다.
+
+    근거(계획 128 · `digest.md` 후보 `[4]` · 계획 126 이 **제 손으로 밟았다**):
+    `UNIT_COUNT` 가 `(\d+)` 였을 때 이 저장소의 다른 수 표기 관례(「규모 축」의
+    `52,172`)를 따라 `단위 1,011건` 으로 적으면 **「숫자를 못 뽑았다」로 빨개졌다** —
+    장부가 네 자리가 된 날 다음 사람이 관례대로 쉼표를 찍으면 다시 맞는 빨강이다.
+    무는 방향이 안전한 쪽이었으므로(조용히 통과하지 않는다) 결함은 아니고 **덫**이다.
+
+    **`E2E_COUNT` 는 안 넓혔다** — 시나리오 수가 25 라 네 자리가 되는 날이 안 온다
+    (ponytail 1번). 비대칭을 **일부러** 둔 것이고, 그날이 오면 이 docstring 이 자리를
+    알려준다.
+    """
+
+    def test_a_thousands_comma_is_read(self):
+        found = UNIT_COUNT.search("PYTHONPATH=src python3 -m unittest   # 단위 1,024건")
+        self.assertIsNotNone(found, "쉼표를 찍은 장부 수를 못 읽는다")
+        self.assertEqual(int(found.group(1).replace(",", "")), 1024)
+
+    def test_a_plain_number_still_reads(self):
+        found = UNIT_COUNT.search("# 단위 1024건")
+        self.assertIsNotNone(found)
+        self.assertEqual(int(found.group(1).replace(",", "")), 1024)
+
+    def test_a_bare_comma_is_not_a_number(self):
+        r"""**숫자로 끝나기를 요구한다** — `[\d,]+` 면 쉼표 하나가 매치돼 `int("")` 가
+        `ValueError` 로 터진다. 꼴이 깨진 README 는 **판정이 아니라 사고**로 끝나므로,
+        매치를 안 시켜 「숫자를 못 뽑았다」는 **제 메시지**로 가게 둔다.
+        """
+        self.assertIsNone(UNIT_COUNT.search("# 단위 ,건"))
 
 
 if __name__ == "__main__":
