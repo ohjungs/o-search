@@ -1,6 +1,6 @@
 # 설계: `index.md` 상태 어휘를 동결하는 자
 
-계획: `docs/plan_index-status-vocab.md` (계획 129) · 반복 783 · 2026-10-31
+계획: `docs/plan_history_101.md` (계획 129) · 반복 783 · 2026-10-31
 
 ## 결정
 

@@ -127,7 +127,7 @@ DONE_MARK = "완료"
 DONE_TAIL = "(·"
 # **상태 칸이 쓸 수 있는 낱말 넷** — `index.md` 머리말 주석이 적어 둔 계약이다.
 # **권위는 이 리터럴이고 머리말이 아니다** — 왜 머리말을 권위로 안 삼았는지는
-# `docs/design_index-status-vocab.md` 대안 비교에 있다. 순서까지 같아야 한다.
+# `docs/design_history_097.md` 대안 비교에 있다. 순서까지 같아야 한다.
 # **앞 둘을 리터럴로 다시 적지 않는다** — 아래 술어 합의가 `DONE_MARK`·`LIVE_MARK` 와의
 # **일치를 전제**하므로, 사본을 두면 둘이 갈리는 날 거짓 RED 가 아니라 **합의 축이**
 # **조용히 꺼진다**(이 자가 닫는 병과 같은 계열이다 · 2026-10-31 반복 786 백지 패스).
@@ -388,7 +388,11 @@ def index_status_gap(index_text):
        **0개**라 합의를 요구할 상대가 없다(읽는 자가 생기는 날 여기 한 줄 더한다).
 
     행을 집는 것은 **기존 `ANY_PLAN_ROW`** 다 — 표를 다시 파싱하지 않고 `| plan_` 과
-    `| (짧은 경로) ` **두 꼴을 다** 본다(위 `ANY_STATUS_ROW` 주석). 행이 0개인 것은 안
+    `| (짧은 경로) ` **두 꼴을 다** 본다(위 `ANY_STATUS_ROW` 주석). **메시지는 슬러그만**
+    **대고 등재 접두를 붙이지 않는다** — `ANY_PLAN_ROW` 가 접두를 비캡처로 두므로 어느
+    꼴로 걸렸는지 모르고, `plan_` 을 붙여 적으면 짧은 경로 행 24개에 대해 **없는 행
+    이름을 대거나 같은 슬러그의 «다른» 행을 가리킨다**(두 꼴이 이 표에 섞여 산다 —
+    `interval-call-site` 는 앞, `verdict-head` 는 뒤). e2e 가 실물에서 잡았다(반복 787). 행이 0개인 것은 안
     문다: 열 모양이 깨져 통째로 안 잡히는 축은 `verdict_gap` 이 행 머리 수와 파싱된
     수를 대조해 따로 신고한다.
 
@@ -406,23 +410,23 @@ def index_status_gap(index_text):
     if said != STATUS_WORDS:
         return ("index.md 머리말의 어휘가 `STATUS_WORDS` 와 갈렸다 — 머리말 `%s` ≠"
                 " 리터럴 `%s`. **권위는 리터럴이다** — 낱말을 늘릴 때는 둘을 같이"
-                " 고친다 (`docs/design_index-status-vocab.md` 계약 1)"
+                " 고친다 (`docs/design_history_097.md` 계약 1)"
                 % (" | ".join(said), " | ".join(STATUS_WORDS)))
     for slug, cell in ANY_STATUS_ROW.findall(index_text):
         body = status_body(cell)
         known = [w for w in STATUS_WORDS if body.startswith(w)]
         if not known:
-            return ("index.md `plan_%s` 행의 상태 칸이 아는 어휘로 시작하지 않는다 —"
+            return ("index.md `%s` 행의 상태 칸이 아는 어휘로 시작하지 않는다 —"
                     " `%s`. 아는 넷은 `%s` 다. 오타나 빈 칸 하나면 그 행이 판정"
                     " 다섯에서 조용히 빠진다"
                     % (slug, body or "(빈 칸)", " | ".join(STATUS_WORDS)))
         if known[0] == DONE_MARK and not is_done(cell):
-            return ("index.md `plan_%s` 행이 `%s` 로 시작하는데 `is_done` 이 그 칸을"
+            return ("index.md `%s` 행이 `%s` 로 시작하는데 `is_done` 이 그 칸을"
                     " 거부한다 — `%s`. 어휘는 맞고 **판정에서는 빠진 행**이다"
                     " (`DONE_TAIL` 은 `%s` 만 받는다)"
                     % (slug, DONE_MARK, body, DONE_TAIL))
         if known[0] == LIVE_MARK and cell.strip() != LIVE_MARK:
-            return ("index.md `plan_%s` 행이 `%s` 로 시작하는데 칸이 `%s` 와 다르다 —"
+            return ("index.md `%s` 행이 `%s` 로 시작하는데 칸이 `%s` 와 다르다 —"
                     " `%s`. `live_gap` 은 **같아야** 진행으로 세므로 이 행은 버려진"
                     " 계획 판정에서 빠진다"
                     % (slug, LIVE_MARK, LIVE_MARK, cell.strip()))
