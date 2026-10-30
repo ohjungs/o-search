@@ -125,11 +125,32 @@ LIVE_MARK = "진행"
 # `** 완료 **` 처럼 안쪽에 공백이 낀 꼴도 같은 손이 만든다(`strip("*")` 만으로는 샜다).
 DONE_MARK = "완료"
 DONE_TAIL = "(·"
+# **상태 칸이 쓸 수 있는 낱말 넷** — `index.md` 머리말 주석이 적어 둔 계약이다.
+# **권위는 이 리터럴이고 머리말이 아니다**(`docs/design_index-status-vocab.md` 계약 1).
+# 머리말에서도 읽어 **대 보는** 쪽을 고른 이유가 선례의 사정에 있다: `KNOWN_SIGNALS`
+# 는 어휘가 저장소 **밖**(하네스 `SKILL.md`)에 살아 **대조할 상대가 없어서** 리터럴
+# 한 벌로 갈 수밖에 없었는데, 이쪽 상대는 **같은 파일 안**이다. 머리말만 읽는 안은
+# 가드가 자기가 검사하는 파일에서 권위를 읽는 꼴이라 낱말을 **더하면** 어휘가 조용히
+# 넓어진다 — 이 자가 닫는 병이 바로 그것이라 안 골랐다. 순서까지 같아야 한다.
+STATUS_WORDS = ("진행", "완료", "보류", "폐기")
+# 그 머리말 줄. 주석 안에 살지만 `re.M` 의 `^` 는 주석을 모른다 — 그래서 **둘 이상**
+# 이면 「어느 쪽이 계약인가」를 가를 수 없어 판정이 아니라 「재지 못했다」로 끝낸다.
+STATUS_HEAD = re.compile(r"^상태: (.+)$", re.M)
+
+
+def status_body(cell):
+    """상태 칸에서 **굵게와 공백을 벗긴 몸**. 정규화를 한 자리에 둔다.
+
+    `is_done` 이 몸 안에 들고 있던 한 줄을 올린 것이다 — 같은 칸을 읽는 자가
+    둘이 되는 순간 사본이 갈리고, 계획 124 가 바로 그 자리에서 다섯 자를
+    `is_done` 하나로 모았다. **관용 범위(`DONE_TAIL`·`LIVE_MARK`)는 안 바꾼다.**
+    """
+    return cell.strip().strip("* ").strip()
 
 
 def is_done(cell):
     """상태 칸이 완료인가. 어휘 판정을 **한 자리**에 모은 술어다 (위 주석)."""
-    body = cell.strip().strip("* ").strip()
+    body = status_body(cell)
     if not body.startswith(DONE_MARK):
         return False
     rest = body[len(DONE_MARK):].lstrip()
@@ -335,6 +356,66 @@ def live_gap(status_text, index_text):
                 " `%s` 다). 마쳤으면 `완료`, 버렸으면 사유와 함께 `보류` 로 적는다"
                 % (" · ".join(left), p.group(1)))
     return None
+
+def index_status_gap(index_text):
+    """`index.md` 의 상태 칸이 아는 어휘고 **그 낱말의 술어가 그 칸을 받는지** 본다.
+
+    **그 칸 위에 판정 다섯이 서 있는데 어휘를 재는 자가 0개였다** — `live_gap` 과
+    `is_done` 을 공유하는 `archive_gap`·`strike_gap`·`opened_candidates`·`false_strike`·
+    `verdict_gap` 이다. 다섯 다 「이 칸이 **내** 낱말인가」만 묻고 「아는 낱말인가」는
+    안 묻는다. 그래서 오타(`완됴`) 하나나 빈 칸 하나면 `is_done` 이 `False`, `live_gap`
+    이 `!= 진행` 이라 **그 행이 다섯 모두의 시야에서 조용히 빠진다** — 전수는 초록인
+    채다. 계획 123 이 `status.md` `signal:` 에서 닫은 것과 같은 계열이고, 값은
+    중복 방지(`discover.md` 5절)가 승인 대기 계획을 못 보는 것이다.
+
+    **세 가지를 순서대로 본다. 순서가 곧 「재지 못했다」와 「빨강」의 구별이다.**
+
+    1. **머리말** — `상태:` 줄이 **정확히 하나**고 쪼갠 어휘가 `STATUS_WORDS` 와 **같다**.
+       갈리면 거짓 RED 가 아니라 **드리프트 신고**다: 양쪽을 다 인쇄해 어느 쪽을
+       고칠지 사람이 고르게 한다(권위는 리터럴이라고 메시지가 말한다).
+    2. **어휘** — 모든 상태 칸이 넷 중 하나로 **시작한다**. **빈 칸은 어휘 밖**이다.
+    3. **술어 합의** — `완료` 로 시작하면 `is_done` 이 참이어야 하고 `진행` 이면 칸이
+       `LIVE_MARK` 와 **같아야** 한다. **어휘만 보면 안 닫힌다**는 것이 설계 탐침의
+       발견이다(2026-10-31 반복 783): `완료 예정` 은 어휘가 맞은 채 `is_done` 이
+       거부해 아카이브 판정에서 빠지고, `진행(재개)` 는 `live_gap` 이 안 센다 —
+       첫 낱말만 보는 자에게는 둘 다 **조용하다.** `보류`·`폐기` 는 읽는 술어가
+       **0개**라 합의를 요구할 상대가 없다(읽는 자가 생기는 날 여기 한 줄 더한다).
+
+    행을 집는 것은 **기존 `LIVE_ROW`** 다 — 표를 다시 파싱하지 않는다. 행이 0개인
+    것은 안 문다: 열 모양이 깨져 통째로 안 잡히는 축은 `verdict_gap` 이 행 머리 수와
+    파싱된 수를 대조해 따로 신고한다.
+    """
+    heads = STATUS_HEAD.findall(index_text)
+    if len(heads) != 1:
+        return ("index.md 머리말의 `상태:` 줄이 %d개다 — 어느 쪽이 계약인지 가를 수"
+                " 없어 **재지 못했다**. 주석 안에 `상태: %s` 한 줄만 둔다"
+                % (len(heads), " | ".join(STATUS_WORDS)))
+    said = tuple(w.strip() for w in heads[0].split("|"))
+    if said != STATUS_WORDS:
+        return ("index.md 머리말의 어휘가 `STATUS_WORDS` 와 갈렸다 — 머리말 `%s` ≠"
+                " 리터럴 `%s`. **권위는 리터럴이다** — 낱말을 늘릴 때는 둘을 같이"
+                " 고친다 (`docs/design_index-status-vocab.md` 계약 1)"
+                % (" | ".join(said), " | ".join(STATUS_WORDS)))
+    for slug, cell in LIVE_ROW.findall(index_text):
+        body = status_body(cell)
+        known = [w for w in STATUS_WORDS if body.startswith(w)]
+        if not known:
+            return ("index.md `plan_%s` 행의 상태 칸이 아는 어휘로 시작하지 않는다 —"
+                    " `%s`. 아는 넷은 `%s` 다. 오타나 빈 칸 하나면 그 행이 판정"
+                    " 다섯에서 조용히 빠진다"
+                    % (slug, body or "(빈 칸)", " | ".join(STATUS_WORDS)))
+        if known[0] == DONE_MARK and not is_done(cell):
+            return ("index.md `plan_%s` 행이 `%s` 로 시작하는데 `is_done` 이 그 칸을"
+                    " 거부한다 — `%s`. 어휘는 맞고 **판정에서는 빠진 행**이다"
+                    " (`DONE_TAIL` 은 `%s` 만 받는다)"
+                    % (slug, DONE_MARK, body, DONE_TAIL))
+        if known[0] == LIVE_MARK and cell.strip() != LIVE_MARK:
+            return ("index.md `plan_%s` 행이 `%s` 로 시작하는데 칸이 `%s` 와 다르다 —"
+                    " `%s`. `live_gap` 은 **같아야** 진행으로 세므로 이 행은 버려진"
+                    " 계획 판정에서 빠진다"
+                    % (slug, LIVE_MARK, LIVE_MARK, cell.strip()))
+    return None
+
 
 # **frontmatter 의 `signal:` 이 쓸 수 있는 낱말 넷** — 하네스 `SKILL.md` 2절 신호등 표다.
 # 어휘가 저장소 **밖**에 정의되고 사본이 여기 사는 구조라 **다섯째 신호가 생기는 날**
@@ -1634,6 +1715,17 @@ class StepGapTest(unittest.TestCase):
                              "`plan:` 줄이 없는데 통과시켰다")
 
 
+class IndexStatusLiveTest(unittest.TestCase):
+    """살아 있는 `docs/index.md` 의 상태 칸이 아는 어휘인가 — 판정만 여기서 한다.
+
+    갈래를 밟는 것은 `IndexStatusVocabTest` 다(`SignalGapTest` 와 같은 분업).
+    """
+
+    def test_live_index_states_are_known_words(self):
+        gap = index_status_gap((DOCS / "index.md").read_text(encoding="utf-8"))
+        self.assertIsNone(gap, gap)
+
+
 class LivePlanSyncTest(unittest.TestCase):
     """`index.md` 에서 `진행` 인 계획 행이 `status.md` 의 `plan:` 하나뿐인가.
 
@@ -1780,6 +1872,96 @@ class StatusSignalTest(unittest.TestCase):
     def test_the_live_status_carries_a_known_signal(self):
         gap = signal_gap((DOCS / "status.md").read_text(encoding="utf-8"))
         self.assertIsNone(gap, gap)
+
+
+class IndexStatusVocabTest(unittest.TestCase):
+    """`index_status_gap` 의 갈래를 합성 문자열로 전부 밟는다.
+
+    **세 번째 축이 이 자의 핵이다.** 어휘(첫 낱말)만 보는 판으로 실물을 먹여 보니
+    `완료 예정` 류가 **어휘는 맞은 채 `is_done` 이 거부**해 그 행이 판정에서 빠지는데
+    첫 낱말만 보는 자는 조용했다(2026-10-31 반복 783 설계 탐침). 즉 어휘 검사만으로는
+    이 계획이 닫으려는 「조용한 초록」이 안 닫힌다 — 그래서 **술어 합의**를 함께 묻는다.
+    """
+
+    HEAD = u"상태: 진행 | 완료 | 보류 | 폐기"
+    ROWS = u"\n".join([
+        u"| plan_alpha | 완료 | loop/a | 1/1 | 통과 | 부기 |",
+        u"| plan_beta | 진행 | loop/b | 0/2 | — | 부기 |",
+        u"| plan_gamma | 보류 | loop/c | 1/3 | — | 부기 |",
+    ])
+
+    def doc(self, rows=None, head=None):
+        return u"# 계획 목록\n\n<!--\n%s\n-->\n\n%s\n" % (
+            self.HEAD if head is None else head,
+            self.ROWS if rows is None else rows)
+
+    def test_the_known_four_are_quiet(self):
+        self.assertIsNone(index_status_gap(self.doc()),
+                          "맞는 표를 신고했다 — 매 반복이 빨개진다")
+        for word in (u"진행", u"완료", u"보류", u"폐기"):
+            rows = self.ROWS.replace(u"| plan_gamma | 보류 |",
+                                     u"| plan_gamma | %s |" % word)
+            self.assertIsNone(index_status_gap(self.doc(rows)),
+                              u"아는 낱말 `%s` 를 신고했다" % word)
+
+    def test_a_typo_is_reported_with_the_slug(self):
+        rows = self.ROWS.replace(u"| plan_gamma | 보류 |", u"| plan_gamma | 완됴 |")
+        gap = index_status_gap(self.doc(rows))
+        self.assertIsNotNone(gap, u"오타 `완됴` 를 통과시켰다 — 그 행이 판정에서 빠진다")
+        self.assertIn(u"gamma", gap, u"어느 행인지 안 적었다")
+        self.assertIn(u"완됴", gap, u"그 칸 원문을 안 적었다")
+
+    def test_an_empty_cell_is_reported(self):
+        rows = self.ROWS.replace(u"| plan_gamma | 보류 |", u"| plan_gamma |  |")
+        gap = index_status_gap(self.doc(rows))
+        self.assertIsNotNone(gap, u"빈 상태 칸을 통과시켰다 — 어휘 밖이다")
+        self.assertIn(u"gamma", gap, u"어느 행인지 안 적었다")
+
+    def test_a_known_word_whose_predicate_refuses_is_reported(self):
+        # 계약 3번. `완료 예정` 은 어휘가 맞지만 `is_done` 이 거부해 아카이브 판정에서
+        # 빠진다 — 어휘만 보는 자가 눈먼 자리다.
+        rows = self.ROWS.replace(u"| plan_alpha | 완료 |", u"| plan_alpha | 완료 예정 |")
+        self.assertFalse(is_done(u" 완료 예정 "), u"픽스처가 전제를 잃었다")
+        gap = index_status_gap(self.doc(rows))
+        self.assertIsNotNone(gap, u"`완료 예정` 을 통과시켰다 — 어휘만 봤다")
+        self.assertIn(u"alpha", gap, u"어느 행인지 안 적었다")
+
+    def test_the_done_idioms_the_repo_actually_uses_stay_quiet(self):
+        # 실물이 쓰는 두 꼴. 여기가 빨개지면 111행이 한꺼번에 빨개진다.
+        for cell in (u"완료(2026-10-26 게이트 ⑱ ㉢ 으로 해제 · 병합)",
+                     u"**완료 · 짧은 경로**"):
+            rows = self.ROWS.replace(u"| plan_alpha | 완료 |",
+                                     u"| plan_alpha | %s |" % cell)
+            self.assertIsNone(index_status_gap(self.doc(rows)),
+                              u"실물 관용구를 신고했다 — `%s`" % cell)
+
+    def test_a_live_word_with_a_tail_is_reported(self):
+        # `진행(재개)` — `live_gap` 은 `== LIVE_MARK` 라 이 행을 **안 센다**.
+        rows = self.ROWS.replace(u"| plan_beta | 진행 |", u"| plan_beta | 진행(재개) |")
+        gap = index_status_gap(self.doc(rows))
+        self.assertIsNotNone(gap, u"`진행(재개)` 를 통과시켰다 — live_gap 이 안 세는 꼴이다")
+        self.assertIn(u"beta", gap, u"어느 행인지 안 적었다")
+
+    def test_a_drifted_heading_is_reported_with_both_sides(self):
+        # 계약 1번. 머리말이 다섯째 낱말을 받으면 거짓 RED 가 아니라 드리프트 신고다.
+        gap = index_status_gap(self.doc(head=self.HEAD + u" | 완됴"))
+        self.assertIsNotNone(gap, u"머리말 드리프트를 통과시켰다 — 권위가 둘로 갈렸다")
+        self.assertIn(u"완됴", gap, u"머리말 쪽을 안 인쇄했다")
+        self.assertIn(u"폐기", gap, u"리터럴 쪽을 안 인쇄했다")
+
+    def test_a_missing_heading_is_not_measurable(self):
+        gap = index_status_gap(self.doc(head=u"(머리말이 없다)"))
+        self.assertIsNotNone(gap, u"`상태:` 줄이 없는데 통과시켰다")
+        self.assertIn(u"못", gap, u"「재지 못했다」로 갈라 적지 않았다")
+
+    def test_two_headings_are_not_measurable(self):
+        gap = index_status_gap(self.doc(head=self.HEAD + u"\n" + self.HEAD))
+        self.assertIsNotNone(gap, u"`상태:` 줄이 둘인데 통과시켰다 — 어느 쪽이 계약인가")
+
+    def test_an_empty_table_is_quiet(self):
+        # 행이 0개인 것은 안 문다 — `verdict_gap` 이 행 머리 수와 파싱 수를 따로 댄다.
+        self.assertIsNone(index_status_gap(self.doc(rows=u"")),
+                          u"행 0개를 신고했다 — 그 축은 `verdict_gap` 몫이다")
 
 
 class SignalGapTest(unittest.TestCase):
