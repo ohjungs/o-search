@@ -1926,14 +1926,34 @@ class IndexStatusVocabTest(unittest.TestCase):
         self.assertIsNotNone(gap, u"`완료 예정` 을 통과시켰다 — 어휘만 봤다")
         self.assertIn(u"alpha", gap, u"어느 행인지 안 적었다")
 
-    def test_the_done_idioms_the_repo_actually_uses_stay_quiet(self):
-        # 실물이 쓰는 두 꼴. 여기가 빨개지면 111행이 한꺼번에 빨개진다.
+    def test_the_idioms_the_repo_actually_uses_stay_quiet(self):
+        # **픽스처를 실물에서 뽑았다** (`rules/test.md` 3절 ⑧). 2026-10-31 반복 785 에
+        # `docs/index.md` 111행의 꼴을 세니 **넷**이다: `완료` 단독 **106** ·
+        # `완료(…)` **2** · `보류(패치)` **1** · `**보류**` **1** · `진행` **1**.
+        # **앞 판은 `**완료 · 짧은 경로**` 를 넣고 「실물이 쓰는 꼴」이라고 적었는데
+        # 그 꼴은 실물 0건이었다** — 굵게가 붙은 실물은 `완료` 가 아니라 `보류` 고,
+        # `· ` 꼬리를 실제로 쓰는 칸은 하나도 없다(`DONE_TAIL` 이 받긴 받는다).
+        # 상상한 형식을 픽스처에 박으면 검사는 그 상상을 지킨다.
         for cell in (u"완료(2026-10-26 게이트 ⑱ ㉢ 으로 해제 · 병합)",
-                     u"**완료 · 짧은 경로**"):
+                     u"보류(패치)", u"**보류**"):
             rows = self.ROWS.replace(u"| plan_alpha | 완료 |",
                                      u"| plan_alpha | %s |" % cell)
             self.assertIsNone(index_status_gap(self.doc(rows)),
                               u"실물 관용구를 신고했다 — `%s`" % cell)
+
+    def test_a_known_word_that_is_not_at_the_start_is_reported(self):
+        # **변이가 세운 자리다** (2026-10-31 반복 785): `startswith` 를 `in` 으로 바꾼
+        # 변이가 아홉 중 **유일하게 살아남았다.** 다른 갈래는 `in` 으로도 죽는다 —
+        # `완됴` 는 아는 낱말을 품지 않고, `완료 예정`·`진행(재개)` 는 품더라도 술어
+        # 합의가 따로 문다. 갈리는 것은 **술어가 0개인 낱말**(`보류`·`폐기`)이 칸
+        # 중간에 있는 꼴뿐이고, 그때 `in` 은 **조용하다** — 이 자가 막는 바로 그 병이다.
+        for cell in (u"일부 보류", u"(폐기)"):
+            rows = self.ROWS.replace(u"| plan_gamma | 보류 |",
+                                     u"| plan_gamma | %s |" % cell)
+            gap = index_status_gap(self.doc(rows))
+            self.assertIsNotNone(gap, u"`%s` 를 통과시켰다 — 아는 낱말로 **시작**해야"
+                                      u" 한다(`in` 이 아니라 `startswith`)" % cell)
+            self.assertIn(u"gamma", gap, u"어느 행인지 안 적었다")
 
     def test_a_live_word_with_a_tail_is_reported(self):
         # `진행(재개)` — `live_gap` 은 `== LIVE_MARK` 라 이 행을 **안 센다**.
