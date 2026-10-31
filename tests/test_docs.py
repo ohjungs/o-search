@@ -4317,7 +4317,7 @@ class CompileWarnTest(unittest.TestCase):
         self.assertIsNone(gap, gap)
 
 
-# `docs/design_plan-scope-gap.md` 의 계약 — 계획 130.
+# `docs/design_history_098.md` 의 계약 — 계획 130.
 #
 # 칸은 **글머리표 하나**로 시작하고 **들여쓴 이어 줄까지만** 이어진다. 스텝이 여럿이면
 # 칸도 여럿이라 `findall` 로 전부 모은다. 실측: `docs/plan_*.md` **104개 중 24개**가
