@@ -23,6 +23,7 @@
 import ast
 import pathlib
 import re
+import subprocess
 import tempfile
 import unittest
 import warnings
@@ -4313,6 +4314,256 @@ class CompileWarnTest(unittest.TestCase):
         # 먼저 세는 코드가 들어오면 본 루프가 0파일을 훑고 하한은 그 0 을 못 본다).
         gap = compile_warn_gap(
             [(path.relative_to(ROOT), path.read_text(encoding="utf-8")) for path in paths])
+        self.assertIsNone(gap, gap)
+
+
+# `docs/design_plan-scope-gap.md` 의 계약 — 계획 130.
+#
+# 칸은 **글머리표 하나**로 시작하고 **들여쓴 이어 줄까지만** 이어진다. 스텝이 여럿이면
+# 칸도 여럿이라 `findall` 로 전부 모은다. 실측: `docs/plan_*.md` 103개 중 이 꼴로
+# 적은 것이 24개고 나머지는 옛 꼴(`## 범위`)이다 — 걸리지 않으면 **「재지 못했다」** 다.
+#
+# **끝을 「다음 글머리표」로 잡았다가 거짓 초록을 만들었다** — 칸이 절의 마지막
+# 글머리표면 블록이 빈 줄과 머리말을 넘어 **아래 산문까지 삼키고**, 그 산문이 파일
+# 이름을 인용하면(이 계획서의 e2e 시나리오 절이 `README.md` 를 댄다) 칸에 없는
+# 파일이 칸에 있는 것으로 읽힌다. TDD 2번(반사실로 빨강을 눈으로 본다)이 잡았다.
+SCOPE_FIELD = re.compile(r"^[ \t]*[-*] \*\*건드릴 파일\*\*"
+                         r"(.*(?:\n[ \t]+\S.*)*)", re.M)
+
+# 루프가 **반복마다** 쓰는 기록. 칸에 적히지 않아도 범위 이탈이 아니다.
+SCOPE_BOOKKEEPING = ("docs/status.md", "docs/history_current.md",
+                     "docs/index.md", "docs/metrics.md", "docs/digest.md")
+SCOPE_BOOKKEEPING_DIRS = ("docs/plan_", "docs/design_", "docs/history_",
+                          "docs/e2e/", "docs/reports/", "docs/patches/")
+
+
+def scope_bookkeeping(path):
+    """루프 자신의 기록인가.
+
+    **`docs/project.md`·`docs/baselines.md`·`docs/specs/` 는 일부러 안 넣었다** —
+    앞엣것은 이 저장소가 제 규율(테스트 명령·합격선)을 적는 자리고 뒤엣것은
+    `project.md` 가 「건드리지 않을 곳」으로 박아 둔 사용자 영역이다. 칸에 안 적고
+    고치면 그것이 바로 **진짜 범위 이탈**이라 묻는 쪽이 맞다.
+    """
+    return path in SCOPE_BOOKKEEPING or path.startswith(SCOPE_BOOKKEEPING_DIRS)
+
+
+def scope_named(field, path):
+    r"""칸 텍스트가 이 경로를 **이름으로** 들고 있나.
+
+    맨 `in` 으로 두면 **조용한 초록 채널**이 열린다 — 칸의 `docs/specs/README.md` 가
+    뿌리의 `README.md` 를 덮고, `tests/test_docs.py.bak` 가 `tests/test_docs.py` 를
+    덮는다. 양쪽에 경계를 둬 그 둘을 막는다(경로 글자 `\w`·`.`·`/`·`-` 가
+    붙어 있으면 다른 이름이다).
+
+    **파싱은 하지 않는다.** 판정 방향이 `diff ⊆ 칸` 이라 칸에 더 적힌 것은 벌하지
+    않으므로, 섞여 사는 토큰(실측: `--resample`·`UNIT_COUNT`·테스트 이름)은
+    거짓 RED 를 못 만든다 — 토큰 추출기를 만들 이유가 없다 (ponytail 1번).
+    """
+    return re.search(r"(?<![\w./-])%s(?![\w./-])" % re.escape(path),
+                     field) is not None
+
+
+def scope_gap(plan_text, touched, plan_name="계획서"):
+    """건드린 것이 계획서 칸에 다 있나 — 아니면 한 줄, 맞으면 `None`.
+
+    `touched` 는 경로 문자열의 순서열이고 **재는 일은 `scope_touched` 가** 한다
+    (`read_budget_gap`·`verdict_gap` 과 같은 분업 — 픽스처로 경계를 고정하려고 가른다).
+
+    **칸이 0개인 것은 통과가 아니라 「재지 못했다」** 다. 다음 계획이 칸 꼴을 바꾸면
+    이 자가 **조용히 0행을 판정**하게 되는데, 그 모양이 이 저장소 최다 재발이
+    들어오는 문이다(`signal_gap`·`index_status_gap` 이 같은 관례를 쓴다).
+    """
+    fields = SCOPE_FIELD.findall(plan_text)
+    if not fields:
+        return ("%s 에서 「건드릴 파일」 칸을 못 찾았다 — **재지 못했다**."
+                " 칸은 `- **건드릴 파일**: …` 글머리표 한 줄로 적는다"
+                " (`rules/plan.md` 6절 · 실측으로 이 꼴이 24개다)" % plan_name)
+    field = "\n".join(fields)
+    missing = [path for path in touched
+               if not scope_bookkeeping(path) and not scope_named(field, path)]
+    if not missing:
+        return None
+    return ("이 브랜치가 건드린 파일이 %s 의 「건드릴 파일」 칸에 없다 —"
+            " **계획이나 설계가 틀렸다는 뜻이고 `rules/plan.md` 6절은 YELLOW 를"
+            " 요구한다**. 칸에 더하거나 손대지 않는다:\n  %s"
+            % (plan_name, "\n  ".join(missing)))
+
+
+def _scope_git(args, root=ROOT):
+    """`git` 한 번. 못 읽으면 `None` — 판정이 아니라 **재지 못했다**는 신호다."""
+    try:
+        done = subprocess.run(["git", "-C", str(root)] + args,
+                              capture_output=True, text=True)
+    except OSError:
+        return None
+    return done.stdout if done.returncode == 0 else None
+
+
+def scope_touched(root=ROOT):
+    """기점 이후로 이 작업 트리가 건드린 파일 — 못 재면 `None`.
+
+    **커밋된 것과 미커밋을 함께 센다** — `git diff --name-only <기점>` 은 작업 트리를
+    기점과 대므로 커밋 전에도 물린다. 그러지 않으면 이 자는 스텝을 커밋한 **뒤에만**
+    보이고, 칸을 고칠 자리는 커밋 전이다. 새 파일은 `ls-files --others` 가 준다.
+    """
+    base = _scope_git(["merge-base", "main", "HEAD"], root)
+    if base is None:
+        return None
+    changed = _scope_git(["diff", "--name-only", base.strip()], root)
+    others = _scope_git(["ls-files", "--others", "--exclude-standard"], root)
+    if changed is None or others is None:
+        return None
+    return tuple(sorted(set((changed + others).split())))
+
+class ScopeGapTest(unittest.TestCase):
+    """`scope_gap` 의 갈래를 합성 문자열로 밟는다 — 계획 130 의 자.
+
+    실물 축은 `ScopeTest` 가, 기록 화이트리스트의 «값» 은 `ScopeRosterTest` 가 본다.
+    """
+
+    FIELD = ("## 스텝 1/1 — 자 하나\n"
+             "- **무엇**: 자를 세운다\n"
+             "- **건드릴 파일**: `tests/test_docs.py` **와 `README.md`** —\n"
+             "  `docs/index.md` 는 읽기만 한다\n"
+             "- **완료 기준**: 전수 초록\n")
+
+    def test_a_plan_without_the_field_cannot_be_measured(self):
+        gap = scope_gap("# 계획\n\n## 범위\n- 어쩌고\n", ("src/x.py",))
+        self.assertIsNotNone(gap)
+        self.assertIn("재지 못했다", gap)
+
+    def test_files_the_field_names_are_quiet(self):
+        self.assertIsNone(
+            scope_gap(self.FIELD, ("tests/test_docs.py", "README.md")))
+
+    def test_a_file_outside_the_field_is_reported_with_the_plan_name(self):
+        name = "plan_%s.md" % "x"
+        gap = scope_gap(self.FIELD, ("src/websearch/serve.py",),
+                        plan_name=name)
+        self.assertIsNotNone(gap)
+        self.assertIn("src/websearch/serve.py", gap)
+        self.assertIn(name, gap)
+
+    def test_every_file_outside_the_field_is_reported_not_just_the_first(self):
+        gap = scope_gap(self.FIELD, ("src/a.py", "src/b.py"))
+        self.assertIn("src/a.py", gap)
+        self.assertIn("src/b.py", gap)
+
+    def test_the_loops_own_bookkeeping_is_never_demanded(self):
+        self.assertIsNone(scope_gap(self.FIELD, (
+            "docs/status.md", "docs/history_current.md", "docs/index.md",
+            "docs/metrics.md", "docs/digest.md",
+            "docs/plan_%s.md" % "x", "docs/design_%s.md" % "x",
+            "docs/history_108.md",
+            "docs/e2e/x/result.md", "docs/reports/night_2026-11-01.md",
+            "docs/patches/x.patch")))
+
+    def test_project_md_is_not_bookkeeping(self):
+        # 이 저장소가 제 규율을 적는 자리다 — 칸에 안 적고 고치면 진짜 범위 이탈이다.
+        gap = scope_gap(self.FIELD, ("docs/project.md",))
+        self.assertIn("docs/project.md", gap)
+
+    def test_specs_is_not_bookkeeping(self):
+        # `project.md` 의 「건드리지 않을 곳」이다.
+        gap = scope_gap(self.FIELD, ("docs/specs/concept.md",))
+        self.assertIn("docs/specs/concept.md", gap)
+
+    def test_a_longer_path_in_the_field_does_not_cover_a_shorter_one(self):
+        # **조용한 초록 채널** — 포함 검사를 맨 `in` 으로 두면 칸의
+        # `docs/specs/README.md` 가 뿌리의 `README.md` 를 덮는다.
+        gap = scope_gap("- **건드릴 파일**: `docs/specs/README.md`\n",
+                        ("README.md",))
+        self.assertIn("README.md", gap)
+
+    def test_a_suffixed_neighbour_in_the_field_does_not_cover_the_file(self):
+        gap = scope_gap("- **건드릴 파일**: `tests/test_docs.py.bak`\n",
+                        ("tests/test_docs.py",))
+        self.assertIsNotNone(gap)
+
+    def test_the_field_stops_at_the_next_heading(self):
+        # **거짓 초록 채널** — 끝을 「다음 글머리표」로 잡으면 칸이 절의 마지막
+        # 글머리표일 때 블록이 아래 산문을 삼킨다. 그 산문이 파일 이름을 인용하면
+        # (실물: 이 계획서의 e2e 시나리오 절이 `README.md` 를 댄다) 칸에 없는
+        # 파일이 칸에 있는 것으로 읽힌다. 개발 phase 가 반사실로 실측했다.
+        swallow = ("- **건드릴 파일**: `tests/test_docs.py` 뿐이다\n"
+                   "\n## e2e 시나리오\n\n"
+                   "1. 칸에서 `README.md` 를 지우면 빨개진다\n")
+        gap = scope_gap(swallow, ("README.md",))
+        self.assertIsNotNone(gap)
+        self.assertIn("README.md", gap)
+
+    def test_fields_of_several_steps_are_read_together(self):
+        two = (self.FIELD
+               + "## 스텝 2/2 — 제품\n"
+               + "- **건드릴 파일**: `src/websearch/serve.py`\n")
+        self.assertIsNone(scope_gap(two, ("src/websearch/serve.py",)))
+
+    def test_tokens_that_are_not_paths_do_not_make_a_false_red(self):
+        # 칸은 자유 서술이고 백틱 안에 상수·테스트 이름·플래그가 섞인다
+        # (실측: `--resample`·`UNIT_COUNT`·`ReadmeCommandsTest.test_…`).
+        # 판정 방향이 `diff ⊆ 칸` 이라 **칸에 더 적힌 것은 벌하지 않는다.**
+        noisy = ("- **건드릴 파일**: `e2e/passage_shapes.py` `--resample` ·\n"
+                 "  `tests/test_docs.py` · `UNIT_COUNT` 가 강제한다\n")
+        self.assertIsNone(scope_gap(noisy, ("tests/test_docs.py",)))
+
+    def test_nothing_touched_is_quiet(self):
+        self.assertIsNone(scope_gap(self.FIELD, ()))
+
+
+class ScopeRosterTest(unittest.TestCase):
+    """기록 화이트리스트의 **값** 을 손으로 못박는다 — 설계 계약 4.
+
+    **기대값을 상수로 조립하면 양변이 같이 줄어 초록이 된다** — 계획 126 의 변이
+    실측이 `SOURCE_DIRS` 에서 바로 그것을 봤다(`scripts` 를 빼도 조용했다).
+    그래서 리터럴로 적는다. 늘릴 때는 두 자리를 함께 고치게 된다.
+    """
+
+    def test_the_bookkeeping_roster_is_nailed(self):
+        self.assertEqual(SCOPE_BOOKKEEPING, (
+            "docs/status.md", "docs/history_current.md", "docs/index.md",
+            "docs/metrics.md", "docs/digest.md"))
+        self.assertEqual(SCOPE_BOOKKEEPING_DIRS, (
+            "docs/plan_", "docs/design_", "docs/history_",
+            "docs/e2e/", "docs/reports/", "docs/patches/"))
+
+    def test_the_repository_rulebooks_are_outside_the_roster(self):
+        for path in ("docs/project.md", "docs/baselines.md",
+                     "docs/specs/concept.md", "README.md"):
+            self.assertFalse(scope_bookkeeping(path), path)
+
+
+class ScopeTest(unittest.TestCase):
+    """이 브랜치가 건드린 것이 활성 계획서의 「건드릴 파일」 칸에 다 있나.
+
+    **`rules/plan.md` 6절이 요구하는 YELLOW 가 다섯 번 연속 안 올라갔다** —
+    `[R76-2]`·`[R90-7]`·`[R98-4]`·`[R114-4]`·`[R129-5]` 가 전부 `README.md`
+    누락이고, 앞 네 번의 처방은 모두 「다음 계획이 잘 적는다」였다. 다섯 번째가
+    났으니 그 처방은 반증됐고 **죽은 조항은 진짜 범위 이탈도 못 막는다.**
+
+    **git 을 못 읽으면 건너뛴다** — 리뷰 phase 가 전수를 돌리는 `git archive HEAD`
+    사본에는 `.git` 이 없다(실측). 같은 대가를 사람이 2026-10-26 에 게이트 ⑱ ㉢
+    으로 이미 한 번 골랐고(`NightReportSignalTest`·`ReportNameTest` 가 그 짝)
+    **건너뛴 것은 출력에 보인다** — 조용한 초록이 아니다.
+
+    **천장**: 칸이 디렉터리만 적으면(`tests/`) 이 자는 그 아래 파일을 따로 요구한다 —
+    경계 검사를 두는 대가고, 실물 칸 24개는 전부 파일 경로를 적는다(실측).
+    """
+
+    def test_the_branch_only_touches_files_the_plan_named(self):
+        touched = scope_touched()
+        if touched is None:
+            self.skipTest("git 을 못 읽는 사본이다 — 게이트 ⑱ ㉢ 과 같은 선례로"
+                          " 건너뛴다(여기서 재는 것은 작업 트리의 이력이다)")
+        status = (DOCS / "status.md").read_text(encoding="utf-8")
+        slug = PLAN_SLUG.search(status)
+        if not slug:
+            return
+        plan = DOCS / ("plan_%s.md" % slug.group(1))
+        if not plan.exists():
+            return
+        gap = scope_gap(plan.read_text(encoding="utf-8"), touched,
+                        plan_name=plan.name)
         self.assertIsNone(gap, gap)
 
 
