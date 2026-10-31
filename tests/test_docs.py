@@ -4406,15 +4406,28 @@ def scope_touched(root=ROOT):
     **커밋된 것과 미커밋을 함께 센다** — `git diff --name-only <기점>` 은 작업 트리를
     기점과 대므로 커밋 전에도 물린다. 그러지 않으면 이 자는 스텝을 커밋한 **뒤에만**
     보이고, 칸을 고칠 자리는 커밋 전이다. 새 파일은 `ls-files --others` 가 준다.
+
+    **`-z` 로 받는다.** git 은 기본으로 경로를 인용한다 — 비ASCII 는 8진 이스케이프로
+    (`"\\354\\203\\210…"`), 공백이 든 이름은 따옴표로 싼다. 그 꼴을 그대로
+    포함 검사에 넣으면 칸에 **제대로 적혀 있어도** 못 찾아 거짓 RED 다. 테스트
+    phase 의 픽스처가 한글 파일 이름 하나로 실제로 그것을 봤다. `-z` 는 NUL 로
+    끊어 주므로 인용이 없고, 공백이 든 이름도 `split()` 에 쪼개지지 않는다.
     """
+    if not (pathlib.Path(root) / ".git").exists():
+        # **남의 트리를 재고 초록이 되는 길을 막는다.** git 은 저장소를 찾을 때
+        # 부모로 올라가므로, 사본이 저장소 «안» 에 풀리면(실측: `data/` 아래에
+        # 풀고 `rev-parse --show-toplevel` 이 **진짜 저장소**를 가리켰다) 이 자는
+        # 사본의 계획서를 **원본 트리의 diff** 로 판정한다. 둘이 같은 내용이면
+        # 조용히 통과하는데, 그 초록은 아무것도 재지 않은 초록이다.
+        return None
     base = _scope_git(["merge-base", "main", "HEAD"], root)
     if base is None:
         return None
-    changed = _scope_git(["diff", "--name-only", base.strip()], root)
-    others = _scope_git(["ls-files", "--others", "--exclude-standard"], root)
+    changed = _scope_git(["diff", "-z", "--name-only", base.strip()], root)
+    others = _scope_git(["ls-files", "-z", "--others", "--exclude-standard"], root)
     if changed is None or others is None:
         return None
-    return tuple(sorted(set((changed + others).split())))
+    return tuple(sorted(set(p for p in (changed + others).split("\0") if p)))
 
 class ScopeGapTest(unittest.TestCase):
     """`scope_gap` 의 갈래를 합성 문자열로 밟는다 — 계획 130 의 자.
@@ -4531,6 +4544,85 @@ class ScopeRosterTest(unittest.TestCase):
         for path in ("docs/project.md", "docs/baselines.md",
                      "docs/specs/concept.md", "README.md"):
             self.assertFalse(scope_bookkeeping(path), path)
+
+
+class ScopeTouchedTest(unittest.TestCase):
+    """`scope_touched` 가 **무엇을 세는지** 실물 git 하나로 못박는다.
+
+    변이 셋이 이 자가 없을 때 **살아 있었다** (계획 130 테스트 phase 실측):
+    ⓐ `ls-files --others` 를 빼면 **새 파일**이 안 보인다 — 칸에 없는 **새 모듈**은
+    범위 이탈 중에서도 가장 흔한 꼴인데 아무도 안 쟀다 ⓑ `diff` 를 빼면 **고친 파일**이
+    안 보인다 ⓒ 기점을 `merge-base` 대신 `main` **끝**으로 바꿔도 조용했다 — 그러면
+    `main` 이 앞서 간 만큼이 「이 브랜치가 건드린 것」으로 읽혀 **거짓 RED** 가 된다.
+    셋 다 합성 갈래로는 못 재고(그쪽은 경로 순서열을 직접 받는다) **git 이 있어야** 재진다.
+
+    픽스처는 **임시 저장소**다. 외부 네트워크를 안 탄다 (`project.md` 한도).
+    """
+
+    def _git(self, repo, *args):
+        done = subprocess.run(["git", "-C", repo] + list(args),
+                              capture_output=True, text=True)
+        self.assertEqual(0, done.returncode, done.stderr)
+        return done.stdout
+
+    def test_it_counts_changed_untracked_and_nothing_from_main(self):
+        with tempfile.TemporaryDirectory() as repo:
+            self._git(repo, "init", "--quiet")
+            self._git(repo, "config", "user.email", "loop@example.invalid")
+            self._git(repo, "config", "user.name", "loop")
+            (pathlib.Path(repo) / "kept.txt").write_text("처음\n", encoding="utf-8")
+            self._git(repo, "add", "kept.txt")
+            self._git(repo, "commit", "--quiet", "-m", "첫 커밋")
+            self._git(repo, "branch", "-M", "main")
+            self._git(repo, "checkout", "--quiet", "-b", "loop/x")
+            # 기점 뒤로 `main` 이 혼자 앞서 간다 — 기점을 `main` 끝으로 잡으면
+            # 이 파일이 「이 브랜치가 건드린 것」으로 읽힌다.
+            self._git(repo, "checkout", "--quiet", "main")
+            (pathlib.Path(repo) / "main_only.txt").write_text("남의 것\n",
+                                                              encoding="utf-8")
+            self._git(repo, "add", "main_only.txt")
+            self._git(repo, "commit", "--quiet", "-m", "main 이 앞서 간다")
+            self._git(repo, "checkout", "--quiet", "loop/x")
+            (pathlib.Path(repo) / "kept.txt").write_text("고쳤다\n", encoding="utf-8")
+            (pathlib.Path(repo) / "새파일.py").write_text("x = 1\n", encoding="utf-8")
+            # 공백이 든 이름 — git 은 이것도 따옴표로 싼다. `-z` 를 둔 근거의 나머지
+            # 절반이고, 없으면 `split()` 이 한 파일을 둘로 쪼갠다.
+            (pathlib.Path(repo) / "빈 칸.py").write_text("y = 2\n", encoding="utf-8")
+            touched = scope_touched(repo)
+        self.assertIn("kept.txt", touched)
+        self.assertIn("새파일.py", touched)
+        self.assertIn("빈 칸.py", touched)
+        self.assertNotIn("main_only.txt", touched)
+
+    def test_a_copy_inside_a_repository_does_not_measure_the_parent(self):
+        # 사본이 저장소 «안» 에 있으면 git 은 **부모**를 찾는다 (실측: `data/`
+        # 아래에 `git archive HEAD` 를 풀고 `rev-parse --show-toplevel` 이 진짜
+        # 저장소를 가리켰고, 그 판에서 실물 축이 **건너뛰지 않고 통과**했다 —
+        # 사본의 계획서를 원본의 diff 로 판정한 초록이다).
+        with tempfile.TemporaryDirectory() as repo:
+            self._git(repo, "init", "--quiet")
+            self._git(repo, "config", "user.email", "loop@example.invalid")
+            self._git(repo, "config", "user.name", "loop")
+            (pathlib.Path(repo) / "kept.txt").write_text("처음\n", encoding="utf-8")
+            self._git(repo, "add", "kept.txt")
+            self._git(repo, "commit", "--quiet", "-m", "첫 커밋")
+            self._git(repo, "branch", "-M", "main")
+            nested = pathlib.Path(repo) / "사본"
+            nested.mkdir()
+            self.assertIsNone(scope_touched(nested))
+
+    def test_a_tree_without_git_cannot_be_measured(self):
+        # **「재지 못했다」와 「위반 0」을 가르는 자리다** — 실패를 빈 문자열로
+        # 돌려주면 건드린 것이 0개로 읽혀 **어디서나 조용한 초록**이 된다.
+        with tempfile.TemporaryDirectory() as bare:
+            self.assertIsNone(scope_touched(bare))
+
+    def test_this_tree_can_be_measured(self):
+        # 건너뛰기가 **늘** 일어나면 `ScopeTest` 는 죽은 채로 초록이다
+        # (변이 「`scope_touched` 가 늘 `None`」이 이 자 없이는 살았다).
+        if not (ROOT / ".git").exists():
+            self.skipTest("git 이 없는 사본이다 — 게이트 ⑱ ㉢ 과 같은 선례")
+        self.assertIsNotNone(scope_touched())
 
 
 class ScopeTest(unittest.TestCase):
