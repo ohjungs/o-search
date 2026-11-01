@@ -87,12 +87,33 @@ class AnchorCountTest(unittest.TestCase):
         self.assertEqual(0, rc, last)
 
     def test_a_missing_anchor_is_refused_with_a_different_message(self):
-        """0 과 다수는 **사람이 할 일이 다르다** — 0 은 앵커가 썩었고 다수는 좁혀야 한다."""
+        """0 과 다수는 **사람이 할 일이 다르다** — 0 은 다시 뜨고 다수는 넓힌다.
+
+        **수가 다른 것으로는 안 된다** — 변이 M3(0건 분기 삭제)이 그 단언에서
+        살아남았다. 0건이 다수 분기로 흘러도 「앵커 0곳」이라 문구가 달라지므로
+        `assertNotEqual` 은 조용하다. 가르는 것은 **처방 낱말**이라 그것을 단언한다
+        (`[R127-2]` 「실패 메시지가 한 부류 전용 처방을 달고 있었다」와 같은 자리 —
+        썩은 앵커에 「넓혀라」는 **틀린 방향**이다).
+        """
         rc0, last0, out0 = check(self.write("가\n나\n"), "없는것")
         rcN, lastN, outN = check(self.write("가\n가\n"), "가")
         assert_verdict(self, rc0, 2, last0, out0)
         assert_verdict(self, rcN, 2, lastN, outN)
-        self.assertNotEqual(last0, lastN)
+        self.assertIn("썩었다", last0)
+        self.assertNotIn("넓혀", last0)
+        self.assertIn("넓혀", lastN)
+
+    def test_overlapping_occurrences_are_counted_like_str_count(self):
+        """**설계 계약 1번** — 세는 수가 `str.count` 와 같아야 한다.
+
+        `"aaa".count("aa")` 는 **1** 이고 적용기(`str.replace`)도 한 번만 바꾼다.
+        보폭을 1 로 두면 둘로 세어 **적용기와 갈린다** — 변이 M1 이 그 자리에서
+        살아남아 이 테스트가 생겼다. 갈리는 판정은 이 자가 닫으려는 사고의 새 통로다.
+        """
+        text = "가가가\n"
+        self.assertEqual(1, text.count("가가"), "전제가 깨졌다")
+        rc, last, _ = check(self.write(text), "가가")
+        self.assertEqual(0, rc, last)
 
     def test_check_never_writes_the_file(self):
         """거부든 통과든 **한 바이트도** 안 바뀐다 — 판정이 적용보다 먼저 돈다."""
@@ -239,12 +260,24 @@ class MutateApplyTest(unittest.TestCase):
             _, last, _, _ = mutate(self.target, "앵커", "변이", self.seeing(cmd_rc))
             self.assertTrue(last.startswith("── "), last)
 
-    def test_a_missing_separator_is_not_measured(self):
-        done = subprocess.run(["python3", SCRIPT, str(self.target), "앵커", "변이",
-                               "python3", "-c", "pass"],
-                              capture_output=True, text=True)
-        self.assertEqual(2, done.returncode, done.stdout)
-        self.assertTrue(done.stdout.rstrip("\n").split("\n")[-1].startswith("── "))
+    def test_a_missing_separator_is_refused_at_parse_time(self):
+        """`--` 가 없으면 **인자를 읽는 자리에서** 거부한다.
+
+        **`rc=2` 만 재면 안 된다** — 변이 M10(`--` 검사 삭제)이 거기서 살아남았다.
+        검사를 빼면 `argv[5:]` 가 명령으로 읽혀 `["-c", "pass"]` 를 돌리려다 **실패해서**
+        2 가 나온다. 즉 그 2 는 거부가 아니라 사고다. 더 나쁜 꼴도 실재한다 —
+        `mutate.py <파일> <앵커> <치환> 쓰레기 ls` 는 「쓰레기」를 조용히 삼키고 `ls`
+        를 돌려 **판정(0/1)을 낸다.** 이 계획이 닫는 병(재지 못한 것이 판정으로
+        둔갑한다)과 같은 것이라 **문구로 못박는다.**
+        """
+        for 꼬리 in (["python3", "-c", "pass"], ["쓰레기", "true"]):
+            done = subprocess.run(["python3", SCRIPT, str(self.target), "앵커", "변이"]
+                                  + 꼬리, capture_output=True, text=True)
+            last = done.stdout.rstrip("\n").split("\n")[-1]
+            self.assertEqual(2, done.returncode, done.stdout)
+            self.assertTrue(last.startswith("── "), last)
+            self.assertIn("인자", last)
+            self.assertFalse(self.marker.exists(), "거부했는데 명령이 돌았다")
 
     def test_an_empty_command_is_not_measured(self):
         rc, last, _, _ = mutate(self.target, "앵커", "변이", [])
