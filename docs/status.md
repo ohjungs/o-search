@@ -1,13 +1,13 @@
 ---
 signal: GREEN
-phase: 설계
-step: 0/2
+phase: 개발
+step: 1/2
 attempt: 1
 plan: mutant-anchor-unique  # 계획 **131 착수** · 기점 `d22b42b` = `main` · 계획서 `docs/plan_mutant-anchor-unique.md`
-iteration: 796
+iteration: 797
 updated: 2026-11-02
 mode: 무인(night)  # 2026-11-02 `/loop-harness night` — 탐색 모드 · 이 밤 시작에 `night_*` 넷 리셋했다
-night_iterations: 1
+night_iterations: 2
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
