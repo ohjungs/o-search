@@ -153,5 +153,104 @@ class AnchorCountLiveTest(unittest.TestCase):
         assert_verdict(self, rc, 2, last, out)
 
 
+def mutate(path, anchor, replacement, cmd):
+    """적용 → 실행 → 복원 한 번. `(rc, 마지막 줄, stdout, stderr)`."""
+    done = subprocess.run(["python3", SCRIPT, str(path), anchor, replacement, "--"] + cmd,
+                          capture_output=True, text=True)
+    out = done.stdout.rstrip("\n")
+    return done.returncode, out.split("\n")[-1], out, done.stderr
+
+
+class MutateApplyTest(unittest.TestCase):
+    """적용·실행·복원 — **복원은 데이터 안전이라 사다리로 타협하지 않는다.**
+
+    `git restore` 를 부르지 않는다: `rules/plan.md` 3-1절이 「`restore .` 를 쓰면 남의
+    미커밋 변경까지 날아간다」고 적은 자리이고, 변이는 **작업 중인 트리**에서 돈다.
+    원본 바이트를 들고 있다가 되쓰는 것이 설계 계약 4번이다.
+    """
+
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.dir.cleanup)
+        self.target = pathlib.Path(self.dir.name, "대상.py")
+        self.target.write_text("머리\n앵커\n꼬리\n", encoding="utf-8")
+        self.marker = pathlib.Path(self.dir.name, "본것.txt")
+
+    def seeing(self, rc):
+        """대상 파일을 **실행 시점에** 베껴 두고 주어진 코드로 끝나는 명령."""
+        return ["python3", "-c",
+                "import pathlib,sys;p,m,r=sys.argv[1:4];"
+                "pathlib.Path(m).write_text(pathlib.Path(p).read_text());"
+                "sys.exit(int(r))",
+                str(self.target), str(self.marker), str(rc)]
+
+    def test_a_dying_mutant_is_zero(self):
+        rc, last, out, _ = mutate(self.target, "앵커", "변이", self.seeing(1))
+        self.assertEqual(0, rc, "%s\n%s" % (last, out))
+        self.assertIn("rc=0", last)
+
+    def test_a_surviving_mutant_is_one(self):
+        """**생존은 기준 위반이다** — 「이 자리를 무는 테스트가 없다」가 그 뜻이다."""
+        rc, last, out, _ = mutate(self.target, "앵커", "변이", self.seeing(0))
+        self.assertEqual(1, rc, "%s\n%s" % (last, out))
+        self.assertIn("rc=1", last)
+
+    def test_survival_and_refusal_never_share_an_exit_code(self):
+        """이 계획이 닫는 병이 **종료 코드 쪽에서 되살아나는 것**을 막는다."""
+        survived, _, _, _ = mutate(self.target, "앵커", "변이", self.seeing(0))
+        refused, _, _, _ = mutate(self.target, "없는앵커", "변이", self.seeing(0))
+        self.assertEqual(1, survived)
+        self.assertEqual(2, refused)
+
+    def test_the_command_sees_the_mutated_file(self):
+        mutate(self.target, "앵커", "변이", self.seeing(1))
+        self.assertEqual("머리\n변이\n꼬리\n", self.marker.read_text(encoding="utf-8"))
+
+    def test_the_file_is_restored_byte_for_byte(self):
+        before = self.target.read_bytes()
+        for cmd_rc in (0, 1):
+            mutate(self.target, "앵커", "변이", self.seeing(cmd_rc))
+            self.assertEqual(before, self.target.read_bytes())
+
+    def test_a_refused_anchor_never_runs_the_command(self):
+        """거부면 명령을 **안 돌린다** — 돌리면 재지 못한 것으로 판정을 만든다."""
+        self.target.write_text("앵커\n앵커\n", encoding="utf-8")
+        before = self.target.read_bytes()
+        rc, last, out, _ = mutate(self.target, "앵커", "변이", self.seeing(1))
+        self.assertEqual(2, rc, "%s\n%s" % (last, out))
+        self.assertFalse(self.marker.exists(), "거부했는데 명령이 돌았다")
+        self.assertEqual(before, self.target.read_bytes())
+
+    def test_a_failed_restore_shouts_and_is_not_measured(self):
+        """복원 실패를 **조용히 끝내지 않는다** — 더러운 트리를 0 으로 끝내는 길이 없다."""
+        self.addCleanup(lambda: self.target.chmod(0o644))
+        block_writes = ["python3", "-c",
+                    "import os,sys;os.chmod(sys.argv[1], 0o444);sys.exit(1)",
+                    str(self.target)]
+        rc, last, out, err = mutate(self.target, "앵커", "변이", block_writes)
+        self.assertEqual(2, rc, "%s\n%s" % (last, out))
+        self.assertTrue(err.strip(), "stderr 가 조용하다")
+        self.assertIn("rc=2", last)
+        # 되쓰지 못했으니 변이가 남아 있다 — 그 사실을 자가 말했는지가 이 테스트다
+        self.assertIn("변이", self.target.read_text(encoding="utf-8"))
+
+    def test_the_verdict_is_the_last_line(self):
+        for cmd_rc in (0, 1):
+            _, last, _, _ = mutate(self.target, "앵커", "변이", self.seeing(cmd_rc))
+            self.assertTrue(last.startswith("── "), last)
+
+    def test_a_missing_separator_is_not_measured(self):
+        done = subprocess.run(["python3", SCRIPT, str(self.target), "앵커", "변이",
+                               "python3", "-c", "pass"],
+                              capture_output=True, text=True)
+        self.assertEqual(2, done.returncode, done.stdout)
+        self.assertTrue(done.stdout.rstrip("\n").split("\n")[-1].startswith("── "))
+
+    def test_an_empty_command_is_not_measured(self):
+        rc, last, _, _ = mutate(self.target, "앵커", "변이", [])
+        self.assertEqual(2, rc, last)
+        self.assertTrue(last.startswith("── "), last)
+
+
 if __name__ == "__main__":
     unittest.main()
