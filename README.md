@@ -101,7 +101,7 @@ PYTHONPATH=src python3 -m websearch.indexer data/crawl.db --query 검색어
 ## 확인하기
 
 ```bash
-PYTHONPATH=src python3 -m unittest discover -b -s tests   # 단위 1,068건
+PYTHONPATH=src python3 -m unittest discover -b -s tests   # 단위 1,080건
 ls e2e/*.py                                               # e2e 시나리오 25종
 ```
 
@@ -117,3 +117,8 @@ e2e 는 하나씩 따로 돌린다 — `PYTHONPATH=src python3 e2e/<이름>.py`.
 그 테스트는 아무것도 안 지키고 있는 것이다. 그래서 망가뜨려 보고, 테스트가 울어야만
 통과로 친다. 이 저장소에서 「다 통과했어요」가 거짓말이었던 적이 여러 번 있었고, 전부
 이 절차에서 들켰다.
+
+**고장 낼 자리는 먼저 세어 본다** — `scripts/mutate.py --check <파일> <앵커>`. 같은 글이
+파일에 둘이면 고장은 **첫 하나**에만 나고 나머지는 조용히 남는데, 그러면 테스트가
+안 울어도 「테스트가 약하다」가 아니라 **「엉뚱한 데를 고장 냈다」**다. 그 둘을 못 가른
+적이 있어서 세는 자를 뒀다.
