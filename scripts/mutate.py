@@ -15,21 +15,67 @@
 
 쓰는 법:
 
-    scripts/mutate.py --check <파일> <앵커>
+    scripts/mutate.py --check <파일> <앵커>              # 판정만 · 안 쓴다
+    scripts/mutate.py <파일> <앵커> <치환> -- <명령…>     # 적용 → 실행 → 복원
 
 종료 코드는 이 저장소 관용구를 따른다 — **`2` 는 판정이 아니라 「재지 못했다」** 다.
-`0` 앵커가 유일하다 · `2` 0곳이거나 여럿이다(또는 파일을 못 읽었다).
+
+| | `0` | `1` | `2` |
+|---|---|---|---|
+| `--check` | 앵커가 유일하다 | — | 0곳·여럿·못 읽었다 |
+| 적용 | **변이 죽음**(테스트가 문다) | **변이 생존**(무는 테스트가 없다) | 재지 못했다 |
+
+**`2` 가 「생존」과 섞이지 않는 것이 이 자의 요점이다** — 거짓 생존은 재지 못한 것을
+판정으로 읽은 사고였다. 그래서 신호·예외·심기지 않은 변이가 전부 `2` 로 나간다.
+**읽을 때는 `| tail -1` 만 쓴다** — 적용 경로는 `--check` 의 판정 줄을 먼저 찍으므로
+`grep rc=0` 은 생존을 죽음으로 읽는다.
 판정은 **stdout 의 마지막 한 줄**로 다시 찍으므로 `| tail -1` 을 붙여도 산다
 (`scripts/verdict.sh` 와 같은 관례).
+
+**이 자가 재지 않는 것 둘** (백지 패스가 짚었다 — 적어 두지 않으면 판정으로 읽힌다):
+
+- **베이스라인은 호출자가 보장한다.** 변이와 무관하게 늘 실패하는 명령(이미 빨간 전수 ·
+  `PYTHONPATH` 누락 · 오타 난 명령 · `timeout` 의 124)도 「변이 죽음」으로 나간다.
+  **변이를 심기 전에 그 명령이 초록인 것을 먼저 확인한다.**
+- **한 번에 하나.** 같은 파일에 둘이 겹치면 뒤엣것이 **앞엣것의 변이본**을 원본으로 집어
+  복원이 변이를 영구화한다. 동시에 돌리려면 파일을 갈라야 한다.
 
 설계는 `docs/design_mutant-anchor-unique.md` · 계약은 그 문서의 「계약」 절.
 """
 import pathlib
+import signal
 import subprocess
 import sys
 
 USAGE = ("쓰는 법: scripts/mutate.py --check <파일> <앵커>"
          "  또는  scripts/mutate.py <파일> <앵커> <치환> -- <명령…>")
+
+
+class Stopped(Exception):
+    """신호로 끊겼다 — 복원을 돌리기 위해 예외로 올린다.
+
+    기본 처리기는 `finally` 를 안 돌리고 즉시 죽인다. 실측(백지 패스): `SIGTERM`
+    으로 끊으니 `rc=143` 에 **변이가 파일에 남고 stderr 가 조용했다** — 이 자의
+    docstring 이 한 약속(「더러운 트리를 0 으로 끝내는 길이 없다」)이 뚫리는 자리다.
+    `scripts/verdict.sh` 가 `trap 'stopped 143' TERM` 으로 같은 것을 막고, 그
+    주석이 「막으려던 사고를 정리 코드가 **새 경로로 재현**했다」를 적어 뒀다.
+    """
+
+
+def _stop(signum, frame):
+    raise Stopped("신호 %d" % signum)
+
+
+def read_exact(path):
+    """**적용기와 같은 글**을 돌려준다 — 바이트를 읽어 디코드한다.
+
+    `read_text` 를 쓰면 안 된다: universal newlines 가 `\\r\\n` 을 `\\n` 으로 바꿔
+    **판정과 적용이 다른 글을 본다.** 실측(백지 패스): CRLF 파일에 여러 줄 앵커를
+    주니 `--check` 는 「앵커 유일」인데 적용기는 0곳을 바꾸고 명령이 **원본**을 보고
+    「생존 … 이것은 판정이다」가 났다 — **설계 계약 1번이 바로 그 자리에서 깨졌다.**
+    읽는 자리를 하나로 모아 뿌리에서 닫는다.
+    """
+    return pathlib.Path(path).read_bytes().decode("utf-8")
 
 
 def anchor_sites(text, anchor):
@@ -57,9 +103,9 @@ def check(path, anchor):
     if not anchor:
         return verdict("앵커가 빈 문자열이다 — 재지 못했다", 2)
     try:
-        text = pathlib.Path(path).read_text(encoding="utf-8")
+        text = read_exact(path)
     except OSError as err:
-        return verdict("파일을 못 읽었다(%s) — 재지 못했다" % err.strerror, 2)
+        return verdict("파일을 못 읽었다(%s) — 재지 못했다" % (err.strerror or err), 2)
     sites = anchor_sites(text, anchor)
     if len(sites) == 1:
         return verdict("앵커 유일 — %s:%d" % (path, sites[0]), 0)
@@ -68,8 +114,9 @@ def check(path, anchor):
                        " (좁히는 것이 아니다) — 재지 못했다", 2)
     print("앵커가 %d곳에 있다 — 적용은 **첫 하나**만 바꾸므로 나머지가 조용히 남고,"
           " 그 초록은 「생존」이 아니라 「재지 못했다」다. 걸린 자리:" % len(sites))
-    for at in sites:
-        print("  %s:%d" % (path, at))
+    for at in sorted(set(sites)):
+        n = sites.count(at)
+        print("  %s:%d%s" % (path, at, " (%d회)" % n if n > 1 else ""))
     return verdict("앵커 %d곳 — 유일해지도록 **넓혀** 다시 뜬다(앞뒤 줄을 붙인다)"
                    " — 재지 못했다" % len(sites), 2)
 
@@ -87,18 +134,26 @@ def apply_and_run(path, anchor, replacement, cmd):
         return 2                      # 거부면 명령을 돌리지 않는다 — 계약 3
     target = pathlib.Path(path)
     original = target.read_bytes()
+    mutated = original.decode("utf-8").replace(anchor, replacement, 1)
+    if mutated.encode("utf-8") == original:
+        # **이 저장소가 손으로 쓰던 규약이 바로 이것이다** — `plan_history_037.md:151`
+        # 「모든 변이는 심기 전에 `mutated != original` 로 실제로 심어진 것을 먼저
+        # 단언한다」(`plan_history_035.md:145` 도 같다). 손버릇을 기제로 옮기면서
+        # **그 단언만 빠뜨렸고** 백지 패스가 잡았다. 치환이 앵커와 같으면 아무것도
+        # 안 심긴 채 명령이 돌아 「생존 … 이것은 판정이다」가 난다(실측).
+        return verdict("변이가 심기지 않았다 — 치환이 앵커와 같은 글이다."
+                       " 심기지 않은 변이의 초록은 판정이 아니다 — 재지 못했다", 2)
     died, broke, restore_err = None, None, None
     try:
-        target.write_text(original.decode("utf-8").replace(anchor, replacement, 1),
-                          encoding="utf-8")
+        target.write_bytes(mutated.encode("utf-8"))
         died = subprocess.run(cmd).returncode != 0
-    except OSError as err:
-        broke = err.strerror
+    except (OSError, Stopped) as err:
+        broke = getattr(err, "strerror", None) or err
     finally:
         try:
             target.write_bytes(original)
         except OSError as err:
-            restore_err = err.strerror
+            restore_err = err.strerror or err
     if restore_err is not None:
         print("!! %s 를 원본으로 되쓰지 못했다 — 작업 트리가 더럽다" % path,
               file=sys.stderr)
@@ -114,11 +169,26 @@ def apply_and_run(path, anchor, replacement, cmd):
 
 
 def main(argv):
-    if len(argv) == 4 and argv[1] == "--check":
-        return check(argv[2], argv[3])
-    if len(argv) >= 6 and argv[4] == "--":
-        return apply_and_run(argv[1], argv[2], argv[3], argv[5:])
-    return verdict("인자가 맞지 않는다 — 재지 못했다. %s" % USAGE, 2)
+    """**어떤 길로도 판정 줄 없이 끝나지 않는다.**
+
+    `except OSError` 만 잡던 동안 UTF-8 아닌 대상 파일이 `UnicodeDecodeError` 로
+    새어 **역추적 + `rc=1`** 로 끝났다(실측 · 백지 패스) — `1` 은 「변이 생존」이라
+    **재지 못한 것이 판정 코드로 나간다.** 이 자가 닫으려는 병과 같은 것이라
+    바닥에서 전부 받아 `2` 로 돌린다.
+    """
+    for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+        signal.signal(sig, _stop)
+    try:
+        if len(argv) == 4 and argv[1] == "--check":
+            return check(argv[2], argv[3])
+        if len(argv) >= 6 and argv[4] == "--":
+            return apply_and_run(argv[1], argv[2], argv[3], argv[5:])
+        return verdict("인자가 맞지 않는다 — 재지 못했다. %s" % USAGE, 2)
+    except Stopped as err:
+        return verdict("%s 로 끊겼다 — 복원은 돌았다 — 재지 못했다" % err, 2)
+    except Exception as err:                        # noqa: BLE001 — 바닥 그물
+        print("!! %s: %s" % (type(err).__name__, err), file=sys.stderr)
+        return verdict("%s 로 끝났다 — 재지 못했다" % type(err).__name__, 2)
 
 
 if __name__ == "__main__":

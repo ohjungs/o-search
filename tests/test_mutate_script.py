@@ -18,8 +18,11 @@
 """
 import os
 import pathlib
+import signal
 import subprocess
+import sys
 import tempfile
+import time
 import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -29,10 +32,15 @@ LIVE = os.path.join(ROOT, "tests", "test_docs.py")
 
 def check(path, anchor):
     """`--check` 한 번. `(rc, 마지막 줄, 전체 stdout)`."""
-    done = subprocess.run(["python3", SCRIPT, "--check", str(path), anchor],
+    done = subprocess.run([sys.executable, SCRIPT, "--check", str(path), anchor],
                           capture_output=True, text=True)
     out = done.stdout.rstrip("\n")
     return done.returncode, out.split("\n")[-1], out
+
+
+def read_live():
+    """실물 대조는 **적용기와 같은 읽기**로 한다 — `read_exact` 와 짝이다."""
+    return pathlib.Path(LIVE).read_bytes().decode("utf-8")
 
 
 def assert_verdict(case, rc, want, last, out):
@@ -76,7 +84,8 @@ class AnchorCountTest(unittest.TestCase):
         """**이 파일의 존재 이유다.** 줄을 세는 판정은 여기서 1 을 돌려준다."""
         rc, last, out = check(self.write("머리\n가가\n꼬리\n"), "가")
         assert_verdict(self, rc, 2, last, out)
-        self.assertIn("2", out)
+        # 같은 줄을 두 번 찍지 않고 **몇 회인지** 댄다(백지 패스의 자잘 지적).
+        self.assertIn("(2회)", out)
 
     def test_a_multi_line_anchor_is_counted(self):
         rc, last, out = check(self.write("가\n나\n다\n가\n나\n"), "가\n나\n")
@@ -128,7 +137,7 @@ class AnchorCountTest(unittest.TestCase):
         assert_verdict(self, rc, 2, last, out)
 
     def test_too_few_arguments_are_not_measured(self):
-        done = subprocess.run(["python3", SCRIPT, "--check"],
+        done = subprocess.run([sys.executable, SCRIPT, "--check"],
                               capture_output=True, text=True)
         out = done.stdout.rstrip("\n")
         assert_verdict(self, done.returncode, 2, out.split("\n")[-1], out)
@@ -150,7 +159,15 @@ class AnchorCountLiveTest(unittest.TestCase):
     """
 
     def test_the_verdict_agrees_with_the_applier_on_the_live_file(self):
-        text = pathlib.Path(LIVE).read_text(encoding="utf-8")
+        """앵커 셋 중 첫째가 **반복 792 의 M8 그대로**다 — 그때는 「생존」이었다.
+
+        그 앵커가 언젠가 유일해지면 `assertGreater` 가 빨개진다. 그때 할 일은
+        **다른 중복 앵커로 가는 것**이고, 실물 중복이 0 이 되는 날은 이 자가 필요
+        없어지는 날이다(2026-11-02 실측: 중복 종류 158개 · 중복이 든 줄 18.3%).
+        """
+        text = read_live()
+        self.assertGreater(text.count("if not missing:"), 1,
+                           "실물 중복 앵커가 사라졌다 — 이 테스트의 앵커를 갈아야 한다")
         for anchor in ("if not missing:", "def scope_touched(root=ROOT):", "zzz없는앵커"):
             want = text.count(anchor)
             rc, last, out = check(LIVE, anchor)
@@ -160,23 +177,10 @@ class AnchorCountLiveTest(unittest.TestCase):
             if want != 1:
                 self.assertIn(str(want), out, out)
 
-    def test_the_known_duplicate_anchor_is_still_duplicated(self):
-        """반복 792 의 M8 을 그대로 다시 부른다 — 이 자가 서기 전에는 「생존」이었다.
-
-        이 앵커가 언젠가 유일해지면 이 테스트는 빨개진다. 그때 할 일은 **다른 중복
-        앵커로 바꾸는 것**이고, 그 수가 0 이 되는 날은 이 자가 필요 없어지는 날이다
-        (오늘 실측: 중복 종류 158개 · 중복이 차지한 줄 18.3%).
-        """
-        text = pathlib.Path(LIVE).read_text(encoding="utf-8")
-        self.assertGreater(text.count("if not missing:"), 1,
-                           "실물 중복 앵커가 사라졌다 — 이 테스트의 앵커를 갈아야 한다")
-        rc, last, out = check(LIVE, "if not missing:")
-        assert_verdict(self, rc, 2, last, out)
-
 
 def mutate(path, anchor, replacement, cmd):
     """적용 → 실행 → 복원 한 번. `(rc, 마지막 줄, stdout, stderr)`."""
-    done = subprocess.run(["python3", SCRIPT, str(path), anchor, replacement, "--"] + cmd,
+    done = subprocess.run([sys.executable, SCRIPT, str(path), anchor, replacement, "--"] + cmd,
                           capture_output=True, text=True)
     out = done.stdout.rstrip("\n")
     return done.returncode, out.split("\n")[-1], out, done.stderr
@@ -199,7 +203,7 @@ class MutateApplyTest(unittest.TestCase):
 
     def seeing(self, rc):
         """대상 파일을 **실행 시점에** 베껴 두고 주어진 코드로 끝나는 명령."""
-        return ["python3", "-c",
+        return [sys.executable, "-c",
                 "import pathlib,sys;p,m,r=sys.argv[1:4];"
                 "pathlib.Path(m).write_text(pathlib.Path(p).read_text());"
                 "sys.exit(int(r))",
@@ -242,10 +246,17 @@ class MutateApplyTest(unittest.TestCase):
         self.assertFalse(self.marker.exists(), "거부했는데 명령이 돌았다")
         self.assertEqual(before, self.target.read_bytes())
 
+    @unittest.skipIf(hasattr(os, "geteuid") and os.geteuid() == 0,
+                     "root 는 0444 에도 쓸 수 있어 이 축을 못 재운다")
     def test_a_failed_restore_shouts_and_is_not_measured(self):
-        """복원 실패를 **조용히 끝내지 않는다** — 더러운 트리를 0 으로 끝내는 길이 없다."""
+        """복원 실패를 **조용히 끝내지 않는다** — 더러운 트리를 0 으로 끝내는 길이 없다.
+
+        `chmod 0444` 가 **소유자** 쓰기를 막는다는 전제 위에 서 있다 — root 로 돌리면
+        그 전제가 거짓이라 거짓 빨강이 난다(백지 패스의 자잘 지적 · 컨테이너 CI).
+        건너뛴 수는 출력에 보이므로 조용히 사라지지 않는다.
+        """
         self.addCleanup(lambda: self.target.chmod(0o644))
-        block_writes = ["python3", "-c",
+        block_writes = [sys.executable, "-c",
                     "import os,sys;os.chmod(sys.argv[1], 0o444);sys.exit(1)",
                     str(self.target)]
         rc, last, out, err = mutate(self.target, "앵커", "변이", block_writes)
@@ -254,6 +265,66 @@ class MutateApplyTest(unittest.TestCase):
         self.assertIn("rc=2", last)
         # 되쓰지 못했으니 변이가 남아 있다 — 그 사실을 자가 말했는지가 이 테스트다
         self.assertIn("변이", self.target.read_text(encoding="utf-8"))
+
+    def test_an_unplanted_mutation_is_not_a_verdict(self):
+        """**이 저장소가 손으로 쓰던 규약이 여기 있다** — 백지 패스가 잡았다.
+
+        `docs/plan_history_037.md:151` 「모든 변이는 심기 전에 `mutated != original`
+        로 **실제로 심어진 것을 먼저 단언**한다」(`plan_history_035.md:145` 도 같다).
+        손버릇을 기제로 옮기면서 **그 단언만 빠졌고**, 치환이 앵커와 같으면 아무것도
+        안 심긴 채 명령이 돌아 「생존 … 이것은 판정이다」가 났다(실측 `rc=1`).
+        """
+        before = self.target.read_bytes()
+        rc, last, out, _ = mutate(self.target, "앵커", "앵커", self.seeing(0))
+        assert_verdict(self, rc, 2, last, out)
+        self.assertIn("심기지 않았다", last)
+        self.assertFalse(self.marker.exists(), "안 심겼는데 명령이 돌았다")
+        self.assertEqual(before, self.target.read_bytes())
+
+    def test_the_judge_reads_the_same_bytes_the_applier_writes(self):
+        """**설계 계약 1번의 뿌리** — `read_text` 는 CRLF 를 LF 로 바꿔 둘을 가른다.
+
+        백지 패스 실측: CRLF 파일 + 여러 줄 앵커에서 `--check` 는 「앵커 유일」인데
+        적용기는 **0곳**을 바꾸고 명령이 **원본**을 보고 「생존 … 판정이다」가 났다.
+        읽는 자리를 `read_exact` 하나로 모아 뿌리에서 닫았다.
+        """
+        크알프 = pathlib.Path(self.dir.name, "크알프.py")
+        크알프.write_bytes("머리\r\n앵커\r\n꼬리\r\n".encode("utf-8"))
+        rc, last, out = check(크알프, "머리\n앵커")
+        assert_verdict(self, rc, 2, last, out)
+        rc2, last2, out2, _ = mutate(크알프, "머리\n앵커", "변이", self.seeing(0))
+        assert_verdict(self, rc2, 2, last2, out2)
+
+    def test_a_non_utf8_file_is_not_measured_rather_than_surviving(self):
+        """역추적으로 새면 `rc=1` 이고 그것은 **생존 코드**다 — 바닥 그물이 받는다."""
+        나쁜 = pathlib.Path(self.dir.name, "나쁜.py")
+        나쁜.write_bytes(b"\xff\xfe\xff")
+        rc, last, out = check(나쁜, "가")
+        assert_verdict(self, rc, 2, last, out)
+
+    @unittest.skipIf(not hasattr(signal, "SIGTERM"), "신호가 없는 플랫폼")
+    def test_a_signal_restores_the_file_and_does_not_pass(self):
+        """**docstring 이 한 약속이 뚫리던 자리다** — 실측 `rc=143` · 변이가 남고 조용.
+
+        기본 처리기는 `finally` 를 안 돌린다. `scripts/verdict.sh` 가 같은 사고를
+        `trap 'stopped 143' TERM` 으로 막고 그 주석에 「막으려던 사고를 정리 코드가
+        **새 경로로 재현**했다」를 적어 뒀다 — 사다리 2번이 가리킨 선례다.
+        """
+        before = self.target.read_bytes()
+        child = subprocess.Popen(
+            [sys.executable, SCRIPT, str(self.target), "앵커", "변이", "--",
+             sys.executable, "-c", "import time;time.sleep(30)"],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        deadline = time.time() + 10
+        while self.target.read_bytes() == before and time.time() < deadline:
+            time.sleep(0.05)
+        self.assertNotEqual(before, self.target.read_bytes(), "변이가 안 심겼다")
+        child.send_signal(signal.SIGTERM)
+        out, _ = child.communicate(timeout=30)
+        last = out.rstrip("\n").split("\n")[-1]
+        self.assertEqual(2, child.returncode, out)
+        self.assertTrue(last.startswith("── "), last)
+        self.assertEqual(before, self.target.read_bytes(), "변이가 파일에 남았다")
 
     def test_the_verdict_is_the_last_line(self):
         for cmd_rc in (0, 1):
@@ -270,8 +341,8 @@ class MutateApplyTest(unittest.TestCase):
         를 돌려 **판정(0/1)을 낸다.** 이 계획이 닫는 병(재지 못한 것이 판정으로
         둔갑한다)과 같은 것이라 **문구로 못박는다.**
         """
-        for 꼬리 in (["python3", "-c", "pass"], ["쓰레기", "true"]):
-            done = subprocess.run(["python3", SCRIPT, str(self.target), "앵커", "변이"]
+        for 꼬리 in ([sys.executable, "-c", "pass"], ["쓰레기", "true"]):
+            done = subprocess.run([sys.executable, SCRIPT, str(self.target), "앵커", "변이"]
                                   + 꼬리, capture_output=True, text=True)
             last = done.stdout.rstrip("\n").split("\n")[-1]
             self.assertEqual(2, done.returncode, done.stdout)
