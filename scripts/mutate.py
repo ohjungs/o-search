@@ -40,7 +40,7 @@
 - **한 번에 하나.** 같은 파일에 둘이 겹치면 뒤엣것이 **앞엣것의 변이본**을 원본으로 집어
   복원이 변이를 영구화한다. 동시에 돌리려면 파일을 갈라야 한다.
 
-설계는 `docs/design_mutant-anchor-unique.md` · 계약은 그 문서의 「계약」 절.
+설계는 `docs/design_history_099.md` · 계약은 그 문서의 「계약」 절.
 """
 import pathlib
 import signal

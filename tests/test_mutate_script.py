@@ -10,7 +10,7 @@
 부분문자열을 세야 한다. `grep -c` 꼴(줄 셈)로는 실물 `tests/test_docs.py` 에서
 **`grep -c = 1` 인데 적용기는 둘을 보는 자리가 7개**이고, 그중 하나가 하필
 `dup_def_gap` 의 픽스처다(`"class A:\n    def go(self):\n …"` — `go(self):\n` 가
-**한 물리 줄 안에 두 번**). 설계 근거는 `docs/design_mutant-anchor-unique.md`.
+**한 물리 줄 안에 두 번**). 설계 근거는 `docs/design_history_099.md`.
 
 **실물 핀은 «수» 가 아니라 «관계» 를 못박는다** — 파일이 자라면 수는 움직이므로
 `text.count` 와 자의 판정이 **같이** 움직이는지를 본다(`REPORT_NAME` 의 드리프트가
