@@ -1,13 +1,13 @@
 ---
 signal: GREEN
 phase: 개발
-step: 0/2
+step: 1/2
 attempt: 1
 plan: mutant-baseline-red  # 계획 **132** 수립 · 기점 `80e307c` = `main` · 브랜치 `loop/mutant-baseline-red`
-iteration: 805
+iteration: 806
 updated: 2026-11-03
 mode: 무인(night)  # 2026-11-03 `/loop-harness night` — 탐색 모드 · 이 밤 시작에 `night_*` 넷 리셋했다
-night_iterations: 2
+night_iterations: 3
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
