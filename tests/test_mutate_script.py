@@ -206,7 +206,9 @@ class MutateApplyTest(unittest.TestCase):
         """대상 파일을 **실행 시점에** 베껴 두고 주어진 코드로 끝나는 명령."""
         return [sys.executable, "-c",
                 "import pathlib,sys;p,m,r=sys.argv[1:4];"
-                "pathlib.Path(m).write_text(pathlib.Path(p).read_text());"
+                "f=pathlib.Path(m);"
+                "f.write_text((f.read_text() if f.exists() else '')"
+                "+pathlib.Path(p).read_text());"
                 "sys.exit(int(r))",
                 str(self.target), str(self.marker), str(rc)]
 
@@ -280,7 +282,7 @@ class MutateApplyTest(unittest.TestCase):
         original = self.target.read_text(encoding="utf-8")
         rc, last, out, _ = mutate(self.target, "앵커", "변이", self.touchy(original))
         assert_verdict(self, rc, 2, last, out)
-        self.assertIn("건드린 것만으로", last)
+        self.assertIn("변이의 뜻과 무관하게", last)
         self.assertNotIn("죽음", last, "거짓 죽음을 죽음과 같은 말로 적었다")
 
     def test_a_command_red_without_the_mutation_is_not_measured(self):
@@ -328,11 +330,12 @@ class MutateApplyTest(unittest.TestCase):
         self.addCleanup(lambda: self.target.chmod(0o644))
         rc, last, out, err = mutate(self.target, "앵커", "변이", self.chmod_on_second())
         assert_verdict(self, rc, 2, last, out)
-        self.assertIn("대조판", last)
+        self.assertIn("대조판의 복원이 깨졌다", last)
+        self.assertIn("손으로", last, "더러운 트리를 판정 줄이 말하지 않는다")
         self.assertNotIn("죽음", last, "재지 못한 것을 죽음으로 적었다")
         self.assertTrue(err.strip(), "stderr 가 조용하다")
 
-    def test_the_refusal_names_both_ways_out(self):
+    def test_the_refusal_names_the_ways_out_without_asserting_a_cause(self):
         """거부 문구가 **할 일을 말하는가** — 이 저장소 최다 재발의 반대쪽이다.
 
         `[R131-2]` 계열의 사고는 「실패 메시지가 틀린 방향을 알려준다」였다. 「건드린
@@ -348,9 +351,12 @@ class MutateApplyTest(unittest.TestCase):
         e2e phase 가 `docs/e2e/mutant-baseline-red/result.md` 에서 잰다.
         """
         original = self.target.read_text(encoding="utf-8")
-        _, last, _, _ = mutate(self.target, "앵커", "변이", self.touchy(original))
-        self.assertIn("대상 모듈만", last)
-        self.assertIn("칸에 그 파일을 적는다", last)
+        for cmd in (self.touchy(original), self.biting("")):
+            _, last, _, _ = mutate(self.target, "앵커", "변이", cmd)
+            for 길 in ("원본에서 초록인지", "대상 모듈만 돌린다", "칸에 그 파일을 적는다"):
+                self.assertIn(길, last)
+            self.assertNotIn("건드린 것만으로", last,
+                             "대조판 한 판으로는 못 가르는 원인을 단정했다")
 
     def test_the_control_does_not_run_when_the_mutant_survives(self):
         """**생존 경로의 비용은 0 이다** — 설계 계약 2번.
@@ -377,9 +383,16 @@ class MutateApplyTest(unittest.TestCase):
             self.assertEqual(before, self.target.read_bytes())
 
     def test_the_command_sees_the_mutated_file(self):
-        """**생존 경로로 잰다** — 죽음이면 대조판이 `marker` 를 원본으로 덮는다."""
-        mutate(self.target, "앵커", "변이", self.seeing(0))
-        self.assertEqual("머리\n변이\n꼬리\n", self.marker.read_text(encoding="utf-8"))
+        """**두 판을 함께 잰다** — 1판은 변이본을, 2판(대조)은 원본+개행 하나를 본다.
+
+        `marker` 를 덮어쓰기로 두면 죽음 경로에서 대조판이 1판의 기록을 지워 「명령이
+        변이본을 본다」를 이 자리에서 못 짚는다(백지 패스가 범위 축소로 짚었다).
+        **이어쓰기로 바꾸니 계약 둘이 한 단언에 박힌다** — 변이 가시성과 「대조 편집은
+        원본 끝에 개행 **하나**」다. 개행을 둘로 바꾸는 변이가 전에는 살아 있었다.
+        """
+        mutate(self.target, "앵커", "변이", self.seeing(1))
+        self.assertEqual("머리\n변이\n꼬리\n" + "머리\n앵커\n꼬리\n\n",
+                         self.marker.read_text(encoding="utf-8"))
 
     def test_the_file_is_restored_byte_for_byte(self):
         before = self.target.read_bytes()
