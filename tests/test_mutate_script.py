@@ -300,6 +300,26 @@ class MutateApplyTest(unittest.TestCase):
         self.assertEqual(0, died)
         self.assertEqual(2, blind)
 
+    def test_the_refusal_names_both_ways_out(self):
+        """거부 문구가 **할 일을 말하는가** — 이 저장소 최다 재발의 반대쪽이다.
+
+        `[R131-2]` 계열의 사고는 「실패 메시지가 틀린 방향을 알려준다」였다. 「건드린
+        것만으로 빨갛다」는 관찰만으로는 호출자가 할 일을 모른다 — 길이 둘뿐이고
+        (㉠ 대상 모듈만 돌린다 · 칸에 그 파일을 적는다) 설계가 그 둘을 명시했다.
+        문구가 흐려지면 자는 조용히 쓸모를 잃는다.
+
+        **실물 합성으로는 안 잰다** — 「칸 밖 추적 파일을 변이하면 전수가 빨개진다」를
+        단위 스위트 안에서 재려면 **추적되는 파일을 건드려야** 한다(2026-11-03 반복 807
+        이 손으로 실측했다: 같은 판이 반복 805 엔 `rc=0` 죽음 · 지금은 `rc=2`).
+        그것을 전수 안에 두면 매 실행이 트리를 흔들고 테스트 순서에 기대게 된다 —
+        데이터 안전이라 사다리로 타협하지 않는다(`rules/dev.md` 2절). 실물 합성은
+        e2e phase 가 `docs/e2e/mutant-baseline-red/result.md` 에서 잰다.
+        """
+        original = self.target.read_text(encoding="utf-8")
+        _, last, _, _ = mutate(self.target, "앵커", "변이", self.touchy(original))
+        self.assertIn("대상 모듈만", last)
+        self.assertIn("칸에 그 파일을 적는다", last)
+
     def test_the_control_does_not_run_when_the_mutant_survives(self):
         """**생존 경로의 비용은 0 이다** — 설계 계약 2번.
 

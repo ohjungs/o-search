@@ -1,13 +1,13 @@
 ---
 signal: GREEN
-phase: 개발
-step: 1/2
+phase: 테스트
+step: 2/2
 attempt: 1
 plan: mutant-baseline-red  # 계획 **132** 수립 · 기점 `80e307c` = `main` · 브랜치 `loop/mutant-baseline-red`
-iteration: 806
+iteration: 807
 updated: 2026-11-03
 mode: 무인(night)  # 2026-11-03 `/loop-harness night` — 탐색 모드 · 이 밤 시작에 `night_*` 넷 리셋했다
-night_iterations: 3
+night_iterations: 4
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
@@ -15,61 +15,32 @@ ctx: **열사흘 연속 같은 자리다 (게이트 ⑦).** `.context-state.json
 rules: 34cae75   # `git -C ~/.claude log -1 --format=%h -- skills/loop-harness`
 note: **[🟢 계획 132 수립 · 반복 804]** 전 밤의 병합 차단이 **풀렸다** — `main` 이 `80e307c`「병합: loop/mutant-anchor-unique 마감분」을 들어 계획 131 이 들어갔고, 네 밤 연속이던 「계획을 열면 병합 게이트가 앞 계획을 안 가져간다」가 이 밤에는 **없다.** 빈 경계에서 열었다. **탐색 1~3순위를 직접 확인했다**: 전수 **1094 OK rc=0**(25.3초 · `skipped=1`) · 린트·타입체크 없음(`project.md`) · 코드 `TODO|FIXME|HACK` **1건이고 그것은 `tests/test_indexer.py:1051` 의 HTML 픽스처 문자열 안**이라 근거가 아니다(`discover.md` 3순위 「문서·예시의 TODO 는 근거로 삼지 않는다」). 4순위 큐는 **구조적으로 없다**(`docs/candidates.md`·`scripts/candidates-scan.js`·`scripts/self-amend-guard.js` 셋 다 **파일이 없다** — 후보 `[6]`「탐색 4순위 큐가 이 저장소에서 구조적으로 늘 0건이다」가 그 자리다). 5순위 보류는 **전부 사람 몫**이고 승인이 안 났다(`pin-rot-nail`·`nested-anchor-cut`·`userinfo-leak`) · `docs/patches/` 의 패치 하나(`userinfo-leak-refuse-credentials.patch`)는 재작업 금지다. **6순위에서 열린 것 중 최고점 7 을 집었다** — 후보 `[7]`「칸 밖 파일을 변이하면 「죽음」이 보장된다」(2026-11-02 반복 802 e2e `[E131-2]` 실측 · 「여는 조건은 없다 — 지금 열려 있다」). **전제를 기록으로 믿지 않고 다시 쟀다**(후보 `[7]`:241 「기록된 답을 실행 전에 다시 재라」): `tests.test_docs.ScopeTest` 가 지금 `skipped '계획서 plan_mutant-anchor-unique 가 없다 … 재지 못했다'` 다 — **활성 계획이 없는 동안에는 함정이 안 살아 있고, 이 계획서를 `plan:` 이 가리키는 순간 자와 함께 살아난다.** 그래서 이 계획의 TDD 는 제 계획서로 그것을 재현한다. **설계로 넘긴다** — 처방 ㉠(대상 모듈만)·㉡(베이스라인 선측정)·㉢(깨끗한 사본) 셋이 갈리고 결과가 다르다(`design.md` 1절 「대안 2개 이상」). 루프의 예상은 **㉡** 이지만 런타임 2배가 계획 131 에 「사람 몫」으로 적혀 있어 **설계가 값을 깎을 수 있는지 먼저 본다**(죽음 판에서만 재면 생존 판은 0 이 더 든다). **제품 `src/` 0줄** 예정이라 품질 축 여섯은 안 돌린다 — 「통과」라고 쓰지 않는다.
 ---
+## 이 밤 (2026-11-03) — 🟢 GREEN · 계획 132 개발 2/2 완료 (반복 807)
 
-## 이 밤 (2026-11-03) — 🟢 GREEN · 계획 132 설계 완료 (반복 805)
-
-- **지금 어디인가**: 계획 **132 `mutant-baseline-red` · `phase: 개발` · 스텝 0/2** ·
-  브랜치 `loop/mutant-baseline-red`(기점 `80e307c` = `main`) · **평소 경로**(계획서 + 설계) ·
-  설계 `docs/design_mutant-baseline-red.md` 가 **㉤** 를 골랐다.
-- **설계가 루프 자신의 예상을 반증했다** — 계획서 5절과 어제 이 자리가 적은
-  「루프의 예상은 ㉡(베이스라인 선측정)」이 **틀렸다.** `design.md` 3-2절 탐침 실측:
-  칸 밖 파일은 **건드리기 전**에 베이스라인이 **초록**이고(`ScopeTest` → `OK`),
-  빨강은 **건드린 뒤**에 난다 — 원인이 「이미 빨간 명령」이 아니라 **측정 행위가
-  측정 대상을 흔드는 자기참조**다. 그래서 ㉡ 은 후보 `[7]` 의 이 사례를 **통과시킨다.**
-  코드를 한 줄도 쓰기 전에 알았고 비용은 전수 두 판(약 50초)이었다.
-- **그 반증이 사람 대기열 하나를 지웠다** — 계획 131 이 올린 「판단 ⓒ: ㉡ 의 런타임
-  2배는 사람 몫」은 **더 이상 막는 질문이 아니다**(㉡ 을 고르지 않는다). ㉤ 의 비용은
-  **죽음 판에서만 +1판 · 생존 판은 0** 이다.
-- **다음 반복이 할 일**: `phase: 개발` 스텝 1 — `scripts/mutate.py` 의 `apply_and_run`
-  에 **죽음일 때만 도는 무해 대조판** 분기를 더한다. TDD 다 — 테스트를 먼저 쓰고
-  실패를 확인한 뒤 구현한다. **설계 계약 6개를 지킨다**(`design_mutant-baseline-red.md`
-  「계약」 절): 종료 코드 어휘 불변 · 죽음일 때만 · 대조 편집은 **원본 끝 개행 하나** ·
-  복원 계약 불변 · 판정 줄이 「죽음」과 **다른 말** · `--check` 무접촉.
-  **반증 조건을 잊지 않는다** — 새 분기가 **모든** 죽음을 `2` 로 돌리면 자를 둔 것이
-  아니라 자를 끈 것이다(`test_a_dying_mutant_is_zero` 가 그 자리다).
+- **지금 어디인가**: 계획 **132 `mutant-baseline-red` · `phase: 테스트` · 스텝 2/2** ·
+  브랜치 `loop/mutant-baseline-red`(기점 `80e307c` = `main`) · 계획서 + 설계 둘 다 있다.
+  전수 **1101 OK rc=0** · 제품 `src/` **0줄** · 자 쪽 실행 코드 **22줄**.
+- **무엇이 섰나**: `scripts/mutate.py` 의 `control_red` — 「죽음」이 나면 **원본 끝에
+  개행 하나**를 더해 뜻 없이 건드린 채 같은 명령을 한 판 더 돌린다. 그 판도 빨가면
+  `0` 이 아니라 **`2`**(「건드린 것만으로 빨갛다」)다. **생존 경로는 안 돈다 — 비용 0.**
+- **실물 존재 증명**: 같은 명령이 반복 805 엔 `── 변이 **죽음** … rc=0`(거짓 죽음)이고
+  반복 807 엔 `rc=2` 다. **음성 대조 둘**(칸 안 파일의 진짜 변이 · 새 분기 자신)은
+  **둘 다 죽음 `rc=0`** — 자를 둔 것이 자를 끈 것이 아니다.
+- **다음 반복이 할 일**: `phase: 테스트` — `rules/test.md` 로 **변이 판**을 돌린다.
+  **대상은 `scripts/mutate.py` 와 `tests/test_mutate_script.py` 둘 다 칸 «안» 이고**,
+  이 계획이 세운 자 덕에 칸 밖을 잘못 집으면 이제 `2` 가 나온다(스스로 쓸모를 받는다).
+  **빠지기 쉬운 자리 셋**: ① 대조판이 **안 도는** 생존 경로(비용 0 이 계약이다)
+  ② 대조 편집이 **개행 하나**인 것(앵커 자리를 쓰면 안 된다) ③ 복원이 **쓰기 주기
+  둘**에서 다 도는 것. 설계 계약 6개가 `docs/design_mutant-baseline-red.md` 에 있다.
 - **칸은 셋 그대로다** — `scripts/mutate.py`·`tests/test_mutate_script.py`·`README.md`.
-  칸 밖을 고치면 `scope_live_gap` 이 전수를 빨갛게 한다(이 반복이 그것을 실물로 봤다).
 
-## 접은 밤들 — 원본이 `history_current.md`·`index.md` 에 있다 (2026-10-06 반복 679 접음)
+## 접은 밤들 — 2026-10-21~11-02 · 원본이 전부 트리에 있다 (2026-11-03 반복 807 접음)
 
-`ReadBudgetTest` 가 합계 651 > 600 으로 물어서 접었다. `rules/docs.md` 1절대로 **원본이 있는 것을
-확인한 줄만** 접었다 — 아래 전부 `history_current.md` 의 `### 반복 N` 항목과 `index.md` 완료 행에 있다.
-
-| 접은 것 | 원본 |
-| 2026-10-29 반복 773~777 · 계획 126 `dup-def-dead-twin` (**같은 스코프에 같은 이름 함수 정의가 둘인 것을 전수가 센다** — `dup_def_gap`+`python_sources`+`_scope_dups` · 죽은 `archive_gap` 29줄 삭제 · `tests/test_docs.py` **+16건** · **제품 0줄** · 998 → **1014 OK rc=0** · 변이 **15 죽음 · 1 등가** · e2e 시나리오 **6/6**. 리뷰가 **제 새 자 안의 거짓 초록 채널**을 잡았다(실물 축이 제너레이터를 넘겨 0파일을 훑고도 초록일 수 있었다) · S5 가 그 ③ 을 실물 수로 확증했다: `src/` 를 치우면 모집단이 **정확히 50** 이라 하한 50 이던 동안 「순회가 반 넘게 죽었는데 위반 0」이 통과했다 → **55** 로 올렸다) | `history_current.md` 반복 773~777 · `index.md` `plan_dup-def-dead-twin` 행 · 계획 `docs/plan_history_100.md` · `docs/reports/night_2026-10-29.md`(🟢) |
-| 2026-10-27 반복 761~766 · 계획 124 `done-annot-archive-gap` (**아카이브 가드가 `완료(…)`·굵게를 완료로 읽고 계획서와 설계 문서를 둘 다 센다** — 어휘 판정을 다섯 자가 공유하는 `is_done` 으로 모았다 · `tests/test_docs.py` **+18건** · **제품 0줄** · 972 → **990 OK rc=0** · 변이 16판 중 14 죽음 · 2 등가 · 아카이브 백로그 **3건 → 0건**(「활성 계획」 셈 4 → 2 로 참값) · e2e 시나리오 4/4 · 마지막에 **이 가드가 제 계획서를 물었다**) | `history_107.md` 반복 761~766 · `index.md` `plan_done-annot-archive-gap` 행 · 계획 `docs/plan_history_098.md` · `docs/reports/night_2026-10-27.md`(🟢) |
-|---|---|
-| 2026-10-28 반복 767~772 · 계획 125 `report-name-pad-gap` (**날짜를 못 읽는 `night_*.md` 이름을 전수가 전부 모아 신고한다** — `REPORT_NAME` 이 0 패딩을 요구하는데 못 읽은 이름을 신고하는 자가 0개라 ⚪ 집계가 그 파일을 걸러 버렸다 · `tests/test_docs.py` **+8건** · **제품 0줄** · 990 → **998 OK rc=0** · 변이 8판 중 7 죽음 · 1 등가 · e2e 시나리오 4/4 · 리뷰 백지 패스가 **사전순 중간에 숨은 결손**을 찾았다) | `history_current.md` 반복 767~772 · `index.md` `plan_report-name-pad-gap` 행 · 계획 `docs/plan_history_099.md` · `docs/reports/night_2026-10-28.md`(🟢) |
-| 2026-10-26 반복 756~760 · 계획 123 `signal-vocab-nail` (**`signal:` 어휘를 전수가 센다** — `signal_gap` · `tests/test_docs.py` **+16건** · **제품 0줄** · 956 → **972 OK rc=0** · 변이 **20판 중 19 죽음 · 1 등가**. 갭 분석이 **어제 만든 자 안에서 「조용한 초록」을 잡았고**(산문의 `signal:` 인용이 head 로 들어왔다) 리뷰 백지 패스가 6건을 더 줬다 — 콜론 뒤 공백이 하나가 아니면 게이트가 못 읽는데 자는 초록이던 [R123-4] 가 가장 심했다. **게이트 ⑲ 가 ㉠ 으로 닫힌 것을 읽어서 확인한 밤**이다) | `history_106.md` 반복 756~760 · `index.md` `plan_signal-vocab-nail` 행 · `docs/reports/night_2026-10-26.md`(🟡) · 계획 `docs/plan_history_097.md`(**아직 `docs/` 에 산다** — 계획 124 스텝 1 이 치운다) |
-| 게이트 **⑱** 의 원문 (2026-10-23 반복 753 ~ 2026-10-26) — **사람이 2026-10-26 에 ㉢ 을 골라 닫았다**: `NightReportSignalTest` 가 `docs/reports/` 가 «없으면» 건너뛴다(폴더가 있는데 0건이면 여전히 문다 · `85bc13d`). 122·123 이 함께 병합됐고 푸시 경로도 열렸다 | `digest.md` `## 보류` 의 `plan_pin-rot-nail` 줄 · `index.md` 두 완료 행 · 설계 `docs/design_history_096.md`(**아직 `docs/` 에 산다** — 계획 124 스텝 1 이 치운다) · `history_106.md` 반복 748~760 |
-| 게이트 **⑲** 해소 서술 12줄 (2026-10-26 반복 756 — 사람이 `o-search-autoloop.sh` 에서 ㉠ 을 골랐다: 승인 조건에 `signal:` 이 들어가고 병합이 분리 워크트리에서 돈다. 남은 것은 ⓑ 뿐 — 병합·푸시 실패가 저장소 밖 로그에만 적힌다) | `history_106.md` 반복 755·756 · `docs/reports/night_2026-10-25.md`(🔴)·`night_2026-10-26.md` · `digest.md` 후보 `[8]` |
-| 게이트 **⑮·⑯** 병합 해소 5줄 (2026-10-21 반복 744 실측 — 둘 다 `main` 에 들어 있다 · 병합 커밋 `996b5fd`) | `history_106.md` 반복 744 · `index.md` 두 슬러그 행 |
-| 게이트 **⑤**(0건 판정 줄의 `OK`) 해소 2줄 · 게이트 **⑨**(launchd 에이전트 둘) 해소 11줄 · 게이트 **⑪**(`loop/e2e-roster` 갈림) 해소 1줄 — 셋 다 닫혔고 서술만 길었다 | `history_current.md` 반복 640(⑤)·575(⑪) · `docs/digest.md` · ⑨ 는 `~/.local/bin/o-search-autoloop.sh` 주석과 `launchctl list` 가 실물 |
-| 2026-10-23 반복 748~753 · 계획 122 `pin-rot-nail` (**빈손 대조 핀이 썩는 것을 재는 자**를 세웠다 — `pin_rot_gap`+`signal_row_gap` · `tests/test_docs.py` **+17건** · **제품 0줄** · 전수 956 OK · 변이 16판 전부 죽음. 리뷰 백지 패스가 **조용한 죽음 하나**를 잡았다(값을 굵게 감싸면 그 밤이 빈손으로 안 세어졌다). **e2e 가 보류로 물었다** — 시나리오 4/4 통과인데 `git archive HEAD` 사본에 `docs/reports/` 가 없어 **가드의 입력이 트리 밖**이고 다른 체크아웃에선 거짓 RED 다. 갈림 ㉠/㉡/㉢ 은 **게이트 ⑱**. **2026-10-24 에 이 가드가 처음 실전에서 물었다** — 위 「빈손 대조 핀」 절) | `history_106.md` 반복 748~753 · `digest.md` `## 보류` 의 `plan_pin-rot-nail` 줄 · 계획 `docs/plan_history_096.md` · 설계 `docs/design_history_096.md` · 결과서 `docs/e2e/pin-rot-nail/result.md` |
-| 2026-10-20 반복 736~743 · 계획 120 `passage-consume-census` (근거 문단 **소비** 축을 재는 자를 세웠다 — `e2e/passage_consume.py` · 동결 모집단 · 테스트 33건 · **제품 0줄**. 상한 **44.4%**(분자 12/분모 27)이고 나가는 근거가 TOC 한 줄이라 후보 `[5]`→`[6]` 을 **열었다**. 교훈 둘이 같은 것 — 「재는 자가 죽었는데 초록이다」: census 첫 판이 정렬 깨짐을 버려 6문서를 3으로 셌고, 테스트 파일 `__main__` 가드가 중간에 있어 26건 중 10건만 돌았다(빠진 16건이 전부 음성 대조). 병합 끝) | `history_105.md` 반복 736~743 · `index.md` `plan_passage-consume-census` 행 · 결과서 `docs/e2e/passage-consume-census/result.md` · 계획 `docs/plan_history_095.md` |
-| 2026-10-19 반복 733~735 · 계획 119 `nested-anchor-prose` (**안 열었다** — 스텝 1 이 여는 조건이었고 안 섰다: 실물 1,000 표본 0 · census 20,000문서 「더끊음」 0 · 95% 상한 약 0.015%. **죽은 측정기의 0 이 아니다** — 같은 판이 반대 방향 6문서·53블록을 집어 후보 `[6]` 으로 등재했고 계획 120 이 그것을 열었다. 제품 0줄 · 병합) | `history_105.md` 반복 733~735 · `index.md` `plan_nested-anchor-prose` 행 |
-| 2026-10-18 반복 726~732 · 계획 118 `trailing-prose-join` (천장 ⓐ-b 를 `_flush` 한 곳 판정으로 닫았다 · 실물 97블록/43문서 → 0/0 · 병합) | `history_current.md` 반복 726~732 · `index.md` `plan_trailing-prose-join` 행 · 설계 `docs/design_history_093.md` |
-| 2026-10-15 반복 710~715 · 계획 116 `prose-link-boundary` (산문이 링크 **앞** 에 오는 천장 ⓐ · 짧아진 근거 0건 · 병합) | `history_current.md` 반복 710~715 · `index.md` `plan_prose-link-boundary` 행 |
-| 2026-10-17 반복 718~725 · 계획 117 `passage-real-sample` (동결 표본·측정기 · 제품 0줄 · `0596476` 병합) | `history_103.md` 반복 718~725 · `index.md` `plan_passage-real-sample` 행 |
-| **2026-09-18 ~ 2026-10-12 의 짧은 서술 12줄을 한 줄로 합쳤다** (2026-10-27 반복 761 — `ReadBudgetTest` 여유가 3줄이라 접었다): 계획 114 `opened-title-drop`(반복 697~701) · 짧은 경로 `gap-nail-census`(679) · `delay-floor-jitter`(677) · `candidate-36-closed`(676) · 빈손 밤(674) · 계획 111 설계(666~667) · 마감(664~665) · 계획 110 `bare-citation` · 109 `citation-alive` · 108 `merge-verdict` · 100 `robots-nonascii` · 103·104·105 마감 | `history_current.md` 반복 674~701 · `history_096.md` 반복 664~667(2026-10-07 회전) · `index.md` 의 같은 슬러그 행들(`plan_history_085.md`·`plan_history_086.md` 포함) |
-| 2026-10-24 반복 754 빈손 밤 서술(핀 가드 첫 실전·탐색 재측정) | `history_106.md` 반복 754 · `docs/reports/night_2026-10-24.md`(⚪) |
-| 2026-10-25 반복 755 서술(푸시 차단 발견 · 게이트 ⑲ 신설 · 예산 궁핍이 거짓이었던 것 · 핀 후보 못박기) | `history_106.md` 반복 755 · `docs/reports/night_2026-10-25.md`(🔴) · 아래 **게이트 ⑲** 본문 |
-| 게이트 ⑲ 의 **닫히기 전 원문** 21줄 (2026-10-26 반복 759 접음 — `ReadBudgetTest` 가 606 > 600 으로 물었다) | `history_106.md` 반복 755 · `docs/reports/night_2026-10-25.md` · `digest.md` 후보 `[8]` (셋 다 실재 확인) |
-| 2026-10-07 반복 680~687 계획 112 `doc-cite-roots` | `history_current.md` 반복 680~687 · `index.md` `plan_doc-cite-roots` 행 · 설계는 `docs/design_history_087.md` |
-| 2026-09-14 반복 586·592 경고 축 측정(`-W always` 값표) | 아래 **사람 결정 ⑫** 본문이 값표까지 들고 있다 · `digest.md` 후보 `[7]` |
-| 게이트 ⑨ 네 번째 피해 서술 + 반복 563 `loop/seed-tier2` 사고 | 아래 **사람 결정 ⑨** 본문(㉯·㉰ 닫힘 · ㉮ 만 사람 몫) |
-
-접은 뒤 `status.md` **383 → 253 → 157 → 193 → 209 → 241 → 175줄**. **필수 읽기 합계는 `ReadBudgetTest` 가 센다** — 세는 것은 `status.md`·`project.md`·`history_current.md` **와 활성 계획서 넷뿐이고 `digest.md` 는 안 센다**(`READ_BUDGET_FILES` 가 셋이고 `tests/test_docs.py` 가 그 셋을 동결한다). 이 반복은 계획서 131줄이 합계에 새로 들어와 **623 > 600** 이 될 자리였고, 그래서 접은 것이다 — 접은 줄은 전부 위 표가 원본을 댄다(실재 확인).
+`ReadBudgetTest` 가 합계 **621 > 600** 으로 물어서 접었다. `rules/docs.md` 1절대로
+**원본이 있는 것을 하나씩 확인한 뒤**에만 지웠다 — 계획 121~131 의 밤 요약 11행은
+`docs/history_096.md`·`103`·`105`·`106`·`107`·`history_current.md` 의 `### 반복 N` 항목 ·
+`docs/index.md` 완료 행 · `docs/reports/night_2026-10-24.md`~`night_2026-10-29.md` 에 있다
+(11개 파일 **전부 존재 확인**). 가장 최근 둘은 `night_2026-11-01.md`·`night_2026-11-02.md` 다.
 
 ## 빈손 대조 핀 — 기준 트리 `8e56457` (2026-10-24 반복 754 에 옮겼다)
 
