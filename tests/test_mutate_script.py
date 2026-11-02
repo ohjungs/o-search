@@ -200,17 +200,26 @@ class MutateApplyTest(unittest.TestCase):
         self.target = pathlib.Path(self.dir.name, "대상.py")
         self.target.write_text("머리\n앵커\n꼬리\n", encoding="utf-8")
         self.marker = pathlib.Path(self.dir.name, "본것.txt")
+        self.tally = pathlib.Path(self.dir.name, "판수.txt")
 
     def seeing(self, rc):
         """대상 파일을 **실행 시점에** 베껴 두고 주어진 코드로 끝나는 명령."""
         return [sys.executable, "-c",
                 "import pathlib,sys;p,m,r=sys.argv[1:4];"
-                "pathlib.Path(m).write_text(pathlib.Path(p).read_text());"
+                "f=pathlib.Path(m);"
+                "f.write_text((f.read_text() if f.exists() else '')"
+                "+pathlib.Path(p).read_text());"
                 "sys.exit(int(r))",
                 str(self.target), str(self.marker), str(rc)]
 
     def test_a_dying_mutant_is_zero(self):
-        rc, last, out, _ = mutate(self.target, "앵커", "변이", self.seeing(1))
+        """**픽스처를 고쳤다 — 옛 것(`seeing(1)`)은 더 이상 죽음이 아니다.**
+
+        무조건 실패하는 명령은 이 계획이 닫는 **거짓 죽음 그 자체**라서 무해 대조판
+        에서도 빨갛고 `2` 로 떨어진다. 즉 이 저장소의 「죽음」 픽스처가 **그 구멍을
+        스스로 품고 있었다.** 죽음은 「원본에서 초록이고 변이에서만 빨강」이다.
+        """
+        rc, last, out, _ = mutate(self.target, "앵커", "변이", self.biting("변이"))
         self.assertEqual(0, rc, "%s\n%s" % (last, out))
         self.assertIn("rc=0", last)
 
@@ -227,9 +236,163 @@ class MutateApplyTest(unittest.TestCase):
         self.assertEqual(1, survived)
         self.assertEqual(2, refused)
 
+    def biting(self, needle):
+        """대상 파일에 `needle` 이 **있을 때만** 실패하는 명령. 판 수를 센다.
+
+        **`seeing(1)` 은 더 이상 「죽음」을 흉낼 수 없다** — 무조건 실패하는 명령은
+        이 계획이 닫는 **거짓 죽음 그 자체**라서 무해 대조판에서도 빨갛고 `2` 로
+        떨어진다. 죽음은 「원본에서 초록이고 변이에서만 빨강」이다.
+
+        `needle=""` 로 부르면 `"" in s` 가 늘 참이라 **무조건 실패**가 된다 —
+        옛 픽스처를 한 helper 로 함께 든다.
+        """
+        return [sys.executable, "-c",
+                "import pathlib,sys;p,m,t,n=sys.argv[1:5];"
+                "s=pathlib.Path(p).read_text();"
+                "pathlib.Path(m).write_text(s);"
+                "f=pathlib.Path(t);f.write_text((f.read_text() if f.exists() else '')+'x');"
+                "sys.exit(1 if n in s else 0)",
+                str(self.target), str(self.marker), str(self.tally), needle]
+
+    def touchy(self, original):
+        """**건드린 것만으로** 빨개지는 명령 — `tests/test_docs.py` 의 `ScopeTest` 흉내다.
+
+        원본과 바이트가 같으면 초록, 한 바이트라도 다르면 빨강이다. 그 자가 읽는 것이
+        `git diff --name-only` 의 **파일 집합**이라 **무엇으로 바꿨는지와 무관**한 것과
+        같은 성질이다. **이 꼴이 ㉡(심기 전 베이스라인)으로 못 잡히는 자리다** —
+        건드리기 전에는 초록이라 베이스라인 검사를 통과한 뒤 「죽음」이 난다.
+        """
+        return [sys.executable, "-c",
+                "import pathlib,sys;p,t,o=sys.argv[1:4];"
+                "f=pathlib.Path(t);f.write_text((f.read_text() if f.exists() else '')+'x');"
+                "sys.exit(0 if pathlib.Path(p).read_bytes()==o.encode('utf-8') else 1)",
+                str(self.target), str(self.tally), original]
+
+    def runs(self):
+        """대조판을 넣은 뒤 명령이 **몇 판** 돌았나."""
+        return len(self.tally.read_text(encoding="utf-8")) if self.tally.exists() else 0
+
+    def test_a_command_red_on_any_touch_is_not_measured(self):
+        """**이 계획의 머리** — 2026-11-03 반복 805 가 실물로 재현한 거짓 죽음이다.
+
+        칸 밖 파일에 docstring 산문 한 낱말을 더하고 전수를 돌리니 `ScopeTest` 가
+        빨개져 `── 변이 **죽음** … rc=0` 이 났다(실측 · 역추적으로 범인 확정).
+        뜻이 없는 변경인데 「이 자리를 무는 테스트가 있다」로 읽혔다.
+        """
+        original = self.target.read_text(encoding="utf-8")
+        rc, last, out, _ = mutate(self.target, "앵커", "변이", self.touchy(original))
+        assert_verdict(self, rc, 2, last, out)
+        self.assertIn("변이의 뜻과 무관하게", last)
+        self.assertNotIn("죽음", last, "거짓 죽음을 죽음과 같은 말로 적었다")
+
+    def test_a_command_red_without_the_mutation_is_not_measured(self):
+        """㉡ 이 닫으려던 **일반형**도 같은 분기가 닫는다 — 이미 빨간 명령·오타·누락."""
+        rc, last, out, _ = mutate(self.target, "앵커", "변이", self.biting(""))
+        assert_verdict(self, rc, 2, last, out)
+
+    def test_death_and_touch_blindness_never_share_an_exit_code(self):
+        """「죽음」과 「건드림 때문이었다」가 **같은 코드로 나오는 길이 없다.**
+
+        `test_survival_and_refusal_never_share_an_exit_code` 와 같은 벽이고,
+        이 계획은 그것을 판정의 **반대쪽**에 세운다.
+        """
+        original = self.target.read_text(encoding="utf-8")
+        died, _, _, _ = mutate(self.target, "앵커", "변이", self.biting("변이"))
+        blind, _, _, _ = mutate(self.target, "앵커", "변이", self.touchy(original))
+        self.assertEqual(0, died)
+        self.assertEqual(2, blind)
+
+    def chmod_on_second(self):
+        """**두 번째 판에서만** 파일 쓰기를 막는다 — 대조판의 복원이 깨지는 현실 경로다.
+
+        첫 판(변이)에서는 트리가 멀쩡해 `apply_and_run` 의 복원이 돌고, 둘째 판
+        (대조)에서 `0444` 가 걸려 대조판의 복원이 깨진다. 그 순서라야 「죽음이 났고
+        그 다음 대조판을 재지 못했다」가 재현된다.
+        """
+        return [sys.executable, "-c",
+                "import os,pathlib,sys;p,t=sys.argv[1:3];"
+                "f=pathlib.Path(t);n=(f.read_text() if f.exists() else '')+'x';"
+                "f.write_text(n);"
+                "os.chmod(p, 0o444) if len(n) > 1 else None;"
+                "sys.exit(1)",
+                str(self.target), str(self.tally)]
+
+    @unittest.skipIf(hasattr(os, "geteuid") and os.geteuid() == 0,
+                     "root 는 0444 에도 쓸 수 있어 이 축을 못 재운다")
+    def test_an_unmeasurable_control_is_not_a_death(self):
+        """**이 계획의 병이 새 코드 안에서 되살아나던 자리다** — 변이 M5 가 살아남았다.
+
+        대조판을 **재지 못했는데** 그것을 「죽음」으로 읽으면, 재지 못한 것이 다시
+        판정으로 둔갑한다 — 계획 132 가 닫은 것과 **같은 병**이다(2026-11-03 반복 808
+        변이 실측: `if blind is None:` 가드를 끄면 `None` 이 거짓이라 **죽음 `0`** 이
+        나간다). 복원 실패는 `!!` 로 외치고 판정은 **내지 않는다.**
+        """
+        self.addCleanup(lambda: self.target.chmod(0o644))
+        rc, last, out, err = mutate(self.target, "앵커", "변이", self.chmod_on_second())
+        assert_verdict(self, rc, 2, last, out)
+        self.assertIn("대조판의 복원이 깨졌다", last)
+        self.assertIn("손으로", last, "더러운 트리를 판정 줄이 말하지 않는다")
+        self.assertNotIn("죽음", last, "재지 못한 것을 죽음으로 적었다")
+        self.assertTrue(err.strip(), "stderr 가 조용하다")
+
+    def test_the_refusal_names_the_ways_out_without_asserting_a_cause(self):
+        """거부 문구가 **할 일을 말하는가** — 이 저장소 최다 재발의 반대쪽이다.
+
+        `[R131-2]` 계열의 사고는 「실패 메시지가 틀린 방향을 알려준다」였다. 「건드린
+        것만으로 빨갛다」는 관찰만으로는 호출자가 할 일을 모른다 — 길이 둘뿐이고
+        (㉠ 대상 모듈만 돌린다 · 칸에 그 파일을 적는다) 설계가 그 둘을 명시했다.
+        문구가 흐려지면 자는 조용히 쓸모를 잃는다.
+
+        **실물 합성으로는 안 잰다** — 「칸 밖 추적 파일을 변이하면 전수가 빨개진다」를
+        단위 스위트 안에서 재려면 **추적되는 파일을 건드려야** 한다(2026-11-03 반복 807
+        이 손으로 실측했다: 같은 판이 반복 805 엔 `rc=0` 죽음 · 지금은 `rc=2`).
+        그것을 전수 안에 두면 매 실행이 트리를 흔들고 테스트 순서에 기대게 된다 —
+        데이터 안전이라 사다리로 타협하지 않는다(`rules/dev.md` 2절). 실물 합성은
+        e2e phase 가 `docs/e2e/mutant-baseline-red/result.md` 에서 잰다.
+        """
+        original = self.target.read_text(encoding="utf-8")
+        for cmd in (self.touchy(original), self.biting("")):
+            _, last, _, _ = mutate(self.target, "앵커", "변이", cmd)
+            for 길 in ("원본에서 초록인지", "대상 모듈만 돌린다", "칸에 그 파일을 적는다"):
+                self.assertIn(길, last)
+            self.assertNotIn("건드린 것만으로", last,
+                             "대조판 한 판으로는 못 가르는 원인을 단정했다")
+
+    def test_the_control_does_not_run_when_the_mutant_survives(self):
+        """**생존 경로의 비용은 0 이다** — 설계 계약 2번.
+
+        생존은 「변이를 심은 채로 초록이 났다」이고, 그것이 이미 「이 파일을 건드리는
+        것은 빨강을 만들지 않는다」의 증명이라 대조판이 필요 없다.
+        """
+        rc, last, out, _ = mutate(self.target, "앵커", "변이", self.biting("없는것"))
+        assert_verdict(self, rc, 1, last, out)
+        self.assertEqual(1, self.runs(), "생존인데 대조판이 돌았다")
+
+    def test_the_control_runs_once_on_death(self):
+        """죽음일 때만 **한 판** 더 돈다 — 두 판도 세 판도 아니다."""
+        rc, last, out, _ = mutate(self.target, "앵커", "변이", self.biting("변이"))
+        assert_verdict(self, rc, 0, last, out)
+        self.assertEqual(2, self.runs())
+
+    def test_the_file_is_restored_after_the_control_run(self):
+        """쓰기 주기가 둘이 됐어도 **복원 계약은 안 깨진다** — 설계 계약 4번."""
+        before = self.target.read_bytes()
+        original = self.target.read_text(encoding="utf-8")
+        for cmd in (self.biting("변이"), self.touchy(original), self.biting("")):
+            mutate(self.target, "앵커", "변이", cmd)
+            self.assertEqual(before, self.target.read_bytes())
+
     def test_the_command_sees_the_mutated_file(self):
+        """**두 판을 함께 잰다** — 1판은 변이본을, 2판(대조)은 원본+개행 하나를 본다.
+
+        `marker` 를 덮어쓰기로 두면 죽음 경로에서 대조판이 1판의 기록을 지워 「명령이
+        변이본을 본다」를 이 자리에서 못 짚는다(백지 패스가 범위 축소로 짚었다).
+        **이어쓰기로 바꾸니 계약 둘이 한 단언에 박힌다** — 변이 가시성과 「대조 편집은
+        원본 끝에 개행 **하나**」다. 개행을 둘로 바꾸는 변이가 전에는 살아 있었다.
+        """
         mutate(self.target, "앵커", "변이", self.seeing(1))
-        self.assertEqual("머리\n변이\n꼬리\n", self.marker.read_text(encoding="utf-8"))
+        self.assertEqual("머리\n변이\n꼬리\n" + "머리\n앵커\n꼬리\n\n",
+                         self.marker.read_text(encoding="utf-8"))
 
     def test_the_file_is_restored_byte_for_byte(self):
         before = self.target.read_bytes()
