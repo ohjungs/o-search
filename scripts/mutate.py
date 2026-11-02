@@ -149,11 +149,12 @@ def control_red(target, original, cmd):
     ponytail: (파일·명령) 쌍마다 매번 다시 돈다 — 한 파일로 열아홉 판을 돌리는 밤이면
     대조판도 열아홉 번이다. 캐시는 상태를 들여오는 일이라 근거가 생기면 그때 둔다.
     """
+    # `except OSError` 를 두지 않는다 — `main()` 의 바닥 그물이 어떤 예외든 **같은 `2`**
+    # 로 돌리므로 여기서 받으면 분기만 늘고 재는 자가 0개가 된다(변이 M4 가 실제로
+    # 살아남았다 · 2026-11-03 반복 808). `finally` 가 복원을 돌린 뒤 예외가 올라간다.
     try:
         target.write_bytes(original + b"\n")
         red = subprocess.run(cmd).returncode != 0
-    except OSError:
-        red = None
     finally:
         try:
             target.write_bytes(original)

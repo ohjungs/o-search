@@ -300,6 +300,38 @@ class MutateApplyTest(unittest.TestCase):
         self.assertEqual(0, died)
         self.assertEqual(2, blind)
 
+    def chmod_on_second(self):
+        """**두 번째 판에서만** 파일 쓰기를 막는다 — 대조판의 복원이 깨지는 현실 경로다.
+
+        첫 판(변이)에서는 트리가 멀쩡해 `apply_and_run` 의 복원이 돌고, 둘째 판
+        (대조)에서 `0444` 가 걸려 대조판의 복원이 깨진다. 그 순서라야 「죽음이 났고
+        그 다음 대조판을 재지 못했다」가 재현된다.
+        """
+        return [sys.executable, "-c",
+                "import os,pathlib,sys;p,t=sys.argv[1:3];"
+                "f=pathlib.Path(t);n=(f.read_text() if f.exists() else '')+'x';"
+                "f.write_text(n);"
+                "os.chmod(p, 0o444) if len(n) > 1 else None;"
+                "sys.exit(1)",
+                str(self.target), str(self.tally)]
+
+    @unittest.skipIf(hasattr(os, "geteuid") and os.geteuid() == 0,
+                     "root 는 0444 에도 쓸 수 있어 이 축을 못 재운다")
+    def test_an_unmeasurable_control_is_not_a_death(self):
+        """**이 계획의 병이 새 코드 안에서 되살아나던 자리다** — 변이 M5 가 살아남았다.
+
+        대조판을 **재지 못했는데** 그것을 「죽음」으로 읽으면, 재지 못한 것이 다시
+        판정으로 둔갑한다 — 계획 132 가 닫은 것과 **같은 병**이다(2026-11-03 반복 808
+        변이 실측: `if blind is None:` 가드를 끄면 `None` 이 거짓이라 **죽음 `0`** 이
+        나간다). 복원 실패는 `!!` 로 외치고 판정은 **내지 않는다.**
+        """
+        self.addCleanup(lambda: self.target.chmod(0o644))
+        rc, last, out, err = mutate(self.target, "앵커", "변이", self.chmod_on_second())
+        assert_verdict(self, rc, 2, last, out)
+        self.assertIn("대조판", last)
+        self.assertNotIn("죽음", last, "재지 못한 것을 죽음으로 적었다")
+        self.assertTrue(err.strip(), "stderr 가 조용하다")
+
     def test_the_refusal_names_both_ways_out(self):
         """거부 문구가 **할 일을 말하는가** — 이 저장소 최다 재발의 반대쪽이다.
 
