@@ -2679,6 +2679,32 @@ class OpenGapTest(unittest.TestCase):
         self.assertIn("취소선이 없다", gap)
         self.assertIn("겉 「속", gap)
 
+    def test_the_pick_regex_reads_a_quoted_section_name(self):
+        """정규식에 **직접** 못을 박는다 — 위 두 축은 픽스처 상수를 거쳐서만 잰다.
+
+        2026-11-04 변이 M4 가 그것을 보였다: `QUOTED_ROW` 의 절 이름을 백틱 꼴로
+        바꿔도 **전수가 초록**이다(백틱 꼴은 완화 전에도 뽑히므로 그 축이 그대로
+        통과한다). 픽스처가 상해도 **완화 자체는** 여기서 붙들린다.
+        """
+        hit = OPENED_PICK.search("`digest.md` 「다음 계획 후보」 `[7]`「어떤 자리」")
+        self.assertIsNotNone(hit, "절 이름을 낫표로 닫은 꼴에서 제목이 안 뽑힌다")
+        self.assertEqual("어떤 자리", hit.group(1))
+        # 뒤에 낫표가 **또 오는** 실물 꼴. `[^」]+` 를 탐욕 `.+` 로 바꾸면 제목이 줄
+        # 끝까지 먹어 `title in line` 이 어긋나고 그 완료 행이 모집단에서 **조용히
+        # 빠진다** — 이 계획이 닫은 병과 같은 꼴이다(2026-11-04 변이 M5 생존).
+        hit = OPENED_PICK.search(
+            "`digest.md` 「다음 계획 후보」 `[7]`「어떤 자리」 를 집었다 「덧말」")
+        self.assertEqual("어떤 자리", hit.group(1))
+
+    def test_an_empty_title_is_not_a_title(self):
+        """빈 낫표는 제목이 아니다 — 받으면 판정이 **엉뚱한 줄**로 간다.
+
+        `""` 는 모든 줄의 부분 문자열이라 `open_gap` 의 대조가 후보 절의 **첫 줄**에
+        붙는다. 그 줄이 그어져 있으면 거짓 초록, 안 그어져 있으면 **남의 제목을 대는**
+        거짓 RED 다. 2026-11-04 변이 M3(`[^」]+` → `[^」]*`)이 생존해서 박았다.
+        """
+        self.assertIsNone(OPENED_PICK.search("`digest ## 다음 계획 후보` 의 `[7]`「」"))
+
     def test_the_backtick_form_still_reads(self):
         """백틱으로 닫은 기존 꼴의 판정이 **안 바뀐다** — 완화의 회귀 못이다.
 
