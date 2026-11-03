@@ -1,19 +1,19 @@
 ---
 signal: GREEN
-phase: 개발
-step: 0/1
+phase: 테스트
+step: 1/1
 attempt: 1
 plan: opened-pick-quoted  # 계획 **133** · 기점 `9bdfff0` = `main` · 계획서 `docs/plan_opened-pick-quoted.md`
-iteration: 812
+iteration: 813
 updated: 2026-11-04
 mode: 무인(night)  # 2026-11-04 `/loop-harness night` — 탐색 모드 · 이 밤 시작에 `night_*` 넷 리셋했다
-night_iterations: 1
+night_iterations: 2
 night_red: 0
 night_retries: 0
 night_self_amendments: 0
 ctx: **열나흘 연속 같은 자리다 (게이트 ⑦).** `.context-state.json` 의 `updated_unix` 가 `1793516588`(2026-11-01 16:03)에 **멈춘 채**다 — 지금이 `1793729846` 이라 **59시간 낡았고**, `session_id` `8601ae25` 도 이 세션이 아니다. 10분 규칙·남의 세션 규칙 **둘 다** 걸리므로 statusLine 이 꺼진 것과 동일 취급이고, 거기 적힌 ctx 10·5h 13·7d 12 는 85 판정의 근거가 못 된다. **이 밤도 반복 상한(60)에만 의존한다.**
 rules: 34cae75   # `git -C ~/.claude log -1 --format=%h -- skills/loop-harness`
-note: **[🟢 계획 phase 완료 · 계획 133 착수]** 반복 **812** · 계획 **133 `opened-pick-quoted`** · 브랜치 `loop/opened-pick-quoted`(기점 `9bdfff0` = `main`). **근거는 후보 등재가 아니라 「자가 조용한 것」이다** — `digest.md` 「다음 계획 후보」 절의 `[7]`「변이 하네스의 … «어디에» 심겼는지는 안 본다」가 계획 131 이 닫은 지 **사흘인데 취소선이 없고**(그 행의 상태 칸은 `완료`), 그 자리를 보라고 세워 둔 `open_gap` 이 `None` 을 낸다. **착수 전 실측 넷**: ① 착수 관용구를 단 완료 행 **49** 중 제목 추출 **10** · 못 뽑음 **39** ② 못 뽑은 꼴 중 「절 이름을 `」` 로 닫은」 꼴이 **2**(`OPENED_PICK` 이 `` 후보`? `` 로 **백틱만** 받는다) ③ 그 둘의 실물 판정 **취소선 O 1 · X 1 → 피해 1건** ④ 완화안 `` [`」]? `` 는 추출 **10→12** · **거짓 양성 0건** 으로 필요한 둘만 집는다. **재발이고 원인이 다르다** — `digest.md` 의 `archive_gap` 중복 정의 후보 줄이 적은 첫 사례(`dup-def` 가 나흘 열려 있었다)의 단정 원인은 「점수로만 가리켜 제목을 못 뽑는다」였는데 **오늘 건은 제목을 적었는데도 안 뽑혔다.** **설계 생략** — 트리거 0(새 파일 0·공개 계약 불변·파일 3개 미만·되돌리기 한 글자)이고 대안 갈림은 착수 전 실측이 닫았다. **짧은 경로가 아니다** — 파일 3개(`tests/test_docs.py`·`docs/digest.md`·`README.md`)라 상자 밖이고, 「애매하면 평소 경로」를 따랐다. **README 를 칸에 적었다** — 단위 수가 바뀌므로 `UNIT_COUNT` 가 기계적으로 강제한다(이 저장소 최다 재발 `[R129-5]` 계열 · 계획 130 의 `scope_gap` 이 이제 문다). **스텝 하나짜리 계획이다** — 자를 넓히면 그 즉시 실물이 빨개지므로 넓히기와 그 한 줄 마감이 같은 스텝에서 끝나야 전수가 초록으로 닫힌다.
+note: **[🟢 개발 1/1 완료 · 존재 증명을 받았다]** 반복 **813** · 계획 **133 `opened-pick-quoted`** · `phase: 테스트`. 스텝 1 의 다섯 조건을 **순서대로 전부** 통과했다 — ① TDD 둘이 먼저 빨갰다(`FAILED (failures=1, errors=1)` · 회귀 못 `test_the_backtick_form_still_reads` 는 그 판에서도 초록) ② `OPENED_PICK` 의 `` `? `` → `` [`」]? `` **한 자리** · `OpenGapTest` **13건 전부 초록** ③ **완화 직후 `OpenSyncTest` 가 실물에서 빨개졌다** — 「집어간 후보에 취소선이 없다 — index.md `plan_mutant-anchor-unique` 는 `완료` 인데 digest 후보 줄 「변이 하네스의 「심긴 것을 먼저 단언한다」 가 `- ~~` 로 시작하지 않는다」. **이것이 이 계획의 존재 증명이다** — 자를 넓히기 전에는 같은 트리에서 `None` 이었다 ④ 그 후보 줄에 취소선 + 마감 관용구(`mutant-anchor-unique`) · `OpenSyncTest`·`FalseStrikeSyncTest`·`StrikeSyncTest` 넷 초록 ⑤ 전수 1102 → **1105 OK rc=0**. **README 가 예정대로 물었다** — 단위 장부 `1,102` → `1,105`(칸에 적어 둔 그대로 · `scope_gap` 조용). **diff 는 세 파일 +64/-3** · `tests/test_docs.py` 추가 63줄 중 주석·docstring 밖 **37** 로 무인 한도 40 **안**이고 **제품 `src/` 0줄**. **천장 하나를 못만 박고 안 고쳤다** — 중첩 낫표 제목은 `[^」]+` 가 첫 `」` 에서 멈춰 **접두만** 뽑히는데 대조가 부분 문자열이라 실물 적중 1/1 이다(`test_a_quoted_title_with_an_inner_pair_matches_by_its_prefix`). **다음 반복(테스트 phase)이 할 일**: 변이로 완화 한 자리와 새 테스트 셋을 흔들고, 못 뽑히는 나머지 37행 중 「절 이름이 아예 없는」 꼴 22개가 **여전히 조용한 것**을 갭으로 등재한다.
 ---
 
 ## 이 밤 (2026-11-04) — 🟢 진행 · 계획 133 착수 (반복 812~)

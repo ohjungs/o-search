@@ -186,7 +186,14 @@ OPENED_START = re.compile(r"탐색\s*\*{0,2}\d+순위")
 # 인용 행은 완화 전후 모두 그냥 뽑힌다(2026-10-12 실측: `탐색 6순위` + `` `[7]`「예시
 # 제목」 꼴로 적는다 `` 를 심으니 「예시 제목」이 추출된다). 실물에 그 꼴은 **0행**이고
 # 점수를 선택으로 만든 것이 이 축을 넓히지도 않았다(조임판도 똑같이 뽑는다).
-OPENED_PICK = re.compile(r"다음 계획 후보`?\s*(?:의|에서)?\s*"
+# 절 이름 뒤는 `` ` `` 와 `」` **둘 다** 받는다 — 실물이 `` `digest ## 다음 계획 후보` ``
+# 와 `` `digest.md` 「다음 계획 후보」 `` 두 꼴로 적는다. 백틱만 받던 판은 뒤엣것에서
+# 닻이 안 붙어 **제목을 적었는데도** 조용히 빠졌다(2026-11-04 반복 812 실측: 착수
+# 관용구를 단 완료 행 49 중 추출 10 · 못 뽑음 39 · 그중 이 꼴 2 — 그 둘 중 하나가
+# 계획 131 이 사흘 전 닫은 후보를 **취소선 없이** 들고 있었고 전수 1102 가 초록이었다).
+# 완화의 오탐을 먼저 쟀다 — 추출 **10→12** · 거짓 양성 **0건** 이고 들어온 둘은 전부
+# 실물 후보 줄에 **1:1 로 적중**한다. 더 넓은 안(`[^「]{0,30}`)은 저울질하지 않았다.
+OPENED_PICK = re.compile(r"다음 계획 후보[`」]?\s*(?:의|에서)?\s*"
                          r"(?:`?\[(?:\d+|high|medium)\]`?\s*)?「([^」]+)」")
 # `digest` 취소선 줄이 다는 **마감 관용구**. `STRIKE_POINTER` 가 *열린* 줄에 요구하던
 # 「를 열었다」는 실물이 0으로 말랐지만(계획 111 의 근거) 이쪽은 **취소선 5줄 5/5** 가
@@ -2547,6 +2554,13 @@ class OpenGapTest(unittest.TestCase):
     SCORELESS_ROW = ("| plan_%s | 완료 | loop/x | 1/1 | 통과 | **99.** 탐색 **6순위** — "
                      "`digest ## 다음 계획 후보` 의 「%s」 를 집었다 |")
 
+    # 절 이름을 백틱이 아니라 **낫표로 닫은** 꼴. 실물에서 **둘**이 이렇게 적는다
+    # (2026-11-04 반복 812 실측: 착수 관용구를 단 완료 행 49 중 제목 추출 10 ·
+    # 못 뽑음 39 · 그중 이 꼴이 2 — `plan_plan-scope-gap`·`plan_mutant-anchor-unique`).
+    # 그 둘 중 하나가 **닫힌 지 사흘 된 후보를 열어 둔 채**였고 전수 1102 는 초록이었다.
+    QUOTED_ROW = ("| plan_%s | 완료 | loop/x | 1/1 | 통과 | **99.** 탐색 **6순위** — "
+                  "`digest.md` 「다음 계획 후보」 `[7]`「%s」 를 집었다 |")
+
     def _index(self, n=3, title="어떤 자리"):
         return "\n".join(self.ROW % ("s%d" % i, title) for i in range(n))
 
@@ -2625,6 +2639,53 @@ class OpenGapTest(unittest.TestCase):
         self.assertIsNotNone(gap, "점수 없는 완료 행이 모집단에서 빠져 열린 후보가 숨었다")
         self.assertIn("취소선이 없다", gap)
         self.assertIn("숨은 자리", gap)
+
+
+    def test_a_row_quoting_the_section_name_is_counted(self):
+        """절 이름을 **낫표로 닫은** 완료 행도 모집단에 든다.
+
+        바로 위 `SCORELESS_ROW` 축과 **같은 사고에 원인이 다르다** — 저쪽은 점수를
+        안 적어 못 뽑히고, 이쪽은 **제목을 적었는데도** 못 뽑힌다(절 이름 뒤가
+        `` ` `` 가 아니라 `」` 라 정규식의 닻이 안 붙는다). 실물의 조용한 초록을
+        그대로 재연한 자리다(2026-11-04: `plan_mutant-anchor-unique` 가 집어간
+        후보를 계획 131 이 닫았는데 취소선이 사흘 없었고 전수 1102 가 초록이었다).
+        """
+        index = "\n".join([self.ROW % ("s0", "닫힌 자리"),
+                           self.ROW % ("s1", "닫힌 자리"),
+                           self.QUOTED_ROW % ("s2", "숨은 자리")])
+        digest = ("## 다음 계획 후보\n\n"
+                  "- ~~[7] **닫힌 자리**~~ 닫혔다 — 계획 99 `s0`.\n"
+                  "- [7] **숨은 자리** (2026-11-04 실측)\n")
+        gap = open_gap(digest, index)
+        self.assertIsNotNone(gap, "절 이름을 낫표로 닫은 완료 행이 모집단에서 빠졌다")
+        self.assertIn("취소선이 없다", gap)
+        self.assertIn("숨은 자리", gap)
+
+    def test_a_quoted_title_with_an_inner_pair_matches_by_its_prefix(self):
+        """제목 안에 낫표가 또 있으면 **접두만** 뽑히는데 그래도 실물 줄을 찾는다.
+
+        `OPENED_PICK` 의 `[^」]+` 가 첫 `」` 에서 멈추므로 추출값이 제목의 접두다.
+        대조가 부분 문자열이라 **오늘 판정이 옳고**(실물 적중 1/1), 좁히면 안 뽑히던
+        줄을 다시 안 뽑는다. 천장으로 못만 박고 안 고친다 — 실물이 바로 이 꼴이다
+        (「변이 하네스의 「심긴 것을 먼저 단언한다」가 …」).
+        """
+        index = "\n".join([self.ROW % ("s0", "닫힌 자리"),
+                           self.ROW % ("s1", "닫힌 자리"),
+                           self.QUOTED_ROW % ("s2", "겉 「속」 뒤")])
+        digest = ("## 다음 계획 후보\n\n"
+                  "- ~~[7] **닫힌 자리**~~ 닫혔다 — 계획 99 `s0`.\n"
+                  "- [7] **겉 「속」 뒤** (2026-11-04 실측)\n")
+        gap = open_gap(digest, index)
+        self.assertIn("취소선이 없다", gap)
+        self.assertIn("겉 「속", gap)
+
+    def test_the_backtick_form_still_reads(self):
+        """백틱으로 닫은 기존 꼴의 판정이 **안 바뀐다** — 완화의 회귀 못이다.
+
+        실물 10행이 이 꼴이라, 문자 클래스를 넓히다 닻을 잘못 옮기면 그 열이
+        통째로 모집단에서 빠지고 이 자가 **하한 문구로** 조용해진다.
+        """
+        self.assertIn("취소선이 없다", open_gap(self.DIGEST % "어떤 자리", self._index()))
 
 
 class FalseStrikeGapTest(unittest.TestCase):
