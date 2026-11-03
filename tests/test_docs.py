@@ -186,7 +186,16 @@ OPENED_START = re.compile(r"탐색\s*\*{0,2}\d+순위")
 # 인용 행은 완화 전후 모두 그냥 뽑힌다(2026-10-12 실측: `탐색 6순위` + `` `[7]`「예시
 # 제목」 꼴로 적는다 `` 를 심으니 「예시 제목」이 추출된다). 실물에 그 꼴은 **0행**이고
 # 점수를 선택으로 만든 것이 이 축을 넓히지도 않았다(조임판도 똑같이 뽑는다).
-OPENED_PICK = re.compile(r"다음 계획 후보`?\s*(?:의|에서)?\s*"
+# 절 이름 뒤는 `` ` `` 와 `」` **둘 다** 받는다 — 실물이 `` `digest ## 다음 계획 후보` ``
+# 와 `` `digest.md` 「다음 계획 후보」 `` 두 꼴로 적는다. 백틱만 받던 판은 뒤엣것에서
+# 닻이 안 붙어 **제목을 적었는데도** 조용히 빠졌다(2026-11-04 반복 812 실측: 착수
+# 관용구를 단 완료 행 49 중 추출 10 · 못 뽑음 39 · 그중 이 꼴 2 — 그 둘 중 하나가
+# 계획 131 이 사흘 전 닫은 후보를 **취소선 없이** 들고 있었고 전수 1102 가 초록이었다).
+# 완화의 오탐을 먼저 쟀다 — 추출 **10→12** · 거짓 양성 **0건** 이고 들어온 둘은 전부
+# 실물 후보 줄에 **1:1 로 적중**한다. 더 넓은 안(`[^「]{0,30}`)은 **반증됐다** — 백지
+# 패스가 돌려 보니 방법론 인용 행(`plan_history_086`)에서 리터럴 「제목」을 뽑아 실물
+# 테스트를 **RED 로 만든다**(거짓 양성). 좁은 문자 클래스는 취향이 아니라 실측이다.
+OPENED_PICK = re.compile(r"다음 계획 후보[`」]?\s*(?:의|에서)?\s*"
                          r"(?:`?\[(?:\d+|high|medium)\]`?\s*)?「([^」]+)」")
 # `digest` 취소선 줄이 다는 **마감 관용구**. `STRIKE_POINTER` 가 *열린* 줄에 요구하던
 # 「를 열었다」는 실물이 0으로 말랐지만(계획 111 의 근거) 이쪽은 **취소선 5줄 5/5** 가
@@ -635,13 +644,19 @@ def open_gap(digest_text, index_text):
     # 남은 것이 **이 자가 실제로 대조하는 전부**라, 하한도 여기에 박는다.
     compared = [(slug, title, [l for l in lines if title in l])
                 for slug, title in opened_candidates(index_text)]
-    compared = [(slug, title, hit[0]) for slug, title, hit in compared if hit]
+    # **적중 줄을 전부 들고 간다** — `hit[0]` 으로 좁히면 거짓 초록 경로가 열린다.
+    # `OPENED_PICK` 의 제목은 중첩 낫표에서 **접두만** 뽑히므로(`[^」]+` 가 첫 `」` 에서
+    # 멈춘다) 접두를 공유하는 후보 줄이 둘 이상일 수 있고, 앞엣것이 **그어져 있으면**
+    # 뒤의 열린 줄이 묵살된다. 합성으로 재연된다(`OpenGapTest` 의 접두 충돌 축).
+    # 실물은 2026-11-04 반복 815 실측으로 추출 12 중 **접두가 잘린 쌍 3** · 충돌 **0** 이다 —
+    # 즉 오늘은 조용하고, 조용한 채로 **이 파일이 막으려는 병과 같은 꼴**이라 닫았다.
+    compared = [(slug, title, hit) for slug, title, hit in compared if hit]
     if len(compared) < OPENED_FLOOR:
         return ("완료 행의 후보 제목 중 digest 후보 절에 남아 대조된 것이 %d 자리뿐이다"
                 " — 하한 %d. 이 자가 표본 0으로 조용해지는 것이 계획 111 의 근거였다"
                 % (len(compared), OPENED_FLOOR))
-    for slug, title, line in compared:
-        if not line.startswith("- ~~"):
+    for slug, title, hits in compared:
+        if any(not line.startswith("- ~~") for line in hits):
             return ("집어간 후보에 취소선이 없다 — index.md `%s` 는 `완료` 인데 digest"
                     " 후보 줄 「%s」 가 `- ~~` 로 시작하지 않는다" % (slug, title))
     return None
@@ -2547,6 +2562,13 @@ class OpenGapTest(unittest.TestCase):
     SCORELESS_ROW = ("| plan_%s | 완료 | loop/x | 1/1 | 통과 | **99.** 탐색 **6순위** — "
                      "`digest ## 다음 계획 후보` 의 「%s」 를 집었다 |")
 
+    # 절 이름을 백틱이 아니라 **낫표로 닫은** 꼴. 실물에서 **둘**이 이렇게 적는다
+    # (2026-11-04 반복 812 실측: 착수 관용구를 단 완료 행 49 중 제목 추출 10 ·
+    # 못 뽑음 39 · 그중 이 꼴이 2 — `plan_plan-scope-gap`·`plan_mutant-anchor-unique`).
+    # 그 둘 중 하나가 **닫힌 지 사흘 된 후보를 열어 둔 채**였고 전수 1102 는 초록이었다.
+    QUOTED_ROW = ("| plan_%s | 완료 | loop/x | 1/1 | 통과 | **99.** 탐색 **6순위** — "
+                  "`digest.md` 「다음 계획 후보」 `[7]`「%s」 를 집었다 |")
+
     def _index(self, n=3, title="어떤 자리"):
         return "\n".join(self.ROW % ("s%d" % i, title) for i in range(n))
 
@@ -2625,6 +2647,93 @@ class OpenGapTest(unittest.TestCase):
         self.assertIsNotNone(gap, "점수 없는 완료 행이 모집단에서 빠져 열린 후보가 숨었다")
         self.assertIn("취소선이 없다", gap)
         self.assertIn("숨은 자리", gap)
+
+
+    def test_a_row_quoting_the_section_name_is_counted(self):
+        """절 이름을 **낫표로 닫은** 완료 행도 모집단에 든다.
+
+        바로 위 `SCORELESS_ROW` 축과 **같은 사고에 원인이 다르다** — 저쪽은 점수를
+        안 적어 못 뽑히고, 이쪽은 **제목을 적었는데도** 못 뽑힌다(절 이름 뒤가
+        `` ` `` 가 아니라 `」` 라 정규식의 닻이 안 붙는다). 실물의 조용한 초록을
+        그대로 재연한 자리다(2026-11-04: `plan_mutant-anchor-unique` 가 집어간
+        후보를 계획 131 이 닫았는데 취소선이 사흘 없었고 전수 1102 가 초록이었다).
+        """
+        index = "\n".join([self.ROW % ("s0", "닫힌 자리"),
+                           self.ROW % ("s1", "닫힌 자리"),
+                           self.QUOTED_ROW % ("s2", "숨은 자리")])
+        digest = ("## 다음 계획 후보\n\n"
+                  "- ~~[7] **닫힌 자리**~~ 닫혔다 — 계획 99 `s0`.\n"
+                  "- [7] **숨은 자리** (2026-11-04 실측)\n")
+        gap = open_gap(digest, index)
+        self.assertIsNotNone(gap, "절 이름을 낫표로 닫은 완료 행이 모집단에서 빠졌다")
+        self.assertIn("취소선이 없다", gap)
+        self.assertIn("숨은 자리", gap)
+
+    def test_a_quoted_title_with_an_inner_pair_matches_by_its_prefix(self):
+        """제목 안에 낫표가 또 있으면 **접두만** 뽑히는데 그래도 실물 줄을 찾는다.
+
+        `OPENED_PICK` 의 `[^」]+` 가 첫 `」` 에서 멈추므로 추출값이 제목의 접두다.
+        대조가 부분 문자열이라 **오늘 판정이 옳다** — 2026-11-04 반복 815 실측으로
+        추출 12 중 **접두가 잘린 쌍이 3**(그중 하나는 적중 0 으로 설계대로 빠지고
+        둘은 1줄씩 적중) · **접두 충돌 0건**. 좁히면 안 뽑히던 줄을 다시 안 뽑으므로
+        천장으로 못만 박고 안 고친다 — 실물이 바로 이 꼴이다
+        (「변이 하네스의 「심긴 것을 먼저 단언한다」가 …」). **충돌이 났을 때**
+        조용해지지 않는 것은 아래 `..._prefix_collision_...` 이 따로 맡는다.
+        """
+        index = "\n".join([self.ROW % ("s0", "닫힌 자리"),
+                           self.ROW % ("s1", "닫힌 자리"),
+                           self.QUOTED_ROW % ("s2", "겉 「속」 뒤")])
+        digest = ("## 다음 계획 후보\n\n"
+                  "- ~~[7] **닫힌 자리**~~ 닫혔다 — 계획 99 `s0`.\n"
+                  "- [7] **겉 「속」 뒤** (2026-11-04 실측)\n")
+        gap = open_gap(digest, index)
+        self.assertIn("취소선이 없다", gap)
+        self.assertIn("겉 「속", gap)
+
+    def test_the_pick_regex_reads_a_quoted_section_name(self):
+        """정규식에 **직접** 못을 박는다 — 위 두 축은 픽스처 상수를 거쳐서만 잰다.
+
+        2026-11-04 변이 M4 가 그것을 보였다: `QUOTED_ROW` 의 절 이름을 백틱 꼴로
+        바꿔도 **전수가 초록**이다(백틱 꼴은 완화 전에도 뽑히므로 그 축이 그대로
+        통과한다). 픽스처가 상해도 **완화 자체는** 여기서 붙들린다.
+        """
+        hit = OPENED_PICK.search("`digest.md` 「다음 계획 후보」 `[7]`「어떤 자리」")
+        self.assertIsNotNone(hit, "절 이름을 낫표로 닫은 꼴에서 제목이 안 뽑힌다")
+        self.assertEqual("어떤 자리", hit.group(1))
+        # 뒤에 낫표가 **또 오는** 실물 꼴. `[^」]+` 를 탐욕 `.+` 로 바꾸면 제목이 줄
+        # 끝까지 먹어 `title in line` 이 어긋나고 그 완료 행이 모집단에서 **조용히
+        # 빠진다** — 이 계획이 닫은 병과 같은 꼴이다(2026-11-04 변이 M5 생존).
+        hit = OPENED_PICK.search(
+            "`digest.md` 「다음 계획 후보」 `[7]`「어떤 자리」 를 집었다 「덧말」")
+        self.assertEqual("어떤 자리", hit.group(1))
+
+    def test_a_prefix_collision_does_not_silence_the_open_line(self):
+        """접두를 공유하는 후보 줄이 둘이면 **그어진 쪽이 열린 쪽을 가리지 않는다**.
+
+        중첩 낫표 제목은 접두만 뽑히므로(위 축) 한 제목이 후보 줄 여럿에 붙을 수
+        있다. 적중의 **첫 줄만** 보던 판에서는 앞엣것이 그어져 있으면 뒤의 열린 줄이
+        통째로 묵살돼 `None` 이 나왔다 — **이 파일이 막으려는 병과 같은 꼴**이다
+        (2026-11-04 반복 815 백지 패스가 합성으로 재연했다 · 실물 충돌은 0건).
+        """
+        index = "\n".join([self.ROW % ("s0", "닫힌 자리"),
+                           self.ROW % ("s1", "닫힌 자리"),
+                           self.QUOTED_ROW % ("s2", "겉 「속」 뒤")])
+        digest = ("## 다음 계획 후보\n\n"
+                  "- ~~[7] **닫힌 자리**~~ 닫혔다 — 계획 99 `s0`.\n"
+                  "- ~~[9] **겉 「속」 다른 것**~~ 닫혔다 — 계획 98 `s9`.\n"
+                  "- [7] **겉 「속」 뒤** (2026-11-04 실측)\n")
+        gap = open_gap(digest, index)
+        self.assertIsNotNone(gap, "그어진 앞줄이 열린 뒷줄을 가렸다")
+        self.assertIn("겉 「속", gap)
+
+    def test_an_empty_title_is_not_a_title(self):
+        """빈 낫표는 제목이 아니다 — 받으면 판정이 **엉뚱한 줄**로 간다.
+
+        `""` 는 모든 줄의 부분 문자열이라 `open_gap` 의 대조가 후보 절의 **첫 줄**에
+        붙는다. 그 줄이 그어져 있으면 거짓 초록, 안 그어져 있으면 **남의 제목을 대는**
+        거짓 RED 다. 2026-11-04 변이 M3(`[^」]+` → `[^」]*`)이 생존해서 박았다.
+        """
+        self.assertIsNone(OPENED_PICK.search("`digest ## 다음 계획 후보` 의 `[7]`「」"))
 
 
 class FalseStrikeGapTest(unittest.TestCase):
