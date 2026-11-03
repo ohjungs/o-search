@@ -95,3 +95,4 @@
 {"night_id":"2026-11-01","date":"2026-11-01","iterations":6,"red":0,"retries":0,"plans_done":1,"candidates_added":0,"self_edits":0,"stop":"헤드룸 판단","ctx":8,"ctx_window":1000000,"five_hour":13,"seven_day":12,"ctx_at":1792988499}
 {"night_id":"2026-11-02","date":"2026-11-02","iterations":8,"red":0,"retries":0,"plans_done":1,"candidates_added":6,"self_edits":0,"stop":"헤드룸 판단","ctx":10,"ctx_window":1000000,"five_hour":13,"seven_day":12,"ctx_at":1793516588}
 {"night_id":"2026-11-03","date":"2026-11-03","iterations":8,"red":0,"retries":0,"plans_done":1,"candidates_added":5,"self_edits":0,"stop":"헤드룸 판단","ctx":null,"ctx_window":1000000,"five_hour":null,"seven_day":null,"ctx_at":1793516588}
+{"night_id": "2026-11-04", "date": "2026-11-04", "iterations": 5, "red": 0, "retries": 0, "plans_done": 1, "candidates_added": 2, "self_edits": 1, "stop": "헤드룸 판단", "ctx": null, "ctx_window": 1000000, "five_hour": null, "seven_day": null, "ctx_at": 1793516588}
